@@ -47,6 +47,7 @@ let audioDirectory: URL = {
 }()
 let audio = AudioCaptureController(
     source: EngineAudioSource(), permissions: permissions, directory: audioDirectory, emit: output.send)
+let speech = TranscriptionController(recognizer: WhisperKitRecognizer(), reply: output.send)
 
 /// Stops the key listener and writes what is pending before the process ends.
 func finish(status: Int32, _ message: String) -> Never {
@@ -63,6 +64,7 @@ var host = HelperHost(
         permissions: permissions,
         hotkeys: hotkeys,
         audio: audio,
+        speech: speech,
         uptimeMs: HostInfo.uptimeProvider()))
 Log.info("started, helper \(ProtocolConstants.helperVersion), protocol \(ProtocolConstants.protocolVersion)")
 output.send(host.greeting())

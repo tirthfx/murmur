@@ -24,6 +24,9 @@ import {
   permissionsStatusRequestSchema,
   responseSchema,
   shutdownRequestSchema,
+  transcribeFileRequestSchema,
+  transcribeLoadRequestSchema,
+  transcribeUnloadRequestSchema,
   HELPER_REQUESTS,
   NdjsonDecoder,
 } from "./index";
@@ -83,6 +86,12 @@ function validateMessage(message: unknown): boolean {
       return audioLevelEventSchema.safeParse(message).success;
     case "audio.silent":
       return audioSilentEventSchema.safeParse(message).success;
+    case "transcribe.load":
+      return transcribeLoadRequestSchema.safeParse(message).success;
+    case "transcribe.unload":
+      return transcribeUnloadRequestSchema.safeParse(message).success;
+    case "transcribe.file":
+      return transcribeFileRequestSchema.safeParse(message).success;
     case "response": {
       const response = responseSchema.safeParse(message);
       if (!response.success) return false;

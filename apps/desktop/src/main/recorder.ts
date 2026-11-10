@@ -3,6 +3,7 @@ import type {
   AudioSilent,
   HotkeyEvent,
   PlatformHelper,
+  Transcript,
   Unsubscribe,
 } from "@murmur/shared";
 import type { Logger } from "./helper/types";
@@ -15,6 +16,10 @@ export interface RecorderDeps {
   logger: Logger;
   newSessionId: () => string;
   levelIntervalMs?: number;
+  /** Turns a recorded file into text. Without it, recordings are only logged. */
+  transcribe?: (path: string) => Promise<Transcript>;
+  /** Also log the recognised text. Off by default: logs never hold what was said. */
+  logTranscripts?: boolean;
 }
 
 export interface Recorder {
@@ -22,7 +27,7 @@ export interface Recorder {
   stop(): void;
   /** Hold-to-dictate: `down` starts a microphone session, `up` stops it. */
   handleHotkey(event: HotkeyEvent): void;
-  /** Resolves when every queued start and stop has been answered. For tests and shutdown. */
+  /** Resolves when every queued start, stop and transcription is done. For tests and shutdown. */
   idle(): Promise<void>;
 }
 
@@ -50,6 +55,8 @@ export function createRecorder(deps: RecorderDeps): Recorder {
   const { helper, logger } = deps;
   const levelIntervalMs = deps.levelIntervalMs ?? 100;
   let queue: Promise<void> = Promise.resolve();
+  // Transcriptions run on their own queue so the next recording never waits for one.
+  let transcriptions: Promise<void> = Promise.resolve();
   let current: Session | null = null;
   let subscriptions: Unsubscribe[] = [];
 
@@ -93,8 +100,25 @@ export function createRecorder(deps: RecorderDeps): Recorder {
         `captured ${seconds} s (${result.samples} samples at 16 kHz), peak ${result.peakDb} dB, mean ${result.meanDb} dB, ${session.levels} level events, ${file}`,
       );
       if (result.silent) logger.warn("nothing above the silence threshold was heard");
+      else if (result.audioFile && deps.transcribe) {
+        const file = result.audioFile.path;
+        transcriptions = transcriptions.then(() => transcribe(file));
+      }
     } catch (error) {
       logger.warn(`could not stop recording: ${errorMessage(error)}`);
+    }
+  }
+
+  async function transcribe(file: string): Promise<void> {
+    try {
+      const transcript = await deps.transcribe!(file);
+      const words = transcript.text.split(/\s+/).filter(Boolean).length;
+      logger.info(
+        `transcribed ${(transcript.audioMs / 1000).toFixed(2)} s in ${transcript.decodeMs} ms: ${words} words, language ${transcript.language || "unknown"}`,
+      );
+      if (deps.logTranscripts) logger.info(`text: ${transcript.text}`);
+    } catch (error) {
+      logger.warn(`could not transcribe: ${errorMessage(error)}`);
     }
   }
 
@@ -130,6 +154,9 @@ export function createRecorder(deps: RecorderDeps): Recorder {
       if (event.state === "down") enqueue(begin);
       else if (event.state === "up") enqueue(end);
     },
-    idle: () => queue,
+    idle: async () => {
+      await queue;
+      await transcriptions;
+    },
   };
 }

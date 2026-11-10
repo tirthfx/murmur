@@ -107,6 +107,8 @@ Hotkeys (the listen-only key listener, default bindings, manual key test): see `
 
 Microphone capture (where audio goes, gain and limiter, silent check, manual test): see `docs/audio.md`.
 
+Speech recognition (model download and SHA-256 check, offline loading, manual test): see `docs/speech.md`. Download the model with `npm run model:download`.
+
 ## Definition of done for a PR
 
 - Builds locally with the commands above.

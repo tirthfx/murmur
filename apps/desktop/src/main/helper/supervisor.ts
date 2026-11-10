@@ -18,6 +18,10 @@ import {
   type PermissionRequestResult,
   type PermissionSnapshot,
   type PlatformHelper,
+  type SpeechModelLoadInput,
+  type SpeechModelLoadResult,
+  type TranscribeFileInput,
+  type Transcript,
   type Unsubscribe,
 } from "@murmur/shared";
 import { DEFAULT_REQUEST_TIMEOUT_MS, HelperConnection } from "./connection";
@@ -36,6 +40,11 @@ function subscribe<T>(handlers: Set<(value: T) => void>, handler: (value: T) => 
     handlers.delete(handler);
   };
 }
+
+/** The first load compiles the model for the Neural Engine, which can take minutes. */
+export const SPEECH_LOAD_TIMEOUT_MS = 10 * 60_000;
+/** The helper applies its own decode timeout; this only catches a helper that went quiet. */
+export const TRANSCRIBE_TIMEOUT_MS = 2 * 60_000;
 
 /** Where the helper binary is, or why there is none. */
 export type HelperBinary = { path: string } | { path: null; message: string };
@@ -207,6 +216,27 @@ export class HelperSupervisor implements PlatformHelper {
       return Promise.reject(new HelperError("HELPER_UNAVAILABLE", "The helper is not running"));
     }
     return this.connection.request("audio.cancel", { sessionId });
+  }
+
+  loadSpeechModel(input: SpeechModelLoadInput): Promise<SpeechModelLoadResult> {
+    if (!this.connection || this.status.state !== "ready") {
+      return Promise.reject(new HelperError("HELPER_UNAVAILABLE", "The helper is not running"));
+    }
+    return this.connection.request("transcribe.load", input, SPEECH_LOAD_TIMEOUT_MS);
+  }
+
+  async unloadSpeechModel(): Promise<void> {
+    if (!this.connection || this.status.state !== "ready") {
+      throw new HelperError("HELPER_UNAVAILABLE", "The helper is not running");
+    }
+    await this.connection.request("transcribe.unload", {});
+  }
+
+  transcribeFile(input: TranscribeFileInput): Promise<Transcript> {
+    if (!this.connection || this.status.state !== "ready") {
+      return Promise.reject(new HelperError("HELPER_UNAVAILABLE", "The helper is not running"));
+    }
+    return this.connection.request("transcribe.file", input, TRANSCRIBE_TIMEOUT_MS);
   }
 
   onAudioLevel(handler: (level: AudioLevel) => void): Unsubscribe {

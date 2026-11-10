@@ -7,6 +7,12 @@ import type {
   AudioStopResult,
 } from "./audio";
 import type { HelloPayload } from "./helper-protocol";
+import type {
+  SpeechModelLoadInput,
+  SpeechModelLoadResult,
+  TranscribeFileInput,
+  Transcript,
+} from "./speech";
 import type { HotkeyBinding, HotkeyConfigureResult, HotkeyEvent, HotkeyTapStatus } from "./hotkeys";
 import type { PermissionKind, PermissionRequestResult, PermissionSnapshot } from "./permissions";
 
@@ -71,6 +77,11 @@ export interface PlatformHelper {
   cancelAudio(sessionId: string): Promise<{ discarded: boolean }>;
   onAudioLevel(handler: (level: AudioLevel) => void): Unsubscribe;
   onAudioSilent(handler: (silent: AudioSilent) => void): Unsubscribe;
+  /** Loads a speech model from local folders. The first load can take minutes. */
+  loadSpeechModel(input: SpeechModelLoadInput): Promise<SpeechModelLoadResult>;
+  unloadSpeechModel(): Promise<void>;
+  /** Transcribes a recorded file on the device. No network is used. */
+  transcribeFile(input: TranscribeFileInput): Promise<Transcript>;
   getStatus(): HelperStatus;
   onStatusChange(handler: (status: HelperStatus) => void): Unsubscribe;
 }
