@@ -9,8 +9,35 @@ const helperStatus = { state: "ready", helperVersion: "0.1.0", message: null } a
 function setup() {
   const getAppInfo = vi.fn(() => info);
   const getHelperStatus = vi.fn(() => helperStatus);
-  const handle = createIpcHandler({ entryUrl, getAppInfo, getHelperStatus });
-  return { handle, getAppInfo, getHelperStatus };
+  const permissionsInfo = {
+    statuses: {
+      microphone: "granted",
+      accessibility: "denied",
+      inputMonitoring: "not_determined",
+      screenRecording: "unknown",
+    },
+    message: null,
+  } as const;
+  const getPermissions = vi.fn(() => Promise.resolve(permissionsInfo));
+  const requestPermission = vi.fn(() => Promise.resolve(permissionsInfo));
+  const openPermissionSettings = vi.fn(() => Promise.resolve());
+  const handle = createIpcHandler({
+    entryUrl,
+    getAppInfo,
+    getHelperStatus,
+    getPermissions,
+    requestPermission,
+    openPermissionSettings,
+  });
+  return {
+    handle,
+    getAppInfo,
+    getHelperStatus,
+    getPermissions,
+    requestPermission,
+    openPermissionSettings,
+    permissionsInfo,
+  };
 }
 
 describe("createIpcHandler", () => {
@@ -62,5 +89,56 @@ describe("createIpcHandler", () => {
       /untrusted sender/,
     );
     expect(getAppInfo).not.toHaveBeenCalled();
+  });
+});
+
+describe("permission channels", () => {
+  const sender = { senderFrame: { url: entryUrl } };
+
+  it("getPermissions returns the service result", async () => {
+    const { handle, getPermissions, permissionsInfo } = setup();
+    await expect(handle(IPC_CHANNELS.getPermissions, sender, [])).resolves.toEqual(permissionsInfo);
+    expect(getPermissions).toHaveBeenCalledOnce();
+  });
+
+  it("requestPermission passes a requestable kind through", async () => {
+    const { handle, requestPermission } = setup();
+    await handle(IPC_CHANNELS.requestPermission, sender, ["accessibility"]);
+    expect(requestPermission).toHaveBeenCalledExactlyOnceWith("accessibility");
+  });
+
+  it("requestPermission refuses Screen Recording and unknown kinds", () => {
+    const { handle, requestPermission } = setup();
+    for (const args of [["screenRecording"], ["camera"], [], [{}], ["microphone", "x"]]) {
+      expect(() => handle(IPC_CHANNELS.requestPermission, sender, args)).toThrow(/invalid-args/);
+    }
+    expect(requestPermission).not.toHaveBeenCalled();
+  });
+
+  it("permission calls from an untrusted sender do nothing", () => {
+    const { handle, getPermissions, requestPermission, openPermissionSettings } = setup();
+    const evil = { senderFrame: { url: "https://example.com/" } };
+    expect(() => handle(IPC_CHANNELS.getPermissions, evil, [])).toThrow(/untrusted sender/);
+    expect(() => handle(IPC_CHANNELS.requestPermission, evil, ["microphone"])).toThrow(
+      /untrusted sender/,
+    );
+    expect(() => handle(IPC_CHANNELS.openPermissionSettings, evil, ["microphone"])).toThrow(
+      /untrusted sender/,
+    );
+    expect(getPermissions).not.toHaveBeenCalled();
+    expect(requestPermission).not.toHaveBeenCalled();
+    expect(openPermissionSettings).not.toHaveBeenCalled();
+  });
+
+  it("openPermissionSettings takes a permission kind, never a URL", async () => {
+    const { handle, openPermissionSettings } = setup();
+    await handle(IPC_CHANNELS.openPermissionSettings, sender, ["screenRecording"]);
+    expect(openPermissionSettings).toHaveBeenCalledExactlyOnceWith("screenRecording");
+    for (const arg of ["x-apple.systempreferences:com.apple.preference.security", "https://a.b"]) {
+      expect(() => handle(IPC_CHANNELS.openPermissionSettings, sender, [arg])).toThrow(
+        /invalid-args/,
+      );
+    }
+    expect(openPermissionSettings).toHaveBeenCalledOnce();
   });
 });

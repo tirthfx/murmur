@@ -10,6 +10,10 @@ const config: ForgeConfig = {
   packagerConfig: {
     name: "Murmur",
     asar: true,
+    // macOS shows this text in the microphone prompt. Without it the prompt cannot appear.
+    extendInfo: {
+      NSMicrophoneUsageDescription: "Murmur listens to your voice so it can turn it into text.",
+    },
   },
   hooks: {
     // Copies the built helper to Contents/Resources/helper/murmur-helper. If the helper

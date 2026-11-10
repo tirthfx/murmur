@@ -432,3 +432,61 @@ describe("spawn failure", () => {
     expect(supervisor.getStatus().state).toBe("error");
   });
 });
+
+describe("permissions", () => {
+  const statuses = {
+    microphone: "granted",
+    accessibility: "denied",
+    inputMonitoring: "not_determined",
+    screenRecording: "unknown",
+  };
+
+  it("checkPermissions sends permissions.status and returns the validated snapshot", async () => {
+    const { supervisor, spawner } = await startReady();
+    const helper = spawner.processes[0]!;
+    const result = supervisor.checkPermissions();
+    await flush();
+    const request = helper.lastRequest("permissions.status")!;
+    expect(request.payload).toEqual({});
+    helper.respondOk(request, statuses);
+    await expect(result).resolves.toEqual(statuses);
+  });
+
+  it("checkPermissions rejects a malformed result", async () => {
+    const { supervisor, spawner } = await startReady();
+    const helper = spawner.processes[0]!;
+    const result = supervisor.checkPermissions();
+    await flush();
+    helper.respondOk(helper.lastRequest("permissions.status")!, { microphone: "granted" });
+    await expect(result).rejects.toMatchObject({ code: "INVALID_PAYLOAD" });
+  });
+
+  it("requestPermission sends the kind and returns the result", async () => {
+    const { supervisor, spawner } = await startReady();
+    const helper = spawner.processes[0]!;
+    const result = supervisor.requestPermission("inputMonitoring");
+    await flush();
+    const request = helper.lastRequest("permissions.request")!;
+    expect(request.payload).toEqual({ kind: "inputMonitoring" });
+    helper.respondOk(request, { status: "not_determined", openedSettings: false });
+    await expect(result).resolves.toEqual({ status: "not_determined", openedSettings: false });
+  });
+
+  it("requestPermission never sends Screen Recording to the helper", async () => {
+    const { supervisor, spawner } = await startReady();
+    await expect(supervisor.requestPermission("screenRecording")).rejects.toMatchObject({
+      code: "INVALID_PAYLOAD",
+    });
+    expect(spawner.processes[0]!.lastRequest("permissions.request")).toBeUndefined();
+  });
+
+  it("both calls reject as unavailable when the helper is not running", async () => {
+    const { supervisor } = setup();
+    await expect(supervisor.checkPermissions()).rejects.toMatchObject({
+      code: "HELPER_UNAVAILABLE",
+    });
+    await expect(supervisor.requestPermission("microphone")).rejects.toMatchObject({
+      code: "HELPER_UNAVAILABLE",
+    });
+  });
+});
