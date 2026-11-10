@@ -1,0 +1,72 @@
+import { DatabaseSync } from "node:sqlite";
+import { describe, expect, it } from "vitest";
+import { MIGRATIONS, openDatabase } from "./database";
+import { migrateDown, migrateUp, orderMigrations, parseMigration, schemaVersion } from "./migrate";
+
+function tables(db: DatabaseSync): string[] {
+  return (
+    db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").all() as {
+      name: string;
+    }[]
+  ).map((row) => row.name);
+}
+
+describe("migrations", () => {
+  it("runs up, records the version, and runs down cleanly", () => {
+    const db = new DatabaseSync(":memory:");
+    expect(migrateUp(db, MIGRATIONS, 1000)).toEqual([1]);
+    expect(schemaVersion(db)).toBe(1);
+    expect(tables(db)).toEqual(["audio_chunks", "history", "schema_migrations", "settings"]);
+    const row = db.prepare("SELECT version, name, applied_at FROM schema_migrations").get();
+    expect(row).toEqual({ version: 1, name: "0001_core_settings_dictation", applied_at: 1000 });
+
+    expect(migrateDown(db, MIGRATIONS, 0)).toEqual([1]);
+    expect(schemaVersion(db)).toBe(0);
+    expect(tables(db)).toEqual(["schema_migrations"]);
+
+    expect(migrateUp(db, MIGRATIONS)).toEqual([1]);
+    expect(migrateUp(db, MIGRATIONS)).toEqual([]);
+  });
+
+  it("refuses a migration edited after it was applied", () => {
+    const db = new DatabaseSync(":memory:");
+    migrateUp(db, MIGRATIONS);
+    const edited = [{ ...MIGRATIONS[0]!, checksum: "different" }];
+    expect(() => migrateUp(db, edited)).toThrow("was edited after it was applied");
+  });
+
+  it("refuses a database from a newer app", () => {
+    const db = new DatabaseSync(":memory:");
+    const extra = parseMigration(
+      "0002_extra.sql",
+      "-- migrate:up\nCREATE TABLE x (a);\n-- migrate:down\nDROP TABLE x;",
+    );
+    migrateUp(db, [...MIGRATIONS, extra]);
+    expect(() => migrateUp(db, MIGRATIONS)).toThrow("does not know");
+  });
+
+  it("rolls a failing migration back and leaves the version alone", () => {
+    const db = new DatabaseSync(":memory:");
+    migrateUp(db, MIGRATIONS);
+    const broken = parseMigration(
+      "0002_broken.sql",
+      "-- migrate:up\nCREATE TABLE half (a);\nCREATE TABLE settings (a);\n-- migrate:down\nDROP TABLE half;",
+    );
+    expect(() => migrateUp(db, [...MIGRATIONS, broken])).toThrow();
+    expect(schemaVersion(db)).toBe(1);
+    expect(tables(db)).not.toContain("half");
+  });
+
+  it("checks file names, sections and numbering", () => {
+    expect(() => parseMigration("1_bad.sql", "-- migrate:up\n-- migrate:down")).toThrow("NNNN");
+    expect(() => parseMigration("0001_ok.sql", "CREATE TABLE x (a);")).toThrow("sections");
+    const two = parseMigration("0002_two.sql", "-- migrate:up\n-- migrate:down");
+    expect(() => orderMigrations([two])).toThrow("no gaps");
+  });
+
+  it("opens with the house pragmas", () => {
+    const db = openDatabase(":memory:");
+    expect(db.prepare("PRAGMA foreign_keys").get()).toEqual({ foreign_keys: 1 });
+    expect(db.prepare("PRAGMA busy_timeout").get()).toEqual({ timeout: 5000 });
+  });
+});

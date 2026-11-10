@@ -9,7 +9,7 @@ import type {
 } from "@murmur/shared";
 import { createTestLogger } from "./helper/fakes";
 import { HelperError } from "./helper/types";
-import { createRecorder } from "./recorder";
+import { createRecorder, type DictationRecord } from "./recorder";
 
 const stopResult: AudioStopResult = {
   durationMs: 10020,
@@ -349,5 +349,59 @@ describe("recorder", () => {
     expect(insert).toHaveBeenCalledWith("So we go.");
     expect(events.at(-1)).toEqual({ type: "transcribed", words: 3 });
     expect(logger.lines).toContain("info: cleanup: model in 420 ms");
+  });
+
+  it("hands every finished dictation to history: inserted, failed, retried and empty", async () => {
+    const records: DictationRecord[] = [];
+    const transcribe = vi
+      .fn()
+      .mockRejectedValueOnce(new HelperError("TRANSCRIPTION_TIMEOUT", "slow"))
+      .mockResolvedValue({
+        text: "Hello there",
+        language: "en",
+        segments: [],
+        decodeMs: 1,
+        audioMs: 1,
+      });
+    const insert = vi.fn(async () => ({
+      method: "paste_cmd_v" as const,
+      delivered: true,
+      clipboardRestored: true,
+    }));
+    let id = 0;
+    const { recorder, helper } = setup({
+      transcribe,
+      insert,
+      now: () => 5_000,
+      record: (dictation) => {
+        records.push(dictation);
+        return `h${++id}`;
+      },
+    });
+    recorder.handleHotkey(key("down"));
+    recorder.handleHotkey(key("up"));
+    await recorder.idle();
+    recorder.retryLast();
+    await recorder.idle();
+    helper.stopAudio.mockResolvedValueOnce({ ...stopResult, silent: true });
+    recorder.handleHotkey(key("down"));
+    recorder.handleHotkey(key("up"));
+    await recorder.idle();
+
+    expect(records.map((r) => [r.source, r.insertStatus, r.errorCode, r.retryOf])).toEqual([
+      ["hold", "failed", "TRANSCRIPTION_TIMEOUT", null],
+      ["retry", "inserted", null, "h1"],
+      ["hold", "empty", null, null],
+    ]);
+    expect(records[1]).toMatchObject({
+      rawText: "Hello there",
+      finalText: "Hello there",
+      wordCount: 2,
+      language: "en",
+      insertMethod: "paste_cmd_v",
+      durationMs: 10020,
+      createdAt: 5_000,
+      audio: { path: "/tmp/a.pcm", codec: "pcm_s16le", durationMs: 10020 },
+    });
   });
 });
