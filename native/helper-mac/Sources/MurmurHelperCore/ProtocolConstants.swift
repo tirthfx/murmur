@@ -1,0 +1,12 @@
+/// Constants that must match the TypeScript side. A test in `packages/shared`
+/// reads this file and fails if `protocolVersion` drifts from `PROTOCOL_VERSION`.
+public enum ProtocolConstants {
+    /// Integer protocol version. Changes only for breaking protocol changes.
+    public static let protocolVersion = 1
+
+    /// Version of this helper build, reported in the `hello` event.
+    public static let helperVersion = "0.1.0"
+
+    /// Longest accepted line in bytes, terminator excluded (1 MiB).
+    public static let maxLineBytes = 1_048_576
+}
