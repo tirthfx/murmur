@@ -17,6 +17,7 @@ const mac: KeyPlatform = {
   capsLock: MAC_CAPS_LOCK,
   functionKeys: MAC_FUNCTION_KEYS,
   reserved: MAC_RESERVED,
+  cancelKeyCode: 53,
 };
 
 const rightOption: HotkeyTrigger = { type: "key", keyCode: 61, modifiers: [] };

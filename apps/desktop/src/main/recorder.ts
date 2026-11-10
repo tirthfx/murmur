@@ -8,12 +8,14 @@ import type {
   Unsubscribe,
 } from "@murmur/shared";
 import type { CleanupResult } from "./cleanup/cleanup-service";
-import type { Logger } from "./helper/types";
+import { DictationGesture, type GestureCommand } from "./gesture";
+import { systemClock } from "./helper/node-runtime";
+import type { Clock, Logger } from "./helper/types";
 
 export interface RecorderDeps {
   helper: Pick<
     PlatformHelper,
-    "startAudio" | "stopAudio" | "onAudioLevel" | "onAudioSilent" | "onStatusChange"
+    "startAudio" | "stopAudio" | "cancelAudio" | "onAudioLevel" | "onAudioSilent" | "onStatusChange"
   >;
   logger: Logger;
   newSessionId: () => string;
@@ -37,6 +39,8 @@ export interface RecorderDeps {
   /** Stores a finished dictation (history). Returns the row id. */
   record?: (record: DictationRecord) => string | null;
   now?: () => number;
+  /** Timers for the double-tap window. */
+  clock?: Clock;
 }
 
 /** One finished dictation, as the history store keeps it. */
@@ -74,6 +78,8 @@ type InsertOutcome = Pick<DictationRecord, "insertStatus"> &
 /** A dictation's steps, as the Bar needs them. Never carries what was said. */
 export type RecorderEvent =
   | { type: "started"; at: number }
+  | { type: "locked" }
+  | { type: "cancelled" }
   | { type: "start-failed"; message: string }
   | { type: "stopped" }
   | { type: "silent-mic"; deviceName: string }
@@ -87,7 +93,10 @@ export type RecorderEvent =
 export interface Recorder {
   start(): void;
   stop(): void;
-  /** Hold-to-dictate: `down` starts a microphone session, `up` stops it. */
+  /**
+   * Dictation keys: hold to talk, double tap or the hands-free shortcut to lock, Escape to
+   * cancel. See `DictationGesture`.
+   */
   handleHotkey(event: HotkeyEvent): void;
   /** Transcribes the last recording that failed to transcribe. False when there is none. */
   retryLast(): boolean;
@@ -126,6 +135,29 @@ export function createRecorder(deps: RecorderDeps): Recorder {
   let lastFailed: { take: Take; historyId: string | null } | null = null;
   const now = deps.now ?? Date.now;
   const emit = (event: RecorderEvent) => deps.onEvent?.(event);
+  const gesture = new DictationGesture(deps.clock ?? systemClock, (command) => perform(command));
+
+  function perform(command: GestureCommand): void {
+    switch (command) {
+      case "start":
+        enqueue(begin);
+        return;
+      case "stop":
+        enqueue(end);
+        return;
+      case "lock":
+        // Queued like start and stop, so the Bar sees "started" before "locked".
+        enqueue(async () => {
+          if (!current) return;
+          logger.info("hands-free on");
+          emit({ type: "locked" });
+        });
+        return;
+      case "cancel":
+        enqueue(cancelSession);
+        return;
+    }
+  }
 
   function enqueue(step: () => Promise<void>): void {
     queue = queue.then(step, step);
@@ -201,6 +233,20 @@ export function createRecorder(deps: RecorderDeps): Recorder {
     } catch (error) {
       logger.warn(`could not stop recording: ${errorMessage(error)}`);
       emit({ type: "stop-failed" });
+    }
+  }
+
+  /** Escape: discard the recording, insert nothing. */
+  async function cancelSession(): Promise<void> {
+    const session = current;
+    if (!session) return;
+    current = null;
+    emit({ type: "cancelled" });
+    try {
+      await helper.cancelAudio(session.id);
+      logger.info("dictation cancelled; the recording was discarded");
+    } catch (error) {
+      logger.warn(`could not cancel the recording: ${errorMessage(error)}`);
     }
   }
 
@@ -337,8 +383,11 @@ export function createRecorder(deps: RecorderDeps): Recorder {
         helper.onAudioLevel(handleLevel),
         helper.onAudioSilent(handleSilent),
         helper.onStatusChange((status) => {
-          // A restarted helper has no session; forget ours.
-          if (status.state !== "ready") current = null;
+          // A restarted helper has no session; forget ours, and any lock.
+          if (status.state !== "ready") {
+            current = null;
+            gesture.reset();
+          }
         }),
       ];
     },
@@ -347,10 +396,14 @@ export function createRecorder(deps: RecorderDeps): Recorder {
       subscriptions = [];
     },
     handleHotkey(event) {
-      if (event.action !== "dictate.hold") return;
-      // Every press gets a session, however short; later steps decide what to keep.
-      if (event.state === "down") enqueue(begin);
-      else if (event.state === "up") enqueue(end);
+      if (event.action === "dictate.hold") {
+        if (event.state === "down") gesture.holdDown(event.at);
+        else if (event.state === "up") gesture.holdUp(event.at);
+      } else if (event.action === "dictate.toggle" && event.state !== "up") {
+        gesture.toggle();
+      } else if (event.action === "dictate.cancel" && event.state !== "up") {
+        gesture.cancel();
+      }
     },
     retryLast() {
       const failed = lastFailed;

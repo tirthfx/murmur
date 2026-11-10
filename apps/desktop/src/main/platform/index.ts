@@ -23,6 +23,7 @@ export function keyPlatform(platform: NodeJS.Platform): KeyPlatform {
       capsLock: MAC_CAPS_LOCK,
       functionKeys: MAC_FUNCTION_KEYS,
       reserved: MAC_RESERVED,
+      cancelKeyCode: 53,
     };
   }
   return {
@@ -32,6 +33,7 @@ export function keyPlatform(platform: NodeJS.Platform): KeyPlatform {
     capsLock: -1,
     functionKeys: new Set(),
     reserved: [],
+    cancelKeyCode: null,
   };
 }
 

@@ -7,7 +7,7 @@ import type {
   HelperStatus,
   HotkeyEvent,
 } from "@murmur/shared";
-import { createTestLogger } from "./helper/fakes";
+import { FakeClock, createTestLogger } from "./helper/fakes";
 import { HelperError } from "./helper/types";
 import { createRecorder, type DictationRecord } from "./recorder";
 
@@ -20,11 +20,13 @@ const stopResult: AudioStopResult = {
   audioFile: { path: "/tmp/a.pcm", codec: "pcm_s16le", bytes: 320640 },
 };
 
+/** A long press by default (down at 0, up at 1 s), so it is push-to-talk, not a tap. */
 function key(
   state: HotkeyEvent["state"],
   action: HotkeyEvent["action"] = "dictate.hold",
+  at = state === "up" ? 1_000 : 0,
 ): HotkeyEvent {
-  return { bindingId: "dictate-hold", action, state, at: 1 };
+  return { bindingId: "dictate-hold", action, state, at };
 }
 
 function setup(options: Partial<Parameters<typeof createRecorder>[0]> = {}) {
@@ -45,6 +47,10 @@ function setup(options: Partial<Parameters<typeof createRecorder>[0]> = {}) {
     stopAudio: vi.fn(async (sessionId: string) => {
       calls.push(`stop ${sessionId}`);
       return stopResult;
+    }),
+    cancelAudio: vi.fn(async (sessionId: string) => {
+      calls.push(`cancel ${sessionId}`);
+      return { discarded: true };
     }),
     onAudioLevel: (handler: (level: AudioLevel) => void) => {
       levelHandlers.add(handler);
@@ -430,5 +436,93 @@ describe("recorder", () => {
     recorder.handleHotkey(key("down"));
     await recorder.idle();
     expect(helper.startAudio.mock.calls.at(-1)![0]).toMatchObject({ deviceId: null });
+  });
+
+  it("hands-free: double tap locks, the next tap stops and inserts exactly once", async () => {
+    const events: { type: string }[] = [];
+    const transcribe = vi.fn(async () => ({
+      text: "Hi",
+      language: "en",
+      segments: [],
+      decodeMs: 1,
+      audioMs: 1,
+    }));
+    const insert = vi.fn(async () => ({
+      method: "paste_cmd_v" as const,
+      delivered: true,
+      clipboardRestored: true,
+    }));
+    const clock = new FakeClock();
+    const { recorder, calls } = setup({
+      transcribe,
+      insert,
+      clock,
+      onEvent: (event) => events.push(event),
+    });
+    recorder.handleHotkey(key("down", "dictate.hold", 0));
+    recorder.handleHotkey(key("up", "dictate.hold", 100));
+    recorder.handleHotkey(key("down", "dictate.hold", 250));
+    recorder.handleHotkey(key("up", "dictate.hold", 320));
+    await clock.advance(5_000);
+    await recorder.idle();
+    expect(calls).toEqual(["start s1"]);
+    expect(events.map((event) => event.type)).toEqual(["started", "locked"]);
+
+    recorder.handleHotkey(key("down", "dictate.hold", 9_000));
+    recorder.handleHotkey(key("up", "dictate.hold", 9_080));
+    await clock.advance(1_000);
+    await recorder.idle();
+    expect(calls).toEqual(["start s1", "stop s1"]);
+    expect(insert).toHaveBeenCalledTimes(1);
+  });
+
+  it("the hands-free shortcut starts locked and stops on the next press", async () => {
+    const clock = new FakeClock();
+    const { recorder, calls } = setup({ clock });
+    recorder.handleHotkey({
+      bindingId: "dictate-toggle",
+      action: "dictate.toggle",
+      state: "press",
+      at: 0,
+    });
+    await recorder.idle();
+    recorder.handleHotkey({
+      bindingId: "dictate-toggle",
+      action: "dictate.toggle",
+      state: "press",
+      at: 5_000,
+    });
+    await recorder.idle();
+    expect(calls).toEqual(["start s1", "stop s1"]);
+  });
+
+  it("Escape discards the recording and inserts nothing", async () => {
+    const events: { type: string }[] = [];
+    const transcribe = vi.fn();
+    const clock = new FakeClock();
+    const { recorder, calls } = setup({
+      transcribe,
+      clock,
+      onEvent: (event) => events.push(event),
+    });
+    recorder.handleHotkey({
+      bindingId: "dictate-cancel",
+      action: "dictate.cancel",
+      state: "press",
+      at: 0,
+    });
+    recorder.handleHotkey(key("down"));
+    await recorder.idle();
+    recorder.handleHotkey({
+      bindingId: "dictate-cancel",
+      action: "dictate.cancel",
+      state: "press",
+      at: 500,
+    });
+    recorder.handleHotkey(key("up"));
+    await recorder.idle();
+    expect(calls).toEqual(["start s1", "cancel s1"]);
+    expect(transcribe).not.toHaveBeenCalled();
+    expect(events.map((event) => event.type)).toEqual(["started", "cancelled"]);
   });
 });

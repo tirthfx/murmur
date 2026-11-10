@@ -91,6 +91,12 @@ describe("settings service", () => {
       action: "dictate.toggle",
       mode: "press",
     });
+    expect(bindingsFor(defaults, 53).at(-1)).toEqual({
+      id: "dictate-cancel",
+      action: "dictate.cancel",
+      trigger: { type: "key", keyCode: 53, modifiers: [] },
+      mode: "press",
+    });
     expect(deviceFor(defaults)).toBeNull();
     expect(deviceFor({ ...defaults, inputDevice: "USB-1" })).toBe("USB-1");
     expect(languagesFor(defaults)).toEqual([]);

@@ -55,4 +55,12 @@ describe("dictation steps on the Bar", () => {
       "warning",
     ]);
   });
+
+  it("hands-free shows locked, and Escape shows cancelled", () => {
+    expect(play([{ type: "started", at: 1 }, { type: "locked" }, { type: "cancelled" }])).toEqual([
+      "listening",
+      "locked",
+      "cancelled",
+    ]);
+  });
 });

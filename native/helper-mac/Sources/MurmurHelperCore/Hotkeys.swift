@@ -82,6 +82,7 @@ public enum KeyCodes {
     public static let rightOption = 61
     public static let leftOption = 58
     public static let capsLock = 57
+    public static let escape = 53
 
     /// Function keys F1 to F20. They may be bound without modifiers.
     public static let functionKeys: Set<Int> = [
@@ -274,7 +275,10 @@ public struct HotkeyMatcher: Sendable {
         if parsed.isModifierOnly && !modifiers.isEmpty {
             return fail("A modifier key on its own cannot have modifiers")
         }
-        if !parsed.isModifierOnly && modifiers.isEmpty && !KeyCodes.functionKeys.contains(keyCode) {
+        // A plain key would fire on normal typing. Exceptions: function keys, and Escape for
+        // cancel (main ignores it unless a dictation is running; the app still receives it).
+        let cancelByEscape = action == "dictate.cancel" && keyCode == KeyCodes.escape
+        if !parsed.isModifierOnly && modifiers.isEmpty && !KeyCodes.functionKeys.contains(keyCode) && !cancelByEscape {
             return fail("This key needs at least one modifier")
         }
         return .success(HotkeyBinding(id: id, action: action, trigger: parsed, mode: mode, rewriteId: rewriteId))

@@ -4,12 +4,20 @@ How Murmur notices the dictation key while another app is in front.
 
 ## Default
 
-| Key                     | What it does                                                        |
-| ----------------------- | ------------------------------------------------------------------- |
-| Hold Right Option       | Dictate while held, stop on release                                 |
-| Double-tap Right Option | Hands-free dictation (detected by main from the same events, later) |
+| Key                     | What it does                                     |
+| ----------------------- | ------------------------------------------------ |
+| Hold Right Option       | Dictate while held, stop on release              |
+| Double-tap Right Option | Hands-free: recording continues after you let go |
 
-Left Option is a different key and does nothing. There is no default chord.
+Left Option is a different key and does nothing. There is no default chord; a hands-free shortcut can be set in Settings (see [settings.md](settings.md)).
+
+## Hands-free and cancel
+
+- A press shorter than 300 ms is a tap. A second press within 400 ms of the first locks recording (the Bar shows Hands-free); let go and keep talking.
+- While locked, the next press of the key stops recording and the text is inserted once. The hands-free shortcut, if set, toggles the lock the same way.
+- A single short tap ends after the 400 ms window, like a short hold.
+- Escape cancels while recording: the recording is discarded and nothing is inserted. The key listener only listens, so the app in front still receives Escape too.
+- The lock lives only in memory; after a restart Murmur always starts idle.
 
 ## How it works
 

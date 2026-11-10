@@ -439,3 +439,20 @@ final class EventClockTests: XCTestCase {
             EventClock.epochMs(eventTimestamp: 1, nowTicks: 60_000_000_000, numer: 1, denom: 1, nowEpochMs: nowEpoch))
     }
 }
+
+final class EscapeCancelTests: XCTestCase {
+    private func binding(action: String) -> JSONValue {
+        .object([
+            "id": .string("b"), "action": .string(action), "mode": .string("press"),
+            "trigger": .object(["type": .string("key"), "keyCode": .int(53), "modifiers": .array([])]),
+        ])
+    }
+
+    func testEscapeAloneIsAllowedOnlyForCancel() {
+        XCTAssertEqual(try? HotkeyMatcher.parseBinding(binding(action: "dictate.cancel")).get().trigger.keyCode, 53)
+        guard case .failure(let problem) = HotkeyMatcher.parseBinding(binding(action: "paste.last")) else {
+            return XCTFail("Escape alone was accepted for another action")
+        }
+        XCTAssertEqual(problem.text, "This key needs at least one modifier")
+    }
+}
