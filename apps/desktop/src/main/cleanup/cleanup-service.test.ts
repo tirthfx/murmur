@@ -13,7 +13,7 @@ function setup(
     llm,
     modelReady: async () => options.ready ?? true,
     logger: createTestLogger(),
-    level: options.level ?? "standard",
+    level: () => options.level ?? "standard",
     now: () => (time += 400),
   });
   return { llm, service };

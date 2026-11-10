@@ -3,16 +3,38 @@ import Foundation
 /// The OS side of microphone capture. The real one wraps AVAudioEngine; tests use a fake
 /// that plays generated audio and never touches a microphone.
 public protocol AudioInputSource: AnyObject, Sendable {
-    /// Starts capture from the default input. `onSamples` receives mono float samples and
-    /// their sample rate, on the source's own queue. Returns the device name.
-    func start(onSamples: @escaping @Sendable ([Float], Double) -> Void) throws -> String
+    /// Starts capture from the device with this UID, or the system default when nil.
+    /// `onSamples` receives mono float samples and their sample rate, on the source's own
+    /// queue. Returns the device name.
+    func start(deviceUID: String?, onSamples: @escaping @Sendable ([Float], Double) -> Void) throws -> String
+    /// Input devices now connected. Needs no permission.
+    func listDevices() -> [AudioDevice]
     /// Stops capture. No `onSamples` call runs after this returns. Safe when not started.
     func stop()
 }
 
 public enum AudioSourceError: Error, Equatable {
     case noInputDevice
+    case deviceNotFound
     case engine(String)
+}
+
+public struct AudioDevice: Sendable, Equatable {
+    /// Stable Core Audio UID.
+    public var id: String
+    public var name: String
+    public var isDefault: Bool
+    /// `builtin`, `usb`, `bluetooth`, `virtual` or `other`.
+    public var transport: String
+    public var sampleRate: Int
+
+    public init(id: String, name: String, isDefault: Bool, transport: String, sampleRate: Int) {
+        self.id = id
+        self.name = name
+        self.isDefault = isDefault
+        self.transport = transport
+        self.sampleRate = sampleRate
+    }
 }
 
 public enum AudioFailure: Error, Equatable {
@@ -107,8 +129,12 @@ public final class AudioCaptureController: @unchecked Sendable {
         guard let sessionId = Self.sessionId(payload) else {
             return .failure(.invalidPayload("sessionId must be 1 to 64 letters, digits or dashes"))
         }
+        var deviceUID: String?
         if let deviceId = payload["deviceId"], deviceId != .null {
-            return .failure(.invalidPayload("Only the default input device is supported in this version"))
+            guard let uid = deviceId.stringValue, !uid.isEmpty, uid.count <= 512 else {
+                return .failure(.invalidPayload("deviceId must be a device id from audio.devices, or null"))
+            }
+            deviceUID = uid
         }
         var settings = AudioPipelineSettings()
         let emitLevels = payload["emitLevels"]?.boolValue ?? true
@@ -144,7 +170,7 @@ public final class AudioCaptureController: @unchecked Sendable {
         }
         let deviceName: String
         do {
-            deviceName = try source.start { [weak self] samples, rate in
+            deviceName = try source.start(deviceUID: deviceUID) { [weak self] samples, rate in
                 self?.receive(samples, rate: rate, generation: generation)
             }
         } catch {
@@ -152,6 +178,9 @@ public final class AudioCaptureController: @unchecked Sendable {
             try? fileManager.removeItem(at: fileURL)
             if case AudioSourceError.noInputDevice = error {
                 return .failure(.deviceNotFound("No input device is connected"))
+            }
+            if case AudioSourceError.deviceNotFound = error {
+                return .failure(.deviceNotFound("Selected input device is not connected"))
             }
             return .failure(.engineFailed("The microphone could not be started: \(error)"))
         }
@@ -207,6 +236,22 @@ public final class AudioCaptureController: @unchecked Sendable {
             Log.info("audio cancelled")
             return .success(["discarded": .bool(true)])
         }
+    }
+
+    /// `audio.devices`: the connected input devices.
+    public func devices() -> [String: JSONValue] {
+        .init(uniqueKeysWithValues: [
+            (
+                "devices",
+                JSONValue.array(
+                    source.listDevices().map {
+                        .object([
+                            "id": .string($0.id), "name": .string($0.name), "isDefault": .bool($0.isDefault),
+                            "transport": .string($0.transport), "sampleRate": .int($0.sampleRate),
+                        ])
+                    })
+            )
+        ])
     }
 
     /// Ends any running session and deletes its file. Used at shutdown.

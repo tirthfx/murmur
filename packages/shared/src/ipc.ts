@@ -8,6 +8,17 @@ import {
   type RequestablePermissionKind,
 } from "./permissions";
 import { helperStatusSchema, type HelperStatus } from "./platform-helper";
+import {
+  capturedKeySchema,
+  settingsPatchSchema,
+  settingsViewSchema,
+  shortcutResultSchema,
+  type CapturedKey,
+  type SettingsPatch,
+  type SettingsView,
+  type ShortcutResult,
+  type ShortcutSlot,
+} from "./settings";
 
 /**
  * Renderer-to-main IPC contract. Channel names, payload schemas and the API the
@@ -20,6 +31,10 @@ export const IPC_CHANNELS = {
   getPermissions: "permissions:get",
   requestPermission: "permissions:request",
   openPermissionSettings: "permissions:open-settings",
+  getSettings: "settings:get",
+  updateSettings: "settings:update",
+  setShortcut: "settings:set-shortcut",
+  captureShortcut: "settings:capture-shortcut",
 } as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
@@ -56,6 +71,24 @@ export const IPC_CONTRACT = {
     args: z.tuple([permissionKindSchema]),
     result: z.void(),
   },
+  [IPC_CHANNELS.getSettings]: {
+    args: z.tuple([]),
+    result: settingsViewSchema,
+  },
+  [IPC_CHANNELS.updateSettings]: {
+    args: z.tuple([settingsPatchSchema]),
+    result: settingsViewSchema,
+  },
+  // A null key clears the slot (only hands-free can be cleared).
+  [IPC_CHANNELS.setShortcut]: {
+    args: z.tuple([z.enum(["hold", "handsFree"]), capturedKeySchema.nullable()]),
+    result: shortcutResultSchema,
+  },
+  // Pauses the dictation key while the Hub records a new shortcut.
+  [IPC_CHANNELS.captureShortcut]: {
+    args: z.tuple([z.boolean()]),
+    result: z.void(),
+  },
 } as const satisfies Record<IpcChannel, { args: z.ZodType; result: z.ZodType }>;
 
 export function isIpcChannel(value: unknown): value is IpcChannel {
@@ -90,4 +123,10 @@ export interface MurmurApi {
   requestPermission(kind: RequestablePermissionKind): Promise<PermissionsInfo>;
   /** Opens the System Settings pane for this permission. */
   openPermissionSettings(kind: PermissionKind): Promise<void>;
+  getSettings(): Promise<SettingsView>;
+  updateSettings(patch: SettingsPatch): Promise<SettingsView>;
+  /** Checks and saves a captured shortcut; the result names the conflict when refused. */
+  setShortcut(slot: ShortcutSlot, key: CapturedKey | null): Promise<ShortcutResult>;
+  /** True while the Hub listens for a new shortcut, so the old one does not start dictation. */
+  captureShortcut(active: boolean): Promise<void>;
 }

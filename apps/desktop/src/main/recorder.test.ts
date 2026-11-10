@@ -95,6 +95,7 @@ describe("recorder", () => {
       sessionId: "s1",
       emitLevels: true,
       levelIntervalMs: 100,
+      deviceId: null,
     });
     level("s1");
     level("s1");
@@ -403,5 +404,31 @@ describe("recorder", () => {
       createdAt: 5_000,
       audio: { path: "/tmp/a.pcm", codec: "pcm_s16le", durationMs: 10020 },
     });
+  });
+
+  it("records from the chosen microphone, and from the default when it is gone", async () => {
+    let chosen: string | null = "USB-1";
+    const { recorder, helper, logger } = setup({ deviceId: () => chosen });
+    recorder.handleHotkey(key("down"));
+    recorder.handleHotkey(key("up"));
+    await recorder.idle();
+    expect(helper.startAudio.mock.calls[0]![0]).toMatchObject({ deviceId: "USB-1" });
+
+    helper.startAudio.mockRejectedValueOnce(new HelperError("DEVICE_NOT_FOUND", "gone"));
+    recorder.handleHotkey(key("down"));
+    recorder.handleHotkey(key("up"));
+    await recorder.idle();
+    expect(helper.startAudio.mock.calls.slice(1).map((call) => call[0].deviceId)).toEqual([
+      "USB-1",
+      null,
+    ]);
+    expect(logger.lines).toContain(
+      "warn: the chosen microphone is not connected; using the system default",
+    );
+
+    chosen = null;
+    recorder.handleHotkey(key("down"));
+    await recorder.idle();
+    expect(helper.startAudio.mock.calls.at(-1)![0]).toMatchObject({ deviceId: null });
   });
 });

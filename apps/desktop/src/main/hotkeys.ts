@@ -34,6 +34,10 @@ export interface HotkeyService {
   handlePermissions(statuses: PermissionSnapshot): void;
   /** Key events for the features that act on them. */
   onEvent(handler: (event: HotkeyEvent) => void): Unsubscribe;
+  /** Replaces the bindings and sends them to the helper at once. */
+  setBindings(bindings: readonly HotkeyBinding[]): void;
+  /** While paused (the Hub records a shortcut) no binding is active. */
+  setPaused(paused: boolean): void;
 }
 
 function errorCode(error: unknown): unknown {
@@ -52,7 +56,8 @@ function errorMessage(error: unknown): string {
  */
 export function createHotkeyService(deps: HotkeyServiceDeps): HotkeyService {
   const { helper, logger } = deps;
-  const bindings = [...deps.bindings];
+  let bindings = [...deps.bindings];
+  let paused = false;
   const now = deps.now ?? Date.now;
   let state: HotkeyServiceState = "off";
   let generation = 0;
@@ -60,19 +65,17 @@ export function createHotkeyService(deps: HotkeyServiceDeps): HotkeyService {
   const eventHandlers = new Set<(event: HotkeyEvent) => void>();
 
   function configure(): void {
-    if (bindings.length === 0) {
-      state = "off";
-      return;
-    }
+    const active = paused ? [] : bindings;
+    if (active.length === 0 && !paused && state === "off") return;
     const attempt = ++generation;
     state = "configuring";
-    helper.configureHotkeys(bindings).then(
+    helper.configureHotkeys(active).then(
       (result) => {
         if (attempt !== generation) return;
         for (const rejection of result.rejected) {
           logger.warn(`binding ${rejection.id} rejected (${rejection.code}): ${rejection.message}`);
         }
-        state = result.registered.length > 0 ? "active" : "failed";
+        state = result.registered.length > 0 ? "active" : active.length === 0 ? "off" : "failed";
         logger.info(`registered: ${result.registered.join(", ") || "none"}`);
       },
       (error: unknown) => {
@@ -138,6 +141,15 @@ export function createHotkeyService(deps: HotkeyServiceDeps): HotkeyService {
       state = "off";
     },
     getState: () => state,
+    setBindings(next) {
+      bindings = [...next];
+      if (subscriptions.length > 0 && helper.getStatus().state === "ready") configure();
+    },
+    setPaused(next) {
+      if (paused === next) return;
+      paused = next;
+      if (subscriptions.length > 0 && helper.getStatus().state === "ready") configure();
+    },
     onEvent(handler) {
       eventHandlers.add(handler);
       return () => {

@@ -223,3 +223,24 @@ describe("hotkey service events", () => {
     expect(seen).toEqual(["dictate-hold down"]);
   });
 });
+
+describe("hotkey service live changes", () => {
+  it("sends new bindings at once, and none while paused", async () => {
+    const context = setup();
+    const { proc, request } = await startConfiguring(context);
+    proc.respondOk(request, { registered: ["dictate-hold"], rejected: [] });
+    await flush();
+    const chord = {
+      id: "dictate-toggle",
+      action: "dictate.toggle" as const,
+      trigger: { type: "key" as const, keyCode: 2, modifiers: ["control" as const] },
+      mode: "press" as const,
+    };
+    context.service.setBindings([...MAC_DEFAULT_HOTKEY_BINDINGS, chord]);
+    expect((proc.lastRequest("hotkey.configure")!.payload.bindings as unknown[]).length).toBe(2);
+    context.service.setPaused(true);
+    expect(proc.lastRequest("hotkey.configure")!.payload).toEqual({ bindings: [] });
+    context.service.setPaused(false);
+    expect((proc.lastRequest("hotkey.configure")!.payload.bindings as unknown[]).length).toBe(2);
+  });
+});

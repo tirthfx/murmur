@@ -176,10 +176,25 @@ final class FakeAudioSource: AudioInputSource, @unchecked Sendable {
     private(set) var starts = 0
     private(set) var stops = 0
 
-    func start(onSamples: @escaping @Sendable ([Float], Double) -> Void) throws -> String {
+    private(set) var startedWith: [String?] = []
+    var devices: [AudioDevice] = [
+        AudioDevice(id: "BuiltIn", name: "MacBook Pro Microphone", isDefault: true, transport: "builtin", sampleRate: 48_000),
+        AudioDevice(id: "USB-1", name: "Desk Mic", isDefault: false, transport: "usb", sampleRate: 44_100),
+    ]
+
+    func listDevices() -> [AudioDevice] { lock.withLock { devices } }
+
+    func start(deviceUID: String?, onSamples: @escaping @Sendable ([Float], Double) -> Void) throws -> String {
         try lock.withLock {
             starts += 1
+            startedWith.append(deviceUID)
             if let startError { throw startError }
+            if let deviceUID {
+                guard let device = devices.first(where: { $0.id == deviceUID }) else { throw AudioSourceError.deviceNotFound }
+                self.onSamples = onSamples
+                lastHandler = onSamples
+                return device.name
+            }
             self.onSamples = onSamples
             lastHandler = onSamples
             return "Test Microphone"
@@ -298,6 +313,30 @@ final class AudioCaptureControllerTests: XCTestCase {
         XCTAssertTrue(controller.isCapturing)
     }
 
+    func testAChosenDeviceIsUsedAndAMissingOneIsReported() throws {
+        let (controller, source, _, _) = make()
+        let started = try controller.start(["sessionId": .string("a"), "deviceId": .string("USB-1")]).get()
+        XCTAssertEqual(started["deviceName"], .string("Desk Mic"))
+        _ = try controller.cancel(["sessionId": .string("a")]).get()
+        XCTAssertEqual(
+            controller.start(["sessionId": .string("b"), "deviceId": .string("Gone")]),
+            .failure(.deviceNotFound("Selected input device is not connected")))
+        XCTAssertEqual(source.startedWith, ["USB-1", "Gone"])
+        XCTAssertFalse(controller.isCapturing)
+    }
+
+    func testDevicesAreListed() {
+        let (controller, _, _, _) = make()
+        guard case .array(let devices)? = controller.devices()["devices"] else { return XCTFail("no devices") }
+        XCTAssertEqual(devices.count, 2)
+        XCTAssertEqual(
+            devices.last,
+            .object([
+                "id": .string("USB-1"), "name": .string("Desk Mic"), "isDefault": .bool(false),
+                "transport": .string("usb"), "sampleRate": .int(44_100),
+            ]))
+    }
+
     func testUnsafeSessionIdsAndOtherDevicesAreRefused() {
         let (controller, source, _, _) = make()
         for id in ["", "../escape", "a/b", String(repeating: "x", count: 65), "spaces here"] {
@@ -305,8 +344,8 @@ final class AudioCaptureControllerTests: XCTestCase {
                 return XCTFail("accepted \(id)")
             }
         }
-        guard case .failure(.invalidPayload) = controller.start(["sessionId": .string("a"), "deviceId": .string("usb-1")])
-        else { return XCTFail("accepted a device id") }
+        guard case .failure(.invalidPayload) = controller.start(["sessionId": .string("a"), "deviceId": .int(3)])
+        else { return XCTFail("accepted a non-string device id") }
         guard case .failure(.invalidPayload) = controller.start(["sessionId": .string("a"), "levelIntervalMs": .int(1)])
         else { return XCTFail("accepted a 1 ms level interval") }
         XCTAssertEqual(source.starts, 0)

@@ -18,8 +18,8 @@ export interface SpeechServiceDeps {
   /** `.../Application Support/Murmur/models/speech/whisperkit`. */
   root: string;
   logger: Logger;
-  /** BCP-47 codes; empty means detect. Settings (#13) will provide this. */
-  languages?: string[];
+  /** BCP-47 codes, read at each transcription; empty means detect. */
+  languages?: () => string[];
   check?: (root: string, model: SpeechModel) => Promise<ModelCheck>;
 }
 
@@ -42,7 +42,7 @@ function errorMessage(error: unknown): string {
 export function createSpeechService(deps: SpeechServiceDeps): SpeechService {
   const { helper, model, root, logger } = deps;
   const check = deps.check ?? checkModel;
-  const languages = deps.languages ?? [];
+  const languages = deps.languages ?? (() => []);
   const location = modelLocation(root, model);
   let state: SpeechState = "idle";
   let generation = 0;
@@ -111,7 +111,7 @@ export function createSpeechService(deps: SpeechServiceDeps): SpeechService {
       if (state !== "ready") {
         return Promise.reject(new Error(`The speech model is not ready (${state})`));
       }
-      return helper.transcribeFile({ path, languages });
+      return helper.transcribeFile({ path, languages: languages() });
     },
   };
 }

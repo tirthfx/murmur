@@ -1,5 +1,6 @@
 import {
   PROTOCOL_VERSION,
+  type AudioDevice,
   type AudioLevel,
   type AudioSilent,
   type AudioStartInput,
@@ -204,6 +205,13 @@ export class HelperSupervisor implements PlatformHelper {
       return Promise.reject(new HelperError("HELPER_UNAVAILABLE", "The helper is not running"));
     }
     return this.connection.request("audio.start", input);
+  }
+
+  async listAudioDevices(): Promise<AudioDevice[]> {
+    if (!this.connection || this.status.state !== "ready") {
+      throw new HelperError("HELPER_UNAVAILABLE", "The helper is not running");
+    }
+    return (await this.connection.request("audio.devices", {})).devices;
   }
 
   stopAudio(sessionId: string): Promise<AudioStopResult> {

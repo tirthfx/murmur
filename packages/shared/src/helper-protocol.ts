@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  audioDevicesResultSchema,
   audioCancelResultSchema,
   audioLevelPayloadSchema,
   audioSessionPayloadSchema,
@@ -141,6 +142,10 @@ export const HELPER_REQUESTS = {
     payload: hotkeyConfigurePayloadSchema,
     result: hotkeyConfigureResultSchema,
   },
+  "audio.devices": {
+    payload: emptyObjectSchema,
+    result: audioDevicesResultSchema,
+  },
   "audio.start": {
     payload: audioStartPayloadSchema,
     result: audioStartResultSchema,
@@ -271,6 +276,7 @@ export const hotkeyTapStatusEventSchema = eventEnvelope(
   hotkeyTapStatusPayloadSchema,
 );
 
+export const audioDevicesRequestSchema = requestEnvelope("audio.devices", emptyObjectSchema);
 export const audioStartRequestSchema = requestEnvelope("audio.start", audioStartPayloadSchema);
 export const audioStopRequestSchema = requestEnvelope("audio.stop", audioSessionPayloadSchema);
 export const audioCancelRequestSchema = requestEnvelope("audio.cancel", audioSessionPayloadSchema);

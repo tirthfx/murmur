@@ -2,7 +2,12 @@ import {
   IPC_CHANNELS,
   parseIpcRequest,
   type AppInfo,
+  type CapturedKey,
   type HelperStatus,
+  type SettingsPatch,
+  type SettingsView,
+  type ShortcutResult,
+  type ShortcutSlot,
   type PermissionKind,
   type PermissionsInfo,
   type RequestablePermissionKind,
@@ -19,6 +24,10 @@ export interface IpcDeps {
   requestPermission: (kind: RequestablePermissionKind) => Promise<PermissionsInfo>;
   /** Opens the System Settings pane for a known permission. */
   openPermissionSettings: (kind: PermissionKind) => Promise<void>;
+  getSettings: () => Promise<SettingsView>;
+  updateSettings: (patch: SettingsPatch) => Promise<SettingsView>;
+  setShortcut: (slot: ShortcutSlot, key: CapturedKey | null) => Promise<ShortcutResult>;
+  captureShortcut: (active: boolean) => void;
 }
 
 export interface IpcEventLike {
@@ -50,6 +59,17 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.requestPermission(request.args[0] as RequestablePermissionKind);
       case IPC_CHANNELS.openPermissionSettings:
         return deps.openPermissionSettings(request.args[0] as PermissionKind);
+      case IPC_CHANNELS.getSettings:
+        return deps.getSettings();
+      case IPC_CHANNELS.updateSettings:
+        return deps.updateSettings(request.args[0] as SettingsPatch);
+      case IPC_CHANNELS.setShortcut:
+        return deps.setShortcut(
+          request.args[0] as ShortcutSlot,
+          request.args[1] as CapturedKey | null,
+        );
+      case IPC_CHANNELS.captureShortcut:
+        return deps.captureShortcut(request.args[0] as boolean);
       default:
         throw new Error("IPC rejected: unknown-channel");
     }

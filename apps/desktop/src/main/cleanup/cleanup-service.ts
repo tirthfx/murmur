@@ -21,7 +21,8 @@ export interface CleanupServiceDeps {
   /** Whether the model file is on disk and passed its check. */
   modelReady: () => Promise<boolean>;
   logger: Logger;
-  level?: CleanupLevel;
+  /** Read at each dictation, so a change in Settings applies to the next one. */
+  level?: () => CleanupLevel;
   now?: () => number;
   budgetMs?: number;
 }
@@ -37,16 +38,17 @@ export interface CleanupService {
  * only if the output guard accepts it. Otherwise the rules' text is used.
  */
 export function createCleanupService(deps: CleanupServiceDeps): CleanupService {
-  const level = deps.level ?? "standard";
+  const levelOf = deps.level ?? (() => "standard" as CleanupLevel);
   const now = deps.now ?? Date.now;
   const budgetMs = deps.budgetMs ?? CLEANUP_BUDGET_MS;
 
   return {
     prepare() {
-      if (level === "off" || !deps.llm) return;
+      if (levelOf() === "off" || !deps.llm) return;
       void deps.modelReady().then((ok) => ok && deps.llm?.prepare());
     },
     async clean(raw) {
+      const level = levelOf();
       const rules = cleanRules(raw, level);
       const base = { text: rules, source: "rules" as const, modelMs: null };
       if (level === "off" || rules === "") return { ...base, fallback: false, reason: null };

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type {
+  AudioDevice,
   AudioLevel,
   AudioSilent,
   AudioStartInput,
@@ -72,6 +73,8 @@ export interface PlatformHelper {
    * a time (BUSY otherwise). Audio stays in the helper and is written to a file.
    */
   startAudio(input: AudioStartInput): Promise<AudioStartResult>;
+  /** Connected input devices. Needs no permission. */
+  listAudioDevices(): Promise<AudioDevice[]>;
   /** Ends the session and returns its statistics and file reference. */
   stopAudio(sessionId: string): Promise<AudioStopResult>;
   /** Ends the session and deletes its file. */

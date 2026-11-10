@@ -32,6 +32,8 @@ export interface RecorderDeps {
   clean?: (text: string) => Promise<CleanupResult>;
   /** Warms the cleanup model when recording starts. */
   prepareCleanup?: () => void;
+  /** The microphone for the next session: a device id, or null for the system default. */
+  deviceId?: () => string | null;
   /** Stores a finished dictation (history). Returns the row id. */
   record?: (record: DictationRecord) => string | null;
   now?: () => number;
@@ -134,11 +136,17 @@ export function createRecorder(deps: RecorderDeps): Recorder {
     const session: Session = { id: deps.newSessionId(), deviceName: null, levels: 0 };
     current = session;
     try {
-      const started = await helper.startAudio({
-        sessionId: session.id,
-        emitLevels: true,
-        levelIntervalMs,
-      });
+      const chosen = deps.deviceId?.() ?? null;
+      const options = { sessionId: session.id, emitLevels: true, levelIntervalMs };
+      let started;
+      try {
+        started = await helper.startAudio({ ...options, deviceId: chosen });
+      } catch (error) {
+        // The chosen microphone is gone: record from the system default instead.
+        if (chosen === null || errorCode(error) !== "DEVICE_NOT_FOUND") throw error;
+        logger.warn("the chosen microphone is not connected; using the system default");
+        started = await helper.startAudio({ ...options, deviceId: null });
+      }
       session.deviceName = started.deviceName;
       logger.info(`recording from ${started.deviceName}`);
       emit({ type: "started", at: started.startedAt });

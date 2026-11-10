@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import path from "node:path";
+import type { DatabaseSync } from "node:sqlite";
 import { pathToFileURL } from "node:url";
 import { app, BrowserWindow, ipcMain, screen, session, shell, utilityProcess } from "electron";
 import {
@@ -28,7 +29,14 @@ import { createConsoleLogger, systemClock } from "./helper/node-runtime";
 import { createHotkeyService } from "./hotkeys";
 import { createIpcHandler } from "./ipc";
 import { createPermissionsService } from "./permissions";
-import { createPlatformHelper, defaultHotkeyBindings } from "./platform";
+import { createPlatformHelper, defaultHotkeyBindings, keyPlatform } from "./platform";
+import {
+  bindingsFor,
+  createSettingsService,
+  deviceFor,
+  languagesFor,
+} from "./settings/settings-service";
+import { createSettingsStore } from "./settings/settings-store";
 import { createRecorder } from "./recorder";
 import { createSpeechService } from "./speech/speech-service";
 import { checkModel, modelLocation } from "./speech/model-store";
@@ -75,11 +83,45 @@ const permissions = createPermissionsService({
   logger: createConsoleLogger("[permissions]"),
 });
 
+// Opened before anything else that reads settings. If it cannot open, dictation still works
+// with default settings and no history.
+function openMurmurDatabase(): DatabaseSync | null {
+  try {
+    return openDatabase(databasePath(app.getPath("appData")));
+  } catch (error) {
+    console.error(
+      `[db] database could not open: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return null;
+  }
+}
+const database = openMurmurDatabase();
+const history: HistoryStore | null = database
+  ? createHistoryStore(database, path.join(app.getPath("appData"), "Murmur", "audio"))
+  : null;
+
+const platformDefaults = defaultHotkeyBindings(process.platform);
+const settingsStore = createSettingsStore(database, {
+  holdShortcut: platformDefaults[0]?.trigger ?? { type: "key", keyCode: 61, modifiers: [] },
+  handsFreeShortcut: null,
+  inputDevice: "auto",
+  language: "auto",
+  cleanupLevel: "standard",
+});
+const settingsService = createSettingsService({
+  store: settingsStore,
+  platform: keyPlatform(process.platform),
+  listDevices: () => helper.listAudioDevices(),
+});
+const bindingsNow = () => (platformDefaults.length > 0 ? bindingsFor(settingsStore.get()) : []);
+
 const hotkeys = createHotkeyService({
   helper,
-  bindings: defaultHotkeyBindings(process.platform),
+  bindings: bindingsNow(),
   logger: createConsoleLogger("[hotkeys]"),
 });
+// New shortcuts reach the helper at once; no restart.
+settingsStore.onChange(() => hotkeys.setBindings(bindingsNow()));
 permissions.onChecked((statuses) => hotkeys.handlePermissions(statuses));
 
 const speech = createSpeechService({
@@ -87,6 +129,7 @@ const speech = createSpeechService({
   model: DEFAULT_SPEECH_MODEL,
   root: speechModelRoot(app.getPath("appData")),
   logger: createConsoleLogger("[speech]"),
+  languages: () => languagesFor(settingsStore.get()),
 });
 
 const displayArea = (display: Electron.Display) => ({ id: display.id, workArea: display.workArea });
@@ -141,21 +184,8 @@ const cleanup = createCleanupService({
     return cleanupModelCheck;
   },
   logger: cleanupLogger,
+  level: () => settingsStore.get().cleanupLevel,
 });
-
-// Opened at start. If it cannot open, dictation still works and only history is lost.
-let history: HistoryStore | null = null;
-function openHistory(): void {
-  const murmurData = path.join(app.getPath("appData"), "Murmur");
-  try {
-    const db = openDatabase(databasePath(app.getPath("appData")));
-    history = createHistoryStore(db, path.join(murmurData, "audio"));
-  } catch (error) {
-    console.error(
-      `[history] database could not open: ${error instanceof Error ? error.message : String(error)}`,
-    );
-  }
-}
 
 const recorder = createRecorder({
   helper,
@@ -170,6 +200,7 @@ const recorder = createRecorder({
   clean: (text) => cleanup.clean(text),
   prepareCleanup: () => cleanup.prepare(),
   record: (dictation) => history?.add(dictation) ?? null,
+  deviceId: () => deviceFor(settingsStore.get()),
 });
 hotkeys.onEvent((event) => recorder.handleHotkey(event));
 helper.onAudioLevel((level) => bar.level(level.rmsDb));
@@ -222,6 +253,10 @@ function registerIpc(): void {
     getPermissions: () => permissions.check("hub refresh"),
     requestPermission: (kind) => permissions.request(kind),
     openPermissionSettings,
+    getSettings: () => settingsService.view(),
+    updateSettings: (patch) => settingsService.update(patch),
+    setShortcut: (slot, key) => settingsService.setShortcut(slot, key),
+    captureShortcut: (active) => hotkeys.setPaused(active),
   });
   for (const channel of Object.values(IPC_CHANNELS)) {
     ipcMain.handle(channel, (event, ...args: unknown[]) => handle(channel, event, args));
@@ -262,7 +297,6 @@ void app.whenReady().then(() => {
   );
   session.defaultSession.setPermissionCheckHandler(denyPermissionCheck);
 
-  openHistory();
   registerIpc();
   // Configures the dictation key whenever the helper becomes ready, restarts included.
   hotkeys.start();
