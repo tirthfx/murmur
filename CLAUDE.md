@@ -115,6 +115,8 @@ The Bar (states, the non-focusable window, drag and saved position, manual test)
 
 Transcript cleanup (rules, the local model and its guard, the 1.5 s budget, benchmark): see `docs/cleanup.md`.
 
+Dictation history (database, tables, migrations): see `docs/history.md`.
+
 ## Definition of done for a PR
 
 - Builds locally with the commands above.

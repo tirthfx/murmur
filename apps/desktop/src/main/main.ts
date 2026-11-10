@@ -21,6 +21,8 @@ import { barEventFor } from "./bar/bar-events";
 import { createBarIpcHandler } from "./bar/bar-ipc";
 import { BarWindow, barPositionFile } from "./bar/bar-window";
 import { createCleanupService } from "./cleanup/cleanup-service";
+import { databasePath, openDatabase } from "./db/database";
+import { createHistoryStore, type HistoryStore } from "./history/history-store";
 import { createLlmClient, type LlmReply } from "./cleanup/llm-client";
 import { createConsoleLogger, systemClock } from "./helper/node-runtime";
 import { createHotkeyService } from "./hotkeys";
@@ -141,6 +143,20 @@ const cleanup = createCleanupService({
   logger: cleanupLogger,
 });
 
+// Opened at start. If it cannot open, dictation still works and only history is lost.
+let history: HistoryStore | null = null;
+function openHistory(): void {
+  const murmurData = path.join(app.getPath("appData"), "Murmur");
+  try {
+    const db = openDatabase(databasePath(app.getPath("appData")));
+    history = createHistoryStore(db, path.join(murmurData, "audio"));
+  } catch (error) {
+    console.error(
+      `[history] database could not open: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
 const recorder = createRecorder({
   helper,
   logger: createConsoleLogger("[audio]"),
@@ -153,6 +169,7 @@ const recorder = createRecorder({
   onEvent: (event) => bar.dispatch(barEventFor(event)),
   clean: (text) => cleanup.clean(text),
   prepareCleanup: () => cleanup.prepare(),
+  record: (dictation) => history?.add(dictation) ?? null,
 });
 hotkeys.onEvent((event) => recorder.handleHotkey(event));
 helper.onAudioLevel((level) => bar.level(level.rmsDb));
@@ -245,6 +262,7 @@ void app.whenReady().then(() => {
   );
   session.defaultSession.setPermissionCheckHandler(denyPermissionCheck);
 
+  openHistory();
   registerIpc();
   // Configures the dictation key whenever the helper becomes ready, restarts included.
   hotkeys.start();

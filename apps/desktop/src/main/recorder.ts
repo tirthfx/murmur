@@ -32,7 +32,42 @@ export interface RecorderDeps {
   clean?: (text: string) => Promise<CleanupResult>;
   /** Warms the cleanup model when recording starts. */
   prepareCleanup?: () => void;
+  /** Stores a finished dictation (history). Returns the row id. */
+  record?: (record: DictationRecord) => string | null;
+  now?: () => number;
 }
+
+/** One finished dictation, as the history store keeps it. */
+export interface DictationRecord {
+  sessionId: string;
+  source: "hold" | "retry";
+  createdAt: number;
+  durationMs: number;
+  language: string | null;
+  rawText: string | null;
+  finalText: string | null;
+  wordCount: number;
+  cleanup: CleanupResult | null;
+  insertStatus: "inserted" | "clipboard_only" | "failed" | "empty";
+  insertMethod: "paste_cmd_v" | "keystrokes" | "clipboard" | null;
+  errorCode: string | null;
+  audio: { path: string; codec: "pcm_s16le" | "opus"; durationMs: number } | null;
+  /** History id of the failed dictation this one retries. */
+  retryOf: string | null;
+}
+
+/** A recording on its way through transcription, cleanup and insertion. */
+interface Take {
+  sessionId: string;
+  source: DictationRecord["source"];
+  createdAt: number;
+  durationMs: number;
+  audio: DictationRecord["audio"];
+  retryOf: string | null;
+}
+
+type InsertOutcome = Pick<DictationRecord, "insertStatus"> &
+  Partial<Pick<DictationRecord, "insertMethod" | "errorCode">>;
 
 /** A dictation's steps, as the Bar needs them. Never carries what was said. */
 export type RecorderEvent =
@@ -86,7 +121,8 @@ export function createRecorder(deps: RecorderDeps): Recorder {
   let transcriptions: Promise<void> = Promise.resolve();
   let current: Session | null = null;
   let subscriptions: Unsubscribe[] = [];
-  let lastFailedFile: string | null = null;
+  let lastFailed: { take: Take; historyId: string | null } | null = null;
+  const now = deps.now ?? Date.now;
   const emit = (event: RecorderEvent) => deps.onEvent?.(event);
 
   function enqueue(step: () => Promise<void>): void {
@@ -133,12 +169,26 @@ export function createRecorder(deps: RecorderDeps): Recorder {
       logger.info(
         `captured ${seconds} s (${result.samples} samples at 16 kHz), peak ${result.peakDb} dB, mean ${result.meanDb} dB, ${session.levels} level events, ${file}`,
       );
+      const take: Take = {
+        sessionId: session.id,
+        source: "hold",
+        createdAt: now(),
+        durationMs: result.durationMs,
+        audio: result.audioFile
+          ? {
+              path: result.audioFile.path,
+              codec: result.audioFile.codec,
+              durationMs: result.durationMs,
+            }
+          : null,
+        retryOf: null,
+      };
       if (result.silent || !result.audioFile) {
         if (result.silent) logger.warn("nothing above the silence threshold was heard");
         emit({ type: "no-speech" });
+        record(take, { insertStatus: "empty" });
       } else if (deps.transcribe) {
-        const file = result.audioFile.path;
-        transcriptions = transcriptions.then(() => transcribe(file));
+        transcriptions = transcriptions.then(() => runTake(take));
       }
     } catch (error) {
       logger.warn(`could not stop recording: ${errorMessage(error)}`);
@@ -146,28 +196,47 @@ export function createRecorder(deps: RecorderDeps): Recorder {
     }
   }
 
-  async function transcribe(file: string): Promise<void> {
+  /** Transcribe, clean, insert, then write the history row. */
+  async function runTake(take: Take): Promise<void> {
+    let transcript: Transcript;
     try {
-      const transcript = await deps.transcribe!(file);
-      const words = transcript.text.split(/\s+/).filter(Boolean).length;
-      logger.info(
-        `transcribed ${(transcript.audioMs / 1000).toFixed(2)} s in ${transcript.decodeMs} ms: ${words} words, language ${transcript.language || "unknown"}`,
-      );
-      if (deps.logTranscripts) logger.info(`text: ${transcript.text}`);
-      lastFailedFile = null;
-      const final = await cleanUp(transcript.text);
-      const finalWords = final.split(/\s+/).filter(Boolean).length;
-      emit(finalWords === 0 ? { type: "no-speech" } : { type: "transcribed", words: finalWords });
-      await insert(final);
+      transcript = await deps.transcribe!(take.audio!.path);
     } catch (error) {
       logger.warn(`could not transcribe: ${errorMessage(error)}`);
-      lastFailedFile = file;
+      const historyId = record(take, {
+        insertStatus: "failed",
+        errorCode:
+          typeof errorCode(error) === "string"
+            ? (errorCode(error) as string)
+            : "TRANSCRIPTION_FAILED",
+      });
+      lastFailed = { take, historyId };
       emit({ type: "transcription-failed" });
+      return;
     }
+    const words = transcript.text.split(/\s+/).filter(Boolean).length;
+    logger.info(
+      `transcribed ${(transcript.audioMs / 1000).toFixed(2)} s in ${transcript.decodeMs} ms: ${words} words, language ${transcript.language || "unknown"}`,
+    );
+    if (deps.logTranscripts) logger.info(`text: ${transcript.text}`);
+    lastFailed = null;
+    const cleanup = await cleanUp(transcript.text);
+    const final = cleanup?.text ?? transcript.text.trim();
+    const finalWords = final.split(/\s+/).filter(Boolean).length;
+    emit(finalWords === 0 ? { type: "no-speech" } : { type: "transcribed", words: finalWords });
+    const outcome = final === "" ? { insertStatus: "empty" as const } : await insert(final);
+    record(take, {
+      ...outcome,
+      language: transcript.language || null,
+      rawText: transcript.text,
+      finalText: final,
+      wordCount: finalWords,
+      cleanup,
+    });
   }
 
-  async function cleanUp(text: string): Promise<string> {
-    if (!deps.clean) return text.trim();
+  async function cleanUp(text: string): Promise<CleanupResult | null> {
+    if (!deps.clean) return null;
     const result = await deps.clean(text);
     const how =
       result.source === "model"
@@ -175,11 +244,11 @@ export function createRecorder(deps: RecorderDeps): Recorder {
         : `rules only${result.reason ? ` (${result.reason})` : ""}`;
     logger.info(`cleanup: ${how}`);
     if (deps.logTranscripts) logger.info(`clean text: ${result.text}`);
-    return result.text;
+    return result;
   }
 
-  async function insert(text: string): Promise<void> {
-    if (!deps.insert || text === "") return;
+  async function insert(text: string): Promise<InsertOutcome> {
+    if (!deps.insert) return { insertStatus: "failed", errorCode: "NO_INSERTER" };
     const started = Date.now();
     try {
       const result = await deps.insert(text);
@@ -190,6 +259,10 @@ export function createRecorder(deps: RecorderDeps): Recorder {
             ? ", clipboard restored"
             : ", clipboard kept (it changed meanwhile)";
       logger.info(`inserted by ${result.method} in ${Date.now() - started} ms${restored}`);
+      return {
+        insertStatus: "inserted",
+        insertMethod: result.method === "auto" ? null : result.method,
+      };
     } catch (error) {
       if (errorCode(error) === "PERMISSION_DENIED" && deps.copy) {
         await deps.copy(text).catch(() => {});
@@ -197,10 +270,44 @@ export function createRecorder(deps: RecorderDeps): Recorder {
           "Accessibility is not granted, so the text was copied to the clipboard instead. Grant it from the Hub's Settings.",
         );
         emit({ type: "copied-instead" });
-      } else {
-        logger.warn(`could not insert: ${errorMessage(error)}`);
-        emit({ type: "insert-failed" });
+        return { insertStatus: "clipboard_only", insertMethod: "clipboard" };
       }
+      logger.warn(`could not insert: ${errorMessage(error)}`);
+      emit({ type: "insert-failed" });
+      const code = errorCode(error);
+      return {
+        insertStatus: "failed",
+        errorCode: typeof code === "string" ? code : "PASTE_FAILED",
+      };
+    }
+  }
+
+  /** Hands the finished dictation to the history store. Returns its row id, if stored. */
+  function record(
+    take: Take,
+    fields: Partial<DictationRecord> & Pick<DictationRecord, "insertStatus">,
+  ): string | null {
+    if (!deps.record) return null;
+    try {
+      return deps.record({
+        sessionId: take.sessionId,
+        source: take.source,
+        createdAt: take.createdAt,
+        durationMs: take.durationMs,
+        audio: take.audio,
+        retryOf: take.retryOf,
+        language: null,
+        rawText: null,
+        finalText: null,
+        wordCount: 0,
+        cleanup: null,
+        insertMethod: null,
+        errorCode: null,
+        ...fields,
+      });
+    } catch (error) {
+      logger.warn(`could not save to history: ${errorMessage(error)}`);
+      return null;
     }
   }
 
@@ -238,10 +345,17 @@ export function createRecorder(deps: RecorderDeps): Recorder {
       else if (event.state === "up") enqueue(end);
     },
     retryLast() {
-      const file = lastFailedFile;
-      if (!file || !deps.transcribe) return false;
+      const failed = lastFailed;
+      if (!failed || !deps.transcribe) return false;
+      lastFailed = null;
       logger.info("retrying the last transcription");
-      transcriptions = transcriptions.then(() => transcribe(file));
+      const take: Take = {
+        ...failed.take,
+        source: "retry",
+        createdAt: now(),
+        retryOf: failed.historyId,
+      };
+      transcriptions = transcriptions.then(() => runTake(take));
       return true;
     },
     idle: async () => {
