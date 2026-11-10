@@ -1,5 +1,30 @@
 {
   "name": "@murmur/desktop",
+  "productName": "Murmur",
   "version": "0.0.0",
-  "private": true
+  "private": true,
+  "type": "module",
+  "description": "Murmur desktop app",
+  "main": ".vite/build/main.cjs",
+  "scripts": {
+    "dev": "electron-forge start",
+    "package": "electron-forge package",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@astryxdesign/core": "0.7.11",
+    "@astryxdesign/theme-neutral": "0.7.11",
+    "@electron-forge/cli": "^8.0.1",
+    "@electron-forge/plugin-vite": "^8.0.1",
+    "@electron-forge/shared-types": "^8.0.1",
+    "@fontsource-variable/figtree": "^5.3.0",
+    "@stylexjs/stylex": "0.19.1",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "electron": "^45.2.3",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "vite": "^8.3.7"
+  }
 }

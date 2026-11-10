@@ -91,15 +91,15 @@ The notes vault is an Obsidian-style folder at `/Users/tirthsandipshendage/Devel
 
 ## Commands
 
-To be filled in when the app is scaffolded.
+Run all commands from the repo root.
 
 - Install: `npm install` (CI uses `npm ci`)
-- Dev (desktop): `TBD`
+- Dev (desktop): `npm run dev` (starts Electron Forge with the Vite dev server; the Electron binary downloads on first run)
 - Test: `npm test`
 - Lint: `npm run lint`
 - Format: `npm run format` (check only: `npm run format:check`)
 - Typecheck: `npm run typecheck`
-- Build desktop: `TBD`
+- Build desktop: `npm run package` (Electron Forge package; output in `apps/desktop/out/`)
 - Build helper (Swift): `TBD`
 
 ## Definition of done for a PR
