@@ -5,6 +5,7 @@ import { Heading } from "@astryxdesign/core/Heading";
 import { SideNav, SideNavHeading, SideNavItem, SideNavSection } from "@astryxdesign/core/SideNav";
 import { Text } from "@astryxdesign/core/Text";
 import type { AppInfo } from "@murmur/shared";
+import { HelperStatusLine } from "./HelperStatusLine";
 import { PAGES, type PageId } from "./pages";
 
 function useAppInfo(): AppInfo | null {
@@ -76,6 +77,7 @@ export function Hub() {
               headingLevel={2}
             />
           </div>
+          {page.id === "settings" ? <HelperStatusLine /> : null}
         </div>
       </AppShell>
     </>

@@ -36,6 +36,9 @@ describe("Hub", () => {
       getAppInfo: vi
         .fn()
         .mockResolvedValue({ name: "Murmur", version: "1.2.3", platform: "darwin" }),
+      getHelperStatus: vi
+        .fn()
+        .mockResolvedValue({ state: "ready", helperVersion: "0.1.0", message: null }),
     };
   });
 
@@ -86,10 +89,41 @@ describe("Hub", () => {
   });
 
   it("still renders when the version cannot be read", async () => {
-    window.murmur = { getAppInfo: vi.fn().mockRejectedValue(new Error("nope")) };
+    window.murmur = {
+      getAppInfo: vi.fn().mockRejectedValue(new Error("nope")),
+      getHelperStatus: vi.fn().mockRejectedValue(new Error("nope")),
+    };
     render(<App />);
     await waitFor(() => expect(window.murmur.getAppInfo).toHaveBeenCalled());
     expect(screen.getByRole("heading", { level: 1, name: "Home" })).toBeTruthy();
     expect(screen.queryByTestId("app-version")).toBeNull();
+  });
+
+  it("shows the helper status on the Settings page only", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    expect(screen.queryByTestId("helper-status")).toBeNull();
+
+    await user.click(screen.getByText("Settings"));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("helper-status").textContent).toBe("Helper: ready (version 0.1.0)"),
+    );
+  });
+
+  it("explains when the helper is unavailable", async () => {
+    window.murmur.getHelperStatus = vi.fn().mockResolvedValue({
+      state: "unavailable",
+      helperVersion: null,
+      message: "The helper has not been built.",
+    });
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(screen.getByText("Settings"));
+    await waitFor(() =>
+      expect(screen.getByTestId("helper-status").textContent).toBe(
+        "Helper: unavailable. The helper has not been built.",
+      ),
+    );
   });
 });
