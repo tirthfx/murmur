@@ -11,4 +11,4 @@ Closes #
 ## Checklist
 
 - [ ] Vault updated (session note, and decision notes if any decision was made)
-- [ ] Clean-room check: no Wispr code, text, assets, names or branding added
+- [ ] Clean-room check: no third-party code, text, assets, names or branding added
