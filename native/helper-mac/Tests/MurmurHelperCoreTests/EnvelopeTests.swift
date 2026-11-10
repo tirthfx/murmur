@@ -58,7 +58,7 @@ final class FixtureTests: XCTestCase {
     }
 
     func testEveryFixtureMessageDecodesAsAnEnvelope() throws {
-        let names = ["hello.json", "hello.ack.json", "ping.json", "shutdown.json", "helper.error.json", "unsupported.json"]
+        let names = ["hello.json", "hello.ack.json", "ping.json", "shutdown.json", "helper.error.json", "unsupported.json", "permissions.status.json", "permissions.request.json"]
         for name in names {
             guard case .array(let messages)? = try loadFixture(name)["messages"] else {
                 return XCTFail("\(name) has no messages")
@@ -95,5 +95,48 @@ final class FixtureTests: XCTestCase {
         let reply = router.handle(line: ack)
         XCTAssertEqual(reply.count, 1)
         XCTAssertEqual(reply[0].payload["result"]?.objectValue?["ready"]?.boolValue, true)
+    }
+
+    func testRouterAnswersPermissionFixtures() throws {
+        let fake = FakePermissionProvider([
+            .microphone: .granted, .accessibility: .denied,
+            .inputMonitoring: .notDetermined, .screenRecording: .unknown,
+        ])
+        var router = handshaken(permissions: fake)
+
+        guard case .array(let status)? = try loadFixture("permissions.status.json")["messages"] else {
+            return XCTFail("no messages")
+        }
+        let statusReply = router.handle(line: try JSONEncoder().encode(status[0]))
+        XCTAssertEqual(try replyJSON(statusReply[0]), try expectedJSON(status[1]))
+
+        guard case .array(let request)? = try loadFixture("permissions.request.json")["messages"] else {
+            return XCTFail("no messages")
+        }
+        fake.set(.microphone, .notDetermined)  // the request fixture shows a never-asked state
+        let okReply = router.handle(line: try JSONEncoder().encode(request[0]))
+        XCTAssertEqual(try replyJSON(okReply[0]), try expectedJSON(request[1]))
+        let refused = router.handle(line: try JSONEncoder().encode(request[2]))
+        XCTAssertEqual(try replyJSON(refused[0]), try expectedJSON(request[3]))
+    }
+
+    func testRouterRejectsInvalidPermissionFixtureRequests() throws {
+        var router = handshaken()
+        guard case .array(let invalid)? = try loadFixture("permissions.request.json")["invalidMessages"] else {
+            return XCTFail("no invalid messages")
+        }
+        for message in invalid {
+            guard message.objectValue?["type"]?.stringValue == "permissions.request" else { continue }
+            let reply = router.handle(line: try JSONEncoder().encode(message))
+            XCTAssertEqual(errorCode(reply[0]), "INVALID_PAYLOAD")
+        }
+    }
+
+    private func replyJSON(_ envelope: Envelope) throws -> JSONValue {
+        try JSONDecoder().decode(JSONValue.self, from: EnvelopeCodec.encode(envelope))
+    }
+
+    private func expectedJSON(_ value: JSONValue) throws -> JSONValue {
+        try JSONDecoder().decode(JSONValue.self, from: JSONEncoder().encode(value))
     }
 }

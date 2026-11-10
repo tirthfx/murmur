@@ -103,6 +103,8 @@ Run all commands from the repo root.
 - Build helper (Swift): `npm run build:helper` (runs `swift build -c release`; output in `native/helper-mac/.build/release/murmur-helper`). Needs macOS with Xcode or the Swift toolchain. In development the app finds the binary there, or at `MURMUR_HELPER_PATH`. If it is missing the app still starts and the Hub shows the helper as unavailable.
 - Helper tests: `npm run test:helper` (runs `swift test`). Not part of CI yet; run it locally when `native/helper-mac` changes.
 
+Permissions (what each is for, granting in development vs a packaged build, `tccutil reset`): see `docs/permissions.md`.
+
 ## Definition of done for a PR
 
 - Builds locally with the commands above.

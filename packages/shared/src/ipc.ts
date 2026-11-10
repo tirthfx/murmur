@@ -1,4 +1,12 @@
 import { z } from "zod";
+import {
+  permissionKindSchema,
+  permissionsInfoSchema,
+  requestablePermissionKindSchema,
+  type PermissionKind,
+  type PermissionsInfo,
+  type RequestablePermissionKind,
+} from "./permissions";
 import { helperStatusSchema, type HelperStatus } from "./platform-helper";
 
 /**
@@ -9,6 +17,9 @@ import { helperStatusSchema, type HelperStatus } from "./platform-helper";
 export const IPC_CHANNELS = {
   getAppInfo: "app:get-info",
   getHelperStatus: "helper:get-status",
+  getPermissions: "permissions:get",
+  requestPermission: "permissions:request",
+  openPermissionSettings: "permissions:open-settings",
 } as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
@@ -30,6 +41,20 @@ export const IPC_CONTRACT = {
   [IPC_CHANNELS.getHelperStatus]: {
     args: z.tuple([]),
     result: helperStatusSchema,
+  },
+  [IPC_CHANNELS.getPermissions]: {
+    args: z.tuple([]),
+    result: permissionsInfoSchema,
+  },
+  // Screen Recording and unknown kinds fail validation here, so they never reach main's logic.
+  [IPC_CHANNELS.requestPermission]: {
+    args: z.tuple([requestablePermissionKindSchema]),
+    result: permissionsInfoSchema,
+  },
+  // The renderer names the permission only. Main decides which URL to open.
+  [IPC_CHANNELS.openPermissionSettings]: {
+    args: z.tuple([permissionKindSchema]),
+    result: z.void(),
   },
 } as const satisfies Record<IpcChannel, { args: z.ZodType; result: z.ZodType }>;
 
@@ -59,4 +84,10 @@ export function parseIpcRequest(channel: unknown, args: readonly unknown[]): Ipc
 export interface MurmurApi {
   getAppInfo(): Promise<AppInfo>;
   getHelperStatus(): Promise<HelperStatus>;
+  /** Re-checks every permission now and returns the result. */
+  getPermissions(): Promise<PermissionsInfo>;
+  /** Asks for one permission (may show a system prompt), then returns the fresh status. */
+  requestPermission(kind: RequestablePermissionKind): Promise<PermissionsInfo>;
+  /** Opens the System Settings pane for this permission. */
+  openPermissionSettings(kind: PermissionKind): Promise<void>;
 }

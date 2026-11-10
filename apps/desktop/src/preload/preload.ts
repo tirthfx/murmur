@@ -5,6 +5,9 @@ import { IPC_CHANNELS, type MurmurApi } from "@murmur/shared";
 const api: MurmurApi = {
   getAppInfo: () => ipcRenderer.invoke(IPC_CHANNELS.getAppInfo),
   getHelperStatus: () => ipcRenderer.invoke(IPC_CHANNELS.getHelperStatus),
+  getPermissions: () => ipcRenderer.invoke(IPC_CHANNELS.getPermissions),
+  requestPermission: (kind) => ipcRenderer.invoke(IPC_CHANNELS.requestPermission, kind),
+  openPermissionSettings: (kind) => ipcRenderer.invoke(IPC_CHANNELS.openPermissionSettings, kind),
 };
 
 contextBridge.exposeInMainWorld("murmur", api);

@@ -6,6 +6,7 @@ import { SideNav, SideNavHeading, SideNavItem, SideNavSection } from "@astryxdes
 import { Text } from "@astryxdesign/core/Text";
 import type { AppInfo } from "@murmur/shared";
 import { HelperStatusLine } from "./HelperStatusLine";
+import { PermissionsSection } from "./PermissionsSection";
 import { PAGES, type PageId } from "./pages";
 
 function useAppInfo(): AppInfo | null {
@@ -70,6 +71,7 @@ export function Hub() {
       <AppShell sideNav={sideNav} contentPadding={0}>
         <div className="hub-page">
           <Heading level={1}>{page.title}</Heading>
+          {page.id === "settings" ? <PermissionsSection /> : null}
           <div className="hub-empty">
             <EmptyState
               title={page.emptyTitle}

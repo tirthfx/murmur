@@ -1,7 +1,7 @@
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { app, BrowserWindow, ipcMain, session } from "electron";
-import { IPC_CHANNELS } from "@murmur/shared";
+import { app, BrowserWindow, ipcMain, session, shell } from "electron";
+import { IPC_CHANNELS, type PermissionKind } from "@murmur/shared";
 import {
   createNavigationGuard,
   denyPermissionCheck,
@@ -9,8 +9,11 @@ import {
   denyWindowOpen,
 } from "../security/guards";
 import { createHubWindowOptions } from "../security/window-options";
+import { createConsoleLogger } from "./helper/node-runtime";
 import { createIpcHandler } from "./ipc";
+import { createPermissionsService } from "./permissions";
 import { createPlatformHelper } from "./platform";
+import { permissionSettingsUrl } from "./platform/mac-settings-links";
 
 const isDevelopment = !app.isPackaged;
 
@@ -34,6 +37,19 @@ const helper = createPlatformHelper({
   env: process.env,
   appVersion: app.getVersion(),
 });
+
+const permissions = createPermissionsService({
+  helper,
+  logger: createConsoleLogger("[permissions]"),
+});
+
+async function openPermissionSettings(kind: PermissionKind): Promise<void> {
+  const url = process.platform === "darwin" ? permissionSettingsUrl(kind) : null;
+  if (url === null) {
+    throw new Error("No System Settings pane is known for this permission on this platform");
+  }
+  await shell.openExternal(url);
+}
 
 function createHubWindow(): BrowserWindow {
   const window = new BrowserWindow(
@@ -66,6 +82,9 @@ function registerIpc(): void {
       platform: process.platform,
     }),
     getHelperStatus: () => helper.getStatus(),
+    getPermissions: () => permissions.check("hub refresh"),
+    requestPermission: (kind) => permissions.request(kind),
+    openPermissionSettings,
   });
   for (const channel of Object.values(IPC_CHANNELS)) {
     ipcMain.handle(channel, (event, ...args: unknown[]) => handle(channel, event, args));
@@ -80,11 +99,16 @@ void app.whenReady().then(() => {
 
   registerIpc();
   // The app works without the helper; its status is shown in the Hub.
-  helper.start().catch((error: unknown) => {
-    console.error(
-      `[helper] not available: ${error instanceof Error ? error.message : String(error)}`,
-    );
-  });
+  helper.start().then(
+    // Read-only: nothing is requested at launch, only the current status is checked.
+    () => void permissions.check("launch"),
+    (error: unknown) => {
+      console.error(
+        `[helper] not available: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      void permissions.check("launch");
+    },
+  );
   createHubWindow();
 
   app.on("activate", () => {

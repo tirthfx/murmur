@@ -36,3 +36,21 @@ body {
 .hub-empty {
   margin-top: var(--spacing-8);
 }
+
+.hub-permissions {
+  margin-top: var(--spacing-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.hub-permission-list {
+  list-style: none;
+  margin: var(--spacing-2) 0 0;
+  padding: 0;
+}
+
+.hub-permission-row {
+  padding: var(--spacing-4) 0;
+  border-top: 1px solid var(--color-border);
+}

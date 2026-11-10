@@ -2,7 +2,11 @@ import {
   PROTOCOL_VERSION,
   isSupportedProtocolVersion,
   type HelloPayload,
+  isRequestablePermissionKind,
   type HelperStatus,
+  type PermissionKind,
+  type PermissionRequestResult,
+  type PermissionSnapshot,
   type PlatformHelper,
   type Unsubscribe,
 } from "@murmur/shared";
@@ -137,6 +141,23 @@ export class HelperSupervisor implements PlatformHelper {
       return Promise.reject(new HelperError("HELPER_UNAVAILABLE", "The helper is not running"));
     }
     return this.connection.request("ping", {});
+  }
+
+  checkPermissions(): Promise<PermissionSnapshot> {
+    if (!this.connection || this.status.state !== "ready") {
+      return Promise.reject(new HelperError("HELPER_UNAVAILABLE", "The helper is not running"));
+    }
+    return this.connection.request("permissions.status", {});
+  }
+
+  requestPermission(kind: PermissionKind): Promise<PermissionRequestResult> {
+    if (!isRequestablePermissionKind(kind)) {
+      return Promise.reject(new HelperError("INVALID_PAYLOAD", `${kind} cannot be requested`));
+    }
+    if (!this.connection || this.status.state !== "ready") {
+      return Promise.reject(new HelperError("HELPER_UNAVAILABLE", "The helper is not running"));
+    }
+    return this.connection.request("permissions.request", { kind });
   }
 
   getStatus(): HelperStatus {
