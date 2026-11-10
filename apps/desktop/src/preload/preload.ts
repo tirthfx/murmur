@@ -8,6 +8,10 @@ const api: MurmurApi = {
   getPermissions: () => ipcRenderer.invoke(IPC_CHANNELS.getPermissions),
   requestPermission: (kind) => ipcRenderer.invoke(IPC_CHANNELS.requestPermission, kind),
   openPermissionSettings: (kind) => ipcRenderer.invoke(IPC_CHANNELS.openPermissionSettings, kind),
+  getSettings: () => ipcRenderer.invoke(IPC_CHANNELS.getSettings),
+  updateSettings: (patch) => ipcRenderer.invoke(IPC_CHANNELS.updateSettings, patch),
+  setShortcut: (slot, key) => ipcRenderer.invoke(IPC_CHANNELS.setShortcut, slot, key),
+  captureShortcut: (active) => ipcRenderer.invoke(IPC_CHANNELS.captureShortcut, active),
 };
 
 contextBridge.exposeInMainWorld("murmur", api);

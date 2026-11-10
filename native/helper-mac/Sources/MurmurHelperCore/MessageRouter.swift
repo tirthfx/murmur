@@ -97,6 +97,11 @@ public struct MessageRouter: Sendable {
             return [handleHotkeyConfigure(id: id, payload: envelope.payload)]
         case "audio.start", "audio.stop", "audio.cancel":
             return [handleAudio(id: id, type: type, payload: envelope.payload)]
+        case "audio.devices":
+            guard let audio else {
+                return [Self.failure(id: id, requestType: type, .unsupportedRequest, "Unknown request type")]
+            }
+            return [Self.success(id: id, requestType: type, audio.devices())]
         case "transcribe.load", "transcribe.unload", "transcribe.file":
             guard let speech else {
                 return [Self.failure(id: id, requestType: type, .unsupportedRequest, "Unknown request type")]

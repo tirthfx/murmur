@@ -7,6 +7,7 @@ import { Text } from "@astryxdesign/core/Text";
 import type { AppInfo } from "@murmur/shared";
 import { HelperStatusLine } from "./HelperStatusLine";
 import { PermissionsSection } from "./PermissionsSection";
+import { SettingsSection } from "./SettingsSection";
 import { PAGES, type PageId } from "./pages";
 
 function useAppInfo(): AppInfo | null {
@@ -71,14 +72,20 @@ export function Hub() {
       <AppShell sideNav={sideNav} contentPadding={0}>
         <div className="hub-page">
           <Heading level={1}>{page.title}</Heading>
-          {page.id === "settings" ? <PermissionsSection /> : null}
-          <div className="hub-empty">
-            <EmptyState
-              title={page.emptyTitle}
-              description={page.emptyDescription}
-              headingLevel={2}
-            />
-          </div>
+          {page.id === "settings" ? (
+            <>
+              <SettingsSection />
+              <PermissionsSection />
+            </>
+          ) : (
+            <div className="hub-empty">
+              <EmptyState
+                title={page.emptyTitle}
+                description={page.emptyDescription}
+                headingLevel={2}
+              />
+            </div>
+          )}
           {page.id === "settings" ? <HelperStatusLine /> : null}
         </div>
       </AppShell>

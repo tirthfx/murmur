@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { IPC_CHANNELS } from "@murmur/shared";
 import { createIpcHandler } from "./ipc";
+import { SAMPLE_SETTINGS } from "../renderer/hub/test-api";
 
 const entryUrl = "file:///app/.vite/renderer/main_window/index.html";
 const info = { name: "Murmur", version: "0.0.0", platform: "darwin" };
@@ -21,6 +22,10 @@ function setup() {
   const getPermissions = vi.fn(() => Promise.resolve(permissionsInfo));
   const requestPermission = vi.fn(() => Promise.resolve(permissionsInfo));
   const openPermissionSettings = vi.fn(() => Promise.resolve());
+  const getSettings = vi.fn(() => Promise.resolve(SAMPLE_SETTINGS));
+  const updateSettings = vi.fn(() => Promise.resolve(SAMPLE_SETTINGS));
+  const setShortcut = vi.fn(() => Promise.resolve({ ok: true as const, view: SAMPLE_SETTINGS }));
+  const captureShortcut = vi.fn();
   const handle = createIpcHandler({
     entryUrl,
     getAppInfo,
@@ -28,8 +33,16 @@ function setup() {
     getPermissions,
     requestPermission,
     openPermissionSettings,
+    getSettings,
+    updateSettings,
+    setShortcut,
+    captureShortcut,
   });
   return {
+    getSettings,
+    updateSettings,
+    setShortcut,
+    captureShortcut,
     handle,
     getAppInfo,
     getHelperStatus,
@@ -140,5 +153,42 @@ describe("permission channels", () => {
       );
     }
     expect(openPermissionSettings).toHaveBeenCalledOnce();
+  });
+});
+
+describe("settings IPC", () => {
+  const sender = { senderFrame: { url: entryUrl } };
+
+  it("reads, updates and sets shortcuts", async () => {
+    const context = setup();
+    await context.handle(IPC_CHANNELS.getSettings, sender, []);
+    await context.handle(IPC_CHANNELS.updateSettings, sender, [{ language: "hi" }]);
+    await context.handle(IPC_CHANNELS.setShortcut, sender, [
+      "handsFree",
+      { code: "KeyD", modifiers: ["control"] },
+    ]);
+    await context.handle(IPC_CHANNELS.setShortcut, sender, ["handsFree", null]);
+    context.handle(IPC_CHANNELS.captureShortcut, sender, [true]);
+    expect(context.updateSettings).toHaveBeenCalledWith({ language: "hi" });
+    expect(context.setShortcut).toHaveBeenCalledWith("handsFree", {
+      code: "KeyD",
+      modifiers: ["control"],
+    });
+    expect(context.setShortcut).toHaveBeenCalledWith("handsFree", null);
+    expect(context.captureShortcut).toHaveBeenCalledWith(true);
+  });
+
+  it("refuses bad settings before they reach main", () => {
+    const context = setup();
+    expect(() => context.handle(IPC_CHANNELS.updateSettings, sender, [{ language: "xx" }])).toThrow(
+      "invalid-args",
+    );
+    expect(() =>
+      context.handle(IPC_CHANNELS.updateSettings, sender, [{ holdShortcut: {} }]),
+    ).toThrow("invalid-args");
+    expect(() =>
+      context.handle(IPC_CHANNELS.setShortcut, sender, ["volume", { code: "KeyD", modifiers: [] }]),
+    ).toThrow("invalid-args");
+    expect(context.updateSettings).not.toHaveBeenCalled();
   });
 });

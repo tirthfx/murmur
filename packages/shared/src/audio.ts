@@ -12,10 +12,24 @@ export const audioSessionIdSchema = z
   .max(64)
   .regex(/^[A-Za-z0-9-]+$/);
 
+export const AUDIO_TRANSPORTS = ["builtin", "usb", "bluetooth", "virtual", "other"] as const;
+
+export const audioDeviceSchema = z.object({
+  /** Stable id of the device (Core Audio UID on macOS). */
+  id: z.string().min(1),
+  name: z.string(),
+  isDefault: z.boolean(),
+  transport: z.enum(AUDIO_TRANSPORTS),
+  sampleRate: z.number().int().nonnegative(),
+});
+export type AudioDevice = z.infer<typeof audioDeviceSchema>;
+
+export const audioDevicesResultSchema = z.object({ devices: z.array(audioDeviceSchema) });
+
 export const audioStartPayloadSchema = z.object({
   sessionId: audioSessionIdSchema,
-  /** Only null (the system default) is supported in this version. */
-  deviceId: z.string().nullable().optional(),
+  /** A device id from `audio.devices`, or null for the system default. */
+  deviceId: z.string().min(1).max(512).nullable().optional(),
   emitLevels: z.boolean(),
   levelIntervalMs: z.number().int().min(20).max(5000),
 });

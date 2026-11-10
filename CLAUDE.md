@@ -117,6 +117,8 @@ Transcript cleanup (rules, the local model and its guard, the 1.5 s budget, benc
 
 Dictation history (database, tables, migrations): see `docs/history.md`.
 
+Settings (shortcuts and their checks, microphone, language, cleanup level): see `docs/settings.md`.
+
 ## Definition of done for a PR
 
 - Builds locally with the commands above.

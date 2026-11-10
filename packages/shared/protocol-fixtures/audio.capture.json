@@ -47,7 +47,9 @@
     {
       "id": "m-000033",
       "type": "audio.stop",
-      "payload": { "sessionId": "3f0c2e7a-7d2b-4a55-9d0e-7a1d2c4b9e10" }
+      "payload": {
+        "sessionId": "3f0c2e7a-7d2b-4a55-9d0e-7a1d2c4b9e10"
+      }
     },
     {
       "id": "m-000033",
@@ -72,7 +74,9 @@
     {
       "id": "m-000034",
       "type": "audio.stop",
-      "payload": { "sessionId": "b2" }
+      "payload": {
+        "sessionId": "b2"
+      }
     },
     {
       "id": "m-000034",
@@ -93,12 +97,20 @@
     {
       "id": "m-000035",
       "type": "audio.cancel",
-      "payload": { "sessionId": "c3" }
+      "payload": {
+        "sessionId": "c3"
+      }
     },
     {
       "id": "m-000035",
       "type": "response",
-      "payload": { "requestType": "audio.cancel", "ok": true, "result": { "discarded": true } }
+      "payload": {
+        "requestType": "audio.cancel",
+        "ok": true,
+        "result": {
+          "discarded": true
+        }
+      }
     },
     {
       "id": "m-000036",
@@ -125,21 +137,87 @@
           "retryable": true
         }
       }
+    },
+    {
+      "id": "m-000020",
+      "type": "audio.devices",
+      "payload": {}
+    },
+    {
+      "id": "m-000020",
+      "type": "response",
+      "payload": {
+        "requestType": "audio.devices",
+        "ok": true,
+        "result": {
+          "devices": [
+            {
+              "id": "BuiltInMicrophoneDevice",
+              "name": "MacBook Pro Microphone",
+              "isDefault": true,
+              "transport": "builtin",
+              "sampleRate": 48000
+            },
+            {
+              "id": "AppleUSBAudioEngine:Desk:1",
+              "name": "Desk Mic",
+              "isDefault": false,
+              "transport": "usb",
+              "sampleRate": 44100
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "m-000038",
+      "type": "response",
+      "payload": {
+        "requestType": "audio.start",
+        "ok": false,
+        "error": {
+          "code": "DEVICE_NOT_FOUND",
+          "message": "Selected input device is not connected",
+          "retryable": false
+        }
+      }
     }
   ],
   "invalidMessages": [
-    { "id": "m-000021", "type": "audio.start", "payload": { "emitLevels": true } },
     {
       "id": "m-000021",
       "type": "audio.start",
-      "payload": { "sessionId": "../escape", "emitLevels": true, "levelIntervalMs": 100 }
+      "payload": {
+        "emitLevels": true
+      }
+    },
+    {
+      "id": "m-000021",
+      "type": "audio.start",
+      "payload": {
+        "sessionId": "../escape",
+        "emitLevels": true,
+        "levelIntervalMs": 100
+      }
     },
     {
       "id": null,
       "type": "audio.level",
-      "payload": { "sessionId": "a", "source": "speaker", "rmsDb": -30, "peakDb": -10, "at": 1 }
+      "payload": {
+        "sessionId": "a",
+        "source": "speaker",
+        "rmsDb": -30,
+        "peakDb": -10,
+        "at": 1
+      }
     },
-    { "id": null, "type": "audio.silent", "payload": { "sessionId": "a" } },
+    {
+      "id": null,
+      "type": "audio.silent",
+      "payload": {
+        "sessionId": "a"
+      }
+    },
     {
       "id": "m-000033",
       "type": "response",
@@ -152,7 +230,30 @@
           "peakDb": -6,
           "meanDb": -20,
           "silent": false,
-          "audioFile": { "path": "/tmp/a.mp3", "codec": "mp3", "bytes": 1 }
+          "audioFile": {
+            "path": "/tmp/a.mp3",
+            "codec": "mp3",
+            "bytes": 1
+          }
+        }
+      }
+    },
+    {
+      "id": "m-000020",
+      "type": "response",
+      "payload": {
+        "requestType": "audio.devices",
+        "ok": true,
+        "result": {
+          "devices": [
+            {
+              "id": "x",
+              "name": "y",
+              "isDefault": true,
+              "transport": "wireless",
+              "sampleRate": 48000
+            }
+          ]
         }
       }
     }

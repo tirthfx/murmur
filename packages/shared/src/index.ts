@@ -11,3 +11,4 @@ export * from "./speech-models";
 export * from "./llm-models";
 export * from "./insert";
 export * from "./bar";
+export * from "./settings";

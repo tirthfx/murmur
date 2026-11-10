@@ -1,5 +1,26 @@
 import { vi } from "vitest";
-import type { MurmurApi, PermissionsInfo } from "@murmur/shared";
+import type { MurmurApi, PermissionsInfo, SettingsView } from "@murmur/shared";
+
+export const SAMPLE_SETTINGS: SettingsView = {
+  settings: {
+    holdShortcut: { type: "key", keyCode: 61, modifiers: [] },
+    handsFreeShortcut: null,
+    inputDevice: "auto",
+    language: "auto",
+    cleanupLevel: "standard",
+  },
+  shortcutLabels: { hold: "Right Option", handsFree: "Double-tap Right Option" },
+  devices: [
+    {
+      id: "BuiltIn",
+      name: "MacBook Pro Microphone",
+      isDefault: true,
+      transport: "builtin",
+      sampleRate: 48000,
+    },
+    { id: "USB-1", name: "Desk Mic", isDefault: false, transport: "usb", sampleRate: 44100 },
+  ],
+};
 
 export const SAMPLE_PERMISSIONS: PermissionsInfo = {
   statuses: {
@@ -21,6 +42,10 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
     getPermissions: vi.fn().mockResolvedValue(SAMPLE_PERMISSIONS),
     requestPermission: vi.fn().mockResolvedValue(SAMPLE_PERMISSIONS),
     openPermissionSettings: vi.fn().mockResolvedValue(undefined),
+    getSettings: vi.fn().mockResolvedValue(SAMPLE_SETTINGS),
+    updateSettings: vi.fn().mockResolvedValue(SAMPLE_SETTINGS),
+    setShortcut: vi.fn().mockResolvedValue({ ok: true, view: SAMPLE_SETTINGS }),
+    captureShortcut: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 }

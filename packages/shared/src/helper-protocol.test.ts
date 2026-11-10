@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import {
   PROTOCOL_VERSION,
   audioCancelRequestSchema,
+  audioDevicesRequestSchema,
   audioLevelEventSchema,
   audioSilentEventSchema,
   audioStartRequestSchema,
@@ -78,6 +79,8 @@ function validateMessage(message: unknown): boolean {
       return hotkeyEventSchema.safeParse(message).success;
     case "hotkey.tap.status":
       return hotkeyTapStatusEventSchema.safeParse(message).success;
+    case "audio.devices":
+      return audioDevicesRequestSchema.safeParse(message).success;
     case "audio.start":
       return audioStartRequestSchema.safeParse(message).success;
     case "audio.stop":
