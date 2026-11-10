@@ -1,0 +1,73 @@
+import { z } from "zod";
+
+/**
+ * Microphone capture messages. Audio itself never crosses the protocol: the helper writes
+ * it to a file and main only gets levels, the silent warning and the file reference.
+ */
+
+/** Session ids become file names in the helper, so the character set is limited. */
+export const audioSessionIdSchema = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(/^[A-Za-z0-9-]+$/);
+
+export const audioStartPayloadSchema = z.object({
+  sessionId: audioSessionIdSchema,
+  /** Only null (the system default) is supported in this version. */
+  deviceId: z.string().nullable().optional(),
+  emitLevels: z.boolean(),
+  levelIntervalMs: z.number().int().min(20).max(5000),
+});
+export type AudioStartInput = z.infer<typeof audioStartPayloadSchema>;
+
+export const audioStartResultSchema = z.object({
+  startedAt: z.number().int().nonnegative(),
+  sampleRate: z.literal(16000),
+  channels: z.literal(1),
+  deviceName: z.string(),
+});
+export type AudioStartResult = z.infer<typeof audioStartResultSchema>;
+
+export const audioSessionPayloadSchema = z.object({ sessionId: audioSessionIdSchema });
+
+export const AUDIO_CODECS = ["pcm_s16le", "opus"] as const;
+
+export const audioFileSchema = z.object({
+  path: z.string().min(1),
+  codec: z.enum(AUDIO_CODECS),
+  bytes: z.number().int().nonnegative(),
+});
+export type AudioFile = z.infer<typeof audioFileSchema>;
+
+export const audioStopResultSchema = z.object({
+  durationMs: z.number().int().nonnegative(),
+  /** Samples written at 16 kHz. */
+  samples: z.number().int().nonnegative(),
+  peakDb: z.number(),
+  meanDb: z.number(),
+  /** True when nothing above the silence threshold was heard in the whole session. */
+  silent: z.boolean(),
+  /** Null when no audio was written. */
+  audioFile: audioFileSchema.nullable(),
+});
+export type AudioStopResult = z.infer<typeof audioStopResultSchema>;
+
+export const audioCancelResultSchema = z.object({ discarded: z.boolean() });
+
+export const audioLevelPayloadSchema = z.object({
+  sessionId: z.string(),
+  source: z.enum(["mic", "system"]),
+  rmsDb: z.number(),
+  peakDb: z.number(),
+  at: z.number().int().nonnegative(),
+});
+export type AudioLevel = z.infer<typeof audioLevelPayloadSchema>;
+
+/** Sent once per session when the first 3 s stay below the silence threshold. */
+export const audioSilentPayloadSchema = z.object({
+  sessionId: z.string(),
+  elapsedMs: z.number().int().nonnegative(),
+  deviceName: z.string().optional(),
+});
+export type AudioSilent = z.infer<typeof audioSilentPayloadSchema>;

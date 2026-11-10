@@ -1,5 +1,14 @@
 import { z } from "zod";
 import {
+  audioCancelResultSchema,
+  audioLevelPayloadSchema,
+  audioSessionPayloadSchema,
+  audioSilentPayloadSchema,
+  audioStartPayloadSchema,
+  audioStartResultSchema,
+  audioStopResultSchema,
+} from "./audio";
+import {
   hotkeyConfigurePayloadSchema,
   hotkeyConfigureResultSchema,
   hotkeyEventPayloadSchema,
@@ -125,6 +134,18 @@ export const HELPER_REQUESTS = {
     payload: hotkeyConfigurePayloadSchema,
     result: hotkeyConfigureResultSchema,
   },
+  "audio.start": {
+    payload: audioStartPayloadSchema,
+    result: audioStartResultSchema,
+  },
+  "audio.stop": {
+    payload: audioSessionPayloadSchema,
+    result: audioStopResultSchema,
+  },
+  "audio.cancel": {
+    payload: audioSessionPayloadSchema,
+    result: audioCancelResultSchema,
+  },
 } as const;
 
 export type HelperRequestType = keyof typeof HELPER_REQUESTS;
@@ -149,6 +170,8 @@ export type HelperErrorEventPayload = z.infer<typeof helperErrorEventPayloadSche
 export const HELPER_EVENTS = {
   "hotkey.event": hotkeyEventPayloadSchema,
   "hotkey.tap.status": hotkeyTapStatusPayloadSchema,
+  "audio.level": audioLevelPayloadSchema,
+  "audio.silent": audioSilentPayloadSchema,
 } as const;
 
 export type HelperEventType = keyof typeof HELPER_EVENTS;
@@ -220,6 +243,12 @@ export const hotkeyTapStatusEventSchema = eventEnvelope(
   "hotkey.tap.status",
   hotkeyTapStatusPayloadSchema,
 );
+
+export const audioStartRequestSchema = requestEnvelope("audio.start", audioStartPayloadSchema);
+export const audioStopRequestSchema = requestEnvelope("audio.stop", audioSessionPayloadSchema);
+export const audioCancelRequestSchema = requestEnvelope("audio.cancel", audioSessionPayloadSchema);
+export const audioLevelEventSchema = eventEnvelope("audio.level", audioLevelPayloadSchema);
+export const audioSilentEventSchema = eventEnvelope("audio.silent", audioSilentPayloadSchema);
 
 export type HelloEvent = z.infer<typeof helloEventSchema>;
 export type HelperResponse = z.infer<typeof responseSchema>;

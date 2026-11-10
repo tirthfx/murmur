@@ -1,0 +1,160 @@
+{
+  "description": "Microphone capture: one session at a time, 16 kHz mono written to a file in the helper. Only levels, the silent warning and the file reference reach main.",
+  "messages": [
+    {
+      "id": "m-000021",
+      "type": "audio.start",
+      "payload": {
+        "sessionId": "3f0c2e7a-7d2b-4a55-9d0e-7a1d2c4b9e10",
+        "emitLevels": true,
+        "levelIntervalMs": 100
+      }
+    },
+    {
+      "id": "m-000021",
+      "type": "response",
+      "payload": {
+        "requestType": "audio.start",
+        "ok": true,
+        "result": {
+          "startedAt": 1794316800142,
+          "sampleRate": 16000,
+          "channels": 1,
+          "deviceName": "MacBook Pro Microphone"
+        }
+      }
+    },
+    {
+      "id": null,
+      "type": "audio.level",
+      "payload": {
+        "sessionId": "3f0c2e7a-7d2b-4a55-9d0e-7a1d2c4b9e10",
+        "source": "mic",
+        "rmsDb": -31.4,
+        "peakDb": -12.8,
+        "at": 1794316800245
+      }
+    },
+    {
+      "id": null,
+      "type": "audio.silent",
+      "payload": {
+        "sessionId": "3f0c2e7a-7d2b-4a55-9d0e-7a1d2c4b9e10",
+        "elapsedMs": 3000,
+        "deviceName": "MacBook Pro Microphone"
+      }
+    },
+    {
+      "id": "m-000033",
+      "type": "audio.stop",
+      "payload": { "sessionId": "3f0c2e7a-7d2b-4a55-9d0e-7a1d2c4b9e10" }
+    },
+    {
+      "id": "m-000033",
+      "type": "response",
+      "payload": {
+        "requestType": "audio.stop",
+        "ok": true,
+        "result": {
+          "durationMs": 5210,
+          "samples": 83360,
+          "peakDb": -6.4,
+          "meanDb": -28.1,
+          "silent": false,
+          "audioFile": {
+            "path": "/Users/you/Library/Application Support/Murmur/audio/tmp/3f0c2e7a-7d2b-4a55-9d0e-7a1d2c4b9e10.pcm",
+            "codec": "pcm_s16le",
+            "bytes": 166720
+          }
+        }
+      }
+    },
+    {
+      "id": "m-000034",
+      "type": "audio.stop",
+      "payload": { "sessionId": "b2" }
+    },
+    {
+      "id": "m-000034",
+      "type": "response",
+      "payload": {
+        "requestType": "audio.stop",
+        "ok": true,
+        "result": {
+          "durationMs": 0,
+          "samples": 0,
+          "peakDb": -120,
+          "meanDb": -120,
+          "silent": true,
+          "audioFile": null
+        }
+      }
+    },
+    {
+      "id": "m-000035",
+      "type": "audio.cancel",
+      "payload": { "sessionId": "c3" }
+    },
+    {
+      "id": "m-000035",
+      "type": "response",
+      "payload": { "requestType": "audio.cancel", "ok": true, "result": { "discarded": true } }
+    },
+    {
+      "id": "m-000036",
+      "type": "response",
+      "payload": {
+        "requestType": "audio.start",
+        "ok": false,
+        "error": {
+          "code": "PERMISSION_DENIED",
+          "message": "microphone: Microphone access is not granted",
+          "retryable": false
+        }
+      }
+    },
+    {
+      "id": "m-000037",
+      "type": "response",
+      "payload": {
+        "requestType": "audio.start",
+        "ok": false,
+        "error": {
+          "code": "BUSY",
+          "message": "A microphone session is already running",
+          "retryable": true
+        }
+      }
+    }
+  ],
+  "invalidMessages": [
+    { "id": "m-000021", "type": "audio.start", "payload": { "emitLevels": true } },
+    {
+      "id": "m-000021",
+      "type": "audio.start",
+      "payload": { "sessionId": "../escape", "emitLevels": true, "levelIntervalMs": 100 }
+    },
+    {
+      "id": null,
+      "type": "audio.level",
+      "payload": { "sessionId": "a", "source": "speaker", "rmsDb": -30, "peakDb": -10, "at": 1 }
+    },
+    { "id": null, "type": "audio.silent", "payload": { "sessionId": "a" } },
+    {
+      "id": "m-000033",
+      "type": "response",
+      "payload": {
+        "requestType": "audio.stop",
+        "ok": true,
+        "result": {
+          "durationMs": 10,
+          "samples": 160,
+          "peakDb": -6,
+          "meanDb": -20,
+          "silent": false,
+          "audioFile": { "path": "/tmp/a.mp3", "codec": "mp3", "bytes": 1 }
+        }
+      }
+    }
+  ]
+}

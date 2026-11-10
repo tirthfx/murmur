@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { app, BrowserWindow, ipcMain, session, shell } from "electron";
@@ -14,6 +15,7 @@ import { createHotkeyService } from "./hotkeys";
 import { createIpcHandler } from "./ipc";
 import { createPermissionsService } from "./permissions";
 import { createPlatformHelper, defaultHotkeyBindings } from "./platform";
+import { createRecorder } from "./recorder";
 import { permissionSettingsUrl } from "./platform/mac-settings-links";
 
 const isDevelopment = !app.isPackaged;
@@ -50,6 +52,13 @@ const hotkeys = createHotkeyService({
   logger: createConsoleLogger("[hotkeys]"),
 });
 permissions.onChecked((statuses) => hotkeys.handlePermissions(statuses));
+
+const recorder = createRecorder({
+  helper,
+  logger: createConsoleLogger("[audio]"),
+  newSessionId: randomUUID,
+});
+hotkeys.onEvent((event) => recorder.handleHotkey(event));
 
 async function openPermissionSettings(kind: PermissionKind): Promise<void> {
   const url = process.platform === "darwin" ? permissionSettingsUrl(kind) : null;
@@ -108,6 +117,7 @@ void app.whenReady().then(() => {
   registerIpc();
   // Configures the dictation key whenever the helper becomes ready, restarts included.
   hotkeys.start();
+  recorder.start();
   // The app works without the helper; its status is shown in the Hub.
   helper.start().then(
     // Read-only: nothing is requested at launch, only the current status is checked.

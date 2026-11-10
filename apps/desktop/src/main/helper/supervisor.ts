@@ -1,5 +1,10 @@
 import {
   PROTOCOL_VERSION,
+  type AudioLevel,
+  type AudioSilent,
+  type AudioStartInput,
+  type AudioStartResult,
+  type AudioStopResult,
   isSupportedProtocolVersion,
   type HelloPayload,
   isRequestablePermissionKind,
@@ -72,6 +77,8 @@ export class HelperSupervisor implements PlatformHelper {
   private readonly statusHandlers = new Set<(status: HelperStatus) => void>();
   private readonly hotkeyEventHandlers = new Set<(event: HotkeyEvent) => void>();
   private readonly tapStatusHandlers = new Set<(status: HotkeyTapStatus) => void>();
+  private readonly audioLevelHandlers = new Set<(level: AudioLevel) => void>();
+  private readonly audioSilentHandlers = new Set<(silent: AudioSilent) => void>();
 
   private connection: HelperConnection | null = null;
   private restartTimes: number[] = [];
@@ -179,6 +186,35 @@ export class HelperSupervisor implements PlatformHelper {
       return Promise.reject(new HelperError("HELPER_UNAVAILABLE", "The helper is not running"));
     }
     return this.connection.request("hotkey.configure", { bindings });
+  }
+
+  startAudio(input: AudioStartInput): Promise<AudioStartResult> {
+    if (!this.connection || this.status.state !== "ready") {
+      return Promise.reject(new HelperError("HELPER_UNAVAILABLE", "The helper is not running"));
+    }
+    return this.connection.request("audio.start", input);
+  }
+
+  stopAudio(sessionId: string): Promise<AudioStopResult> {
+    if (!this.connection || this.status.state !== "ready") {
+      return Promise.reject(new HelperError("HELPER_UNAVAILABLE", "The helper is not running"));
+    }
+    return this.connection.request("audio.stop", { sessionId });
+  }
+
+  cancelAudio(sessionId: string): Promise<{ discarded: boolean }> {
+    if (!this.connection || this.status.state !== "ready") {
+      return Promise.reject(new HelperError("HELPER_UNAVAILABLE", "The helper is not running"));
+    }
+    return this.connection.request("audio.cancel", { sessionId });
+  }
+
+  onAudioLevel(handler: (level: AudioLevel) => void): Unsubscribe {
+    return subscribe(this.audioLevelHandlers, handler);
+  }
+
+  onAudioSilent(handler: (silent: AudioSilent) => void): Unsubscribe {
+    return subscribe(this.audioSilentHandlers, handler);
   }
 
   onHotkeyEvent(handler: (event: HotkeyEvent) => void): Unsubscribe {
@@ -383,6 +419,12 @@ export class HelperSupervisor implements PlatformHelper {
         break;
       case "hotkey.tap.status":
         for (const handler of this.tapStatusHandlers) handler(event.payload);
+        break;
+      case "audio.level":
+        for (const handler of this.audioLevelHandlers) handler(event.payload);
+        break;
+      case "audio.silent":
+        for (const handler of this.audioSilentHandlers) handler(event.payload);
         break;
     }
   }

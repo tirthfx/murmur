@@ -15,7 +15,10 @@ final class MessageRouterTests: XCTestCase {
             uptimeMs: { 0 })
         XCTAssertEqual(
             announcing.helloEvent().payload["capabilities"],
-            .array([.string("permissions.check"), .string("hotkey.hold")]))
+            .array(ProtocolConstants.capabilities.map { .string($0) }))
+        XCTAssertEqual(
+            ProtocolConstants.capabilities,
+            ["permissions.check", "hotkey.hold", "audio.capture", "audio.silent-warning"])
         XCTAssertNotNil(hello.payload["pid"]?.intValue)
         XCTAssertNotNil(hello.payload["macos"]?.objectValue)
     }

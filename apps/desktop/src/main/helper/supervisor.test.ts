@@ -562,3 +562,45 @@ describe("hotkeys", () => {
     expect(events).toEqual([]);
   });
 });
+
+describe("audio", () => {
+  it("sends audio requests and dispatches level and silent events", async () => {
+    const { supervisor, spawner } = await startReady();
+    const helper = spawner.processes[0]!;
+    const levels: unknown[] = [];
+    const silents: unknown[] = [];
+    supervisor.onAudioLevel((level) => levels.push(level));
+    supervisor.onAudioSilent((silent) => silents.push(silent));
+
+    const started = supervisor.startAudio({
+      sessionId: "s1",
+      emitLevels: true,
+      levelIntervalMs: 100,
+    });
+    await flush();
+    const request = helper.lastRequest("audio.start")!;
+    expect(request.payload).toEqual({ sessionId: "s1", emitLevels: true, levelIntervalMs: 100 });
+    helper.respondOk(request, { startedAt: 5, sampleRate: 16000, channels: 1, deviceName: "Mic" });
+    await expect(started).resolves.toMatchObject({ deviceName: "Mic" });
+
+    const level = { sessionId: "s1", source: "mic", rmsDb: -30, peakDb: -10, at: 6 };
+    helper.send({ id: null, type: "audio.level", payload: level });
+    helper.send({ id: null, type: "audio.silent", payload: { sessionId: "s1", elapsedMs: 3000 } });
+    expect(levels).toEqual([level]);
+    expect(silents).toEqual([{ sessionId: "s1", elapsedMs: 3000 }]);
+
+    const cancelled = supervisor.cancelAudio("s1");
+    await flush();
+    helper.respondOk(helper.lastRequest("audio.cancel")!, { discarded: true });
+    await expect(cancelled).resolves.toEqual({ discarded: true });
+  });
+
+  it("rejects an invalid stop result", async () => {
+    const { supervisor, spawner } = await startReady();
+    const helper = spawner.processes[0]!;
+    const stopped = supervisor.stopAudio("s1");
+    await flush();
+    helper.respondOk(helper.lastRequest("audio.stop")!, { durationMs: 1 });
+    await expect(stopped).rejects.toMatchObject({ code: "INVALID_PAYLOAD" });
+  });
+});

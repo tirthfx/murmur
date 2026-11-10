@@ -5,3 +5,4 @@ export * from "./platform-helper";
 export * from "./ipc";
 export * from "./permissions";
 export * from "./hotkeys";
+export * from "./audio";

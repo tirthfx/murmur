@@ -36,10 +36,23 @@ let output = OutputWriter(write: writeStdout)
 let permissions = SystemPermissionProvider()
 let hotkeys = HotkeyController(source: EventTapSource(), permissions: permissions, emit: output.send)
 
+/// Temporary capture files. `MURMUR_AUDIO_DIR` overrides it for development and tests.
+let audioDirectory: URL = {
+    if let override = ProcessInfo.processInfo.environment["MURMUR_AUDIO_DIR"], !override.isEmpty {
+        return URL(fileURLWithPath: override, isDirectory: true)
+    }
+    let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+        ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
+    return support.appendingPathComponent("Murmur/audio/tmp", isDirectory: true)
+}()
+let audio = AudioCaptureController(
+    source: EngineAudioSource(), permissions: permissions, directory: audioDirectory, emit: output.send)
+
 /// Stops the key listener and writes what is pending before the process ends.
 func finish(status: Int32, _ message: String) -> Never {
     Log.info(message)
     hotkeys.stop()
+    audio.shutdown()
     output.flush()
     exit(status)
 }
@@ -49,6 +62,7 @@ var host = HelperHost(
         capabilities: ProtocolConstants.capabilities,
         permissions: permissions,
         hotkeys: hotkeys,
+        audio: audio,
         uptimeMs: HostInfo.uptimeProvider()))
 Log.info("started, helper \(ProtocolConstants.helperVersion), protocol \(ProtocolConstants.protocolVersion)")
 output.send(host.greeting())

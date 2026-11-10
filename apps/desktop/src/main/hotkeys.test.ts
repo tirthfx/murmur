@@ -208,3 +208,18 @@ describe("hotkey service", () => {
     expect(context.logger.lines.some((line) => line.includes("dictate-hold down"))).toBe(false);
   });
 });
+
+describe("hotkey service events", () => {
+  it("passes key events to subscribers", async () => {
+    const context = setup();
+    const seen: string[] = [];
+    context.service.onEvent((event) => seen.push(`${event.bindingId} ${event.state}`));
+    const { proc } = await startConfiguring(context);
+    proc.send({
+      id: null,
+      type: "hotkey.event",
+      payload: { bindingId: "dictate-hold", action: "dictate.hold", state: "down", at: 5 },
+    });
+    expect(seen).toEqual(["dictate-hold down"]);
+  });
+});
