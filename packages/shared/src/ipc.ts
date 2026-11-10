@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { helperStatusSchema, type HelperStatus } from "./platform-helper";
 
 /**
  * Renderer-to-main IPC contract. Channel names, payload schemas and the API the
@@ -7,6 +8,7 @@ import { z } from "zod";
 
 export const IPC_CHANNELS = {
   getAppInfo: "app:get-info",
+  getHelperStatus: "helper:get-status",
 } as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
@@ -24,6 +26,10 @@ export const IPC_CONTRACT = {
   [IPC_CHANNELS.getAppInfo]: {
     args: z.tuple([]),
     result: appInfoSchema,
+  },
+  [IPC_CHANNELS.getHelperStatus]: {
+    args: z.tuple([]),
+    result: helperStatusSchema,
   },
 } as const satisfies Record<IpcChannel, { args: z.ZodType; result: z.ZodType }>;
 
@@ -52,4 +58,5 @@ export function parseIpcRequest(channel: unknown, args: readonly unknown[]): Ipc
 /** The API the preload script exposes to the renderer as `window.murmur`. */
 export interface MurmurApi {
   getAppInfo(): Promise<AppInfo>;
+  getHelperStatus(): Promise<HelperStatus>;
 }

@@ -75,7 +75,7 @@ Commit and PR rules:
 - Haiku subagents (`model: "haiku"`) are for small tasks: one-line fixes, docs edits, GitHub housekeeping such as issues and labels, and read-only lookups.
 - Run one subagent at a time unless the owner says otherwise. Check each agent's output before starting the next.
 - One issue per agent. Never run two agents that edit the same files at the same time. Serialise work that touches shared files such as `packages/shared` or the root config.
-- The orchestrator reviews each agent's diff and reruns the checks before merging. It then opens the PR.
+- Subagents open the pull request. The orchestrator reviews the diff, reruns the checks and merges.
 
 ## Vault protocol
 
@@ -99,8 +99,9 @@ Run all commands from the repo root.
 - Lint: `npm run lint`
 - Format: `npm run format` (check only: `npm run format:check`)
 - Typecheck: `npm run typecheck`
-- Build desktop: `npm run package` (Electron Forge package; output in `apps/desktop/out/`)
-- Build helper (Swift): `TBD`
+- Build desktop: `npm run package` (Electron Forge package; output in `apps/desktop/out/`). Run `npm run build:helper` first to include the helper at `Contents/Resources/helper/murmur-helper`.
+- Build helper (Swift): `npm run build:helper` (runs `swift build -c release`; output in `native/helper-mac/.build/release/murmur-helper`). Needs macOS with Xcode or the Swift toolchain. In development the app finds the binary there, or at `MURMUR_HELPER_PATH`. If it is missing the app still starts and the Hub shows the helper as unavailable.
+- Helper tests: `npm run test:helper` (runs `swift test`). Not part of CI yet; run it locally when `native/helper-mac` changes.
 
 ## Definition of done for a PR
 

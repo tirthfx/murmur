@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { IPC_CHANNELS, appInfoSchema, isIpcChannel, parseIpcRequest } from "./ipc";
+import { helperStatusSchema } from "./platform-helper";
 
 describe("IPC channels", () => {
   it("recognises only known channels", () => {
@@ -48,5 +49,23 @@ describe("appInfoSchema", () => {
     expect(
       appInfoSchema.safeParse({ name: "M", version: "1", platform: "darwin", extra: true }).success,
     ).toBe(false);
+  });
+});
+
+describe("getHelperStatus", () => {
+  it("is a known channel that takes no arguments", () => {
+    expect(isIpcChannel(IPC_CHANNELS.getHelperStatus)).toBe(true);
+    expect(parseIpcRequest(IPC_CHANNELS.getHelperStatus, [])).toEqual({ ok: true, args: [] });
+    expect(parseIpcRequest(IPC_CHANNELS.getHelperStatus, [1])).toEqual({
+      ok: false,
+      reason: "invalid-args",
+    });
+  });
+
+  it("accepts a status and rejects an unknown state or extra fields", () => {
+    const ok = { state: "ready", helperVersion: "0.1.0", message: null };
+    expect(helperStatusSchema.safeParse(ok).success).toBe(true);
+    expect(helperStatusSchema.safeParse({ ...ok, state: "weird" }).success).toBe(false);
+    expect(helperStatusSchema.safeParse({ ...ok, extra: 1 }).success).toBe(false);
   });
 });

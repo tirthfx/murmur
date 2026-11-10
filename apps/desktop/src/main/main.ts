@@ -10,6 +10,7 @@ import {
 } from "../security/guards";
 import { createHubWindowOptions } from "../security/window-options";
 import { createIpcHandler } from "./ipc";
+import { createPlatformHelper } from "./platform";
 
 const isDevelopment = !app.isPackaged;
 
@@ -24,6 +25,15 @@ function resolveHubEntryUrl(): string {
 }
 
 const hubEntryUrl = resolveHubEntryUrl();
+
+const helper = createPlatformHelper({
+  platform: process.platform,
+  isPackaged: app.isPackaged,
+  resourcesPath: process.resourcesPath,
+  appPath: app.getAppPath(),
+  env: process.env,
+  appVersion: app.getVersion(),
+});
 
 function createHubWindow(): BrowserWindow {
   const window = new BrowserWindow(
@@ -55,6 +65,7 @@ function registerIpc(): void {
       version: app.getVersion(),
       platform: process.platform,
     }),
+    getHelperStatus: () => helper.getStatus(),
   });
   for (const channel of Object.values(IPC_CHANNELS)) {
     ipcMain.handle(channel, (event, ...args: unknown[]) => handle(channel, event, args));
@@ -68,6 +79,12 @@ void app.whenReady().then(() => {
   session.defaultSession.setPermissionCheckHandler(denyPermissionCheck);
 
   registerIpc();
+  // The app works without the helper; its status is shown in the Hub.
+  helper.start().catch((error: unknown) => {
+    console.error(
+      `[helper] not available: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  });
   createHubWindow();
 
   app.on("activate", () => {
@@ -82,3 +99,15 @@ app.on("window-all-closed", () => {
     app.quit();
   }
 });
+
+// Stop the helper before quitting so no child process outlives the app.
+let helperStopped = false;
+app.on("before-quit", (event) => {
+  if (helperStopped) return;
+  event.preventDefault();
+  helperStopped = true;
+  void helper.shutdown("app-quit").finally(() => app.quit());
+});
+
+// Last resort if main exits without going through a clean quit.
+process.on("exit", () => helper.terminate());

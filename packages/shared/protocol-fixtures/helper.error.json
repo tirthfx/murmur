@@ -1,0 +1,13 @@
+{
+  "description": "Event sent when the helper cannot attribute a problem to a request, such as a malformed line.",
+  "messages": [
+    {
+      "id": null,
+      "type": "helper.error",
+      "payload": { "code": "INVALID_PAYLOAD", "message": "Line is not valid JSON", "fatal": false }
+    }
+  ],
+  "invalidMessages": [
+    { "id": null, "type": "helper.error", "payload": { "code": "INVALID_PAYLOAD", "message": "x" } }
+  ]
+}

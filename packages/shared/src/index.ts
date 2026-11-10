@@ -1,7 +1,5 @@
-export const PROTOCOL_VERSION = 1;
-
-export function isSupportedProtocolVersion(version: number): boolean {
-  return version === PROTOCOL_VERSION;
-}
-
+export * from "./protocol-version";
+export * from "./helper-protocol";
+export * from "./ndjson";
+export * from "./platform-helper";
 export * from "./ipc";

@@ -1,10 +1,34 @@
+import { cpSync, existsSync, mkdirSync } from "node:fs";
+import path from "node:path";
 import type { ForgeConfig } from "@electron-forge/shared-types";
 import { VitePlugin } from "@electron-forge/plugin-vite";
+
+/** Where `npm run build:helper` puts the Swift helper, relative to this directory. */
+const helperBinary = path.resolve("../../native/helper-mac/.build/release/murmur-helper");
 
 const config: ForgeConfig = {
   packagerConfig: {
     name: "Murmur",
     asar: true,
+  },
+  hooks: {
+    // Copies the built helper to Contents/Resources/helper/murmur-helper. If the helper
+    // has not been built, the package is still made and the app shows the helper as unavailable.
+    postPackage: async (_config, { outputPaths, platform }) => {
+      if (platform !== "darwin") return;
+      if (!existsSync(helperBinary)) {
+        console.warn(
+          "[package] helper binary not found; run `npm run build:helper` to include it in the app",
+        );
+        return;
+      }
+      for (const outputPath of outputPaths) {
+        const target = path.join(outputPath, "Murmur.app", "Contents", "Resources", "helper");
+        mkdirSync(target, { recursive: true });
+        cpSync(helperBinary, path.join(target, "murmur-helper"));
+        console.log(`[package] included helper at ${path.join(target, "murmur-helper")}`);
+      }
+    },
   },
   plugins: [
     new VitePlugin({

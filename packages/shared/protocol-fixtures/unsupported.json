@@ -1,0 +1,20 @@
+{
+  "description": "Error response for a request type the helper does not know.",
+  "messages": [
+    { "id": "m-000009", "type": "does.not.exist", "payload": {} },
+    {
+      "id": "m-000009",
+      "type": "response",
+      "payload": {
+        "requestType": "does.not.exist",
+        "ok": false,
+        "error": {
+          "code": "UNSUPPORTED_REQUEST",
+          "message": "Unknown request type",
+          "retryable": false
+        }
+      }
+    }
+  ],
+  "invalidMessages": []
+}

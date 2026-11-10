@@ -1,0 +1,32 @@
+{
+  "description": "Liveness request and its response.",
+  "messages": [
+    { "id": "m-000002", "type": "ping", "payload": {} },
+    {
+      "id": "m-000002",
+      "type": "response",
+      "payload": { "requestType": "ping", "ok": true, "result": { "uptimeMs": 5012 } }
+    },
+    {
+      "id": "m-000002",
+      "type": "response",
+      "payload": {
+        "requestType": "ping",
+        "ok": false,
+        "error": {
+          "code": "HANDSHAKE_REQUIRED",
+          "message": "Send hello.ack before any other request",
+          "retryable": false
+        }
+      }
+    }
+  ],
+  "invalidMessages": [
+    {
+      "id": "m-000002",
+      "type": "response",
+      "payload": { "requestType": "ping", "ok": true, "result": {} }
+    },
+    { "id": "m-000002", "type": "response", "payload": { "requestType": "ping", "ok": false } }
+  ]
+}

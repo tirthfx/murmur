@@ -14,11 +14,13 @@
   "scripts": {
     "dev": "npm run dev --workspace @murmur/desktop",
     "package": "npm run package --workspace @murmur/desktop",
+    "build:helper": "swift build -c release --package-path native/helper-mac",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:helper": "swift test --package-path native/helper-mac"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

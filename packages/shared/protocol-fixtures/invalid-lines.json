@@ -1,0 +1,15 @@
+{
+  "description": "Lines that are not valid envelopes. Receivers must reject them without crashing.",
+  "invalidLines": [
+    "not json",
+    "{\"id\": null",
+    "[]",
+    "42",
+    "{}",
+    "{\"id\": null, \"type\": \"hello\"}",
+    "{\"id\": null, \"type\": \"\", \"payload\": {}}",
+    "{\"id\": 7, \"type\": \"ping\", \"payload\": {}}",
+    "{\"id\": \"m-000001\", \"type\": \"ping\", \"payload\": []}",
+    "{\"id\": \"m-000001\", \"type\": \"ping\", \"payload\": {}, \"extra\": true}"
+  ]
+}

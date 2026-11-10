@@ -4,17 +4,37 @@ import { createIpcHandler } from "./ipc";
 
 const entryUrl = "file:///app/.vite/renderer/main_window/index.html";
 const info = { name: "Murmur", version: "0.0.0", platform: "darwin" };
+const helperStatus = { state: "ready", helperVersion: "0.1.0", message: null } as const;
 
 function setup() {
   const getAppInfo = vi.fn(() => info);
-  const handle = createIpcHandler({ entryUrl, getAppInfo });
-  return { handle, getAppInfo };
+  const getHelperStatus = vi.fn(() => helperStatus);
+  const handle = createIpcHandler({ entryUrl, getAppInfo, getHelperStatus });
+  return { handle, getAppInfo, getHelperStatus };
 }
 
 describe("createIpcHandler", () => {
   it("returns app info to the app page", () => {
     const { handle } = setup();
     expect(handle(IPC_CHANNELS.getAppInfo, { senderFrame: { url: entryUrl } }, [])).toEqual(info);
+  });
+
+  it("returns the helper status to the app page", () => {
+    const { handle } = setup();
+    expect(handle(IPC_CHANNELS.getHelperStatus, { senderFrame: { url: entryUrl } }, [])).toEqual(
+      helperStatus,
+    );
+  });
+
+  it("rejects arguments on the helper status call and untrusted senders", () => {
+    const { handle, getHelperStatus } = setup();
+    expect(() =>
+      handle(IPC_CHANNELS.getHelperStatus, { senderFrame: { url: entryUrl } }, ["x"]),
+    ).toThrow(/invalid-args/);
+    expect(() =>
+      handle(IPC_CHANNELS.getHelperStatus, { senderFrame: { url: "https://example.com/" } }, []),
+    ).toThrow(/untrusted sender/);
+    expect(getHelperStatus).not.toHaveBeenCalled();
   });
 
   it("rejects an unknown channel", () => {

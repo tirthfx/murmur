@@ -1,9 +1,10 @@
-import { IPC_CHANNELS, parseIpcRequest, type AppInfo } from "@murmur/shared";
+import { IPC_CHANNELS, parseIpcRequest, type AppInfo, type HelperStatus } from "@murmur/shared";
 import { isTrustedIpcSender } from "../security/guards";
 
 export interface IpcDeps {
   entryUrl: string;
   getAppInfo: () => AppInfo;
+  getHelperStatus: () => HelperStatus;
 }
 
 export interface IpcEventLike {
@@ -27,6 +28,8 @@ export function createIpcHandler(deps: IpcDeps) {
     switch (channel) {
       case IPC_CHANNELS.getAppInfo:
         return deps.getAppInfo();
+      case IPC_CHANNELS.getHelperStatus:
+        return deps.getHelperStatus();
       default:
         throw new Error("IPC rejected: unknown-channel");
     }
