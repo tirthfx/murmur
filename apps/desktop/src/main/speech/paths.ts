@@ -8,3 +8,8 @@ import path from "node:path";
 export function speechModelRoot(appData: string): string {
   return path.join(appData, "Murmur", "models", "speech", "whisperkit");
 }
+
+/** Where the cleanup language model lives: `<appData>/Murmur/models/llm`. */
+export function cleanupModelRoot(appData: string): string {
+  return path.join(appData, "Murmur", "models", "llm");
+}

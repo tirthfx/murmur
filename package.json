@@ -21,7 +21,7 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "vitest run",
     "test:helper": "swift test --package-path native/helper-mac",
-    "model:download": "node scripts/download-speech-model.mjs"
+    "model:download": "node scripts/download-models.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

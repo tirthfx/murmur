@@ -310,4 +310,44 @@ describe("recorder", () => {
     await recorder.idle();
     expect(events.map((event) => event.type)).toEqual(["started", "stopped", "no-speech"]);
   });
+
+  it("cleans the transcript before inserting it, and warms cleanup when recording starts", async () => {
+    const transcribe = vi.fn(async () => ({
+      text: "Um, so we go.",
+      language: "en",
+      segments: [],
+      decodeMs: 1,
+      audioMs: 1,
+    }));
+    const clean = vi.fn(async () => ({
+      text: "So we go.",
+      source: "model" as const,
+      fallback: false,
+      reason: null,
+      modelMs: 420,
+    }));
+    const prepareCleanup = vi.fn();
+    const insert = vi.fn(async () => ({
+      method: "paste_cmd_v" as const,
+      delivered: true,
+      clipboardRestored: true,
+    }));
+    const events: { type: string; words?: number }[] = [];
+    const { recorder, logger } = setup({
+      transcribe,
+      clean,
+      prepareCleanup,
+      insert,
+      onEvent: (event) => events.push(event),
+    });
+    recorder.handleHotkey(key("down"));
+    await recorder.idle();
+    expect(prepareCleanup).toHaveBeenCalledOnce();
+    recorder.handleHotkey(key("up"));
+    await recorder.idle();
+    expect(clean).toHaveBeenCalledWith("Um, so we go.");
+    expect(insert).toHaveBeenCalledWith("So we go.");
+    expect(events.at(-1)).toEqual({ type: "transcribed", words: 3 });
+    expect(logger.lines).toContain("info: cleanup: model in 420 ms");
+  });
 });
