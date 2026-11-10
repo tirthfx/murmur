@@ -14,6 +14,8 @@ import {
   type HotkeyConfigureResult,
   type HotkeyEvent,
   type HotkeyTapStatus,
+  type InsertTextInput,
+  type InsertTextResult,
   type PermissionKind,
   type PermissionRequestResult,
   type PermissionSnapshot,
@@ -237,6 +239,20 @@ export class HelperSupervisor implements PlatformHelper {
       return Promise.reject(new HelperError("HELPER_UNAVAILABLE", "The helper is not running"));
     }
     return this.connection.request("transcribe.file", input, TRANSCRIBE_TIMEOUT_MS);
+  }
+
+  insertText(input: InsertTextInput): Promise<InsertTextResult> {
+    if (!this.connection || this.status.state !== "ready") {
+      return Promise.reject(new HelperError("HELPER_UNAVAILABLE", "The helper is not running"));
+    }
+    return this.connection.request("insert.text", input);
+  }
+
+  async copyText(text: string): Promise<void> {
+    if (!this.connection || this.status.state !== "ready") {
+      throw new HelperError("HELPER_UNAVAILABLE", "The helper is not running");
+    }
+    await this.connection.request("insert.copy", { text });
   }
 
   onAudioLevel(handler: (level: AudioLevel) => void): Unsubscribe {

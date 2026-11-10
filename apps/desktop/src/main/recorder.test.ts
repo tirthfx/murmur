@@ -6,7 +6,6 @@ import type {
   AudioStopResult,
   HelperStatus,
   HotkeyEvent,
-  Transcript,
 } from "@murmur/shared";
 import { createTestLogger } from "./helper/fakes";
 import { HelperError } from "./helper/types";
@@ -28,9 +27,7 @@ function key(
   return { bindingId: "dictate-hold", action, state, at: 1 };
 }
 
-function setup(
-  options: { transcribe?: (path: string) => Promise<Transcript>; logTranscripts?: boolean } = {},
-) {
+function setup(options: Partial<Parameters<typeof createRecorder>[0]> = {}) {
   const levelHandlers = new Set<(level: AudioLevel) => void>();
   const silentHandlers = new Set<(silent: AudioSilent) => void>();
   const statusHandlers = new Set<(status: HelperStatus) => void>();
@@ -214,5 +211,54 @@ describe("recorder", () => {
     expect(logger.lines).toContain(
       "warn: could not transcribe: The speech model is not ready (missing)",
     );
+  });
+
+  it("inserts the recognised text into the focused field", async () => {
+    const transcribe = vi.fn(async () => ({
+      text: " Hello there. ",
+      language: "en",
+      segments: [],
+      decodeMs: 600,
+      audioMs: 2000,
+    }));
+    const insert = vi.fn(async () => ({
+      method: "paste_cmd_v" as const,
+      delivered: true,
+      clipboardRestored: true,
+    }));
+    const { recorder, logger } = setup({ transcribe, insert });
+    recorder.handleHotkey(key("down"));
+    recorder.handleHotkey(key("up"));
+    await recorder.idle();
+    expect(insert).toHaveBeenCalledWith("Hello there.");
+    expect(
+      logger.lines.some((line) =>
+        /inserted by paste_cmd_v in \d+ ms, clipboard restored/.test(line),
+      ),
+    ).toBe(true);
+  });
+
+  it("copies instead when Accessibility is missing, and never inserts empty text", async () => {
+    const texts = ["Hello.", "  "];
+    const transcribe = vi.fn(async () => ({
+      text: texts.shift() ?? "",
+      language: "en",
+      segments: [],
+      decodeMs: 1,
+      audioMs: 1,
+    }));
+    const insert = vi.fn(async () => {
+      throw new HelperError("PERMISSION_DENIED", "accessibility: Accessibility is not granted");
+    });
+    const copy = vi.fn(async () => {});
+    const { recorder, logger } = setup({ transcribe, insert, copy });
+    for (let i = 0; i < 2; i++) {
+      recorder.handleHotkey(key("down"));
+      recorder.handleHotkey(key("up"));
+    }
+    await recorder.idle();
+    expect(insert).toHaveBeenCalledTimes(1);
+    expect(copy).toHaveBeenCalledWith("Hello.");
+    expect(logger.lines.join("\n")).toContain("copied to the clipboard instead");
   });
 });

@@ -2,6 +2,7 @@ import type {
   AudioLevel,
   AudioSilent,
   HotkeyEvent,
+  InsertTextResult,
   PlatformHelper,
   Transcript,
   Unsubscribe,
@@ -20,6 +21,10 @@ export interface RecorderDeps {
   transcribe?: (path: string) => Promise<Transcript>;
   /** Also log the recognised text. Off by default: logs never hold what was said. */
   logTranscripts?: boolean;
+  /** Puts the text into the focused field. Without it, text is only logged. */
+  insert?: (text: string) => Promise<InsertTextResult>;
+  /** Clipboard fallback when inserting is not allowed. */
+  copy?: (text: string) => Promise<void>;
 }
 
 export interface Recorder {
@@ -117,8 +122,33 @@ export function createRecorder(deps: RecorderDeps): Recorder {
         `transcribed ${(transcript.audioMs / 1000).toFixed(2)} s in ${transcript.decodeMs} ms: ${words} words, language ${transcript.language || "unknown"}`,
       );
       if (deps.logTranscripts) logger.info(`text: ${transcript.text}`);
+      await insert(transcript.text.trim());
     } catch (error) {
       logger.warn(`could not transcribe: ${errorMessage(error)}`);
+    }
+  }
+
+  async function insert(text: string): Promise<void> {
+    if (!deps.insert || text === "") return;
+    const started = Date.now();
+    try {
+      const result = await deps.insert(text);
+      const restored =
+        result.clipboardRestored === null
+          ? ""
+          : result.clipboardRestored
+            ? ", clipboard restored"
+            : ", clipboard kept (it changed meanwhile)";
+      logger.info(`inserted by ${result.method} in ${Date.now() - started} ms${restored}`);
+    } catch (error) {
+      if (errorCode(error) === "PERMISSION_DENIED" && deps.copy) {
+        await deps.copy(text).catch(() => {});
+        logger.warn(
+          "Accessibility is not granted, so the text was copied to the clipboard instead. Grant it from the Hub's Settings.",
+        );
+      } else {
+        logger.warn(`could not insert: ${errorMessage(error)}`);
+      }
     }
   }
 

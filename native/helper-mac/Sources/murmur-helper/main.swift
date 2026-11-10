@@ -48,6 +48,13 @@ let audioDirectory: URL = {
 let audio = AudioCaptureController(
     source: EngineAudioSource(), permissions: permissions, directory: audioDirectory, emit: output.send)
 let speech = TranscriptionController(recognizer: WhisperKitRecognizer(), reply: output.send)
+let pasteboard = SystemPasteboard()
+let insertion = InsertionController(
+    inserter: Inserter(
+        pasteboard: pasteboard, keys: SystemKeyPoster(),
+        sleep: { seconds in try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000)) }),
+    pasteboard: pasteboard, permissions: permissions, frontmostBundleId: { Frontmost.bundleId() },
+    reply: output.send)
 
 /// Stops the key listener and writes what is pending before the process ends.
 func finish(status: Int32, _ message: String) -> Never {
@@ -65,6 +72,7 @@ var host = HelperHost(
         hotkeys: hotkeys,
         audio: audio,
         speech: speech,
+        insertion: insertion,
         uptimeMs: HostInfo.uptimeProvider()))
 Log.info("started, helper \(ProtocolConstants.helperVersion), protocol \(ProtocolConstants.protocolVersion)")
 output.send(host.greeting())
