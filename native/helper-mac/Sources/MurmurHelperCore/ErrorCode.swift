@@ -4,12 +4,15 @@ public enum ErrorCode: String, Sendable {
     case protocolVersionMismatch = "PROTOCOL_VERSION_MISMATCH"
     case unsupportedRequest = "UNSUPPORTED_REQUEST"
     case invalidPayload = "INVALID_PAYLOAD"
+    case permissionDenied = "PERMISSION_DENIED"
+    case conflict = "CONFLICT"
     case `internal` = "INTERNAL"
 
     public var retryable: Bool {
         switch self {
         case .internal: return true
-        case .handshakeRequired, .protocolVersionMismatch, .unsupportedRequest, .invalidPayload:
+        case .handshakeRequired, .protocolVersionMismatch, .unsupportedRequest, .invalidPayload,
+            .permissionDenied, .conflict:
             return false
         }
     }

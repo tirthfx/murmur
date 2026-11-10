@@ -1,0 +1,46 @@
+{
+  "description": "Hotkey events: down and up for a hold binding, and event tap status changes.",
+  "messages": [
+    {
+      "id": null,
+      "type": "hotkey.event",
+      "payload": {
+        "bindingId": "dictate-hold",
+        "action": "dictate.hold",
+        "state": "down",
+        "at": 1794316800100
+      }
+    },
+    {
+      "id": null,
+      "type": "hotkey.event",
+      "payload": {
+        "bindingId": "dictate-hold",
+        "action": "dictate.hold",
+        "state": "up",
+        "at": 1794316801350
+      }
+    },
+    { "id": null, "type": "hotkey.tap.status", "payload": { "state": "active" } },
+    { "id": null, "type": "hotkey.tap.status", "payload": { "state": "disabled_by_system" } },
+    { "id": null, "type": "hotkey.tap.status", "payload": { "state": "reenabled" } }
+  ],
+  "invalidMessages": [
+    {
+      "id": null,
+      "type": "hotkey.event",
+      "payload": { "bindingId": "dictate-hold", "action": "dictate.hold", "state": "held", "at": 1 }
+    },
+    {
+      "id": null,
+      "type": "hotkey.event",
+      "payload": { "bindingId": "dictate-hold", "action": "dictate.hold", "state": "down" }
+    },
+    {
+      "id": "m-000001",
+      "type": "hotkey.event",
+      "payload": { "bindingId": "dictate-hold", "action": "dictate.hold", "state": "down", "at": 1 }
+    },
+    { "id": null, "type": "hotkey.tap.status", "payload": { "state": "off" } }
+  ]
+}

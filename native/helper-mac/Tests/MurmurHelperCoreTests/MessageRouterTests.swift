@@ -13,7 +13,9 @@ final class MessageRouterTests: XCTestCase {
         let announcing = MessageRouter(
             capabilities: ProtocolConstants.capabilities, permissions: FakePermissionProvider(),
             uptimeMs: { 0 })
-        XCTAssertEqual(announcing.helloEvent().payload["capabilities"], .array([.string("permissions.check")]))
+        XCTAssertEqual(
+            announcing.helloEvent().payload["capabilities"],
+            .array([.string("permissions.check"), .string("hotkey.hold")]))
         XCTAssertNotNil(hello.payload["pid"]?.intValue)
         XCTAssertNotNil(hello.payload["macos"]?.objectValue)
     }

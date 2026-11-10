@@ -1,0 +1,144 @@
+{
+  "description": "Hotkey configuration: replaces all bindings. Invalid bindings are rejected one by one; the tap needs Input Monitoring.",
+  "messages": [
+    {
+      "id": "m-000010",
+      "type": "hotkey.configure",
+      "payload": {
+        "bindings": [
+          {
+            "id": "dictate-hold",
+            "action": "dictate.hold",
+            "trigger": { "type": "key", "keyCode": 61, "modifiers": [] },
+            "mode": "hold"
+          }
+        ]
+      }
+    },
+    {
+      "id": "m-000010",
+      "type": "response",
+      "payload": {
+        "requestType": "hotkey.configure",
+        "ok": true,
+        "result": { "registered": ["dictate-hold"], "rejected": [] }
+      }
+    },
+    {
+      "id": "m-000011",
+      "type": "hotkey.configure",
+      "payload": {
+        "bindings": [
+          {
+            "id": "dictate-hold",
+            "action": "dictate.hold",
+            "trigger": { "type": "key", "keyCode": 61, "modifiers": [] },
+            "mode": "hold"
+          },
+          {
+            "id": "same-key",
+            "action": "dictate.toggle",
+            "trigger": { "type": "key", "keyCode": 61, "modifiers": [] },
+            "mode": "press"
+          },
+          {
+            "id": "plain-letter",
+            "action": "paste.last",
+            "trigger": { "type": "key", "keyCode": 0, "modifiers": [] },
+            "mode": "press"
+          }
+        ]
+      }
+    },
+    {
+      "id": "m-000011",
+      "type": "response",
+      "payload": {
+        "requestType": "hotkey.configure",
+        "ok": true,
+        "result": {
+          "registered": ["dictate-hold"],
+          "rejected": [
+            {
+              "id": "same-key",
+              "code": "CONFLICT",
+              "message": "Another binding already uses this trigger"
+            },
+            {
+              "id": "plain-letter",
+              "code": "INVALID_PAYLOAD",
+              "message": "This key needs at least one modifier"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "m-000012",
+      "type": "hotkey.configure",
+      "payload": {
+        "bindings": [
+          {
+            "id": "dictate-hold",
+            "action": "dictate.hold",
+            "trigger": { "type": "key", "keyCode": 61, "modifiers": [] },
+            "mode": "hold"
+          }
+        ]
+      }
+    },
+    {
+      "id": "m-000012",
+      "type": "response",
+      "payload": {
+        "requestType": "hotkey.configure",
+        "ok": false,
+        "error": {
+          "code": "PERMISSION_DENIED",
+          "message": "inputMonitoring: Input Monitoring is not granted",
+          "retryable": false
+        }
+      }
+    }
+  ],
+  "invalidMessages": [
+    { "id": "m-000010", "type": "hotkey.configure", "payload": { "bindings": {} } },
+    {
+      "id": "m-000010",
+      "type": "hotkey.configure",
+      "payload": {
+        "bindings": [
+          {
+            "id": "dictate-hold",
+            "action": "dictate.hold",
+            "trigger": { "type": "key", "keyCode": 61, "modifiers": [] },
+            "mode": "hold-forever"
+          }
+        ]
+      }
+    },
+    {
+      "id": "m-000010",
+      "type": "hotkey.configure",
+      "payload": {
+        "bindings": [
+          {
+            "id": "dictate-hold",
+            "action": "dictate.hold",
+            "trigger": { "type": "key", "keyCode": 61, "modifiers": ["hyper"] },
+            "mode": "hold"
+          }
+        ]
+      }
+    },
+    {
+      "id": "m-000010",
+      "type": "response",
+      "payload": {
+        "requestType": "hotkey.configure",
+        "ok": true,
+        "result": { "registered": ["dictate-hold"] }
+      }
+    }
+  ]
+}
