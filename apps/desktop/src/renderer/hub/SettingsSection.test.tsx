@@ -73,4 +73,14 @@ describe("Settings section", () => {
     mount({ getSettings: vi.fn().mockRejectedValue(new Error("x")) });
     expect(await screen.findByText("Settings could not be read.")).toBeTruthy();
   });
+
+  it("turns a sound off and mute while dictating on", async () => {
+    const api = mount();
+    await userEvent.click(await screen.findByRole("switch", { name: "Done sound" }));
+    expect(api.updateSettings).toHaveBeenCalledWith({
+      sounds: { start: true, lock: true, success: false, error: true, cancel: false },
+    });
+    await userEvent.click(screen.getByRole("switch", { name: "Mute other audio while dictating" }));
+    expect(api.updateSettings).toHaveBeenCalledWith({ muteWhileDictating: true });
+  });
 });

@@ -1,0 +1,29 @@
+{
+  "description": "Output mute while dictating: main reads the state, mutes, and restores it at the end.",
+  "messages": [
+    { "id": "m-000060", "type": "media.status", "payload": {} },
+    {
+      "id": "m-000060",
+      "type": "response",
+      "payload": {
+        "requestType": "media.status",
+        "ok": true,
+        "result": { "playing": "unknown", "outputMuted": false }
+      }
+    },
+    { "id": "m-000061", "type": "media.mute", "payload": { "muted": true } },
+    {
+      "id": "m-000061",
+      "type": "response",
+      "payload": { "requestType": "media.mute", "ok": true, "result": { "previousMuted": false } }
+    }
+  ],
+  "invalidMessages": [
+    { "id": "m-000061", "type": "media.mute", "payload": { "muted": "yes" } },
+    {
+      "id": "m-000061",
+      "type": "response",
+      "payload": { "requestType": "media.mute", "ok": true, "result": {} }
+    }
+  ]
+}

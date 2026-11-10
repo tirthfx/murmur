@@ -17,6 +17,8 @@ import {
   helloEventSchema,
   helperErrorEventSchema,
   insertCopyRequestSchema,
+  mediaMuteRequestSchema,
+  mediaStatusRequestSchema,
   insertTextRequestSchema,
   hotkeyConfigureRequestSchema,
   hotkeyEventSchema,
@@ -101,6 +103,10 @@ function validateMessage(message: unknown): boolean {
       return insertTextRequestSchema.safeParse(message).success;
     case "insert.copy":
       return insertCopyRequestSchema.safeParse(message).success;
+    case "media.status":
+      return mediaStatusRequestSchema.safeParse(message).success;
+    case "media.mute":
+      return mediaMuteRequestSchema.safeParse(message).success;
     case "response": {
       const response = responseSchema.safeParse(message);
       if (!response.success) return false;

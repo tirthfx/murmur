@@ -94,6 +94,10 @@ export interface PlatformHelper {
   insertText(input: InsertTextInput): Promise<InsertTextResult>;
   /** Puts text on the clipboard. Needs no permission. */
   copyText(text: string): Promise<void>;
+  /** The output's mute switch: null when there is none. */
+  getOutputMuted(): Promise<boolean | null>;
+  /** Sets the output mute and returns what it was before. */
+  setOutputMuted(muted: boolean): Promise<boolean>;
   getStatus(): HelperStatus;
   onStatusChange(handler: (status: HelperStatus) => void): Unsubscribe;
 }

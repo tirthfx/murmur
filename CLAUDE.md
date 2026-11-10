@@ -119,6 +119,8 @@ Dictation history (database, tables, migrations): see `docs/history.md`.
 
 Settings (shortcuts and their checks, microphone, language, cleanup level): see `docs/settings.md`.
 
+Sounds and output mute (the tones, mute while dictating, crash recovery): see `docs/sounds.md`.
+
 ## Definition of done for a PR
 
 - Builds locally with the commands above.

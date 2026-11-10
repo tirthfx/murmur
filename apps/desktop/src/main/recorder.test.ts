@@ -525,4 +525,43 @@ describe("recorder", () => {
     expect(transcribe).not.toHaveBeenCalled();
     expect(events.map((event) => event.type)).toEqual(["started", "cancelled"]);
   });
+
+  it("runs the start effects before the microphone and restores after stop, cancel and failed starts", async () => {
+    const order: string[] = [];
+    const clock = new FakeClock();
+    const { recorder, helper, calls } = setup({
+      clock,
+      beforeStart: async () => {
+        order.push("before");
+      },
+      afterEnd: async () => {
+        order.push("after");
+      },
+    });
+    helper.startAudio.mockImplementation(async (input) => {
+      order.push("mic on");
+      calls.push(`start ${input.sessionId}`);
+      return { startedAt: 1, sampleRate: 16000, channels: 1, deviceName: "Desk Mic" };
+    });
+    recorder.handleHotkey(key("down"));
+    recorder.handleHotkey(key("up"));
+    await recorder.idle();
+    recorder.handleHotkey(key("down"));
+    await recorder.idle();
+    recorder.handleHotkey({ bindingId: "c", action: "dictate.cancel", state: "press", at: 500 });
+    await recorder.idle();
+    helper.startAudio.mockRejectedValueOnce(new HelperError("PERMISSION_DENIED", "microphone"));
+    recorder.handleHotkey(key("down"));
+    await recorder.idle();
+    expect(order).toEqual([
+      "before",
+      "mic on",
+      "after",
+      "before",
+      "mic on",
+      "after",
+      "before",
+      "after",
+    ]);
+  });
 });

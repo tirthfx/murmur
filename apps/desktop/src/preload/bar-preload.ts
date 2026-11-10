@@ -17,6 +17,7 @@ const api: MurmurBarApi = {
   ready: () => ipcRenderer.invoke(BAR_IPC_CHANNELS.ready) as Promise<BarView>,
   onView: (handler) => subscribe(BAR_PUSH_CHANNELS.view, handler),
   onLevel: (handler) => subscribe(BAR_PUSH_CHANNELS.level, handler),
+  onSound: (handler) => subscribe(BAR_PUSH_CHANNELS.sound, handler),
   dragStart: () => ipcRenderer.send(BAR_IPC_CHANNELS.dragStart),
   drag: (dx, dy) => ipcRenderer.send(BAR_IPC_CHANNELS.drag, Math.round(dx), Math.round(dy)),
   dragEnd: () => ipcRenderer.send(BAR_IPC_CHANNELS.dragEnd),

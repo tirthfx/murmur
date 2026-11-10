@@ -47,12 +47,28 @@ export const settingsSchema = z.strictObject({
   inputDevice: z.string().min(1).max(512),
   language: z.enum(languageCodes),
   cleanupLevel: z.enum(SETTINGS_CLEANUP_LEVELS),
+  /** Which feedback sounds play (DC-40). */
+  sounds: z.strictObject({
+    start: z.boolean(),
+    lock: z.boolean(),
+    success: z.boolean(),
+    error: z.boolean(),
+    cancel: z.boolean(),
+  }),
+  /** Mute the system output while recording (DC-41). */
+  muteWhileDictating: z.boolean(),
 });
 export type Settings = z.infer<typeof settingsSchema>;
 
 /** Settings the Hub may change directly. Shortcuts go through the recorder and its checks. */
 export const settingsPatchSchema = settingsSchema
-  .pick({ inputDevice: true, language: true, cleanupLevel: true })
+  .pick({
+    inputDevice: true,
+    language: true,
+    cleanupLevel: true,
+    sounds: true,
+    muteWhileDictating: true,
+  })
   .partial()
   .strict();
 export type SettingsPatch = z.infer<typeof settingsPatchSchema>;
@@ -64,6 +80,20 @@ export const SETTING_KEYS: Record<keyof Settings, string> = {
   inputDevice: "audio.input_device",
   language: "speech.language",
   cleanupLevel: "cleanup.level",
+  sounds: "sounds.events",
+  muteWhileDictating: "media.mute_while_dictating",
+};
+
+export const SOUND_NAMES = ["start", "lock", "success", "error", "cancel"] as const;
+export type SoundName = (typeof SOUND_NAMES)[number];
+
+/** DC-40 defaults: every sound on except cancel. */
+export const DEFAULT_SOUNDS: Settings["sounds"] = {
+  start: true,
+  lock: true,
+  success: true,
+  error: true,
+  cancel: false,
 };
 
 export const SHORTCUT_SLOTS = ["hold", "handsFree"] as const;

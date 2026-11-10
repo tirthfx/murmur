@@ -8,6 +8,8 @@ export const SAMPLE_SETTINGS: SettingsView = {
     inputDevice: "auto",
     language: "auto",
     cleanupLevel: "standard",
+    sounds: { start: true, lock: true, success: true, error: true, cancel: false },
+    muteWhileDictating: false,
   },
   shortcutLabels: { hold: "Right Option", handsFree: "Double-tap Right Option" },
   devices: [
