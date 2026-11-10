@@ -111,6 +111,8 @@ Speech recognition (model download and SHA-256 check, offline loading, manual te
 
 Text insertion (paste with clipboard restore, typed fallback, manual test): see `docs/insertion.md`.
 
+The Bar (states, the non-focusable window, drag and saved position, manual test): see `docs/bar.md`.
+
 ## Definition of done for a PR
 
 - Builds locally with the commands above.

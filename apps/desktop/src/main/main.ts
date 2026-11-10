@@ -1,8 +1,13 @@
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { app, BrowserWindow, ipcMain, session, shell } from "electron";
-import { DEFAULT_SPEECH_MODEL, IPC_CHANNELS, type PermissionKind } from "@murmur/shared";
+import { app, BrowserWindow, ipcMain, screen, session, shell } from "electron";
+import {
+  BAR_IPC_CHANNELS,
+  DEFAULT_SPEECH_MODEL,
+  IPC_CHANNELS,
+  type PermissionKind,
+} from "@murmur/shared";
 import {
   createNavigationGuard,
   denyPermissionCheck,
@@ -10,7 +15,11 @@ import {
   denyWindowOpen,
 } from "../security/guards";
 import { createHubWindowOptions } from "../security/window-options";
-import { createConsoleLogger } from "./helper/node-runtime";
+import { createBarController } from "./bar/bar-controller";
+import { barEventFor } from "./bar/bar-events";
+import { createBarIpcHandler } from "./bar/bar-ipc";
+import { BarWindow, barPositionFile } from "./bar/bar-window";
+import { createConsoleLogger, systemClock } from "./helper/node-runtime";
 import { createHotkeyService } from "./hotkeys";
 import { createIpcHandler } from "./ipc";
 import { createPermissionsService } from "./permissions";
@@ -33,6 +42,18 @@ function resolveHubEntryUrl(): string {
 }
 
 const hubEntryUrl = resolveHubEntryUrl();
+
+/** The Bar is a second page of the same renderer build, with its own preload. */
+function resolveBarEntryUrl(): string {
+  if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
+    return new URL("bar.html", `${MAIN_WINDOW_VITE_DEV_SERVER_URL}/`).toString();
+  }
+  return pathToFileURL(
+    path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/bar.html`),
+  ).toString();
+}
+
+const barEntryUrl = resolveBarEntryUrl();
 
 const helper = createPlatformHelper({
   platform: process.platform,
@@ -62,6 +83,19 @@ const speech = createSpeechService({
   logger: createConsoleLogger("[speech]"),
 });
 
+const displayArea = (display: Electron.Display) => ({ id: display.id, workArea: display.workArea });
+const barWindow = new BarWindow({
+  create: (options) => new BrowserWindow(options),
+  preloadPath: path.join(__dirname, "bar-preload.cjs"),
+  entryUrl: barEntryUrl,
+  isDevelopment,
+  positionFile: barPositionFile(app.getPath("userData")),
+  displays: () => screen.getAllDisplays().map(displayArea),
+  primaryDisplay: () => displayArea(screen.getPrimaryDisplay()),
+  logger: createConsoleLogger("[bar]"),
+});
+const bar = createBarController(barWindow, systemClock);
+
 const recorder = createRecorder({
   helper,
   logger: createConsoleLogger("[audio]"),
@@ -71,8 +105,10 @@ const recorder = createRecorder({
   insert: (text) =>
     helper.insertText({ text, method: "auto", restoreClipboard: true, restoreDelayMs: 350 }),
   copy: (text) => helper.copyText(text),
+  onEvent: (event) => bar.dispatch(barEventFor(event)),
 });
 hotkeys.onEvent((event) => recorder.handleHotkey(event));
+helper.onAudioLevel((level) => bar.level(level.rmsDb));
 
 async function openPermissionSettings(kind: PermissionKind): Promise<void> {
   const url = process.platform === "darwin" ? permissionSettingsUrl(kind) : null;
@@ -81,6 +117,8 @@ async function openPermissionSettings(kind: PermissionKind): Promise<void> {
   }
   await shell.openExternal(url);
 }
+
+let hubWindow: BrowserWindow | null = null;
 
 function createHubWindow(): BrowserWindow {
   const window = new BrowserWindow(
@@ -91,7 +129,11 @@ function createHubWindow(): BrowserWindow {
     }),
   );
   window.once("ready-to-show", () => window.show());
+  window.on("closed", () => {
+    if (hubWindow === window) hubWindow = null;
+  });
   void window.loadURL(hubEntryUrl);
+  hubWindow = window;
   return window;
 }
 
@@ -120,6 +162,34 @@ function registerIpc(): void {
   for (const channel of Object.values(IPC_CHANNELS)) {
     ipcMain.handle(channel, (event, ...args: unknown[]) => handle(channel, event, args));
   }
+
+  const handleBar = createBarIpcHandler({
+    entryUrl: barEntryUrl,
+    getView: () => bar.getView(),
+    dragStart: () => barWindow.dragStart(),
+    drag: (dx, dy) => barWindow.drag(dx, dy),
+    dragEnd: () => void barWindow.dragEnd(),
+    click: () => {
+      if (bar.click() === "retry" && recorder.retryLast()) bar.dispatch({ type: "retry" });
+    },
+  });
+  ipcMain.handle(BAR_IPC_CHANNELS.ready, (event) =>
+    handleBar(BAR_IPC_CHANNELS.ready, event.senderFrame?.url, []),
+  );
+  for (const channel of [
+    BAR_IPC_CHANNELS.dragStart,
+    BAR_IPC_CHANNELS.drag,
+    BAR_IPC_CHANNELS.dragEnd,
+    BAR_IPC_CHANNELS.click,
+  ]) {
+    ipcMain.on(channel, (event, ...args: unknown[]) => {
+      try {
+        handleBar(channel, event.senderFrame?.url, args);
+      } catch (error) {
+        console.warn(`[bar] ${error instanceof Error ? error.message : String(error)}`);
+      }
+    });
+  }
 }
 
 void app.whenReady().then(() => {
@@ -145,11 +215,15 @@ void app.whenReady().then(() => {
     },
   );
   createHubWindow();
+  // The Bar never takes focus; it shows itself on the first state push.
+  void barWindow.open().then(
+    () => barWindow.render(bar.getView()),
+    (error: unknown) => console.error(`[bar] could not open: ${String(error)}`),
+  );
 
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createHubWindow();
-    }
+    // The Bar is always open, so check for the Hub itself.
+    if (!hubWindow) createHubWindow();
   });
 });
 
