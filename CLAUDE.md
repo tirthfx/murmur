@@ -43,14 +43,14 @@ Platform rule: all platform-specific code sits behind an interface, so a Windows
 
 Layout:
 
-| Path | Purpose |
-|---|---|
-| `apps/desktop` | Electron app (main, preload, renderer) |
-| `native/helper-mac` | Swift helper package |
-| `packages/shared` | Shared types and helper protocol |
+| Path                    | Purpose                                |
+| ----------------------- | -------------------------------------- |
+| `apps/desktop`          | Electron app (main, preload, renderer) |
+| `native/helper-mac`     | Swift helper package                   |
+| `packages/shared`       | Shared types and helper protocol       |
 | `services/local-server` | Local backend for team, sync and admin |
-| `docs/` | In-repo technical documentation |
-| `.github/` | Issue and PR templates, CI workflow |
+| `docs/`                 | In-repo technical documentation        |
+| `.github/`              | Issue and PR templates, CI workflow    |
 
 ## Workflow
 
@@ -92,11 +92,12 @@ The notes vault is an Obsidian-style folder at `/Users/tirthsandipshendage/Devel
 
 To be filled in when the app is scaffolded.
 
-- Install: `TBD`
+- Install: `npm install` (CI uses `npm ci`)
 - Dev (desktop): `TBD`
-- Test: `TBD`
-- Lint: `TBD`
-- Typecheck: `TBD`
+- Test: `npm test`
+- Lint: `npm run lint`
+- Format: `npm run format` (check only: `npm run format:check`)
+- Typecheck: `npm run typecheck`
 - Build desktop: `TBD`
 - Build helper (Swift): `TBD`
 

@@ -17,11 +17,19 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
 
-      - name: Install, lint and test
-        run: |
-          if [ -f package.json ]; then
-            npm ci && npm run lint --if-present && npm test --if-present
-          else
-            echo "no package yet"
-          fi
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Format check
+        run: npm run format:check
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
