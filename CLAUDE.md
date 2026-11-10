@@ -107,11 +107,13 @@ Hotkeys (the listen-only key listener, default bindings, manual key test): see `
 
 Microphone capture (where audio goes, gain and limiter, silent check, manual test): see `docs/audio.md`.
 
-Speech recognition (model download and SHA-256 check, offline loading, manual test): see `docs/speech.md`. Download the model with `npm run model:download`.
+Speech recognition (model download and SHA-256 check, offline loading, manual test): see `docs/speech.md`. Download the models with `npm run model:download`.
 
 Text insertion (paste with clipboard restore, typed fallback, manual test): see `docs/insertion.md`.
 
 The Bar (states, the non-focusable window, drag and saved position, manual test): see `docs/bar.md`.
+
+Transcript cleanup (rules, the local model and its guard, the 1.5 s budget, benchmark): see `docs/cleanup.md`.
 
 ## Definition of done for a PR
 
