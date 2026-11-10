@@ -1,0 +1,74 @@
+{
+  "description": "Text insertion: the helper saves the whole clipboard, pastes, waits, and restores it unless the user copied something meanwhile. Typed fallback when paste is not handled.",
+  "messages": [
+    {
+      "id": "m-000050",
+      "type": "insert.text",
+      "payload": {
+        "text": "Let's move the review to Thursday.",
+        "method": "auto",
+        "restoreClipboard": true,
+        "restoreDelayMs": 350
+      }
+    },
+    {
+      "id": "m-000050",
+      "type": "response",
+      "payload": {
+        "requestType": "insert.text",
+        "ok": true,
+        "result": { "method": "paste_cmd_v", "delivered": true, "clipboardRestored": true }
+      }
+    },
+    {
+      "id": "m-000051",
+      "type": "response",
+      "payload": {
+        "requestType": "insert.text",
+        "ok": true,
+        "result": { "method": "keystrokes", "delivered": true, "clipboardRestored": null }
+      }
+    },
+    {
+      "id": "m-000052",
+      "type": "response",
+      "payload": {
+        "requestType": "insert.text",
+        "ok": false,
+        "error": {
+          "code": "PERMISSION_DENIED",
+          "message": "accessibility: Accessibility is not granted",
+          "retryable": false
+        }
+      }
+    },
+    {
+      "id": "m-000053",
+      "type": "insert.copy",
+      "payload": { "text": "Let's move the review to Thursday." }
+    },
+    {
+      "id": "m-000053",
+      "type": "response",
+      "payload": { "requestType": "insert.copy", "ok": true, "result": {} }
+    }
+  ],
+  "invalidMessages": [
+    {
+      "id": "m-000050",
+      "type": "insert.text",
+      "payload": { "text": "x", "method": "shout", "restoreClipboard": true, "restoreDelayMs": 350 }
+    },
+    { "id": "m-000050", "type": "insert.text", "payload": { "method": "auto" } },
+    { "id": "m-000053", "type": "insert.copy", "payload": {} },
+    {
+      "id": "m-000050",
+      "type": "response",
+      "payload": {
+        "requestType": "insert.text",
+        "ok": true,
+        "result": { "method": "paste_cmd_v", "delivered": true }
+      }
+    }
+  ]
+}

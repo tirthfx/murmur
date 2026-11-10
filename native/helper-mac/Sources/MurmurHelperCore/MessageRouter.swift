@@ -10,6 +10,7 @@ public struct MessageRouter: Sendable {
     private let hotkeys: HotkeyController?
     private let audio: AudioCaptureController?
     private let speech: TranscriptionController?
+    private let insertion: InsertionController?
     private var handshakeComplete = false
 
     /// Set once a `shutdown` request has been answered. The host exits after writing the reply.
@@ -22,6 +23,7 @@ public struct MessageRouter: Sendable {
         hotkeys: HotkeyController? = nil,
         audio: AudioCaptureController? = nil,
         speech: TranscriptionController? = nil,
+        insertion: InsertionController? = nil,
         uptimeMs: @escaping @Sendable () -> Int
     ) {
         self.helperVersion = helperVersion
@@ -30,6 +32,7 @@ public struct MessageRouter: Sendable {
         self.hotkeys = hotkeys
         self.audio = audio
         self.speech = speech
+        self.insertion = insertion
         self.uptimeMs = uptimeMs
     }
 
@@ -100,6 +103,11 @@ public struct MessageRouter: Sendable {
             }
             // Answered later through the output writer, unless the input is rejected at once.
             return speech.handle(id: id, type: type, payload: envelope.payload).map { [$0] } ?? []
+        case "insert.text", "insert.copy":
+            guard let insertion else {
+                return [Self.failure(id: id, requestType: type, .unsupportedRequest, "Unknown request type")]
+            }
+            return insertion.handle(id: id, type: type, payload: envelope.payload).map { [$0] } ?? []
         default:
             return [Self.failure(id: id, requestType: type, .unsupportedRequest, "Unknown request type")]
         }

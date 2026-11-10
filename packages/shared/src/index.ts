@@ -8,3 +8,4 @@ export * from "./hotkeys";
 export * from "./audio";
 export * from "./speech";
 export * from "./speech-models";
+export * from "./insert";

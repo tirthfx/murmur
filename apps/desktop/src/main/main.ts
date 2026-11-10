@@ -68,6 +68,9 @@ const recorder = createRecorder({
   newSessionId: randomUUID,
   transcribe: (file) => speech.transcribe(file),
   logTranscripts: process.env.MURMUR_LOG_TRANSCRIPTS === "1",
+  insert: (text) =>
+    helper.insertText({ text, method: "auto", restoreClipboard: true, restoreDelayMs: 350 }),
+  copy: (text) => helper.copyText(text),
 });
 hotkeys.onEvent((event) => recorder.handleHotkey(event));
 

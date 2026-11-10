@@ -15,6 +15,8 @@ import {
   helloAckRequestSchema,
   helloEventSchema,
   helperErrorEventSchema,
+  insertCopyRequestSchema,
+  insertTextRequestSchema,
   hotkeyConfigureRequestSchema,
   hotkeyEventSchema,
   hotkeyTapStatusEventSchema,
@@ -92,6 +94,10 @@ function validateMessage(message: unknown): boolean {
       return transcribeUnloadRequestSchema.safeParse(message).success;
     case "transcribe.file":
       return transcribeFileRequestSchema.safeParse(message).success;
+    case "insert.text":
+      return insertTextRequestSchema.safeParse(message).success;
+    case "insert.copy":
+      return insertCopyRequestSchema.safeParse(message).success;
     case "response": {
       const response = responseSchema.safeParse(message);
       if (!response.success) return false;

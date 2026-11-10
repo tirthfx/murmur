@@ -7,6 +7,7 @@ import type {
   AudioStopResult,
 } from "./audio";
 import type { HelloPayload } from "./helper-protocol";
+import type { InsertTextInput, InsertTextResult } from "./insert";
 import type {
   SpeechModelLoadInput,
   SpeechModelLoadResult,
@@ -82,6 +83,14 @@ export interface PlatformHelper {
   unloadSpeechModel(): Promise<void>;
   /** Transcribes a recorded file on the device. No network is used. */
   transcribeFile(input: TranscribeFileInput): Promise<Transcript>;
+  /**
+   * Inserts text into the focused field: paste with the clipboard restored afterwards, or
+   * typed when paste is not handled. Needs Accessibility; rejects with PERMISSION_DENIED
+   * without prompting when it is missing.
+   */
+  insertText(input: InsertTextInput): Promise<InsertTextResult>;
+  /** Puts text on the clipboard. Needs no permission. */
+  copyText(text: string): Promise<void>;
   getStatus(): HelperStatus;
   onStatusChange(handler: (status: HelperStatus) => void): Unsubscribe;
 }

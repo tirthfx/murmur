@@ -8,6 +8,7 @@ import {
   audioStartResultSchema,
   audioStopResultSchema,
 } from "./audio";
+import { insertCopyPayloadSchema, insertTextPayloadSchema, insertTextResultSchema } from "./insert";
 import {
   transcribeFilePayloadSchema,
   transcribeLoadPayloadSchema,
@@ -164,6 +165,14 @@ export const HELPER_REQUESTS = {
     payload: transcribeFilePayloadSchema,
     result: transcriptSchema,
   },
+  "insert.text": {
+    payload: insertTextPayloadSchema,
+    result: insertTextResultSchema,
+  },
+  "insert.copy": {
+    payload: insertCopyPayloadSchema,
+    result: emptyObjectSchema,
+  },
 } as const;
 
 export type HelperRequestType = keyof typeof HELPER_REQUESTS;
@@ -280,6 +289,9 @@ export const transcribeFileRequestSchema = requestEnvelope(
   "transcribe.file",
   transcribeFilePayloadSchema,
 );
+
+export const insertTextRequestSchema = requestEnvelope("insert.text", insertTextPayloadSchema);
+export const insertCopyRequestSchema = requestEnvelope("insert.copy", insertCopyPayloadSchema);
 
 export type HelloEvent = z.infer<typeof helloEventSchema>;
 export type HelperResponse = z.infer<typeof responseSchema>;

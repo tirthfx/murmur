@@ -14,12 +14,13 @@ public enum ErrorCode: String, Sendable {
     case modelLoadFailed = "MODEL_LOAD_FAILED"
     case transcriptionFailed = "TRANSCRIPTION_FAILED"
     case transcriptionTimeout = "TRANSCRIPTION_TIMEOUT"
+    case pasteFailed = "PASTE_FAILED"
     case `internal` = "INTERNAL"
 
     public var retryable: Bool {
         switch self {
         case .internal, .busy, .audioEngineFailed, .modelNotLoaded, .transcriptionFailed,
-            .transcriptionTimeout:
+            .transcriptionTimeout, .pasteFailed:
             return true
         case .handshakeRequired, .protocolVersionMismatch, .unsupportedRequest, .invalidPayload,
             .permissionDenied, .conflict, .notFound, .deviceNotFound, .modelLoadFailed:

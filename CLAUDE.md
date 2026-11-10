@@ -109,6 +109,8 @@ Microphone capture (where audio goes, gain and limiter, silent check, manual tes
 
 Speech recognition (model download and SHA-256 check, offline loading, manual test): see `docs/speech.md`. Download the model with `npm run model:download`.
 
+Text insertion (paste with clipboard restore, typed fallback, manual test): see `docs/insertion.md`.
+
 ## Definition of done for a PR
 
 - Builds locally with the commands above.
