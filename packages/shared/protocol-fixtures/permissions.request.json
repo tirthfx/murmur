@@ -1,0 +1,42 @@
+{
+  "description": "Permission request: triggers the OS prompt for one permission. Screen Recording is refused.",
+  "messages": [
+    { "id": "m-000004", "type": "permissions.request", "payload": { "kind": "microphone" } },
+    {
+      "id": "m-000004",
+      "type": "response",
+      "payload": {
+        "requestType": "permissions.request",
+        "ok": true,
+        "result": { "status": "not_determined", "openedSettings": false }
+      }
+    },
+    { "id": "m-000005", "type": "permissions.request", "payload": { "kind": "screenRecording" } },
+    {
+      "id": "m-000005",
+      "type": "response",
+      "payload": {
+        "requestType": "permissions.request",
+        "ok": false,
+        "error": {
+          "code": "UNSUPPORTED_REQUEST",
+          "message": "Screen Recording cannot be requested in this version",
+          "retryable": false
+        }
+      }
+    }
+  ],
+  "invalidMessages": [
+    { "id": "m-000004", "type": "permissions.request", "payload": { "kind": "camera" } },
+    { "id": "m-000004", "type": "permissions.request", "payload": {} },
+    {
+      "id": "m-000004",
+      "type": "response",
+      "payload": {
+        "requestType": "permissions.request",
+        "ok": true,
+        "result": { "status": "granted" }
+      }
+    }
+  ]
+}

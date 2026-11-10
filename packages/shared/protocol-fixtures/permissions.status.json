@@ -1,0 +1,63 @@
+{
+  "description": "Permission check: one status per permission, never prompts.",
+  "messages": [
+    { "id": "m-000003", "type": "permissions.status", "payload": {} },
+    {
+      "id": "m-000003",
+      "type": "response",
+      "payload": {
+        "requestType": "permissions.status",
+        "ok": true,
+        "result": {
+          "microphone": "granted",
+          "accessibility": "denied",
+          "inputMonitoring": "not_determined",
+          "screenRecording": "unknown"
+        }
+      }
+    },
+    {
+      "id": "m-000003",
+      "type": "response",
+      "payload": {
+        "requestType": "permissions.status",
+        "ok": false,
+        "error": {
+          "code": "HANDSHAKE_REQUIRED",
+          "message": "Send hello.ack before any other request",
+          "retryable": false
+        }
+      }
+    }
+  ],
+  "invalidMessages": [
+    {
+      "id": "m-000003",
+      "type": "response",
+      "payload": {
+        "requestType": "permissions.status",
+        "ok": true,
+        "result": {
+          "microphone": "granted",
+          "accessibility": "denied",
+          "inputMonitoring": "denied"
+        }
+      }
+    },
+    {
+      "id": "m-000003",
+      "type": "response",
+      "payload": {
+        "requestType": "permissions.status",
+        "ok": true,
+        "result": {
+          "microphone": "allowed",
+          "accessibility": "denied",
+          "inputMonitoring": "denied",
+          "screenRecording": "denied"
+        }
+      }
+    },
+    { "id": null, "type": "permissions.status", "payload": {} }
+  ]
+}

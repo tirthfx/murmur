@@ -1,4 +1,9 @@
 import { z } from "zod";
+import {
+  permissionKindSchema,
+  permissionRequestResultSchema,
+  permissionSnapshotSchema,
+} from "./permissions";
 
 /**
  * Helper protocol: the envelope and the handshake, liveness and error messages.
@@ -86,6 +91,8 @@ const emptyObjectSchema = z.object({});
 
 export const shutdownPayloadSchema = z.object({ reason: z.string() });
 
+export const permissionsRequestPayloadSchema = z.object({ kind: permissionKindSchema });
+
 /** Request name to payload and result schemas. */
 export const HELPER_REQUESTS = {
   "hello.ack": {
@@ -99,6 +106,14 @@ export const HELPER_REQUESTS = {
   shutdown: {
     payload: shutdownPayloadSchema,
     result: emptyObjectSchema,
+  },
+  "permissions.status": {
+    payload: emptyObjectSchema,
+    result: permissionSnapshotSchema,
+  },
+  "permissions.request": {
+    payload: permissionsRequestPayloadSchema,
+    result: permissionRequestResultSchema,
   },
 } as const;
 
@@ -160,6 +175,14 @@ export const responseSchema = z.strictObject({
 export const helloAckRequestSchema = requestEnvelope("hello.ack", helloAckPayloadSchema);
 export const pingRequestSchema = requestEnvelope("ping", HELPER_REQUESTS.ping.payload);
 export const shutdownRequestSchema = requestEnvelope("shutdown", shutdownPayloadSchema);
+export const permissionsStatusRequestSchema = requestEnvelope(
+  "permissions.status",
+  HELPER_REQUESTS["permissions.status"].payload,
+);
+export const permissionsRequestRequestSchema = requestEnvelope(
+  "permissions.request",
+  permissionsRequestPayloadSchema,
+);
 
 export type HelloEvent = z.infer<typeof helloEventSchema>;
 export type HelperResponse = z.infer<typeof responseSchema>;

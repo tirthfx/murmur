@@ -7,7 +7,7 @@
       "payload": {
         "protocolVersion": 1,
         "helperVersion": "0.1.0",
-        "capabilities": [],
+        "capabilities": ["permissions.check"],
         "macos": { "version": "15.4", "arch": "arm64" },
         "pid": 48211
       }

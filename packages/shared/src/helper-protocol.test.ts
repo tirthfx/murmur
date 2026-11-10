@@ -11,6 +11,8 @@ import {
   helloEventSchema,
   helperErrorEventSchema,
   pingRequestSchema,
+  permissionsRequestRequestSchema,
+  permissionsStatusRequestSchema,
   responseSchema,
   shutdownRequestSchema,
   HELPER_REQUESTS,
@@ -52,6 +54,10 @@ function validateMessage(message: unknown): boolean {
       return pingRequestSchema.safeParse(message).success;
     case "shutdown":
       return shutdownRequestSchema.safeParse(message).success;
+    case "permissions.status":
+      return permissionsStatusRequestSchema.safeParse(message).success;
+    case "permissions.request":
+      return permissionsRequestRequestSchema.safeParse(message).success;
     case "response": {
       const response = responseSchema.safeParse(message);
       if (!response.success) return false;

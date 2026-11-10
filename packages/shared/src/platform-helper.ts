@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { HelloPayload } from "./helper-protocol";
+import type { PermissionKind, PermissionRequestResult, PermissionSnapshot } from "./permissions";
 
 /**
  * The seam between the app and the native helper. The rest of the app depends on this
@@ -35,6 +36,13 @@ export interface PlatformHelper {
   terminate(): void;
   /** Round trip to the helper. Resolves with its uptime in milliseconds. */
   ping(): Promise<{ uptimeMs: number }>;
+  /** Reads the current status of every permission. Never prompts. */
+  checkPermissions(): Promise<PermissionSnapshot>;
+  /**
+   * Asks the OS to grant one permission, which may show a system prompt. Only call this
+   * from a user click. Rejects for kinds that cannot be requested.
+   */
+  requestPermission(kind: PermissionKind): Promise<PermissionRequestResult>;
   getStatus(): HelperStatus;
   onStatusChange(handler: (status: HelperStatus) => void): Unsubscribe;
 }
