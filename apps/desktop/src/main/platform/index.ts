@@ -1,7 +1,13 @@
-import type { PlatformHelper } from "@murmur/shared";
+import type { HotkeyBinding, PlatformHelper } from "@murmur/shared";
 import { createConsoleLogger, spawnHelperProcess, systemClock } from "../helper/node-runtime";
 import { HelperSupervisor } from "../helper/supervisor";
 import { createMacHelper, type MacHelperDeps } from "./mac-helper";
+import { MAC_DEFAULT_HOTKEY_BINDINGS } from "./mac-hotkeys";
+
+/** Default hotkey bindings for this OS. Key codes are platform specific. */
+export function defaultHotkeyBindings(platform: NodeJS.Platform): HotkeyBinding[] {
+  return platform === "darwin" ? [...MAC_DEFAULT_HOTKEY_BINDINGS] : [];
+}
 
 export type PlatformHelperDeps = MacHelperDeps & { platform: NodeJS.Platform };
 

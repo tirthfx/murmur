@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { HelloPayload } from "./helper-protocol";
+import type { HotkeyBinding, HotkeyConfigureResult, HotkeyEvent, HotkeyTapStatus } from "./hotkeys";
 import type { PermissionKind, PermissionRequestResult, PermissionSnapshot } from "./permissions";
 
 /**
@@ -43,6 +44,14 @@ export interface PlatformHelper {
    * from a user click. Rejects for kinds that cannot be requested.
    */
   requestPermission(kind: PermissionKind): Promise<PermissionRequestResult>;
+  /**
+   * Replaces every hotkey binding in the running helper. The helper listens to keys only
+   * while at least one binding is set, and never asks for a permission to do so. Bindings
+   * are lost when the helper restarts, so callers configure again on each `ready`.
+   */
+  configureHotkeys(bindings: HotkeyBinding[]): Promise<HotkeyConfigureResult>;
+  onHotkeyEvent(handler: (event: HotkeyEvent) => void): Unsubscribe;
+  onHotkeyTapStatus(handler: (status: HotkeyTapStatus) => void): Unsubscribe;
   getStatus(): HelperStatus;
   onStatusChange(handler: (status: HelperStatus) => void): Unsubscribe;
 }

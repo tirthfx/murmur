@@ -3,7 +3,12 @@ import {
   isSupportedProtocolVersion,
   type HelloPayload,
   isRequestablePermissionKind,
+  type HelperEventMessage,
   type HelperStatus,
+  type HotkeyBinding,
+  type HotkeyConfigureResult,
+  type HotkeyEvent,
+  type HotkeyTapStatus,
   type PermissionKind,
   type PermissionRequestResult,
   type PermissionSnapshot,
@@ -19,6 +24,13 @@ import {
   type SpawnHelper,
   type TimerHandle,
 } from "./types";
+
+function subscribe<T>(handlers: Set<(value: T) => void>, handler: (value: T) => void): Unsubscribe {
+  handlers.add(handler);
+  return () => {
+    handlers.delete(handler);
+  };
+}
 
 /** Where the helper binary is, or why there is none. */
 export type HelperBinary = { path: string } | { path: null; message: string };
@@ -58,6 +70,8 @@ export class HelperSupervisor implements PlatformHelper {
 
   private status: HelperStatus = { state: "stopped", helperVersion: null, message: null };
   private readonly statusHandlers = new Set<(status: HelperStatus) => void>();
+  private readonly hotkeyEventHandlers = new Set<(event: HotkeyEvent) => void>();
+  private readonly tapStatusHandlers = new Set<(status: HotkeyTapStatus) => void>();
 
   private connection: HelperConnection | null = null;
   private restartTimes: number[] = [];
@@ -160,15 +174,27 @@ export class HelperSupervisor implements PlatformHelper {
     return this.connection.request("permissions.request", { kind });
   }
 
+  configureHotkeys(bindings: HotkeyBinding[]): Promise<HotkeyConfigureResult> {
+    if (!this.connection || this.status.state !== "ready") {
+      return Promise.reject(new HelperError("HELPER_UNAVAILABLE", "The helper is not running"));
+    }
+    return this.connection.request("hotkey.configure", { bindings });
+  }
+
+  onHotkeyEvent(handler: (event: HotkeyEvent) => void): Unsubscribe {
+    return subscribe(this.hotkeyEventHandlers, handler);
+  }
+
+  onHotkeyTapStatus(handler: (status: HotkeyTapStatus) => void): Unsubscribe {
+    return subscribe(this.tapStatusHandlers, handler);
+  }
+
   getStatus(): HelperStatus {
     return this.status;
   }
 
   onStatusChange(handler: (status: HelperStatus) => void): Unsubscribe {
-    this.statusHandlers.add(handler);
-    return () => {
-      this.statusHandlers.delete(handler);
-    };
+    return subscribe(this.statusHandlers, handler);
   }
 
   // ------------------------------------------------------------------ lifecycle
@@ -199,6 +225,9 @@ export class HelperSupervisor implements PlatformHelper {
     this.missedPings = 0;
     connection.onExit((info) => this.handleExit(connection, binaryPath, info));
     connection.onHello((hello) => void this.handshake(connection, hello, spawnedAt));
+    connection.onEvent((event) => {
+      if (connection === this.connection) this.dispatchEvent(event);
+    });
     this.helloTimer = clock.setTimeout(() => {
       this.helloTimer = null;
       logger.error(`helper sent no hello within ${this.helloTimeoutMs} ms, killing it`);
@@ -346,6 +375,17 @@ export class HelperSupervisor implements PlatformHelper {
   }
 
   // -------------------------------------------------------------------- helpers
+
+  private dispatchEvent(event: HelperEventMessage): void {
+    switch (event.type) {
+      case "hotkey.event":
+        for (const handler of this.hotkeyEventHandlers) handler(event.payload);
+        break;
+      case "hotkey.tap.status":
+        for (const handler of this.tapStatusHandlers) handler(event.payload);
+        break;
+    }
+  }
 
   private clearTimer(name: "restartTimer" | "helloTimer" | "pingTimer" | "graceTimer"): void {
     const handle = this[name];

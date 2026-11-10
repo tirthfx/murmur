@@ -15,7 +15,7 @@ terminationSource.setEventHandler {
 terminationSource.resume()
 
 /// Writes all bytes to stdout. If stdout is gone the parent is gone, so exit.
-func writeStdout(_ data: Data) {
+@Sendable func writeStdout(_ data: Data) {
     var offset = 0
     let total = data.count
     data.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
@@ -31,32 +31,43 @@ func writeStdout(_ data: Data) {
     }
 }
 
+// Every stdout line goes through one writer, so tap events and replies never interleave.
+let output = OutputWriter(write: writeStdout)
+let permissions = SystemPermissionProvider()
+let hotkeys = HotkeyController(source: EventTapSource(), permissions: permissions, emit: output.send)
+
+/// Stops the key listener and writes what is pending before the process ends.
+func finish(status: Int32, _ message: String) -> Never {
+    Log.info(message)
+    hotkeys.stop()
+    output.flush()
+    exit(status)
+}
+
 var host = HelperHost(
     router: MessageRouter(
         capabilities: ProtocolConstants.capabilities,
-        permissions: SystemPermissionProvider(),
+        permissions: permissions,
+        hotkeys: hotkeys,
         uptimeMs: HostInfo.uptimeProvider()))
 Log.info("started, helper \(ProtocolConstants.helperVersion), protocol \(ProtocolConstants.protocolVersion)")
-writeStdout(host.greeting())
+output.send(host.greeting())
 
 var chunk = [UInt8](repeating: 0, count: 64 * 1024)
 while true {
     let count = read(STDIN_FILENO, &chunk, chunk.count)
     if count < 0 {
         if errno == EINTR { continue }
-        Log.info("stdin read failed, exiting")
-        exit(1)
+        finish(status: 1, "stdin read failed, exiting")
     }
     if count == 0 {
-        Log.info("stdin closed, exiting")
-        exit(0)
+        finish(status: 0, "stdin closed, exiting")
     }
-    let output = host.receive(Data(chunk[0..<count]))
-    for message in output.messages {
-        writeStdout(message)
+    let result = host.receive(Data(chunk[0..<count]))
+    for message in result.messages {
+        output.send(message)
     }
-    if output.shouldExit {
-        Log.info("shutdown requested, exiting")
-        exit(0)
+    if result.shouldExit {
+        finish(status: 0, "shutdown requested, exiting")
     }
 }

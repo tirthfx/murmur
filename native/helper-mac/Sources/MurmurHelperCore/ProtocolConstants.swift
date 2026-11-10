@@ -8,7 +8,7 @@ public enum ProtocolConstants {
     public static let helperVersion = "0.1.0"
 
     /// Capabilities this build announces in `hello`. Main checks them before using a feature.
-    public static let capabilities = ["permissions.check"]
+    public static let capabilities = ["permissions.check", "hotkey.hold"]
 
     /// Longest accepted line in bytes, terminator excluded (1 MiB).
     public static let maxLineBytes = 1_048_576

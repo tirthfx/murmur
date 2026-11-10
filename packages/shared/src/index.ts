@@ -4,3 +4,4 @@ export * from "./ndjson";
 export * from "./platform-helper";
 export * from "./ipc";
 export * from "./permissions";
+export * from "./hotkeys";

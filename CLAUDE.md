@@ -105,6 +105,8 @@ Run all commands from the repo root.
 
 Permissions (what each is for, granting in development vs a packaged build, `tccutil reset`): see `docs/permissions.md`.
 
+Hotkeys (the listen-only key listener, default bindings, manual key test): see `docs/hotkeys.md`.
+
 ## Definition of done for a PR
 
 - Builds locally with the commands above.

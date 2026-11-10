@@ -1,4 +1,4 @@
-import { PROTOCOL_VERSION } from "@murmur/shared";
+import { PROTOCOL_VERSION, type HotkeyBinding } from "@murmur/shared";
 import { describe, expect, it } from "vitest";
 import {
   FakeClock,
@@ -488,5 +488,77 @@ describe("permissions", () => {
     await expect(supervisor.requestPermission("microphone")).rejects.toMatchObject({
       code: "HELPER_UNAVAILABLE",
     });
+  });
+});
+
+describe("hotkeys", () => {
+  const binding: HotkeyBinding = {
+    id: "dictate-hold",
+    action: "dictate.hold",
+    trigger: { type: "key", keyCode: 61, modifiers: [] },
+    mode: "hold",
+  };
+
+  it("sends hotkey.configure and resolves with the validated result", async () => {
+    const { supervisor, spawner } = await startReady();
+    const helper = spawner.processes[0]!;
+    const configured = supervisor.configureHotkeys([binding]);
+    await flush();
+    const request = helper.lastRequest("hotkey.configure")!;
+    expect(request.payload).toEqual({ bindings: [binding] });
+    helper.respondOk(request, { registered: ["dictate-hold"], rejected: [] });
+    await expect(configured).resolves.toEqual({ registered: ["dictate-hold"], rejected: [] });
+  });
+
+  it("rejects with the helper's error code", async () => {
+    const { supervisor, spawner } = await startReady();
+    const helper = spawner.processes[0]!;
+    const configured = supervisor.configureHotkeys([]);
+    await flush();
+    helper.respondError(helper.lastRequest("hotkey.configure")!, "PERMISSION_DENIED");
+    await expect(configured).rejects.toMatchObject({ code: "PERMISSION_DENIED" });
+  });
+
+  it("refuses to configure before the helper is ready", async () => {
+    const { supervisor } = setup();
+    await expect(supervisor.configureHotkeys([])).rejects.toMatchObject({
+      code: "HELPER_UNAVAILABLE",
+    });
+  });
+
+  it("dispatches valid hotkey events and tap statuses, and drops invalid ones", async () => {
+    const { supervisor, spawner, logger } = await startReady();
+    const helper = spawner.processes[0]!;
+    const events: unknown[] = [];
+    const statuses: unknown[] = [];
+    supervisor.onHotkeyEvent((event) => events.push(event));
+    const unsubscribe = supervisor.onHotkeyTapStatus((status) => statuses.push(status));
+
+    const down = { bindingId: "dictate-hold", action: "dictate.hold", state: "down", at: 1000 };
+    helper.send({ id: null, type: "hotkey.event", payload: down });
+    helper.send({ id: null, type: "hotkey.event", payload: { ...down, state: "held" } });
+    helper.send({ id: null, type: "hotkey.tap.status", payload: { state: "active" } });
+    unsubscribe();
+    helper.send({ id: null, type: "hotkey.tap.status", payload: { state: "reenabled" } });
+
+    expect(events).toEqual([down]);
+    expect(statuses).toEqual([{ state: "active" }]);
+    expect(logger.lines).toContain("warn: dropped an invalid hotkey.event event");
+  });
+
+  it("ignores events from a helper process that has been replaced", async () => {
+    const { supervisor, spawner, clock } = await startReady();
+    const first = spawner.processes[0]!;
+    const events: unknown[] = [];
+    supervisor.onHotkeyEvent((event) => events.push(event));
+    first.exit();
+    await clock.advance(500);
+    await completeHandshake(spawner.processes[1]!);
+    first.send({
+      id: null,
+      type: "hotkey.event",
+      payload: { bindingId: "dictate-hold", action: "dictate.hold", state: "up", at: 1 },
+    });
+    expect(events).toEqual([]);
   });
 });

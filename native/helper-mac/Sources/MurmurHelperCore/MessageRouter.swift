@@ -7,6 +7,7 @@ public struct MessageRouter: Sendable {
     private let capabilities: [String]
     private let uptimeMs: @Sendable () -> Int
     private let permissions: any PermissionProvider
+    private let hotkeys: HotkeyController?
     private var handshakeComplete = false
 
     /// Set once a `shutdown` request has been answered. The host exits after writing the reply.
@@ -16,11 +17,13 @@ public struct MessageRouter: Sendable {
         helperVersion: String = ProtocolConstants.helperVersion,
         capabilities: [String] = [],
         permissions: any PermissionProvider,
+        hotkeys: HotkeyController? = nil,
         uptimeMs: @escaping @Sendable () -> Int
     ) {
         self.helperVersion = helperVersion
         self.capabilities = capabilities
         self.permissions = permissions
+        self.hotkeys = hotkeys
         self.uptimeMs = uptimeMs
     }
 
@@ -73,12 +76,15 @@ public struct MessageRouter: Sendable {
         case "ping":
             return [Self.success(id: id, requestType: type, ["uptimeMs": .int(uptimeMs())])]
         case "shutdown":
+            hotkeys?.stop()
             shouldExit = true
             return [Self.success(id: id, requestType: type, [:])]
         case "permissions.status":
             return [handlePermissionsStatus(id: id)]
         case "permissions.request":
             return [handlePermissionsRequest(id: id, payload: envelope.payload)]
+        case "hotkey.configure":
+            return [handleHotkeyConfigure(id: id, payload: envelope.payload)]
         default:
             return [Self.failure(id: id, requestType: type, .unsupportedRequest, "Unknown request type")]
         }
@@ -131,6 +137,34 @@ public struct MessageRouter: Sendable {
         return Self.success(
             id: id, requestType: type,
             ["status": .string(status.rawValue), "openedSettings": .bool(false)])
+    }
+
+    // MARK: Hotkeys
+
+    private func handleHotkeyConfigure(id: String, payload: [String: JSONValue]) -> Envelope {
+        let type = "hotkey.configure"
+        guard let hotkeys else {
+            return Self.failure(id: id, requestType: type, .unsupportedRequest, "Unknown request type")
+        }
+        switch hotkeys.configure(payload) {
+        case .failure(.invalidPayload(let message)):
+            return Self.failure(id: id, requestType: type, .invalidPayload, message)
+        case .failure(.permissionDenied(let message)):
+            return Self.failure(id: id, requestType: type, .permissionDenied, message)
+        case .success(let outcome):
+            return Self.success(
+                id: id, requestType: type,
+                [
+                    "registered": .array(outcome.registered.map { .string($0) }),
+                    "rejected": .array(
+                        outcome.rejected.map {
+                            .object([
+                                "id": .string($0.id), "code": .string($0.code.rawValue),
+                                "message": .string($0.message),
+                            ])
+                        }),
+                ])
+        }
     }
 
     // MARK: Message builders

@@ -1,5 +1,11 @@
 import { z } from "zod";
 import {
+  hotkeyConfigurePayloadSchema,
+  hotkeyConfigureResultSchema,
+  hotkeyEventPayloadSchema,
+  hotkeyTapStatusPayloadSchema,
+} from "./hotkeys";
+import {
   permissionKindSchema,
   permissionRequestResultSchema,
   permissionSnapshotSchema,
@@ -115,6 +121,10 @@ export const HELPER_REQUESTS = {
     payload: permissionsRequestPayloadSchema,
     result: permissionRequestResultSchema,
   },
+  "hotkey.configure": {
+    payload: hotkeyConfigurePayloadSchema,
+    result: hotkeyConfigureResultSchema,
+  },
 } as const;
 
 export type HelperRequestType = keyof typeof HELPER_REQUESTS;
@@ -131,6 +141,24 @@ export const helperErrorEventPayloadSchema = z.object({
   fatal: z.boolean(),
 });
 export type HelperErrorEventPayload = z.infer<typeof helperErrorEventPayloadSchema>;
+
+/**
+ * Feature events main dispatches to subscribers, by type. `hello` and `helper.error` are
+ * handled by the connection itself and are not listed here.
+ */
+export const HELPER_EVENTS = {
+  "hotkey.event": hotkeyEventPayloadSchema,
+  "hotkey.tap.status": hotkeyTapStatusPayloadSchema,
+} as const;
+
+export type HelperEventType = keyof typeof HELPER_EVENTS;
+export type HelperEventMessage = {
+  [K in HelperEventType]: { type: K; payload: z.infer<(typeof HELPER_EVENTS)[K]> };
+}[HelperEventType];
+
+export function isHelperEventType(type: string): type is HelperEventType {
+  return Object.hasOwn(HELPER_EVENTS, type);
+}
 
 // ------------------------------------------------------------------- response
 
@@ -182,6 +210,15 @@ export const permissionsStatusRequestSchema = requestEnvelope(
 export const permissionsRequestRequestSchema = requestEnvelope(
   "permissions.request",
   permissionsRequestPayloadSchema,
+);
+export const hotkeyConfigureRequestSchema = requestEnvelope(
+  "hotkey.configure",
+  hotkeyConfigurePayloadSchema,
+);
+export const hotkeyEventSchema = eventEnvelope("hotkey.event", hotkeyEventPayloadSchema);
+export const hotkeyTapStatusEventSchema = eventEnvelope(
+  "hotkey.tap.status",
+  hotkeyTapStatusPayloadSchema,
 );
 
 export type HelloEvent = z.infer<typeof helloEventSchema>;

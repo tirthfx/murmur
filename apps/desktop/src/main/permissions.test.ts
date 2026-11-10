@@ -68,3 +68,21 @@ describe("permissions service", () => {
     expect((await service.request("accessibility")).statuses).toEqual(granted);
   });
 });
+
+describe("permissions onChecked", () => {
+  it("passes statuses from successful checks only, and stops after unsubscribe", async () => {
+    const checkPermissions = vi
+      .fn<() => Promise<PermissionSnapshot>>()
+      .mockResolvedValue(granted)
+      .mockResolvedValueOnce(granted)
+      .mockRejectedValueOnce(new HelperError("HELPER_UNAVAILABLE", "gone"));
+    const { service } = setup({ checkPermissions });
+    const seen: PermissionSnapshot[] = [];
+    const unsubscribe = service.onChecked((statuses) => seen.push(statuses));
+    await service.check("one");
+    await service.check("two");
+    unsubscribe();
+    await service.check("three");
+    expect(seen).toEqual([granted]);
+  });
+});
