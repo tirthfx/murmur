@@ -1,0 +1,24 @@
+{
+  "description": "The hello event the helper sends once at start.",
+  "messages": [
+    {
+      "id": null,
+      "type": "hello",
+      "payload": {
+        "protocolVersion": 1,
+        "helperVersion": "0.1.0",
+        "capabilities": [],
+        "macos": { "version": "15.4", "arch": "arm64" },
+        "pid": 48211
+      }
+    }
+  ],
+  "invalidMessages": [
+    { "id": null, "type": "hello", "payload": { "helperVersion": "0.1.0", "capabilities": [] } },
+    {
+      "id": "m-000001",
+      "type": "hello",
+      "payload": { "protocolVersion": 1, "helperVersion": "0.1.0", "capabilities": [] }
+    }
+  ]
+}

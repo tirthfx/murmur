@@ -1,0 +1,46 @@
+{
+  "description": "Main's handshake reply and the helper's answer.",
+  "messages": [
+    {
+      "id": "m-000001",
+      "type": "hello.ack",
+      "payload": { "accepted": true, "protocolVersion": 1, "appVersion": "0.1.0" }
+    },
+    {
+      "id": "m-000001",
+      "type": "hello.ack",
+      "payload": {
+        "accepted": false,
+        "protocolVersion": 2,
+        "appVersion": "0.1.0",
+        "reason": "Unsupported protocol version"
+      }
+    },
+    {
+      "id": "m-000001",
+      "type": "response",
+      "payload": { "requestType": "hello.ack", "ok": true, "result": { "ready": true } }
+    },
+    {
+      "id": "m-000001",
+      "type": "response",
+      "payload": {
+        "requestType": "hello.ack",
+        "ok": false,
+        "error": {
+          "code": "PROTOCOL_VERSION_MISMATCH",
+          "message": "Helper speaks protocol 1, main sent 2",
+          "retryable": false
+        }
+      }
+    }
+  ],
+  "invalidMessages": [
+    { "id": "m-000001", "type": "hello.ack", "payload": { "accepted": true } },
+    {
+      "id": null,
+      "type": "hello.ack",
+      "payload": { "accepted": true, "protocolVersion": 1, "appVersion": "0.1.0" }
+    }
+  ]
+}

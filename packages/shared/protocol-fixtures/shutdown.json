@@ -1,0 +1,12 @@
+{
+  "description": "Orderly stop request and its response.",
+  "messages": [
+    { "id": "m-000003", "type": "shutdown", "payload": { "reason": "app-quit" } },
+    {
+      "id": "m-000003",
+      "type": "response",
+      "payload": { "requestType": "shutdown", "ok": true, "result": {} }
+    }
+  ],
+  "invalidMessages": [{ "id": "m-000003", "type": "shutdown", "payload": {} }]
+}
