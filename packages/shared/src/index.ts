@@ -6,3 +6,5 @@ export * from "./ipc";
 export * from "./permissions";
 export * from "./hotkeys";
 export * from "./audio";
+export * from "./speech";
+export * from "./speech-models";

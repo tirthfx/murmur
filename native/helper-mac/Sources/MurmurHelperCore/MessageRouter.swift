@@ -9,6 +9,7 @@ public struct MessageRouter: Sendable {
     private let permissions: any PermissionProvider
     private let hotkeys: HotkeyController?
     private let audio: AudioCaptureController?
+    private let speech: TranscriptionController?
     private var handshakeComplete = false
 
     /// Set once a `shutdown` request has been answered. The host exits after writing the reply.
@@ -20,6 +21,7 @@ public struct MessageRouter: Sendable {
         permissions: any PermissionProvider,
         hotkeys: HotkeyController? = nil,
         audio: AudioCaptureController? = nil,
+        speech: TranscriptionController? = nil,
         uptimeMs: @escaping @Sendable () -> Int
     ) {
         self.helperVersion = helperVersion
@@ -27,6 +29,7 @@ public struct MessageRouter: Sendable {
         self.permissions = permissions
         self.hotkeys = hotkeys
         self.audio = audio
+        self.speech = speech
         self.uptimeMs = uptimeMs
     }
 
@@ -91,6 +94,12 @@ public struct MessageRouter: Sendable {
             return [handleHotkeyConfigure(id: id, payload: envelope.payload)]
         case "audio.start", "audio.stop", "audio.cancel":
             return [handleAudio(id: id, type: type, payload: envelope.payload)]
+        case "transcribe.load", "transcribe.unload", "transcribe.file":
+            guard let speech else {
+                return [Self.failure(id: id, requestType: type, .unsupportedRequest, "Unknown request type")]
+            }
+            // Answered later through the output writer, unless the input is rejected at once.
+            return speech.handle(id: id, type: type, payload: envelope.payload).map { [$0] } ?? []
         default:
             return [Self.failure(id: id, requestType: type, .unsupportedRequest, "Unknown request type")]
         }

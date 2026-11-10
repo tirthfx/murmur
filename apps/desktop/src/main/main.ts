@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { app, BrowserWindow, ipcMain, session, shell } from "electron";
-import { IPC_CHANNELS, type PermissionKind } from "@murmur/shared";
+import { DEFAULT_SPEECH_MODEL, IPC_CHANNELS, type PermissionKind } from "@murmur/shared";
 import {
   createNavigationGuard,
   denyPermissionCheck,
@@ -16,6 +16,8 @@ import { createIpcHandler } from "./ipc";
 import { createPermissionsService } from "./permissions";
 import { createPlatformHelper, defaultHotkeyBindings } from "./platform";
 import { createRecorder } from "./recorder";
+import { createSpeechService } from "./speech/speech-service";
+import { speechModelRoot } from "./speech/paths";
 import { permissionSettingsUrl } from "./platform/mac-settings-links";
 
 const isDevelopment = !app.isPackaged;
@@ -53,10 +55,19 @@ const hotkeys = createHotkeyService({
 });
 permissions.onChecked((statuses) => hotkeys.handlePermissions(statuses));
 
+const speech = createSpeechService({
+  helper,
+  model: DEFAULT_SPEECH_MODEL,
+  root: speechModelRoot(app.getPath("appData")),
+  logger: createConsoleLogger("[speech]"),
+});
+
 const recorder = createRecorder({
   helper,
   logger: createConsoleLogger("[audio]"),
   newSessionId: randomUUID,
+  transcribe: (file) => speech.transcribe(file),
+  logTranscripts: process.env.MURMUR_LOG_TRANSCRIPTS === "1",
 });
 hotkeys.onEvent((event) => recorder.handleHotkey(event));
 
@@ -118,6 +129,7 @@ void app.whenReady().then(() => {
   // Configures the dictation key whenever the helper becomes ready, restarts included.
   hotkeys.start();
   recorder.start();
+  speech.start();
   // The app works without the helper; its status is shown in the Hub.
   helper.start().then(
     // Read-only: nothing is requested at launch, only the current status is checked.

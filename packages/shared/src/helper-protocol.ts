@@ -9,6 +9,12 @@ import {
   audioStopResultSchema,
 } from "./audio";
 import {
+  transcribeFilePayloadSchema,
+  transcribeLoadPayloadSchema,
+  transcribeLoadResultSchema,
+  transcriptSchema,
+} from "./speech";
+import {
   hotkeyConfigurePayloadSchema,
   hotkeyConfigureResultSchema,
   hotkeyEventPayloadSchema,
@@ -146,6 +152,18 @@ export const HELPER_REQUESTS = {
     payload: audioSessionPayloadSchema,
     result: audioCancelResultSchema,
   },
+  "transcribe.load": {
+    payload: transcribeLoadPayloadSchema,
+    result: transcribeLoadResultSchema,
+  },
+  "transcribe.unload": {
+    payload: emptyObjectSchema,
+    result: emptyObjectSchema,
+  },
+  "transcribe.file": {
+    payload: transcribeFilePayloadSchema,
+    result: transcriptSchema,
+  },
 } as const;
 
 export type HelperRequestType = keyof typeof HELPER_REQUESTS;
@@ -249,6 +267,19 @@ export const audioStopRequestSchema = requestEnvelope("audio.stop", audioSession
 export const audioCancelRequestSchema = requestEnvelope("audio.cancel", audioSessionPayloadSchema);
 export const audioLevelEventSchema = eventEnvelope("audio.level", audioLevelPayloadSchema);
 export const audioSilentEventSchema = eventEnvelope("audio.silent", audioSilentPayloadSchema);
+
+export const transcribeLoadRequestSchema = requestEnvelope(
+  "transcribe.load",
+  transcribeLoadPayloadSchema,
+);
+export const transcribeUnloadRequestSchema = requestEnvelope(
+  "transcribe.unload",
+  emptyObjectSchema,
+);
+export const transcribeFileRequestSchema = requestEnvelope(
+  "transcribe.file",
+  transcribeFilePayloadSchema,
+);
 
 export type HelloEvent = z.infer<typeof helloEventSchema>;
 export type HelperResponse = z.infer<typeof responseSchema>;

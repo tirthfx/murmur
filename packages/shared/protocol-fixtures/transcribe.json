@@ -1,0 +1,117 @@
+{
+  "description": "Speech recognition: main checks the model files, the helper loads them from disk and transcribes recorded files. Load and transcribe are answered later; other requests are served meanwhile.",
+  "messages": [
+    {
+      "id": "m-000040",
+      "type": "transcribe.load",
+      "payload": {
+        "model": "whisper-large-v3-turbo-632mb",
+        "modelDir": "/Users/you/Library/Application Support/Murmur/models/speech/whisperkit/whisper-large-v3-turbo-632mb/model",
+        "tokenizerDir": "/Users/you/Library/Application Support/Murmur/models/speech/whisperkit/whisper-large-v3-turbo-632mb/tokenizer"
+      }
+    },
+    {
+      "id": "m-000040",
+      "type": "response",
+      "payload": {
+        "requestType": "transcribe.load",
+        "ok": true,
+        "result": {
+          "loadedModel": "whisper-large-v3-turbo-632mb",
+          "loadMs": 4210,
+          "computeUnits": "encoder=neuralEngine decoder=neuralEngine mel=gpu"
+        }
+      }
+    },
+    {
+      "id": "m-000041",
+      "type": "transcribe.file",
+      "payload": {
+        "path": "/Users/you/Library/Application Support/Murmur/audio/tmp/3f0c2e7a-7d2b-4a55-9d0e-7a1d2c4b9e10.pcm",
+        "languages": []
+      }
+    },
+    {
+      "id": "m-000041",
+      "type": "response",
+      "payload": {
+        "requestType": "transcribe.file",
+        "ok": true,
+        "result": {
+          "text": "Let's move the review to Thursday.",
+          "language": "en",
+          "segments": [
+            {
+              "startMs": 0,
+              "endMs": 2400,
+              "text": "Let's move the review to Thursday.",
+              "confidence": 0.94
+            }
+          ],
+          "decodeMs": 287,
+          "audioMs": 2600
+        }
+      }
+    },
+    { "id": "m-000042", "type": "transcribe.unload", "payload": {} },
+    {
+      "id": "m-000042",
+      "type": "response",
+      "payload": { "requestType": "transcribe.unload", "ok": true, "result": {} }
+    },
+    {
+      "id": "m-000043",
+      "type": "response",
+      "payload": {
+        "requestType": "transcribe.file",
+        "ok": false,
+        "error": {
+          "code": "MODEL_NOT_LOADED",
+          "message": "Load a speech model first",
+          "retryable": true
+        }
+      }
+    },
+    {
+      "id": "m-000044",
+      "type": "response",
+      "payload": {
+        "requestType": "transcribe.file",
+        "ok": false,
+        "error": {
+          "code": "TRANSCRIPTION_TIMEOUT",
+          "message": "Transcription took longer than 20 seconds",
+          "retryable": true
+        }
+      }
+    }
+  ],
+  "invalidMessages": [
+    {
+      "id": "m-000040",
+      "type": "transcribe.load",
+      "payload": { "model": "m", "modelDir": "relative/model", "tokenizerDir": "/t" }
+    },
+    {
+      "id": "m-000040",
+      "type": "transcribe.load",
+      "payload": { "model": "m", "modelDir": "/a/model" }
+    },
+    { "id": "m-000041", "type": "transcribe.file", "payload": { "path": "/a.pcm" } },
+    {
+      "id": "m-000041",
+      "type": "response",
+      "payload": {
+        "requestType": "transcribe.file",
+        "ok": true,
+        "result": {
+          "text": "x",
+          "language": "en",
+          "segments": [{ "startMs": 0, "endMs": 10, "text": "x", "confidence": 3 }],
+          "decodeMs": 1,
+          "audioMs": 10
+        }
+      }
+    }
+  ]
+}

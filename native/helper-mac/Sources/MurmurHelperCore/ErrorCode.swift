@@ -10,13 +10,19 @@ public enum ErrorCode: String, Sendable {
     case busy = "BUSY"
     case deviceNotFound = "DEVICE_NOT_FOUND"
     case audioEngineFailed = "AUDIO_ENGINE_FAILED"
+    case modelNotLoaded = "MODEL_NOT_LOADED"
+    case modelLoadFailed = "MODEL_LOAD_FAILED"
+    case transcriptionFailed = "TRANSCRIPTION_FAILED"
+    case transcriptionTimeout = "TRANSCRIPTION_TIMEOUT"
     case `internal` = "INTERNAL"
 
     public var retryable: Bool {
         switch self {
-        case .internal, .busy, .audioEngineFailed: return true
+        case .internal, .busy, .audioEngineFailed, .modelNotLoaded, .transcriptionFailed,
+            .transcriptionTimeout:
+            return true
         case .handshakeRequired, .protocolVersionMismatch, .unsupportedRequest, .invalidPayload,
-            .permissionDenied, .conflict, .notFound, .deviceNotFound:
+            .permissionDenied, .conflict, .notFound, .deviceNotFound, .modelLoadFailed:
             return false
         }
     }

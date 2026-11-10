@@ -6,6 +6,7 @@ import type {
   AudioStopResult,
   HelperStatus,
   HotkeyEvent,
+  Transcript,
 } from "@murmur/shared";
 import { createTestLogger } from "./helper/fakes";
 import { HelperError } from "./helper/types";
@@ -27,7 +28,9 @@ function key(
   return { bindingId: "dictate-hold", action, state, at: 1 };
 }
 
-function setup() {
+function setup(
+  options: { transcribe?: (path: string) => Promise<Transcript>; logTranscripts?: boolean } = {},
+) {
   const levelHandlers = new Set<(level: AudioLevel) => void>();
   const silentHandlers = new Set<(silent: AudioSilent) => void>();
   const statusHandlers = new Set<(status: HelperStatus) => void>();
@@ -61,7 +64,12 @@ function setup() {
   };
   let counter = 0;
   const logger = createTestLogger();
-  const recorder = createRecorder({ helper, logger, newSessionId: () => `s${++counter}` });
+  const recorder = createRecorder({
+    helper,
+    logger,
+    newSessionId: () => `s${++counter}`,
+    ...options,
+  });
   recorder.start();
   return {
     helper,
@@ -156,5 +164,55 @@ describe("recorder", () => {
     recorder.handleHotkey(key("up"));
     await recorder.idle();
     expect(logger.lines).toContain("warn: nothing above the silence threshold was heard");
+  });
+
+  it("transcribes each recording and logs the word count, not the words", async () => {
+    const transcribe = vi.fn(async () => ({
+      text: "Move the review to Thursday.",
+      language: "en",
+      segments: [],
+      decodeMs: 640,
+      audioMs: 10020,
+    }));
+    const { recorder, logger } = setup({ transcribe });
+    recorder.handleHotkey(key("down"));
+    recorder.handleHotkey(key("up"));
+    await recorder.idle();
+    expect(transcribe).toHaveBeenCalledWith("/tmp/a.pcm");
+    expect(logger.lines).toContain("info: transcribed 10.02 s in 640 ms: 5 words, language en");
+    expect(logger.lines.join("\n")).not.toContain("Thursday");
+  });
+
+  it("logs the words only when asked to", async () => {
+    const transcribe = vi.fn(async () => ({
+      text: "Hello.",
+      language: "en",
+      segments: [],
+      decodeMs: 1,
+      audioMs: 1,
+    }));
+    const { recorder, logger } = setup({ transcribe, logTranscripts: true });
+    recorder.handleHotkey(key("down"));
+    recorder.handleHotkey(key("up"));
+    await recorder.idle();
+    expect(logger.lines).toContain("info: text: Hello.");
+  });
+
+  it("does not transcribe a silent recording, and survives a failed transcription", async () => {
+    const transcribe = vi.fn(async () => {
+      throw new Error("The speech model is not ready (missing)");
+    });
+    const { recorder, helper, logger } = setup({ transcribe });
+    helper.stopAudio.mockResolvedValueOnce({ ...stopResult, silent: true });
+    recorder.handleHotkey(key("down"));
+    recorder.handleHotkey(key("up"));
+    await recorder.idle();
+    expect(transcribe).not.toHaveBeenCalled();
+    recorder.handleHotkey(key("down"));
+    recorder.handleHotkey(key("up"));
+    await recorder.idle();
+    expect(logger.lines).toContain(
+      "warn: could not transcribe: The speech model is not ready (missing)",
+    );
   });
 });
