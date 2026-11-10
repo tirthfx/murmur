@@ -3,9 +3,9 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     include: [
-      "apps/*/src/**/*.test.ts",
-      "packages/*/src/**/*.test.ts",
-      "services/*/src/**/*.test.ts",
+      "apps/*/src/**/*.test.{ts,tsx}",
+      "packages/*/src/**/*.test.{ts,tsx}",
+      "services/*/src/**/*.test.{ts,tsx}",
     ],
     passWithNoTests: true,
   },

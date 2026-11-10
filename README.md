@@ -16,6 +16,19 @@ Murmur is a personal, local-first voice dictation and meeting-notes app for Mac.
 | `services/local-server` | Local backend for team, sync and admin features                         |
 | `docs/`                 | Technical documentation                                                 |
 
+## Getting started
+
+Requires Node 22 or newer and npm.
+
+```bash
+npm install
+npm run dev       # start the desktop app (Electron Forge + Vite)
+npm run package   # package the desktop app into apps/desktop/out/
+npm run lint && npm run format:check && npm run typecheck && npm test
+```
+
+The first `npm run dev` or `npm run package` downloads the Electron binary.
+
 ## Contributing
 
 Read [CLAUDE.md](CLAUDE.md) for the project rules, architecture, workflow and definition of done.
