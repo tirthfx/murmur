@@ -5,6 +5,11 @@ import type { z } from "zod";
 import { describe, expect, it } from "vitest";
 import {
   PROTOCOL_VERSION,
+  audioCancelRequestSchema,
+  audioLevelEventSchema,
+  audioSilentEventSchema,
+  audioStartRequestSchema,
+  audioStopRequestSchema,
   envelopeSchema,
   formatRequestId,
   helloAckRequestSchema,
@@ -68,6 +73,16 @@ function validateMessage(message: unknown): boolean {
       return hotkeyEventSchema.safeParse(message).success;
     case "hotkey.tap.status":
       return hotkeyTapStatusEventSchema.safeParse(message).success;
+    case "audio.start":
+      return audioStartRequestSchema.safeParse(message).success;
+    case "audio.stop":
+      return audioStopRequestSchema.safeParse(message).success;
+    case "audio.cancel":
+      return audioCancelRequestSchema.safeParse(message).success;
+    case "audio.level":
+      return audioLevelEventSchema.safeParse(message).success;
+    case "audio.silent":
+      return audioSilentEventSchema.safeParse(message).success;
     case "response": {
       const response = responseSchema.safeParse(message);
       if (!response.success) return false;

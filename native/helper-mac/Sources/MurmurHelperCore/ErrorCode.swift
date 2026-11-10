@@ -6,13 +6,17 @@ public enum ErrorCode: String, Sendable {
     case invalidPayload = "INVALID_PAYLOAD"
     case permissionDenied = "PERMISSION_DENIED"
     case conflict = "CONFLICT"
+    case notFound = "NOT_FOUND"
+    case busy = "BUSY"
+    case deviceNotFound = "DEVICE_NOT_FOUND"
+    case audioEngineFailed = "AUDIO_ENGINE_FAILED"
     case `internal` = "INTERNAL"
 
     public var retryable: Bool {
         switch self {
-        case .internal: return true
+        case .internal, .busy, .audioEngineFailed: return true
         case .handshakeRequired, .protocolVersionMismatch, .unsupportedRequest, .invalidPayload,
-            .permissionDenied, .conflict:
+            .permissionDenied, .conflict, .notFound, .deviceNotFound:
             return false
         }
     }

@@ -1,4 +1,11 @@
 import { z } from "zod";
+import type {
+  AudioLevel,
+  AudioSilent,
+  AudioStartInput,
+  AudioStartResult,
+  AudioStopResult,
+} from "./audio";
 import type { HelloPayload } from "./helper-protocol";
 import type { HotkeyBinding, HotkeyConfigureResult, HotkeyEvent, HotkeyTapStatus } from "./hotkeys";
 import type { PermissionKind, PermissionRequestResult, PermissionSnapshot } from "./permissions";
@@ -52,6 +59,18 @@ export interface PlatformHelper {
   configureHotkeys(bindings: HotkeyBinding[]): Promise<HotkeyConfigureResult>;
   onHotkeyEvent(handler: (event: HotkeyEvent) => void): Unsubscribe;
   onHotkeyTapStatus(handler: (status: HotkeyTapStatus) => void): Unsubscribe;
+  /**
+   * Starts a microphone session. The helper only reads the microphone permission; if it is
+   * not granted this rejects with PERMISSION_DENIED and nothing is prompted. One session at
+   * a time (BUSY otherwise). Audio stays in the helper and is written to a file.
+   */
+  startAudio(input: AudioStartInput): Promise<AudioStartResult>;
+  /** Ends the session and returns its statistics and file reference. */
+  stopAudio(sessionId: string): Promise<AudioStopResult>;
+  /** Ends the session and deletes its file. */
+  cancelAudio(sessionId: string): Promise<{ discarded: boolean }>;
+  onAudioLevel(handler: (level: AudioLevel) => void): Unsubscribe;
+  onAudioSilent(handler: (silent: AudioSilent) => void): Unsubscribe;
   getStatus(): HelperStatus;
   onStatusChange(handler: (status: HelperStatus) => void): Unsubscribe;
 }

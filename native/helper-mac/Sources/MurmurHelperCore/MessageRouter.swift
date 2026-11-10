@@ -8,6 +8,7 @@ public struct MessageRouter: Sendable {
     private let uptimeMs: @Sendable () -> Int
     private let permissions: any PermissionProvider
     private let hotkeys: HotkeyController?
+    private let audio: AudioCaptureController?
     private var handshakeComplete = false
 
     /// Set once a `shutdown` request has been answered. The host exits after writing the reply.
@@ -18,12 +19,14 @@ public struct MessageRouter: Sendable {
         capabilities: [String] = [],
         permissions: any PermissionProvider,
         hotkeys: HotkeyController? = nil,
+        audio: AudioCaptureController? = nil,
         uptimeMs: @escaping @Sendable () -> Int
     ) {
         self.helperVersion = helperVersion
         self.capabilities = capabilities
         self.permissions = permissions
         self.hotkeys = hotkeys
+        self.audio = audio
         self.uptimeMs = uptimeMs
     }
 
@@ -77,6 +80,7 @@ public struct MessageRouter: Sendable {
             return [Self.success(id: id, requestType: type, ["uptimeMs": .int(uptimeMs())])]
         case "shutdown":
             hotkeys?.stop()
+            audio?.shutdown()
             shouldExit = true
             return [Self.success(id: id, requestType: type, [:])]
         case "permissions.status":
@@ -85,6 +89,8 @@ public struct MessageRouter: Sendable {
             return [handlePermissionsRequest(id: id, payload: envelope.payload)]
         case "hotkey.configure":
             return [handleHotkeyConfigure(id: id, payload: envelope.payload)]
+        case "audio.start", "audio.stop", "audio.cancel":
+            return [handleAudio(id: id, type: type, payload: envelope.payload)]
         default:
             return [Self.failure(id: id, requestType: type, .unsupportedRequest, "Unknown request type")]
         }
@@ -164,6 +170,24 @@ public struct MessageRouter: Sendable {
                             ])
                         }),
                 ])
+        }
+    }
+
+    // MARK: Audio
+
+    private func handleAudio(id: String, type: String, payload: [String: JSONValue]) -> Envelope {
+        guard let audio else {
+            return Self.failure(id: id, requestType: type, .unsupportedRequest, "Unknown request type")
+        }
+        let result: Result<[String: JSONValue], AudioFailure>
+        switch type {
+        case "audio.start": result = audio.start(payload)
+        case "audio.stop": result = audio.stop(payload)
+        default: result = audio.cancel(payload)
+        }
+        switch result {
+        case .success(let value): return Self.success(id: id, requestType: type, value)
+        case .failure(let failure): return Self.failure(id: id, requestType: type, failure.code, failure.message)
         }
     }
 

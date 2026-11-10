@@ -32,6 +32,8 @@ export interface HotkeyService {
   getState(): HotkeyServiceState;
   /** Retries after a missing permission once a status check shows it granted. */
   handlePermissions(statuses: PermissionSnapshot): void;
+  /** Key events for the features that act on them. */
+  onEvent(handler: (event: HotkeyEvent) => void): Unsubscribe;
 }
 
 function errorCode(error: unknown): unknown {
@@ -55,6 +57,7 @@ export function createHotkeyService(deps: HotkeyServiceDeps): HotkeyService {
   let state: HotkeyServiceState = "off";
   let generation = 0;
   let subscriptions: Unsubscribe[] = [];
+  const eventHandlers = new Set<(event: HotkeyEvent) => void>();
 
   function configure(): void {
     if (bindings.length === 0) {
@@ -99,6 +102,7 @@ export function createHotkeyService(deps: HotkeyServiceDeps): HotkeyService {
 
   function handleEvent(event: HotkeyEvent): void {
     logger.info(`${event.bindingId} ${event.state} at=${event.at} latency=${now() - event.at}ms`);
+    for (const handler of eventHandlers) handler(event);
   }
 
   function handleTapStatus(status: HotkeyTapStatus): void {
@@ -134,6 +138,12 @@ export function createHotkeyService(deps: HotkeyServiceDeps): HotkeyService {
       state = "off";
     },
     getState: () => state,
+    onEvent(handler) {
+      eventHandlers.add(handler);
+      return () => {
+        eventHandlers.delete(handler);
+      };
+    },
     handlePermissions(statuses) {
       if (state !== "needs_permission" || statuses.inputMonitoring !== "granted") return;
       if (helper.getStatus().state !== "ready") return;

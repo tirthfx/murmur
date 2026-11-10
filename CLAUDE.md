@@ -105,6 +105,8 @@ Permissions (what each is for, granting in development vs a packaged build, `tcc
 
 Hotkeys (the listen-only key listener, default bindings, manual key test): see `docs/hotkeys.md`.
 
+Microphone capture (where audio goes, gain and limiter, silent check, manual test): see `docs/audio.md`.
+
 ## Definition of done for a PR
 
 - Builds locally with the commands above.
