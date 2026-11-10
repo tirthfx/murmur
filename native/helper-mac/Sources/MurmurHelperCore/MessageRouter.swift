@@ -6,6 +6,7 @@ public struct MessageRouter: Sendable {
     private let helperVersion: String
     private let capabilities: [String]
     private let uptimeMs: @Sendable () -> Int
+    private let permissions: any PermissionProvider
     private var handshakeComplete = false
 
     /// Set once a `shutdown` request has been answered. The host exits after writing the reply.
@@ -14,10 +15,12 @@ public struct MessageRouter: Sendable {
     public init(
         helperVersion: String = ProtocolConstants.helperVersion,
         capabilities: [String] = [],
+        permissions: any PermissionProvider,
         uptimeMs: @escaping @Sendable () -> Int
     ) {
         self.helperVersion = helperVersion
         self.capabilities = capabilities
+        self.permissions = permissions
         self.uptimeMs = uptimeMs
     }
 
@@ -72,6 +75,10 @@ public struct MessageRouter: Sendable {
         case "shutdown":
             shouldExit = true
             return [Self.success(id: id, requestType: type, [:])]
+        case "permissions.status":
+            return [handlePermissionsStatus(id: id)]
+        case "permissions.request":
+            return [handlePermissionsRequest(id: id, payload: envelope.payload)]
         default:
             return [Self.failure(id: id, requestType: type, .unsupportedRequest, "Unknown request type")]
         }
@@ -95,6 +102,35 @@ public struct MessageRouter: Sendable {
         }
         handshakeComplete = accepted
         return Self.success(id: id, requestType: type, ["ready": .bool(accepted)])
+    }
+
+    // MARK: Permissions
+
+    private func handlePermissionsStatus(id: String) -> Envelope {
+        var result: [String: JSONValue] = [:]
+        for kind in PermissionKind.allCases {
+            result[kind.rawValue] = .string(permissions.status(of: kind).rawValue)
+        }
+        return Self.success(id: id, requestType: "permissions.status", result)
+    }
+
+    private func handlePermissionsRequest(id: String, payload: [String: JSONValue]) -> Envelope {
+        let type = "permissions.request"
+        guard let name = payload["kind"]?.stringValue, let kind = PermissionKind(rawValue: name) else {
+            return Self.failure(
+                id: id, requestType: type, .invalidPayload,
+                "permissions.request needs kind: microphone, accessibility, inputMonitoring or screenRecording")
+        }
+        guard kind.isRequestable else {
+            return Self.failure(
+                id: id, requestType: type, .unsupportedRequest,
+                "Screen Recording cannot be requested in this version")
+        }
+        let status = permissions.request(kind)
+        // The helper never opens System Settings itself; main does that on a separate click.
+        return Self.success(
+            id: id, requestType: type,
+            ["status": .string(status.rawValue), "openedSettings": .bool(false)])
     }
 
     // MARK: Message builders

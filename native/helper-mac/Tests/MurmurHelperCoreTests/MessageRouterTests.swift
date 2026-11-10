@@ -10,6 +10,10 @@ final class MessageRouterTests: XCTestCase {
         XCTAssertEqual(hello.payload["protocolVersion"], .int(ProtocolConstants.protocolVersion))
         XCTAssertEqual(hello.payload["helperVersion"], .string(ProtocolConstants.helperVersion))
         XCTAssertEqual(hello.payload["capabilities"], .array([]))
+        let announcing = MessageRouter(
+            capabilities: ProtocolConstants.capabilities, permissions: FakePermissionProvider(),
+            uptimeMs: { 0 })
+        XCTAssertEqual(announcing.helloEvent().payload["capabilities"], .array([.string("permissions.check")]))
         XCTAssertNotNil(hello.payload["pid"]?.intValue)
         XCTAssertNotNil(hello.payload["macos"]?.objectValue)
     }
@@ -104,6 +108,101 @@ final class MessageRouterTests: XCTestCase {
         let reply = router.handle(line: line(#"{"id":"m-000008","type":"shutdown","payload":{"reason":"app-quit"}}"#))
         XCTAssertEqual(reply[0].payload["ok"], .bool(true))
         XCTAssertTrue(router.shouldExit)
+    }
+}
+
+final class PermissionsRouterTests: XCTestCase {
+    private func statusLine(_ n: Int = 3) -> String {
+        #"{"id":"m-00000\#(n)","type":"permissions.status","payload":{}}"#
+    }
+
+    private func requestLine(_ kind: String, _ n: Int = 4) -> String {
+        #"{"id":"m-00000\#(n)","type":"permissions.request","payload":{"kind":"\#(kind)"}}"#
+    }
+
+    func testStatusReportsAllFourKindsFromTheProvider() {
+        let fake = FakePermissionProvider([
+            .microphone: .granted, .accessibility: .denied,
+            .inputMonitoring: .notDetermined, .screenRecording: .unknown,
+        ])
+        var router = handshaken(permissions: fake)
+        let reply = router.handle(line: line(statusLine()))
+        XCTAssertEqual(reply.count, 1)
+        XCTAssertEqual(reply[0].id, "m-000003")
+        XCTAssertEqual(reply[0].payload["requestType"], .string("permissions.status"))
+        XCTAssertEqual(reply[0].payload["ok"], .bool(true))
+        XCTAssertEqual(
+            reply[0].payload["result"],
+            .object([
+                "microphone": .string("granted"),
+                "accessibility": .string("denied"),
+                "inputMonitoring": .string("not_determined"),
+                "screenRecording": .string("unknown"),
+            ]))
+        XCTAssertEqual(fake.requests, [], "a status check must never request")
+    }
+
+    func testStatusBeforeHandshakeIsRefusedAndReadsNothing() {
+        let fake = FakePermissionProvider()
+        var router = makeRouter(permissions: fake)
+        let reply = router.handle(line: line(statusLine()))
+        XCTAssertEqual(errorCode(reply[0]), "HANDSHAKE_REQUIRED")
+        XCTAssertEqual(fake.reads, 0)
+    }
+
+    func testRequestForEachRequestableKindCallsTheProviderOnce() {
+        for kind in ["microphone", "accessibility", "inputMonitoring"] {
+            let fake = FakePermissionProvider([PermissionKind(rawValue: kind)!: .notDetermined])
+            var router = handshaken(permissions: fake)
+            let reply = router.handle(line: line(requestLine(kind)))
+            XCTAssertEqual(fake.requests.map(\.rawValue), [kind])
+            XCTAssertEqual(reply[0].payload["ok"], .bool(true), kind)
+            XCTAssertEqual(
+                reply[0].payload["result"],
+                .object(["status": .string("not_determined"), "openedSettings": .bool(false)]), kind)
+        }
+    }
+
+    func testRequestReturnsTheStatusTheProviderReports() {
+        let fake = FakePermissionProvider([.microphone: .notDetermined])
+        fake.setAfterRequest(.microphone, .granted)
+        var router = handshaken(permissions: fake)
+        let reply = router.handle(line: line(requestLine("microphone")))
+        XCTAssertEqual(reply[0].payload["result"]?.objectValue?["status"], .string("granted"))
+    }
+
+    func testScreenRecordingIsNeverRequested() {
+        let fake = FakePermissionProvider()
+        var router = handshaken(permissions: fake)
+        let reply = router.handle(line: line(requestLine("screenRecording")))
+        XCTAssertEqual(errorCode(reply[0]), "UNSUPPORTED_REQUEST")
+        XCTAssertEqual(fake.requests, [])
+    }
+
+    func testRequestWithBadKindIsInvalidPayload() {
+        let fake = FakePermissionProvider()
+        var router = handshaken(permissions: fake)
+        for text in [
+            requestLine("camera"),
+            #"{"id":"m-000004","type":"permissions.request","payload":{}}"#,
+            #"{"id":"m-000004","type":"permissions.request","payload":{"kind":3}}"#,
+        ] {
+            let reply = router.handle(line: line(text))
+            XCTAssertEqual(errorCode(reply[0]), "INVALID_PAYLOAD", text)
+        }
+        XCTAssertEqual(fake.requests, [])
+    }
+
+    func testRequestBeforeHandshakeIsRefusedAndRequestsNothing() {
+        let fake = FakePermissionProvider()
+        var router = makeRouter(permissions: fake)
+        let reply = router.handle(line: line(requestLine("microphone")))
+        XCTAssertEqual(errorCode(reply[0]), "HANDSHAKE_REQUIRED")
+        XCTAssertEqual(fake.requests, [])
+    }
+
+    func testOnlyScreenRecordingIsNotRequestable() {
+        XCTAssertEqual(PermissionKind.allCases.filter { !$0.isRequestable }, [.screenRecording])
     }
 }
 

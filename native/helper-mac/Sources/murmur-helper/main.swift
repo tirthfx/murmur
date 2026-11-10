@@ -31,7 +31,11 @@ func writeStdout(_ data: Data) {
     }
 }
 
-var host = HelperHost(router: MessageRouter(uptimeMs: HostInfo.uptimeProvider()))
+var host = HelperHost(
+    router: MessageRouter(
+        capabilities: ProtocolConstants.capabilities,
+        permissions: SystemPermissionProvider(),
+        uptimeMs: HostInfo.uptimeProvider()))
 Log.info("started, helper \(ProtocolConstants.helperVersion), protocol \(ProtocolConstants.protocolVersion)")
 writeStdout(host.greeting())
 
