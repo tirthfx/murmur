@@ -38,6 +38,8 @@ const config: ForgeConfig = {
     new VitePlugin({
       build: [
         { entry: "src/main/main.ts", config: "vite.main.config.ts", target: "main" },
+        // The cleanup model's utility process.
+        { entry: "src/llm/llm-worker.ts", config: "vite.main.config.ts", target: "main" },
         { entry: "src/preload/preload.ts", config: "vite.preload.config.ts", target: "preload" },
         {
           entry: "src/preload/bar-preload.ts",

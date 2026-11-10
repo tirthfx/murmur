@@ -7,6 +7,7 @@ import type {
   Transcript,
   Unsubscribe,
 } from "@murmur/shared";
+import type { CleanupResult } from "./cleanup/cleanup-service";
 import type { Logger } from "./helper/types";
 
 export interface RecorderDeps {
@@ -27,6 +28,10 @@ export interface RecorderDeps {
   copy?: (text: string) => Promise<void>;
   /** What happened, for the Bar. */
   onEvent?: (event: RecorderEvent) => void;
+  /** Cleans the transcript before it is inserted. Without it, the raw text is inserted. */
+  clean?: (text: string) => Promise<CleanupResult>;
+  /** Warms the cleanup model when recording starts. */
+  prepareCleanup?: () => void;
 }
 
 /** A dictation's steps, as the Bar needs them. Never carries what was said. */
@@ -101,6 +106,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
       session.deviceName = started.deviceName;
       logger.info(`recording from ${started.deviceName}`);
       emit({ type: "started", at: started.startedAt });
+      deps.prepareCleanup?.();
     } catch (error) {
       if (current === session) current = null;
       if (errorCode(error) === "PERMISSION_DENIED") {
@@ -149,13 +155,27 @@ export function createRecorder(deps: RecorderDeps): Recorder {
       );
       if (deps.logTranscripts) logger.info(`text: ${transcript.text}`);
       lastFailedFile = null;
-      emit(words === 0 ? { type: "no-speech" } : { type: "transcribed", words });
-      await insert(transcript.text.trim());
+      const final = await cleanUp(transcript.text);
+      const finalWords = final.split(/\s+/).filter(Boolean).length;
+      emit(finalWords === 0 ? { type: "no-speech" } : { type: "transcribed", words: finalWords });
+      await insert(final);
     } catch (error) {
       logger.warn(`could not transcribe: ${errorMessage(error)}`);
       lastFailedFile = file;
       emit({ type: "transcription-failed" });
     }
+  }
+
+  async function cleanUp(text: string): Promise<string> {
+    if (!deps.clean) return text.trim();
+    const result = await deps.clean(text);
+    const how =
+      result.source === "model"
+        ? `model in ${result.modelMs} ms`
+        : `rules only${result.reason ? ` (${result.reason})` : ""}`;
+    logger.info(`cleanup: ${how}`);
+    if (deps.logTranscripts) logger.info(`clean text: ${result.text}`);
+    return result.text;
   }
 
   async function insert(text: string): Promise<void> {

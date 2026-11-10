@@ -11,7 +11,7 @@ How recorded audio becomes text, on the device.
 ## Download
 
 ```bash
-npm run model:download
+npm run model:download -- speech
 ```
 
 Downloads over HTTPS from huggingface.co only, hashes every file while writing, and moves the folder into place only when every file matches the manifest. Files already correct are kept, so the same command repairs a copy that fails its check. It needs Node 22.18 or later, because it runs the app's own TypeScript directly.

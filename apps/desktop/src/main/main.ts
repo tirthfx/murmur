@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { app, BrowserWindow, ipcMain, screen, session, shell } from "electron";
+import { app, BrowserWindow, ipcMain, screen, session, shell, utilityProcess } from "electron";
 import {
   BAR_IPC_CHANNELS,
+  DEFAULT_CLEANUP_MODEL,
   DEFAULT_SPEECH_MODEL,
   IPC_CHANNELS,
   type PermissionKind,
@@ -19,6 +20,8 @@ import { createBarController } from "./bar/bar-controller";
 import { barEventFor } from "./bar/bar-events";
 import { createBarIpcHandler } from "./bar/bar-ipc";
 import { BarWindow, barPositionFile } from "./bar/bar-window";
+import { createCleanupService } from "./cleanup/cleanup-service";
+import { createLlmClient, type LlmReply } from "./cleanup/llm-client";
 import { createConsoleLogger, systemClock } from "./helper/node-runtime";
 import { createHotkeyService } from "./hotkeys";
 import { createIpcHandler } from "./ipc";
@@ -26,7 +29,8 @@ import { createPermissionsService } from "./permissions";
 import { createPlatformHelper, defaultHotkeyBindings } from "./platform";
 import { createRecorder } from "./recorder";
 import { createSpeechService } from "./speech/speech-service";
-import { speechModelRoot } from "./speech/paths";
+import { checkModel, modelLocation } from "./speech/model-store";
+import { cleanupModelRoot, speechModelRoot } from "./speech/paths";
 import { permissionSettingsUrl } from "./platform/mac-settings-links";
 
 const isDevelopment = !app.isPackaged;
@@ -96,6 +100,47 @@ const barWindow = new BarWindow({
 });
 const bar = createBarController(barWindow, systemClock);
 
+const cleanupRoot = cleanupModelRoot(app.getPath("appData"));
+const cleanupModelFile = path.join(
+  modelLocation(cleanupRoot, DEFAULT_CLEANUP_MODEL).dir,
+  DEFAULT_CLEANUP_MODEL.files[0]!.path,
+);
+let cleanupModelCheck: Promise<boolean> | null = null;
+const cleanupLogger = createConsoleLogger("[cleanup]");
+const cleanup = createCleanupService({
+  llm: createLlmClient({
+    spawn: () => {
+      const child = utilityProcess.fork(path.join(__dirname, "llm-worker.cjs"), [], {
+        serviceName: "Murmur Cleanup",
+      });
+      return {
+        post: (request) => child.postMessage(request),
+        onMessage: (handler) => child.on("message", (reply: LlmReply) => handler(reply)),
+        onExit: (handler) => child.on("exit", handler),
+        kill: () => void child.kill(),
+      };
+    },
+    modelPath: cleanupModelFile,
+    clock: systemClock,
+    logger: cleanupLogger,
+  }),
+  // Every byte is checked once per run (about 2 s for 2.5 GB), then remembered.
+  modelReady: () => {
+    cleanupModelCheck ??= checkModel(cleanupRoot, DEFAULT_CLEANUP_MODEL).then((result) => {
+      if (!result.ok) {
+        cleanupLogger.warn(
+          result.reason === "missing"
+            ? "The cleanup model is not downloaded; using rules only. Run `npm run model:download`."
+            : `The cleanup model failed its ${result.reason} check (${result.file}); using rules only.`,
+        );
+      }
+      return result.ok;
+    });
+    return cleanupModelCheck;
+  },
+  logger: cleanupLogger,
+});
+
 const recorder = createRecorder({
   helper,
   logger: createConsoleLogger("[audio]"),
@@ -106,6 +151,8 @@ const recorder = createRecorder({
     helper.insertText({ text, method: "auto", restoreClipboard: true, restoreDelayMs: 350 }),
   copy: (text) => helper.copyText(text),
   onEvent: (event) => bar.dispatch(barEventFor(event)),
+  clean: (text) => cleanup.clean(text),
+  prepareCleanup: () => cleanup.prepare(),
 });
 hotkeys.onEvent((event) => recorder.handleHotkey(event));
 helper.onAudioLevel((level) => bar.level(level.rmsDb));

@@ -17,7 +17,13 @@ export default tseslint.config(
     // Plain Node scripts run outside the app.
     files: ["scripts/**/*.mjs"],
     languageOptions: {
-      globals: { console: "readonly", process: "readonly", fetch: "readonly", Buffer: "readonly" },
+      globals: {
+        console: "readonly",
+        process: "readonly",
+        fetch: "readonly",
+        Buffer: "readonly",
+        performance: "readonly",
+      },
     },
   },
   prettier,
