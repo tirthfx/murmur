@@ -71,10 +71,11 @@ Commit and PR rules:
 ## Orchestration
 
 - The main Claude session is an orchestrator. It plans, splits work into issues, reviews results, and writes and edits vault notes itself.
-- Subagents are used for code and for large first drafts: the Agent tool with `model: "haiku"`.
+- Coding work (application code, multi-file changes, tests) is delegated to Sonnet subagents: the Agent tool with `model: "sonnet"`.
+- Haiku subagents (`model: "haiku"`) are for small tasks: one-line fixes, docs edits, GitHub housekeeping such as issues and labels, and read-only lookups.
 - Run one subagent at a time unless the owner says otherwise. Check each agent's output before starting the next.
 - One issue per agent. Never run two agents that edit the same files at the same time. Serialise work that touches shared files such as `packages/shared` or the root config.
-- The orchestrator checks each agent's diff, runs the checks and opens the PR.
+- The orchestrator reviews each agent's diff and reruns the checks before merging. It then opens the PR.
 
 ## Vault protocol
 
