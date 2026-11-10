@@ -10,6 +10,10 @@ import {
   helloAckRequestSchema,
   helloEventSchema,
   helperErrorEventSchema,
+  hotkeyConfigureRequestSchema,
+  hotkeyEventSchema,
+  hotkeyTapStatusEventSchema,
+  isHelperEventType,
   pingRequestSchema,
   permissionsRequestRequestSchema,
   permissionsStatusRequestSchema,
@@ -58,6 +62,12 @@ function validateMessage(message: unknown): boolean {
       return permissionsStatusRequestSchema.safeParse(message).success;
     case "permissions.request":
       return permissionsRequestRequestSchema.safeParse(message).success;
+    case "hotkey.configure":
+      return hotkeyConfigureRequestSchema.safeParse(message).success;
+    case "hotkey.event":
+      return hotkeyEventSchema.safeParse(message).success;
+    case "hotkey.tap.status":
+      return hotkeyTapStatusEventSchema.safeParse(message).success;
     case "response": {
       const response = responseSchema.safeParse(message);
       if (!response.success) return false;
@@ -127,6 +137,15 @@ describe("hello event", () => {
       payload: { protocolVersion: 1, helperVersion: "0.1.0", capabilities: [], future: true },
     });
     expect(parsed.success).toBe(true);
+  });
+});
+
+describe("helper events", () => {
+  it("lists the feature events and nothing inherited", () => {
+    expect(isHelperEventType("hotkey.event")).toBe(true);
+    expect(isHelperEventType("hotkey.tap.status")).toBe(true);
+    expect(isHelperEventType("hello")).toBe(false);
+    expect(isHelperEventType("toString")).toBe(false);
   });
 });
 

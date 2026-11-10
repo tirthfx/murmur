@@ -10,9 +10,10 @@ import {
 } from "../security/guards";
 import { createHubWindowOptions } from "../security/window-options";
 import { createConsoleLogger } from "./helper/node-runtime";
+import { createHotkeyService } from "./hotkeys";
 import { createIpcHandler } from "./ipc";
 import { createPermissionsService } from "./permissions";
-import { createPlatformHelper } from "./platform";
+import { createPlatformHelper, defaultHotkeyBindings } from "./platform";
 import { permissionSettingsUrl } from "./platform/mac-settings-links";
 
 const isDevelopment = !app.isPackaged;
@@ -42,6 +43,13 @@ const permissions = createPermissionsService({
   helper,
   logger: createConsoleLogger("[permissions]"),
 });
+
+const hotkeys = createHotkeyService({
+  helper,
+  bindings: defaultHotkeyBindings(process.platform),
+  logger: createConsoleLogger("[hotkeys]"),
+});
+permissions.onChecked((statuses) => hotkeys.handlePermissions(statuses));
 
 async function openPermissionSettings(kind: PermissionKind): Promise<void> {
   const url = process.platform === "darwin" ? permissionSettingsUrl(kind) : null;
@@ -98,6 +106,8 @@ void app.whenReady().then(() => {
   session.defaultSession.setPermissionCheckHandler(denyPermissionCheck);
 
   registerIpc();
+  // Configures the dictation key whenever the helper becomes ready, restarts included.
+  hotkeys.start();
   // The app works without the helper; its status is shown in the Hub.
   helper.start().then(
     // Read-only: nothing is requested at launch, only the current status is checked.

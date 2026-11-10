@@ -1,6 +1,9 @@
 import {
+  HELPER_EVENTS,
   HELPER_REQUESTS,
   NdjsonDecoder,
+  isHelperEventType,
+  type HelperEventMessage,
   encodeMessage,
   envelopeSchema,
   formatRequestId,
@@ -45,6 +48,7 @@ export class HelperConnection {
   private stderrRemainder = "";
   private helloHandler: ((hello: HelloPayload) => void) | null = null;
   private exitHandler: ((info: ExitInfo) => void) | null = null;
+  private eventHandler: ((event: HelperEventMessage) => void) | null = null;
 
   constructor(
     private readonly proc: HelperProcess,
@@ -65,6 +69,11 @@ export class HelperConnection {
 
   onExit(handler: (info: ExitInfo) => void): void {
     this.exitHandler = handler;
+  }
+
+  /** Feature events from `HELPER_EVENTS`, already validated. Invalid ones are dropped. */
+  onEvent(handler: (event: HelperEventMessage) => void): void {
+    this.eventHandler = handler;
   }
 
   kill(signal: "SIGTERM" | "SIGKILL"): void {
@@ -159,6 +168,13 @@ export class HelperConnection {
         this.deps.logger.error(
           `helper reported ${error.data.code}: ${error.data.message}${error.data.fatal ? " (fatal)" : ""}`,
         );
+      }
+    } else if (isHelperEventType(type)) {
+      const parsed = HELPER_EVENTS[type].safeParse(payload);
+      if (parsed.success) {
+        this.eventHandler?.({ type, payload: parsed.data } as HelperEventMessage);
+      } else {
+        this.deps.logger.warn(`dropped an invalid ${type} event`);
       }
     } else if (!this.warnedTypes.has(type)) {
       this.warnedTypes.add(type);

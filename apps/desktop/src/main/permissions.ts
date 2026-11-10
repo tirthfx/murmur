@@ -5,6 +5,7 @@ import {
   type PermissionsInfo,
   type PermissionSnapshot,
   type PlatformHelper,
+  type Unsubscribe,
 } from "@murmur/shared";
 import type { Logger } from "./helper/types";
 
@@ -18,6 +19,8 @@ export interface PermissionsService {
   check(reason: string): Promise<PermissionsInfo>;
   /** Asks the OS for one permission, then re-reads the statuses. Rejects for other kinds. */
   request(kind: PermissionKind): Promise<PermissionsInfo>;
+  /** Called with the statuses after every check that reached the helper. */
+  onChecked(handler: (statuses: PermissionSnapshot) => void): Unsubscribe;
 }
 
 function describeFailure(error: unknown): string {
@@ -42,11 +45,13 @@ function summarise(snapshot: PermissionSnapshot): string {
 
 export function createPermissionsService(deps: PermissionsServiceDeps): PermissionsService {
   const { helper, logger } = deps;
+  const checkedHandlers = new Set<(statuses: PermissionSnapshot) => void>();
 
   async function check(reason: string): Promise<PermissionsInfo> {
     try {
       const statuses = await helper.checkPermissions();
       logger.info(`checked (${reason}): ${summarise(statuses)}`);
+      for (const handler of checkedHandlers) handler(statuses);
       return { statuses, message: null };
     } catch (error) {
       const message = describeFailure(error);
@@ -59,6 +64,12 @@ export function createPermissionsService(deps: PermissionsServiceDeps): Permissi
 
   return {
     check,
+    onChecked(handler) {
+      checkedHandlers.add(handler);
+      return () => {
+        checkedHandlers.delete(handler);
+      };
+    },
     async request(kind) {
       // Defence in depth: the IPC schema already refuses these, and the helper refuses too.
       if (!isRequestablePermissionKind(kind)) {
