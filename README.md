@@ -8,13 +8,13 @@ Murmur is a personal, local-first voice dictation and meeting-notes app for Mac.
 
 ## Layout
 
-| Path | Purpose |
-|---|---|
-| `apps/desktop` | Electron app (Forge, Vite, TypeScript, React) |
-| `native/helper-mac` | Swift helper for hotkeys, text context, paste, audio capture and speech |
-| `packages/shared` | Shared types and the helper protocol |
-| `services/local-server` | Local backend for team, sync and admin features |
-| `docs/` | Technical documentation |
+| Path                    | Purpose                                                                 |
+| ----------------------- | ----------------------------------------------------------------------- |
+| `apps/desktop`          | Electron app (Forge, Vite, TypeScript, React)                           |
+| `native/helper-mac`     | Swift helper for hotkeys, text context, paste, audio capture and speech |
+| `packages/shared`       | Shared types and the helper protocol                                    |
+| `services/local-server` | Local backend for team, sync and admin features                         |
+| `docs/`                 | Technical documentation                                                 |
 
 ## Contributing
 
