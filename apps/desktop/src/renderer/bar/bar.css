@@ -1,0 +1,160 @@
+/* The Bar: a floating pill on a transparent window. Murmur's own look, not the design system. */
+:root {
+  --bar-bg: rgba(24, 24, 27, 0.9);
+  --bar-fg: #f4f4f5;
+  --bar-muted: #a1a1aa;
+  --bar-accent: #7dd3fc;
+  --bar-ok: #86efac;
+  --bar-warn: #fbbf24;
+  --bar-error: #f87171;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
+  font-family: "Figtree", system-ui, sans-serif;
+}
+
+#root {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bar-pill {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  max-width: 272px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: var(--bar-bg);
+  color: var(--bar-fg);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  touch-action: none;
+}
+
+.bar-pill[data-state="idle"] {
+  padding: 0 10px;
+  color: var(--bar-muted);
+}
+
+.bar-pill[data-state="done"] .bar-icon {
+  stroke: var(--bar-ok);
+}
+
+.bar-pill[data-state="warning"] {
+  border-color: rgba(251, 191, 36, 0.6);
+}
+.bar-pill[data-state="warning"] .bar-icon {
+  stroke: var(--bar-warn);
+}
+
+.bar-pill[data-state="error"] {
+  border-color: rgba(248, 113, 113, 0.7);
+  cursor: pointer;
+}
+.bar-pill[data-state="error"] .bar-icon {
+  stroke: var(--bar-error);
+}
+
+.bar-pill[data-state="cancelled"] {
+  color: var(--bar-muted);
+}
+
+.bar-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bar-icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  stroke: currentColor;
+}
+
+.bar-spinner {
+  animation: bar-spin 0.9s linear infinite;
+}
+
+@keyframes bar-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.bar-meter {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 14px;
+}
+
+.bar-meter-step {
+  width: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.2);
+}
+.bar-meter-step:nth-child(1) {
+  height: 5px;
+}
+.bar-meter-step:nth-child(2) {
+  height: 8px;
+}
+.bar-meter-step:nth-child(3) {
+  height: 11px;
+}
+.bar-meter-step:nth-child(4) {
+  height: 13px;
+}
+.bar-meter-step:nth-child(5) {
+  height: 14px;
+}
+.bar-meter-step[data-on="true"] {
+  background: var(--bar-accent);
+}
+
+.bar-time {
+  font-variant-numeric: tabular-nums;
+  color: var(--bar-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar-spinner {
+    animation: none;
+  }
+}
+
+/* Development gallery in a normal browser. */
+html[data-gallery="true"],
+html[data-gallery="true"] body,
+html[data-gallery="true"] #root {
+  height: auto;
+  overflow: auto;
+  background: #e4e4e7;
+}
+.bar-gallery {
+  display: grid;
+  gap: 12px;
+  padding: 24px;
+}
+.bar-gallery-row {
+  display: grid;
+  grid-template-columns: 96px auto;
+  align-items: center;
+  justify-items: start;
+  gap: 12px;
+}

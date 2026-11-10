@@ -261,4 +261,53 @@ describe("recorder", () => {
     expect(copy).toHaveBeenCalledWith("Hello.");
     expect(logger.lines.join("\n")).toContain("copied to the clipboard instead");
   });
+
+  it("reports each step for the Bar, without the words", async () => {
+    const events: unknown[] = [];
+    const transcribe = vi.fn(async () => ({
+      text: "Three little words",
+      language: "en",
+      segments: [],
+      decodeMs: 1,
+      audioMs: 1,
+    }));
+    const { recorder } = setup({ transcribe, onEvent: (event) => events.push(event) });
+    recorder.handleHotkey(key("down"));
+    recorder.handleHotkey(key("up"));
+    await recorder.idle();
+    expect(events).toEqual([
+      { type: "started", at: 1 },
+      { type: "stopped" },
+      { type: "transcribed", words: 3 },
+    ]);
+  });
+
+  it("retries the last failed transcription once asked", async () => {
+    const events: { type: string }[] = [];
+    const transcribe = vi
+      .fn()
+      .mockRejectedValueOnce(new HelperError("TRANSCRIPTION_TIMEOUT", "slow"))
+      .mockResolvedValueOnce({ text: "ok", language: "en", segments: [], decodeMs: 1, audioMs: 1 });
+    const { recorder } = setup({ transcribe, onEvent: (event) => events.push(event) });
+    expect(recorder.retryLast()).toBe(false);
+    recorder.handleHotkey(key("down"));
+    recorder.handleHotkey(key("up"));
+    await recorder.idle();
+    expect(events.at(-1)).toEqual({ type: "transcription-failed" });
+    expect(recorder.retryLast()).toBe(true);
+    await recorder.idle();
+    expect(transcribe).toHaveBeenLastCalledWith("/tmp/a.pcm");
+    expect(events.at(-1)).toEqual({ type: "transcribed", words: 1 });
+    expect(recorder.retryLast()).toBe(false);
+  });
+
+  it("reports a silent recording as no speech", async () => {
+    const events: { type: string }[] = [];
+    const { recorder, helper } = setup({ onEvent: (event) => events.push(event) });
+    helper.stopAudio.mockResolvedValueOnce({ ...stopResult, silent: true });
+    recorder.handleHotkey(key("down"));
+    recorder.handleHotkey(key("up"));
+    await recorder.idle();
+    expect(events.map((event) => event.type)).toEqual(["started", "stopped", "no-speech"]);
+  });
 });

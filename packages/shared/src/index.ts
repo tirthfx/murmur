@@ -9,3 +9,4 @@ export * from "./audio";
 export * from "./speech";
 export * from "./speech-models";
 export * from "./insert";
+export * from "./bar";
