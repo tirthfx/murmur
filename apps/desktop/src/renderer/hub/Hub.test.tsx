@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import { PAGES } from "./pages";
+import { createMockApi } from "./test-api";
 
 function stubBrowserApis() {
   vi.stubGlobal(
@@ -32,14 +33,7 @@ function stubBrowserApis() {
 describe("Hub", () => {
   beforeEach(() => {
     stubBrowserApis();
-    window.murmur = {
-      getAppInfo: vi
-        .fn()
-        .mockResolvedValue({ name: "Murmur", version: "1.2.3", platform: "darwin" }),
-      getHelperStatus: vi
-        .fn()
-        .mockResolvedValue({ state: "ready", helperVersion: "0.1.0", message: null }),
-    };
+    window.murmur = createMockApi();
   });
 
   afterEach(() => {
@@ -89,10 +83,10 @@ describe("Hub", () => {
   });
 
   it("still renders when the version cannot be read", async () => {
-    window.murmur = {
+    window.murmur = createMockApi({
       getAppInfo: vi.fn().mockRejectedValue(new Error("nope")),
       getHelperStatus: vi.fn().mockRejectedValue(new Error("nope")),
-    };
+    });
     render(<App />);
     await waitFor(() => expect(window.murmur.getAppInfo).toHaveBeenCalled());
     expect(screen.getByRole("heading", { level: 1, name: "Home" })).toBeTruthy();
