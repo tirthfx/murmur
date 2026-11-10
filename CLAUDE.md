@@ -23,6 +23,8 @@ Murmur is a personal, single-owner Mac desktop app for voice dictation and meeti
 Stack:
 
 - **Desktop UI:** Electron, built with Electron Forge, Vite, TypeScript and React. Lives in `apps/desktop`.
+- **Design system:** Meta's Astryx (`@astryxdesign/core`) with the Neutral theme (`@astryxdesign/theme-neutral`). Astryx is beta, so pin both packages to exact versions, not ranges. Fonts are bundled locally because the app is offline-first. Components the design system does not provide (the floating Bar window, tray menus, shortcut recorder, audio level meter) are custom.
+- **Package manager:** npm workspaces only. Do not use any other package manager.
 - **Native helper:** a Swift Package executable in `native/helper-mac`. It handles global hotkeys, accessibility text context, pasting into other apps, microphone capture, system-audio capture and the on-device speech model.
 - **Shared code:** `packages/shared` holds shared TypeScript types and the helper protocol definitions.
 - **Local server:** `services/local-server` is a bundled local backend for team, sync and admin features. Supabase comes later.
@@ -68,8 +70,9 @@ Commit and PR rules:
 
 ## Orchestration
 
-- The main Claude session is an orchestrator. It plans, splits work into issues, reviews results and updates the vault.
-- Implementation work is delegated to Haiku subagents: the Agent tool with `model: "haiku"`.
+- The main Claude session is an orchestrator. It plans, splits work into issues, reviews results, and writes and edits vault notes itself.
+- Subagents are used for code and for large first drafts: the Agent tool with `model: "haiku"`.
+- Run one subagent at a time unless the owner says otherwise. Check each agent's output before starting the next.
 - One issue per agent. Never run two agents that edit the same files at the same time. Serialise work that touches shared files such as `packages/shared` or the root config.
 - The orchestrator checks each agent's diff, runs the checks and opens the PR.
 
@@ -78,6 +81,8 @@ Commit and PR rules:
 The notes vault is an Obsidian-style folder at `/Users/tirthsandipshendage/Developer/murmur-vault`. It is outside this repo and is not in git. The spec lives there.
 
 - **Session start:** read `00 Home.md` and the latest session note.
+- **Spec reading order:** read `02 Spec/05 Canonical Rules` before any other spec file.
+- **Open decisions:** tracked in `06 Backlog/Open Questions`.
 - **During a session:** add a decision note for each decision made, including the reason and the alternatives rejected.
 - **Session end:** write a session note summarising what was done, what is open and what is next.
 - **Spec changes:** update the relevant spec note in the vault. Do not put the product spec in the repo.
