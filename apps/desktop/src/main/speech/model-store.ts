@@ -103,7 +103,8 @@ function checkAddress(file: SpeechModelFile): void {
 /**
  * Makes the model complete and correct on disk. Files already right are kept, others are
  * downloaded into a staging folder, and the folder is moved into place only when every
- * file matches the manifest. Returns the bytes downloaded (0 when nothing was missing).
+ * file matches the manifest. A file left part-way by an earlier run is continued with an
+ * HTTP range request. Returns the bytes downloaded (0 when nothing was missing).
  */
 export async function downloadModel(
   root: string,
@@ -139,15 +140,28 @@ export async function downloadModel(
     const target = safeJoin(staging, file.path);
     const partial = `${target}.download`;
     await mkdir(path.dirname(target), { recursive: true });
-    const response = await fetchFile(file.url, { redirect: "follow" });
+    // Continue a file an earlier run left part-way, when the server honours the range.
+    const existing = (await sizeOf(partial)) ?? 0;
+    const resumeFrom = existing > 0 && existing < file.size ? existing : 0;
+    const response = await fetchFile(file.url, {
+      redirect: "follow",
+      ...(resumeFrom > 0 ? { headers: { Range: `bytes=${resumeFrom}-` } } : {}),
+    });
     if (!response.ok || !response.body) {
       throw new ModelDownloadError("http", file.path, `${file.path}: HTTP ${response.status}`);
     }
     if (response.url && !response.url.startsWith("https://")) {
       throw new ModelDownloadError("address", file.path, `${file.path}: redirected off HTTPS`);
     }
+    const resumed = resumeFrom > 0 && response.status === 206;
     const hash = createHash("sha256");
     let bytes = 0;
+    if (resumed) {
+      for await (const chunk of createReadStream(partial)) hash.update(chunk as Buffer);
+      bytes = resumeFrom;
+      done += resumeFrom;
+      report();
+    }
     const meter = new Transform({
       transform(chunk: Buffer, _encoding, callback) {
         hash.update(chunk);
@@ -161,7 +175,7 @@ export async function downloadModel(
     await pipeline(
       Readable.fromWeb(response.body as Parameters<typeof Readable.fromWeb>[0]),
       meter,
-      createWriteStream(partial),
+      createWriteStream(partial, { flags: resumed ? "a" : "w" }),
     );
     if (bytes !== file.size) {
       await rm(partial, { force: true });

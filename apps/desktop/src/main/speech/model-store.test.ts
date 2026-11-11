@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -117,6 +117,54 @@ describe("model store", () => {
   it("stops on an HTTP error", async () => {
     const fetch = vi.fn(async () => new Response("no", { status: 500 }));
     await expect(downloadModel(root, model, { fetch })).rejects.toMatchObject({ reason: "http" });
+  });
+
+  describe("resuming", () => {
+    const file = "model/AudioEncoder.mlmodelc/weights/weight.bin";
+    const partial = () => path.join(root, `${model.id}.partial`, `${file}.download`);
+
+    async function leavePartial(text: string) {
+      await mkdir(path.dirname(partial()), { recursive: true });
+      await writeFile(partial(), text);
+    }
+
+    it("asks only for the missing bytes and appends them", async () => {
+      await leavePartial("x".repeat(3000));
+      const ranges: (string | null)[] = [];
+      const fetch = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+        const name = String(url).split("/resolve/abc/")[1]!;
+        const range = new Headers(init?.headers).get("Range");
+        if (name !== file) return new Response(contents[name], { status: 200 });
+        ranges.push(range);
+        const from = Number(/bytes=(\d+)-/.exec(range ?? "")?.[1] ?? 0);
+        return new Response(contents[name]!.slice(from), { status: from > 0 ? 206 : 200 });
+      });
+      const bytes = await downloadModel(root, model, { fetch });
+      expect(ranges).toEqual(["bytes=3000-"]);
+      expect(bytes).toBe(model.totalBytes - 3000);
+      expect((await checkModel(root, model)).ok).toBe(true);
+    });
+
+    it("starts over when the server ignores the range", async () => {
+      await leavePartial("y".repeat(3000));
+      const bytes = await downloadModel(root, model, { fetch: fakeFetch() });
+      expect(bytes).toBe(model.totalBytes);
+      expect((await checkModel(root, model)).ok).toBe(true);
+    });
+
+    it("rejects a resumed file whose earlier bytes were wrong", async () => {
+      await leavePartial("y".repeat(3000));
+      const fetch = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+        const name = String(url).split("/resolve/abc/")[1]!;
+        const ranged = new Headers(init?.headers).has("Range");
+        return new Response(ranged ? contents[name]!.slice(3000) : contents[name], {
+          status: ranged ? 206 : 200,
+        });
+      });
+      await expect(downloadModel(root, model, { fetch })).rejects.toMatchObject({
+        reason: "checksum",
+      });
+    });
   });
 
   it("refuses file paths that leave the model folder", async () => {
