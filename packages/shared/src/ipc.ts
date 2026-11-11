@@ -20,6 +20,12 @@ import {
   type ShortcutSlot,
 } from "./settings";
 import { setupStatusSchema, type SetupStatus } from "./setup";
+import {
+  micCheckResultSchema,
+  micCheckStartResultSchema,
+  type MicCheckResult,
+  type MicCheckStartResult,
+} from "./mic-check";
 
 /**
  * Renderer-to-main IPC contract. Channel names, payload schemas and the API the
@@ -38,6 +44,8 @@ export const IPC_CHANNELS = {
   captureShortcut: "settings:capture-shortcut",
   getSetupStatus: "setup:get-status",
   downloadSpeechModel: "setup:download-speech-model",
+  micCheckStart: "mic-check:start",
+  micCheckStop: "mic-check:stop",
 } as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
@@ -101,6 +109,15 @@ export const IPC_CONTRACT = {
     args: z.tuple([]),
     result: setupStatusSchema,
   },
+  [IPC_CHANNELS.micCheckStart]: {
+    args: z.tuple([]),
+    result: micCheckStartResultSchema,
+  },
+  // Null when no check was running.
+  [IPC_CHANNELS.micCheckStop]: {
+    args: z.tuple([]),
+    result: micCheckResultSchema.nullable(),
+  },
 } as const satisfies Record<IpcChannel, { args: z.ZodType; result: z.ZodType }>;
 
 export function isIpcChannel(value: unknown): value is IpcChannel {
@@ -145,4 +162,14 @@ export interface MurmurApi {
   getSetupStatus(): Promise<SetupStatus>;
   /** Starts the speech model download (once); poll getSetupStatus for progress. */
   downloadSpeechModel(): Promise<SetupStatus>;
+  /** Starts a microphone check: nothing is recorded to disk. */
+  micCheckStart(): Promise<MicCheckStartResult>;
+  micCheckStop(): Promise<MicCheckResult | null>;
+  /** Input levels during a microphone check, about 20 a second. Returns an unsubscribe. */
+  onMicCheckLevel(handler: (rmsDb: number) => void): () => void;
 }
+
+/** Main-to-Hub messages (no reply). */
+export const IPC_EVENTS = {
+  micCheckLevel: "mic-check:level",
+} as const;

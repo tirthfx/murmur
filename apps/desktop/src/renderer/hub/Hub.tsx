@@ -8,6 +8,7 @@ import type { AppInfo } from "@murmur/shared";
 import { Button } from "@astryxdesign/core/Button";
 import { HelperStatusLine } from "./HelperStatusLine";
 import { Onboarding } from "./Onboarding";
+import { MicCheckSection } from "./MicCheckSection";
 import { PermissionsSection } from "./PermissionsSection";
 import { SettingsSection } from "./SettingsSection";
 import { PAGES, type PageId } from "./pages";
@@ -105,6 +106,7 @@ function HubPages({ onRunSetup }: { onRunSetup: () => void }) {
           {page.id === "settings" ? (
             <>
               <SettingsSection />
+              <MicCheckSection />
               <PermissionsSection />
               <section className="hub-permissions" aria-labelledby="setup-heading">
                 <Heading level={2} id="setup-heading">

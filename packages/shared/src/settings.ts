@@ -67,6 +67,8 @@ export const settingsSchema = z.strictObject({
     error: z.boolean(),
     cancel: z.boolean(),
   }),
+  /** Whisper mode (DC-12): more gain for very quiet speech. */
+  whisperMode: z.boolean(),
   /** Mute the system output while recording (DC-41). */
   muteWhileDictating: z.boolean(),
   /** Read the focused field to help spell names and terms (DC-30). */
@@ -91,6 +93,7 @@ export const settingsPatchSchema = settingsSchema
     contextAwareness: true,
     mouseButtons: true,
     typingReminder: true,
+    whisperMode: true,
   })
   .partial()
   .strict();
@@ -110,6 +113,7 @@ export const SETTING_KEYS: Record<keyof Settings, string> = {
   contextAwareness: "context.enabled",
   mouseButtons: "hotkey.mouse_buttons",
   typingReminder: "reminder.typing",
+  whisperMode: "audio.whisper_mode",
 };
 
 export const SOUND_NAMES = ["start", "lock", "success", "error", "cancel"] as const;

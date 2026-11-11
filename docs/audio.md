@@ -60,3 +60,23 @@ to its call profile). Changes come in bursts, so it acts 0.3 s after the last on
    `audio input changed (device-removed)`.
 3. With AirPods as the input, start a recording and play a video so the headset changes
    profile: the log shows `interrupted` and the recording carries on.
+
+## Whisper mode
+
+For speech well below normal conversation. Settings, **Whisper mode** (`audio.whisper_mode`,
+off by default) makes the next recordings use up to +30 dB of gain instead of +24 dB, and
+treats blocks down to -62 dBFS as speech instead of -55 dBFS, so soft speech is raised.
+The limiter is unchanged, so loud speech still peaks under -1 dBFS. It can pick up more
+background noise, which is why it is off by default.
+
+## Microphone check
+
+Settings, **Microphone check**: press Start and read the five sentences. The meter moves
+with your voice (levels every 50 ms). Press Finish to get advice from two input levels
+measured before gain: the voice (the loudest tenth of the time) and the background (the
+quietest tenth). A gap of 35 dB or more suggests a headset or close-talk microphone, 20 dB
+or more a built-in microphone in a quiet room works well, less suggests a headset; a voice
+under -50 dB is "hard to hear". The advice changes no setting.
+
+The check is an `audio.start` with `test: true`: the helper writes no file, and main writes
+no history row. It uses the chosen microphone and the whisper setting.

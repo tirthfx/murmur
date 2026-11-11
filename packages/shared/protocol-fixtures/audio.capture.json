@@ -214,6 +214,36 @@
         "reason": "interrupted",
         "deviceName": null
       }
+    },
+    {
+      "id": "m-000090",
+      "type": "audio.start",
+      "payload": {
+        "sessionId": "check-1",
+        "deviceId": null,
+        "emitLevels": true,
+        "levelIntervalMs": 50,
+        "whisper": true,
+        "test": true
+      }
+    },
+    {
+      "id": "m-000091",
+      "type": "response",
+      "payload": {
+        "requestType": "audio.stop",
+        "ok": true,
+        "result": {
+          "durationMs": 8000,
+          "samples": 128000,
+          "peakDb": -6.2,
+          "meanDb": -31.4,
+          "silent": false,
+          "audioFile": null,
+          "inputNoiseDb": -61.8,
+          "inputSpeechDb": -24.3
+        }
+      }
     }
   ],
   "invalidMessages": [

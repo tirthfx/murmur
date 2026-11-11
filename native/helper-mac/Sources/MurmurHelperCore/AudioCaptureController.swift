@@ -112,14 +112,15 @@ public final class AudioCaptureController: @unchecked Sendable {
         let requestedUID: String?
         var deviceName: String
         let fileURL: URL
-        let handle: FileHandle
+        /// Nil for a microphone check, which writes nothing.
+        let handle: FileHandle?
         var pipeline: AudioPipeline
         var resampler: Resampler?
         var bytes = 0
         var writeFailed = false
 
         init(
-            id: String, generation: Int, requestedUID: String?, deviceName: String, fileURL: URL, handle: FileHandle,
+            id: String, generation: Int, requestedUID: String?, deviceName: String, fileURL: URL, handle: FileHandle?,
             pipeline: AudioPipeline
         ) {
             self.id = id
@@ -162,7 +163,9 @@ public final class AudioCaptureController: @unchecked Sendable {
             }
             deviceUID = uid
         }
-        var settings = AudioPipelineSettings()
+        let whisper = payload["whisper"]?.boolValue ?? false
+        let test = payload["test"]?.boolValue ?? false
+        var settings = whisper ? AudioPipelineSettings.whisper() : AudioPipelineSettings()
         let emitLevels = payload["emitLevels"]?.boolValue ?? true
         let interval = payload["levelIntervalMs"]?.intValue ?? 100
         guard (20...5_000).contains(interval) else {
@@ -177,17 +180,24 @@ public final class AudioCaptureController: @unchecked Sendable {
         }
 
         let fileURL: URL
-        let handle: FileHandle
-        do {
-            try fileManager.createDirectory(
-                at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
-            pruneOldFiles()
-            fileURL = directory.appendingPathComponent("\(sessionId).pcm")
-            guard fileManager.createFile(atPath: fileURL.path, contents: nil, attributes: [.posixPermissions: 0o600])
-            else { return .failure(.engineFailed("Could not create the audio file")) }
-            handle = try FileHandle(forWritingTo: fileURL)
-        } catch {
-            return .failure(.engineFailed("Could not prepare the audio folder: \(error.localizedDescription)"))
+        let handle: FileHandle?
+        if test {
+            // A microphone check writes no audio at all.
+            fileURL = directory.appendingPathComponent("\(sessionId).test")
+            handle = nil
+        } else {
+            do {
+                try fileManager.createDirectory(
+                    at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+                pruneOldFiles()
+                fileURL = directory.appendingPathComponent("\(sessionId).pcm")
+                guard
+                    fileManager.createFile(atPath: fileURL.path, contents: nil, attributes: [.posixPermissions: 0o600])
+                else { return .failure(.engineFailed("Could not create the audio file")) }
+                handle = try FileHandle(forWritingTo: fileURL)
+            } catch {
+                return .failure(.engineFailed("Could not prepare the audio folder: \(error.localizedDescription)"))
+            }
         }
 
         let generation = lock.withLock { () -> Int in
@@ -200,8 +210,8 @@ public final class AudioCaptureController: @unchecked Sendable {
                 try source.start(deviceUID: deviceUID, onSamples: sampleHandler(generation: generation))
             }
         } catch {
-            try? handle.close()
-            try? fileManager.removeItem(at: fileURL)
+            try? handle?.close()
+            if handle != nil { try? fileManager.removeItem(at: fileURL) }
             if case AudioSourceError.noInputDevice = error {
                 return .failure(.deviceNotFound("No input device is connected"))
             }
@@ -232,13 +242,13 @@ public final class AudioCaptureController: @unchecked Sendable {
         case .success(let finished):
             let pipeline = finished.pipeline
             var audioFile: JSONValue = .null
-            if finished.bytes > 0 && !finished.writeFailed {
+            if finished.handle != nil && finished.bytes > 0 && !finished.writeFailed {
                 audioFile = .object([
                     "path": .string(finished.fileURL.path),
                     "codec": .string(AudioFormat.codec),
                     "bytes": .int(finished.bytes),
                 ])
-            } else {
+            } else if finished.handle != nil {
                 try? fileManager.removeItem(at: finished.fileURL)
             }
             Log.info("audio stopped after \(pipeline.durationMs) ms")
@@ -248,6 +258,8 @@ public final class AudioCaptureController: @unchecked Sendable {
                 "peakDb": .double(Decibels.rounded(pipeline.peakDb)),
                 "meanDb": .double(Decibels.rounded(pipeline.meanDb)),
                 "silent": .bool(!pipeline.heardInput),
+                "inputNoiseDb": pipeline.noiseFloorDb.map { .double(Decibels.rounded($0)) } ?? .null,
+                "inputSpeechDb": pipeline.speechLevelInputDb.map { .double(Decibels.rounded($0)) } ?? .null,
                 "audioFile": audioFile,
             ])
         }
@@ -359,7 +371,7 @@ public final class AudioCaptureController: @unchecked Sendable {
             let rest = current.pipeline.finish()
             write(flushed.output + rest.output, to: current)
             send(flushed.events + rest.events, for: current)
-            try? current.handle.close()
+            try? current.handle?.close()
             return .success(current)
         }
     }
@@ -382,7 +394,7 @@ public final class AudioCaptureController: @unchecked Sendable {
         guard !samples.isEmpty, !session.writeFailed else { return }
         let data = AudioPipeline.pcm16(samples)
         do {
-            try session.handle.write(contentsOf: data)
+            try session.handle?.write(contentsOf: data)
             session.bytes += data.count
         } catch {
             session.writeFailed = true

@@ -54,6 +54,8 @@ export interface RecorderDeps {
   clean?: (text: string, options: { terms: string[] }) => Promise<CleanupResult>;
   /** Warms the cleanup model when recording starts. */
   prepareCleanup?: () => void;
+  /** Whisper mode for the next recording (DC-12). */
+  whisperMode?: () => boolean;
   /** The microphone for the next session: a device id, or null for the system default. */
   deviceId?: () => string | null;
   /** Stores a finished dictation (history). Returns the row id. */
@@ -248,7 +250,12 @@ export function createRecorder(deps: RecorderDeps): Recorder {
     try {
       await deps.beforeStart?.();
       const chosen = deps.deviceId?.() ?? null;
-      const options = { sessionId: session.id, emitLevels: true, levelIntervalMs };
+      const options = {
+        sessionId: session.id,
+        emitLevels: true,
+        levelIntervalMs,
+        ...(deps.whisperMode?.() ? { whisper: true } : {}),
+      };
       let started;
       try {
         started = await helper.startAudio({ ...options, deviceId: chosen });
