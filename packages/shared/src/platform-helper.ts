@@ -123,6 +123,11 @@ export interface PlatformHelper {
    */
   watchEdits(input: EditsWatchInput): Promise<boolean>;
   cancelEdits(): Promise<void>;
+  /**
+   * Names of the processes under the app in front (PZ-28), for coding CLI detection. Empty
+   * when they cannot be read or the helper is too old. Never arguments.
+   */
+  foregroundProcesses(): Promise<string[]>;
   /** The changed words only, at most once per correction. */
   onEditsChanged(handler: (change: EditsChanged) => void): Unsubscribe;
   /** The output's mute switch: null when there is none. */

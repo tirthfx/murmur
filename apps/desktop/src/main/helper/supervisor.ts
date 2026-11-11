@@ -349,6 +349,16 @@ export class HelperSupervisor implements PlatformHelper {
     await this.connection.request("edits.cancel", {});
   }
 
+  async foregroundProcesses(): Promise<string[]> {
+    if (!this.connection || this.status.state !== "ready") return [];
+    try {
+      return (await this.connection.request("proc.foreground", {})).names;
+    } catch {
+      // An older helper does not know the request.
+      return [];
+    }
+  }
+
   onEditsChanged(handler: (change: EditsChanged) => void): Unsubscribe {
     return subscribe(this.editsHandlers, handler);
   }

@@ -23,6 +23,7 @@ import {
   DEFAULT_CLEANUP_MODEL,
   DEFAULT_EMAIL,
   DEFAULT_JARGON_PACKS,
+  DEFAULT_DEVELOPER_TOOLS,
   DEFAULT_SOUNDS,
   DEFAULT_SPEECH_MODEL,
   IPC_CHANNELS,
@@ -55,6 +56,8 @@ import { createMemoryStore } from "./memory/memory-store";
 import { createWritingSampleStore } from "./email/writing-samples";
 import { createTranslator } from "./email/translator";
 import { developerVocabulary, type DeveloperVocabulary } from "./developer/packs";
+import { codingCliRunning, TERMINALS } from "./developer/coding-cli";
+import { createWorkspaceIndexer, findWorkspace, TAG_EDITORS } from "./developer/workspace";
 import { createImporter } from "./imports/importer";
 import { createVoiceProfile, recentExamples } from "./voice/voice-profile";
 import { createLlmClient, type LlmReply } from "./cleanup/llm-client";
@@ -238,6 +241,7 @@ const settingsStore = createSettingsStore(database, {
   voiceProfile: { enabled: true, useInCleanup: true, prompts: true },
   email: DEFAULT_EMAIL,
   jargonPacks: DEFAULT_JARGON_PACKS,
+  developerTools: DEFAULT_DEVELOPER_TOOLS,
   experimental: {
     splitMessages: false,
     pauseMedia: false,
@@ -388,6 +392,17 @@ const cleanup = createCleanupService({
   logger: cleanupLogger,
   level: () => settingsStore.get().cleanupLevel,
 });
+// File tags (PZ-24): the workspace of an AI editor, from its window title.
+const developerLogger = createConsoleLogger("[developer]");
+const workspaceIndexer = createWorkspaceIndexer();
+async function workspaceFor(app: {
+  bundleId: string | null;
+  windowTitle: string | null;
+}): Promise<string | null> {
+  const tools = settingsStore.get().developerTools;
+  if (!tools.fileTags || !app.bundleId || !TAG_EDITORS.has(app.bundleId)) return null;
+  return findWorkspace(app.windowTitle, tools.codeFolders);
+}
 // Jargon packs (PZ-27): rebuilt only when the pack switches change.
 let developerCache: { key: string; vocabulary: DeveloperVocabulary } | null = null;
 function developerVocabularyNow(): DeveloperVocabulary {
@@ -423,6 +438,12 @@ const recorder = createRecorder({
       .focusContext(on ? {} : { maxBefore: 0, maxAfter: 0 })
       .catch(() => null);
     smokeChecks?.handleContext(context);
+    // File tags: index the editor's workspace while the owner speaks.
+    if (context) {
+      void workspaceFor(context).then((root) => {
+        if (root) void workspaceIndexer.prepare(root);
+      });
+    }
     return context;
   },
   useContextText: () => settingsStore.get().contextAwareness,
@@ -458,7 +479,32 @@ const recorder = createRecorder({
   afterEnd: () => effects.afterEnd(),
   clean: (text, options) => cleanup.clean(text, options),
   email: { settings: () => settingsStore.get().email, translate: translateEmail },
-  developer: { vocabulary: () => developerVocabularyNow() },
+  developer: {
+    vocabulary: () => developerVocabularyNow(),
+    variables: () => settingsStore.get().developerTools.variables,
+    workspaceFiles: async (app) => {
+      const root = await workspaceFor(app);
+      if (!root) return null;
+      // The index was started when recording began; wait a little for a large one.
+      const files = await Promise.race([
+        workspaceIndexer.prepare(root),
+        new Promise<null>((done) => setTimeout(() => done(null), 1500)),
+      ]);
+      developerLogger.info(
+        files ? `file tags: ${files.length} files in the workspace` : "file tags: index not ready",
+      );
+      return files;
+    },
+    codingCli: async (app) => {
+      const tools = settingsStore.get().developerTools;
+      if (!tools.cliDetection || !app.bundleId || !TERMINALS.has(app.bundleId)) return false;
+      const names = await Promise.race([
+        helper.foregroundProcesses(),
+        new Promise<string[]>((done) => setTimeout(() => done([]), 500)),
+      ]);
+      return codingCliRunning(names, app.windowTitle, tools.cliNames);
+    },
+  },
   prepareCleanup: () => cleanup.prepare(),
   record: (dictation) => {
     const id = history?.add(dictation) ?? null;

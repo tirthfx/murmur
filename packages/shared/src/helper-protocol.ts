@@ -12,6 +12,7 @@ import {
   audioStopResultSchema,
 } from "./audio";
 import { contextSnapshotPayloadSchema, focusContextSchema } from "./context";
+import { procForegroundResultSchema } from "./processes";
 import {
   typingActivityPayloadSchema,
   typingWatchPayloadSchema,
@@ -236,6 +237,10 @@ export const HELPER_REQUESTS = {
     payload: emptyObjectSchema,
     result: editsCancelResultSchema,
   },
+  "proc.foreground": {
+    payload: emptyObjectSchema,
+    result: procForegroundResultSchema,
+  },
 } as const;
 
 export type HelperRequestType = keyof typeof HELPER_REQUESTS;
@@ -382,6 +387,7 @@ export const typingActivityEventSchema = eventEnvelope(
 export const editsWatchRequestSchema = requestEnvelope("edits.watch", editsWatchPayloadSchema);
 export const editsCancelRequestSchema = requestEnvelope("edits.cancel", emptyObjectSchema);
 export const editsChangedEventSchema = eventEnvelope("edits.changed", editsChangedPayloadSchema);
+export const procForegroundRequestSchema = requestEnvelope("proc.foreground", emptyObjectSchema);
 export const contextSnapshotRequestSchema = requestEnvelope(
   "context.snapshot",
   contextSnapshotPayloadSchema,

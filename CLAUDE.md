@@ -126,7 +126,7 @@ Memory (facts, keywords, "remember that" on the Bar): see `docs/memory.md`.
 
 Email (signature, email language and translation, writing samples): see `docs/email.md`.
 
-Developer apps (spoken syntax, jargon packs): see `docs/developer.md`.
+Developer apps (spoken syntax, jargon packs, file tags, names on screen, coding tools): see `docs/developer.md`.
 
 Voice Profile (what is learned and kept, summary, milestones, My Voice): see `docs/voice-profile.md`.
 

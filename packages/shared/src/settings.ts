@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { audioDeviceSchema } from "./audio";
-import { jargonPacksSchema } from "./developer";
+import { developerToolsSchema, jargonPacksSchema } from "./developer";
 import { emailSettingsSchema } from "./email";
 import { hotkeyTriggerSchema, mouseButtonSchema } from "./hotkeys";
 
@@ -117,6 +117,8 @@ export const settingsSchema = z.strictObject({
   email: emailSettingsSchema,
   /** Developer jargon packs in the speech prompt for code editors and terminals (PZ-27). */
   jargonPacks: jargonPacksSchema,
+  /** File tags, variable recognition and coding CLI detection (PZ-24, PZ-25, PZ-28). */
+  developerTools: developerToolsSchema,
   /** Mute the system output while recording (DC-41). */
   muteWhileDictating: z.boolean(),
   /** Read the focused field to help spell names and terms (DC-30). */
@@ -147,6 +149,7 @@ export const settingsPatchSchema = settingsSchema
     voiceProfile: true,
     email: true,
     jargonPacks: true,
+    developerTools: true,
     experimental: true,
   })
   .partial()
@@ -173,6 +176,7 @@ export const SETTING_KEYS: Record<keyof Settings, string> = {
   voiceProfile: "voice_profile.flags",
   email: "email.settings",
   jargonPacks: "developer.jargon_packs",
+  developerTools: "developer.tools",
   experimental: "experimental.flags",
 };
 

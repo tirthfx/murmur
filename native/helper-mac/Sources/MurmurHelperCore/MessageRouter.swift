@@ -15,6 +15,7 @@ public struct MessageRouter: Sendable {
     private let context: ContextController?
     private let playback: PlaybackController?
     private let edits: EditWatchController?
+    private let processes: ProcessController?
     private var handshakeComplete = false
 
     /// Set once a `shutdown` request has been answered. The host exits after writing the reply.
@@ -32,6 +33,7 @@ public struct MessageRouter: Sendable {
         context: ContextController? = nil,
         playback: PlaybackController? = nil,
         edits: EditWatchController? = nil,
+        processes: ProcessController? = nil,
         uptimeMs: @escaping @Sendable () -> Int
     ) {
         self.helperVersion = helperVersion
@@ -45,6 +47,7 @@ public struct MessageRouter: Sendable {
         self.context = context
         self.playback = playback
         self.edits = edits
+        self.processes = processes
         self.uptimeMs = uptimeMs
     }
 
@@ -156,6 +159,11 @@ public struct MessageRouter: Sendable {
                 return [Self.failure(id: id, requestType: type, .unsupportedRequest, "Unknown request type")]
             }
             return [edits.handle(id: id, type: type, payload: envelope.payload)]
+        case "proc.foreground":
+            guard let processes else {
+                return [Self.failure(id: id, requestType: type, .unsupportedRequest, "Unknown request type")]
+            }
+            return [Self.success(id: id, requestType: type, processes.foreground())]
         case "insert.text", "insert.copy":
             guard let insertion else {
                 return [Self.failure(id: id, requestType: type, .unsupportedRequest, "Unknown request type")]

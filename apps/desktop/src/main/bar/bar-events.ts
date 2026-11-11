@@ -44,5 +44,7 @@ export function barEventFor(event: RecorderEvent): BarEvent {
       return { type: "ask", message: "Save to Memory?", detail: event.text };
     case "translation-failed":
       return { type: "warn", message: "Not translated: inserted as dictated" };
+    case "variables-unavailable":
+      return { type: "warn", message: "Turn on the editor's screen reader mode to match names" };
   }
 }

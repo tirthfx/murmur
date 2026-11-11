@@ -10,7 +10,7 @@ import type {
 } from "@murmur/shared";
 import { FakeClock, createTestLogger } from "./helper/fakes";
 import { HelperError } from "./helper/types";
-import { DEFAULT_JARGON_PACKS } from "@murmur/shared";
+import { DEFAULT_JARGON_PACKS, type AppCategory } from "@murmur/shared";
 import { developerVocabulary } from "./developer/packs";
 import { RESPONSE_TARGET_MS, createRecorder, type DictationRecord } from "./recorder";
 
@@ -796,6 +796,126 @@ describe("recorder", () => {
       expect(off.transcribe.mock.calls[0]![1].prompt).toBe("");
       expect(off.insert).toHaveBeenCalledWith("run cube control apply", { pressEnter: false });
       expect(off.logger.lines.join("\n")).toContain("packs none");
+    });
+  });
+
+  describe("developer tools", () => {
+    function toolSetup(options: {
+      said: string;
+      bundleId?: string;
+      title?: string;
+      textBefore?: string;
+      files?: string[] | null;
+      variables?: boolean;
+      cli?: boolean;
+    }) {
+      const insert = vi.fn(async (_text: string, _options: { pressEnter: boolean }) => ({
+        method: "paste_cmd_v" as const,
+        delivered: true,
+        clipboardRestored: true,
+      }));
+      const events: string[] = [];
+      const records: DictationRecord[] = [];
+      const resolve = vi.fn((_app: unknown, forced?: AppCategory) => {
+        const category: AppCategory =
+          forced ?? (options.bundleId === "com.apple.Terminal" ? "work" : "developer");
+        return {
+          category,
+          source: "default" as const,
+          style: {
+            id: "style-other",
+            category: "other" as const,
+            preset: "caps" as const,
+            instructions: "",
+            updatedAt: 0,
+          },
+        };
+      });
+      const { recorder } = setup({
+        transcribe: async () => ({ ...transcript, text: options.said }),
+        insert,
+        onEvent: (event) => events.push(event.type),
+        record: (record) => {
+          records.push(record);
+          return "h1";
+        },
+        readContext: async () => ({
+          appName: "Editor",
+          bundleId: options.bundleId ?? "com.microsoft.VSCode",
+          windowTitle: options.title ?? "session.ts — shop",
+          role: null,
+          subrole: null,
+          editable: true,
+          secure: false,
+          textBefore: options.textBefore ?? "",
+          textAfter: "",
+        }),
+        styles: { resolve },
+        developer: {
+          vocabulary: () => developerVocabulary(DEFAULT_JARGON_PACKS),
+          variables: () => options.variables ?? false,
+          workspaceFiles: async () => options.files ?? null,
+          codingCli: async () => options.cli ?? false,
+        },
+      });
+      const dictate = async () => {
+        recorder.handleHotkey(key("down"));
+        recorder.handleHotkey(key("up"));
+        await recorder.idle();
+      };
+      return { insert, events, records, resolve, dictate };
+    }
+
+    it("tags a file in the workspace and leaves unknown names as text", async () => {
+      const tagged = toolSetup({
+        said: "Look at session dot ts.",
+        files: ["src/auth/session.ts", "README.md"],
+      });
+      await tagged.dictate();
+      expect(tagged.insert).toHaveBeenCalledWith("look @src/auth/session.ts", {
+        pressEnter: false,
+      });
+      const unknown = toolSetup({
+        said: "Look at missing dot ts.",
+        files: ["src/auth/session.ts"],
+      });
+      await unknown.dictate();
+      expect(unknown.insert).toHaveBeenCalledWith("look at missing.ts", { pressEnter: false });
+    });
+
+    it("writes a name on screen as the identifier", async () => {
+      const run = toolSetup({
+        said: "Call fetch user profile.",
+        variables: true,
+        textBefore: "const p = await fetchUserProfile(id);",
+      });
+      await run.dictate();
+      expect(run.insert).toHaveBeenCalledWith("call fetchUserProfile", { pressEnter: false });
+    });
+
+    it("hints once when the editor shows no text, and leaves the output alone", async () => {
+      const run = toolSetup({ said: "Call fetch user profile.", variables: true });
+      await run.dictate();
+      await run.dictate();
+      expect(run.insert).toHaveBeenLastCalledWith("call fetch user profile", { pressEnter: false });
+      expect(run.events.filter((type) => type === "variables-unavailable")).toHaveLength(1);
+    });
+
+    it("makes the terminal a Developer app when a coding CLI runs, and records nothing of it", async () => {
+      const run = toolSetup({
+        said: "Dash dash help.",
+        bundleId: "com.apple.Terminal",
+        title: "shop — claude",
+        cli: true,
+      });
+      await run.dictate();
+      expect(run.resolve).toHaveBeenCalledWith(expect.anything(), "developer");
+      expect(run.insert).toHaveBeenCalledWith("--help", { pressEnter: false });
+      expect(JSON.stringify(run.records[0])).not.toContain("claude");
+
+      const off = toolSetup({ said: "Dash dash help.", bundleId: "com.apple.Terminal" });
+      await off.dictate();
+      expect(off.insert).toHaveBeenCalledWith("Dash dash help.", { pressEnter: false });
     });
   });
 
