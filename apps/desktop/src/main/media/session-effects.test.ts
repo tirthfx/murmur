@@ -25,6 +25,7 @@ const base: Settings = {
     pauseMedia: false,
     headsetWear: false,
     ringMicrophone: false,
+    bulkImport: false,
   },
 };
 
@@ -91,6 +92,7 @@ describe("session effects", () => {
       pauseMedia: true,
       headsetWear: false,
       ringMicrophone: false,
+      bulkImport: false,
     };
     const on = setup({
       playing: true,
@@ -178,6 +180,7 @@ describe("session effects", () => {
           pauseMedia: false,
           headsetWear: false,
           ringMicrophone: false,
+          bulkImport: false,
         },
         sounds: { start: false, lock: true, success: true, error: false, cancel: false },
       },

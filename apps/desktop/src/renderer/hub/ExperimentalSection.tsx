@@ -90,6 +90,12 @@ export function ExperimentalSection({ experimental, onChange }: ExperimentalSect
           onChange={() => {}}
         />
         <Switch
+          label="Import from a file"
+          description="Adds an import section to the Dictionary and Snippets pages, for lists in text, CSV or Markdown files."
+          value={experimental.bulkImport}
+          onChange={(bulkImport) => set({ bulkImport })}
+        />
+        <Switch
           label="Bluetooth ring microphone"
           description="Start and stop dictation from a ring worn on a finger."
           value={experimental.ringMicrophone}

@@ -32,6 +32,13 @@ stored as a small JSON document (paragraphs and lists of styled runs) and turned
 
 Limits: 1,000 snippets, triggers of 2 to 60 characters, bodies up to 20 KB.
 
+## Bulk import
+
+Experimental, like the dictionary's. A `.csv` file (`trigger, text`; the text may span lines
+inside quotes) or a Markdown file with a heading per snippet and its text below. Triggers
+already saved are skipped. Imported bodies are plain text. Limits: 2 MB, 1,000 snippets.
+Code: `apps/desktop/src/main/imports/`.
+
 ## Storage
 
 Table `snippets` (migration `0004_snippets.sql`), as in the vault's data model. Code:

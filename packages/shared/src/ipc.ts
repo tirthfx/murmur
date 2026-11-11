@@ -59,6 +59,14 @@ import {
   type MemoryItem,
   type MemorySaveResult,
 } from "./memory";
+import {
+  importPreviewSchema,
+  importRequestSchema,
+  importResultSchema,
+  type ImportPreview,
+  type ImportRequest,
+  type ImportResult,
+} from "./imports";
 
 /**
  * Renderer-to-main IPC contract. Channel names, payload schemas and the API the
@@ -94,6 +102,8 @@ export const IPC_CHANNELS = {
   memoryList: "memory:list",
   memorySave: "memory:save",
   memoryDelete: "memory:delete",
+  importPreview: "import:preview",
+  importApply: "import:apply",
 } as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
@@ -229,6 +239,15 @@ export const IPC_CONTRACT = {
     args: z.tuple([z.string().min(1)]),
     result: z.void(),
   },
+  // Bulk import (PZ-07, PZ-10): the Hub sends the file's text; nothing is written by preview.
+  [IPC_CHANNELS.importPreview]: {
+    args: z.tuple([importRequestSchema]),
+    result: importPreviewSchema,
+  },
+  [IPC_CHANNELS.importApply]: {
+    args: z.tuple([importRequestSchema]),
+    result: importResultSchema,
+  },
 } as const satisfies Record<IpcChannel, { args: z.ZodType; result: z.ZodType }>;
 
 export function isIpcChannel(value: unknown): value is IpcChannel {
@@ -296,6 +315,8 @@ export interface MurmurApi {
   memoryList(): Promise<MemoryItem[]>;
   memorySave(input: MemoryInput): Promise<MemorySaveResult>;
   memoryDelete(id: string): Promise<void>;
+  importPreview(request: ImportRequest): Promise<ImportPreview>;
+  importApply(request: ImportRequest): Promise<ImportResult>;
   /** Input levels during a microphone check, about 20 a second. Returns an unsubscribe. */
   onMicCheckLevel(handler: (rmsDb: number) => void): () => void;
 }

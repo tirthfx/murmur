@@ -29,3 +29,8 @@ Key codes and names are Mac specific and live in `apps/desktop/src/main/platform
 ## Microphone
 
 The list comes from the helper (Core Audio, no permission needed). If the chosen microphone is not connected when a dictation starts, the system default is used and the log says so.
+
+## Flag groups
+
+A group of flags (for example `experimental.flags`) stored before a new flag was added keeps its
+stored values; the new flag takes its default.

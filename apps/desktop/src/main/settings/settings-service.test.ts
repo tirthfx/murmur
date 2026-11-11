@@ -31,6 +31,7 @@ const defaults: Settings = {
     pauseMedia: false,
     headsetWear: false,
     ringMicrophone: false,
+    bulkImport: false,
   },
 };
 

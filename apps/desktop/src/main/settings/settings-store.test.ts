@@ -24,6 +24,7 @@ const defaults: Settings = {
     pauseMedia: false,
     headsetWear: false,
     ringMicrophone: false,
+    bulkImport: false,
   },
 };
 
@@ -84,6 +85,24 @@ describe("settings store", () => {
       '["klingon"]',
     );
     expect(createSettingsStore(db, defaults).get().languages).toEqual([]);
+  });
+
+  it("keeps stored flags when a new flag is added to their group", () => {
+    const db = openDatabase(":memory:");
+    db.prepare("INSERT INTO settings (key, value_json, updated_at) VALUES (?, ?, 1)").run(
+      "experimental.flags",
+      JSON.stringify({
+        splitMessages: true,
+        pauseMedia: true,
+        headsetWear: false,
+        ringMicrophone: false,
+      }),
+    );
+    expect(createSettingsStore(db, defaults).get().experimental).toEqual({
+      ...defaults.experimental,
+      splitMessages: true,
+      pauseMedia: true,
+    });
   });
 
   it("refuses invalid values and clearing the hold key", () => {

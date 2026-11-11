@@ -50,6 +50,15 @@ Main decides what to learn (`dictionary/learn.ts`):
 Learned entries have source `auto` and show "Learned" on the Dictionary page, with a Keep
 button and a "Learned only" filter.
 
+## Bulk import
+
+Experimental (Settings → Experimental → "Import from a file"). The Dictionary page then takes
+a `.txt` or `.csv` file: one word per line, or `spoken, written` for a replacement (a header
+row is skipped; quoted CSV fields work). The preview counts new rows, rows already in the
+dictionary (skipped) and unreadable rows with their line numbers. Confirming writes every new
+row in one transaction, all or nothing, with source `import`. Limits: 1 MB, 5,000 rows, and
+the dictionary's own limits. Snippets work the same way (see `snippets.md`).
+
 ## Storage
 
 Table `dictionary` (migration `0003_dictionary.sql`), as in the vault's data model.

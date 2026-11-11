@@ -16,6 +16,10 @@ export interface SnippetStore {
   save(input: SnippetInput): SnippetSaveResult;
   remove(id: string): void;
   recordUse(id: string): void;
+  /** Adds many plain snippets in one transaction, all or nothing (bulk import). */
+  importMany(
+    rows: readonly { trigger: string; plain: string }[],
+  ): { ok: true; added: number } | { ok: false; message: string };
 }
 
 interface Row {
@@ -134,6 +138,27 @@ export function createSnippetStore(
 
     recordUse(id) {
       use.run(id);
+    },
+
+    importMany(rows) {
+      if ((count.get() as { n: number }).n + rows.length > SNIPPET_LIMITS.snippets) {
+        return {
+          ok: false,
+          message: `This would make more than ${SNIPPET_LIMITS.snippets.toLocaleString("en")} snippets.`,
+        };
+      }
+      const at = now();
+      db.exec("BEGIN IMMEDIATE");
+      try {
+        for (const row of rows) {
+          insert.run(newId(), row.trigger.trim().replace(/\s+/g, " "), row.plain, "plain", at, at);
+        }
+        db.exec("COMMIT");
+      } catch (error) {
+        db.exec("ROLLBACK");
+        return { ok: false, message: `Nothing was imported: ${String(error)}` };
+      }
+      return { ok: true, added: rows.length };
     },
   };
 }
