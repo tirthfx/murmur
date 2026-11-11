@@ -20,6 +20,7 @@ import {
   type ShortcutSlot,
 } from "./settings";
 import { setupStatusSchema, type SetupStatus } from "./setup";
+import { mediaPlaybackResultSchema, type MediaPlayback } from "./media";
 import {
   micCheckResultSchema,
   micCheckStartResultSchema,
@@ -46,6 +47,7 @@ export const IPC_CHANNELS = {
   downloadSpeechModel: "setup:download-speech-model",
   micCheckStart: "mic-check:start",
   micCheckStop: "mic-check:stop",
+  getMediaPlayback: "experimental:media-playback",
 } as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
@@ -114,6 +116,11 @@ export const IPC_CONTRACT = {
     result: micCheckStartResultSchema,
   },
   // Null when no check was running.
+  // Null when the helper is not running.
+  [IPC_CHANNELS.getMediaPlayback]: {
+    args: z.tuple([]),
+    result: mediaPlaybackResultSchema.nullable(),
+  },
   [IPC_CHANNELS.micCheckStop]: {
     args: z.tuple([]),
     result: micCheckResultSchema.nullable(),
@@ -165,6 +172,8 @@ export interface MurmurApi {
   /** Starts a microphone check: nothing is recorded to disk. */
   micCheckStart(): Promise<MicCheckStartResult>;
   micCheckStop(): Promise<MicCheckResult | null>;
+  /** Whether Murmur can see what is playing, for "Pause media while dictating". */
+  getMediaPlayback(): Promise<MediaPlayback | null>;
   /** Input levels during a microphone check, about 20 a second. Returns an unsubscribe. */
   onMicCheckLevel(handler: (rmsDb: number) => void): () => void;
 }

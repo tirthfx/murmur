@@ -17,7 +17,14 @@ import {
   typingWatchPayloadSchema,
   typingWatchResultSchema,
 } from "./typing";
-import { mediaMutePayloadSchema, mediaMuteResultSchema, mediaStatusResultSchema } from "./media";
+import {
+  mediaMutePayloadSchema,
+  mediaMuteResultSchema,
+  mediaPauseResultSchema,
+  mediaPlaybackResultSchema,
+  mediaResumeResultSchema,
+  mediaStatusResultSchema,
+} from "./media";
 import { insertCopyPayloadSchema, insertTextPayloadSchema, insertTextResultSchema } from "./insert";
 import {
   transcribeFilePayloadSchema,
@@ -199,6 +206,18 @@ export const HELPER_REQUESTS = {
     payload: contextSnapshotPayloadSchema,
     result: focusContextSchema,
   },
+  "media.playback": {
+    payload: emptyObjectSchema,
+    result: mediaPlaybackResultSchema,
+  },
+  "media.pause": {
+    payload: emptyObjectSchema,
+    result: mediaPauseResultSchema,
+  },
+  "media.resume": {
+    payload: emptyObjectSchema,
+    result: mediaResumeResultSchema,
+  },
   "typing.watch": {
     payload: typingWatchPayloadSchema,
     result: typingWatchResultSchema,
@@ -337,6 +356,9 @@ export const insertCopyRequestSchema = requestEnvelope("insert.copy", insertCopy
 
 export const mediaStatusRequestSchema = requestEnvelope("media.status", emptyObjectSchema);
 export const mediaMuteRequestSchema = requestEnvelope("media.mute", mediaMutePayloadSchema);
+export const mediaPlaybackRequestSchema = requestEnvelope("media.playback", emptyObjectSchema);
+export const mediaPauseRequestSchema = requestEnvelope("media.pause", emptyObjectSchema);
+export const mediaResumeRequestSchema = requestEnvelope("media.resume", emptyObjectSchema);
 export const typingWatchRequestSchema = requestEnvelope("typing.watch", typingWatchPayloadSchema);
 export const typingActivityEventSchema = eventEnvelope(
   "typing.activity",

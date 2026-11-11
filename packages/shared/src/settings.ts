@@ -86,6 +86,17 @@ export const settingsSchema = z.strictObject({
     error: z.boolean(),
     cancel: z.boolean(),
   }),
+  /** Experimental options, all off by default (HB-18). */
+  experimental: z.strictObject({
+    /** Split long dictations into messages at pauses (DC-37). */
+    splitMessages: z.boolean(),
+    /** Pause media while dictating and resume what Murmur paused (DC-42). */
+    pauseMedia: z.boolean(),
+    /** Switch microphones when a headset is put on or taken off (DC-14). */
+    headsetWear: z.boolean(),
+    /** A Bluetooth ring microphone (DC-15). */
+    ringMicrophone: z.boolean(),
+  }),
   /** Whisper mode (DC-12): more gain for very quiet speech. */
   whisperMode: z.boolean(),
   /** Mute the system output while recording (DC-41). */
@@ -113,6 +124,7 @@ export const settingsPatchSchema = settingsSchema
     mouseButtons: true,
     typingReminder: true,
     whisperMode: true,
+    experimental: true,
   })
   .partial()
   .strict();
@@ -133,6 +145,14 @@ export const SETTING_KEYS: Record<keyof Settings, string> = {
   mouseButtons: "hotkey.mouse_buttons",
   typingReminder: "reminder.typing",
   whisperMode: "audio.whisper_mode",
+  experimental: "experimental.flags",
+};
+
+export const DEFAULT_EXPERIMENTAL: Settings["experimental"] = {
+  splitMessages: false,
+  pauseMedia: false,
+  headsetWear: false,
+  ringMicrophone: false,
 };
 
 export const SOUND_NAMES = ["start", "lock", "success", "error", "cancel"] as const;

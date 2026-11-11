@@ -10,6 +10,7 @@ import {
   type SettingsPatch,
   type SettingsView,
 } from "@murmur/shared";
+import { ExperimentalSection } from "./ExperimentalSection";
 import { LanguagesField } from "./LanguagesField";
 import { MouseButtonField } from "./MouseButtonField";
 import { ShortcutField } from "./ShortcutField";
@@ -167,6 +168,10 @@ export function SettingsSection() {
         description="Silences the Mac's output while recording and turns it back on afterwards."
         value={settings.muteWhileDictating}
         onChange={(muteWhileDictating) => update({ muteWhileDictating })}
+      />
+      <ExperimentalSection
+        experimental={settings.experimental}
+        onChange={(experimental) => update({ experimental })}
       />
       {problem ? <Banner status="error" title={problem} /> : null}
     </VStack>

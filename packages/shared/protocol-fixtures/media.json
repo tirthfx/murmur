@@ -1,29 +1,107 @@
 {
   "description": "Output mute while dictating: main reads the state, mutes, and restores it at the end.",
   "messages": [
-    { "id": "m-000060", "type": "media.status", "payload": {} },
+    {
+      "id": "m-000060",
+      "type": "media.status",
+      "payload": {}
+    },
     {
       "id": "m-000060",
       "type": "response",
       "payload": {
         "requestType": "media.status",
         "ok": true,
-        "result": { "playing": "unknown", "outputMuted": false }
+        "result": {
+          "playing": "unknown",
+          "outputMuted": false
+        }
       }
     },
-    { "id": "m-000061", "type": "media.mute", "payload": { "muted": true } },
+    {
+      "id": "m-000061",
+      "type": "media.mute",
+      "payload": {
+        "muted": true
+      }
+    },
     {
       "id": "m-000061",
       "type": "response",
-      "payload": { "requestType": "media.mute", "ok": true, "result": { "previousMuted": false } }
+      "payload": {
+        "requestType": "media.mute",
+        "ok": true,
+        "result": {
+          "previousMuted": false
+        }
+      }
+    },
+    {
+      "id": "m-000100",
+      "type": "media.playback",
+      "payload": {}
+    },
+    {
+      "id": "m-000100",
+      "type": "response",
+      "payload": {
+        "requestType": "media.playback",
+        "ok": true,
+        "result": {
+          "available": true,
+          "playing": false
+        }
+      }
+    },
+    {
+      "id": "m-000101",
+      "type": "media.pause",
+      "payload": {}
+    },
+    {
+      "id": "m-000101",
+      "type": "response",
+      "payload": {
+        "requestType": "media.pause",
+        "ok": true,
+        "result": {
+          "paused": true
+        }
+      }
+    },
+    {
+      "id": "m-000102",
+      "type": "media.resume",
+      "payload": {}
+    },
+    {
+      "id": "m-000102",
+      "type": "response",
+      "payload": {
+        "requestType": "media.resume",
+        "ok": true,
+        "result": {
+          "resumed": true
+        }
+      }
     }
   ],
   "invalidMessages": [
-    { "id": "m-000061", "type": "media.mute", "payload": { "muted": "yes" } },
+    {
+      "id": "m-000061",
+      "type": "media.mute",
+      "payload": {
+        "muted": "yes"
+      }
+    },
     {
       "id": "m-000061",
       "type": "response",
-      "payload": { "requestType": "media.mute", "ok": true, "result": {} }
+      "payload": {
+        "requestType": "media.mute",
+        "ok": true,
+        "result": {}
+      }
     }
   ]
 }

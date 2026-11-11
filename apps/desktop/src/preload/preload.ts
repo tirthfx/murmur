@@ -16,6 +16,7 @@ const api: MurmurApi = {
   downloadSpeechModel: () => ipcRenderer.invoke(IPC_CHANNELS.downloadSpeechModel),
   micCheckStart: () => ipcRenderer.invoke(IPC_CHANNELS.micCheckStart),
   micCheckStop: () => ipcRenderer.invoke(IPC_CHANNELS.micCheckStop),
+  getMediaPlayback: () => ipcRenderer.invoke(IPC_CHANNELS.getMediaPlayback),
   onMicCheckLevel: (handler) => {
     // Only a number crosses over; the event object stays in the preload.
     const listener = (_event: unknown, rmsDb: unknown) => {

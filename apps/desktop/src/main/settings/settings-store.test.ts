@@ -17,6 +17,12 @@ const defaults: Settings = {
   mouseButtons: { hold: null, handsFree: null },
   typingReminder: { enabled: true, snoozedUntil: null },
   whisperMode: false,
+  experimental: {
+    splitMessages: false,
+    pauseMedia: false,
+    headsetWear: false,
+    ringMicrophone: false,
+  },
 };
 
 describe("settings store", () => {

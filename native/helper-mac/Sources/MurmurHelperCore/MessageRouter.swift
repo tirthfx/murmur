@@ -13,6 +13,7 @@ public struct MessageRouter: Sendable {
     private let insertion: InsertionController?
     private let media: MediaController?
     private let context: ContextController?
+    private let playback: PlaybackController?
     private var handshakeComplete = false
 
     /// Set once a `shutdown` request has been answered. The host exits after writing the reply.
@@ -28,6 +29,7 @@ public struct MessageRouter: Sendable {
         insertion: InsertionController? = nil,
         media: MediaController? = nil,
         context: ContextController? = nil,
+        playback: PlaybackController? = nil,
         uptimeMs: @escaping @Sendable () -> Int
     ) {
         self.helperVersion = helperVersion
@@ -39,6 +41,7 @@ public struct MessageRouter: Sendable {
         self.insertion = insertion
         self.media = media
         self.context = context
+        self.playback = playback
         self.uptimeMs = uptimeMs
     }
 
@@ -120,6 +123,14 @@ public struct MessageRouter: Sendable {
             }
             if type == "media.status" { return [Self.success(id: id, requestType: type, media.status())] }
             switch media.mute(envelope.payload) {
+            case .success(let value): return [Self.success(id: id, requestType: type, value)]
+            case .failure(let failure): return [Self.failure(id: id, requestType: type, failure.code, failure.message)]
+            }
+        case "media.playback", "media.pause", "media.resume":
+            guard let playback else {
+                return [Self.failure(id: id, requestType: type, .unsupportedRequest, "Unknown request type")]
+            }
+            switch playback.handle(type: type) {
             case .success(let value): return [Self.success(id: id, requestType: type, value)]
             case .failure(let failure): return [Self.failure(id: id, requestType: type, failure.code, failure.message)]
             }

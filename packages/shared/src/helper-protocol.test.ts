@@ -22,6 +22,9 @@ import {
   mediaMuteRequestSchema,
   contextSnapshotRequestSchema,
   typingWatchRequestSchema,
+  mediaPlaybackRequestSchema,
+  mediaPauseRequestSchema,
+  mediaResumeRequestSchema,
   typingActivityEventSchema,
   mediaStatusRequestSchema,
   insertTextRequestSchema,
@@ -116,6 +119,12 @@ function validateMessage(message: unknown): boolean {
       return mediaStatusRequestSchema.safeParse(message).success;
     case "media.mute":
       return mediaMuteRequestSchema.safeParse(message).success;
+    case "media.playback":
+      return mediaPlaybackRequestSchema.safeParse(message).success;
+    case "media.pause":
+      return mediaPauseRequestSchema.safeParse(message).success;
+    case "media.resume":
+      return mediaResumeRequestSchema.safeParse(message).success;
     case "typing.watch":
       return typingWatchRequestSchema.safeParse(message).success;
     case "typing.activity":

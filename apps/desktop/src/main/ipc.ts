@@ -9,6 +9,7 @@ import {
   type SetupStatus,
   type MicCheckResult,
   type MicCheckStartResult,
+  type MediaPlayback,
   type ShortcutResult,
   type ShortcutSlot,
   type PermissionKind,
@@ -35,6 +36,7 @@ export interface IpcDeps {
   downloadSpeechModel: () => Promise<SetupStatus>;
   micCheckStart: () => Promise<MicCheckStartResult>;
   micCheckStop: () => Promise<MicCheckResult | null>;
+  getMediaPlayback: () => Promise<MediaPlayback | null>;
 }
 
 export interface IpcEventLike {
@@ -85,6 +87,8 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.micCheckStart();
       case IPC_CHANNELS.micCheckStop:
         return deps.micCheckStop();
+      case IPC_CHANNELS.getMediaPlayback:
+        return deps.getMediaPlayback();
       default:
         throw new Error("IPC rejected: unknown-channel");
     }

@@ -27,6 +27,12 @@ function setup() {
     mouseButtons: { hold: null, handsFree: null },
     typingReminder: { enabled: true, snoozedUntil: null },
     whisperMode: false,
+    experimental: {
+      splitMessages: false,
+      pauseMedia: false,
+      headsetWear: false,
+      ringMicrophone: false,
+    },
   };
   const views: TrayView[] = [];
   const clock = new FakeClock();

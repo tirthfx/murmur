@@ -12,6 +12,7 @@ import type {
 import type { HelloPayload } from "./helper-protocol";
 import type { ContextSnapshotInput, FocusContext } from "./context";
 import type { TypingActivity } from "./typing";
+import type { MediaPlayback } from "./media";
 import type { InsertTextInput, InsertTextResult } from "./insert";
 import type {
   SpeechModelLoadInput,
@@ -107,6 +108,11 @@ export interface PlatformHelper {
    * without prompting when it is missing. Secure fields come back with no text.
    */
   focusContext(input?: ContextSnapshotInput): Promise<FocusContext>;
+  /** Whether the system reports what is playing, and whether something is. */
+  getPlayback(): Promise<MediaPlayback>;
+  /** Pauses what is playing; true only when Murmur paused something. */
+  pauseMedia(): Promise<boolean>;
+  resumeMedia(): Promise<boolean>;
   /** Turns typed-word counting on or off (DC-08). Counts only, never characters. */
   watchTyping(enabled: boolean): Promise<void>;
   onTypingActivity(handler: (activity: TypingActivity) => void): Unsubscribe;

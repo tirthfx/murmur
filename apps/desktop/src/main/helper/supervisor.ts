@@ -20,6 +20,7 @@ import {
   type ContextSnapshotInput,
   type FocusContext,
   type TypingActivity,
+  type MediaPlayback,
   type InsertTextInput,
   type InsertTextResult,
   type PermissionKind,
@@ -310,6 +311,27 @@ export class HelperSupervisor implements PlatformHelper {
 
   onTypingActivity(handler: (activity: TypingActivity) => void): Unsubscribe {
     return subscribe(this.typingHandlers, handler);
+  }
+
+  async getPlayback(): Promise<MediaPlayback> {
+    if (!this.connection || this.status.state !== "ready") {
+      throw new HelperError("HELPER_UNAVAILABLE", "The helper is not running");
+    }
+    return this.connection.request("media.playback", {});
+  }
+
+  async pauseMedia(): Promise<boolean> {
+    if (!this.connection || this.status.state !== "ready") {
+      throw new HelperError("HELPER_UNAVAILABLE", "The helper is not running");
+    }
+    return (await this.connection.request("media.pause", {})).paused;
+  }
+
+  async resumeMedia(): Promise<boolean> {
+    if (!this.connection || this.status.state !== "ready") {
+      throw new HelperError("HELPER_UNAVAILABLE", "The helper is not running");
+    }
+    return (await this.connection.request("media.resume", {})).resumed;
   }
 
   async watchTyping(enabled: boolean): Promise<void> {
