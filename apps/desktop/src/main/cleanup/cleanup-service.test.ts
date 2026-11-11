@@ -7,7 +7,12 @@ function setup(
   answer: () => Promise<string>,
   options: { ready?: boolean; level?: "off" | "standard" } = {},
 ) {
-  const llm: LlmClient = { prepare: vi.fn(), clean: vi.fn(answer), stop: vi.fn() };
+  const llm: LlmClient = {
+    prepare: vi.fn(),
+    clean: vi.fn(answer),
+    translate: vi.fn(),
+    stop: vi.fn(),
+  };
   let time = 0;
   const service = createCleanupService({
     llm,

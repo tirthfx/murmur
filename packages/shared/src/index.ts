@@ -24,3 +24,4 @@ export * from "./memory";
 export * from "./edits";
 export * from "./imports";
 export * from "./voice-profile";
+export * from "./email";

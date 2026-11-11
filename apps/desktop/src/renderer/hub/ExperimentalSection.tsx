@@ -96,6 +96,17 @@ export function ExperimentalSection({ experimental, onChange }: ExperimentalSect
           onChange={(bulkImport) => set({ bulkImport })}
         />
         <Switch
+          label="Learn from sent mail"
+          description="Learn how you write email from messages you have sent."
+          value={false}
+          isDisabled
+          disabledMessage="Needs a mail connector, which Murmur does not have yet."
+          onChange={() => {}}
+        />
+        <Text size="sm" color="secondary">
+          Learning from sent mail needs a mail connector, which Murmur does not have yet.
+        </Text>
+        <Switch
           label="Bluetooth ring microphone"
           description="Start and stop dictation from a ring worn on a finger."
           value={experimental.ringMicrophone}

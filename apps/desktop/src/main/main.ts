@@ -21,6 +21,7 @@ import {
   type StyleCategory,
   EDIT_WATCH_MAX_MS,
   DEFAULT_CLEANUP_MODEL,
+  DEFAULT_EMAIL,
   DEFAULT_SOUNDS,
   DEFAULT_SPEECH_MODEL,
   IPC_CHANNELS,
@@ -50,6 +51,8 @@ import { createCorrectionLearner } from "./dictionary/learn";
 import { createSnippetStore } from "./snippets/snippet-store";
 import { createStyleStore } from "./styles/style-store";
 import { createMemoryStore } from "./memory/memory-store";
+import { createWritingSampleStore } from "./email/writing-samples";
+import { createTranslator } from "./email/translator";
 import { createImporter } from "./imports/importer";
 import { createVoiceProfile, recentExamples } from "./voice/voice-profile";
 import { createLlmClient, type LlmReply } from "./cleanup/llm-client";
@@ -160,6 +163,7 @@ const snippets = database ? createSnippetStore(database) : null;
 const styles = database ? createStyleStore(database) : null;
 // Memory (PZ-18, PZ-19), and the one "remember that" fact waiting on the Bar.
 const memory = database ? createMemoryStore(database) : null;
+const writingSamples = database ? createWritingSampleStore(database) : null;
 // Bulk import of dictionary entries and snippets (PZ-07, PZ-10).
 const importer = createImporter({ dictionary, snippets });
 // Voice Profile (PZ-15 to PZ-17), and whether its weekly prompt waits on the Bar.
@@ -230,6 +234,7 @@ const settingsStore = createSettingsStore(database, {
   memory: { enabled: true, fromDictation: true },
   learnCorrections: true,
   voiceProfile: { enabled: true, useInCleanup: true, prompts: true },
+  email: DEFAULT_EMAIL,
   experimental: {
     splitMessages: false,
     pauseMedia: false,
@@ -344,39 +349,46 @@ const cleanupModelFile = path.join(
 );
 let cleanupModelCheck: Promise<boolean> | null = null;
 const cleanupLogger = createConsoleLogger("[cleanup]");
-const cleanup = createCleanupService({
-  llm: createLlmClient({
-    spawn: () => {
-      const child = utilityProcess.fork(path.join(__dirname, "llm-worker.cjs"), [], {
-        serviceName: "Murmur Cleanup",
-      });
-      return {
-        post: (request) => child.postMessage(request),
-        onMessage: (handler) => child.on("message", (reply: LlmReply) => handler(reply)),
-        onExit: (handler) => child.on("exit", handler),
-        kill: () => void child.kill(),
-      };
-    },
-    modelPath: cleanupModelFile,
-    clock: systemClock,
-    logger: cleanupLogger,
-  }),
-  // Every byte is checked once per run (about 2 s for 2.5 GB), then remembered.
-  modelReady: () => {
-    cleanupModelCheck ??= checkModel(cleanupRoot, DEFAULT_CLEANUP_MODEL).then((result) => {
-      if (!result.ok) {
-        cleanupLogger.warn(
-          result.reason === "missing"
-            ? "The cleanup model is not downloaded; using rules only. Run `npm run model:download`."
-            : `The cleanup model failed its ${result.reason} check (${result.file}); using rules only.`,
-        );
-      }
-      return result.ok;
+const llm = createLlmClient({
+  spawn: () => {
+    const child = utilityProcess.fork(path.join(__dirname, "llm-worker.cjs"), [], {
+      serviceName: "Murmur Cleanup",
     });
-    return cleanupModelCheck;
+    return {
+      post: (request) => child.postMessage(request),
+      onMessage: (handler) => child.on("message", (reply: LlmReply) => handler(reply)),
+      onExit: (handler) => child.on("exit", handler),
+      kill: () => void child.kill(),
+    };
   },
+  modelPath: cleanupModelFile,
+  clock: systemClock,
+  logger: cleanupLogger,
+});
+// Every byte is checked once per run (about 2 s for 2.5 GB), then remembered.
+const cleanupModelReady = (): Promise<boolean> => {
+  cleanupModelCheck ??= checkModel(cleanupRoot, DEFAULT_CLEANUP_MODEL).then((result) => {
+    if (!result.ok) {
+      cleanupLogger.warn(
+        result.reason === "missing"
+          ? "The cleanup model is not downloaded; using rules only. Run `npm run model:download`."
+          : `The cleanup model failed its ${result.reason} check (${result.file}); using rules only.`,
+      );
+    }
+    return result.ok;
+  });
+  return cleanupModelCheck;
+};
+const cleanup = createCleanupService({
+  llm,
+  modelReady: cleanupModelReady,
   logger: cleanupLogger,
   level: () => settingsStore.get().cleanupLevel,
+});
+const translateEmail = createTranslator({
+  llm,
+  modelReady: cleanupModelReady,
+  logger: createConsoleLogger("[email]"),
 });
 
 const recorder = createRecorder({
@@ -434,6 +446,7 @@ const recorder = createRecorder({
   beforeStart: () => effects.beforeStart(),
   afterEnd: () => effects.afterEnd(),
   clean: (text, options) => cleanup.clean(text, options),
+  email: { settings: () => settingsStore.get().email, translate: translateEmail },
   prepareCleanup: () => cleanup.prepare(),
   record: (dictation) => {
     const id = history?.add(dictation) ?? null;
@@ -902,6 +915,14 @@ function registerIpc(): void {
       styles?.setOverride(override);
       return styles?.view() ?? { styles: [], overrides: [], recentApps: [] };
     },
+    writingSamplesList: () => writingSamples?.list() ?? [],
+    writingSamplesSave: (input) =>
+      writingSamples?.save(input) ?? {
+        ok: false,
+        reason: "full",
+        message: "Writing samples could not be opened.",
+      },
+    writingSamplesDelete: (id) => writingSamples?.remove(id),
     voiceProfileView: () => profileView(),
     voiceProfileReset: () => {
       voiceProfile?.reset();

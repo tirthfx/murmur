@@ -83,6 +83,13 @@ function setup() {
       examples: { personal: [], work: [], email: [], other: [] },
       passage: "",
     })),
+    writingSamplesList: vi.fn(() => []),
+    writingSamplesSave: vi.fn(() => ({
+      ok: false as const,
+      reason: "full" as const,
+      message: "Full",
+    })),
+    writingSamplesDelete: vi.fn(),
   });
   return {
     getSetupStatus,

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { audioDeviceSchema } from "./audio";
+import { emailSettingsSchema } from "./email";
 import { hotkeyTriggerSchema, mouseButtonSchema } from "./hotkeys";
 
 /**
@@ -111,6 +112,8 @@ export const settingsSchema = z.strictObject({
     useInCleanup: z.boolean(),
     prompts: z.boolean(),
   }),
+  /** Email signature and language (PZ-21, PZ-22), for the Email category only. */
+  email: emailSettingsSchema,
   /** Mute the system output while recording (DC-41). */
   muteWhileDictating: z.boolean(),
   /** Read the focused field to help spell names and terms (DC-30). */
@@ -139,6 +142,7 @@ export const settingsPatchSchema = settingsSchema
     memory: true,
     learnCorrections: true,
     voiceProfile: true,
+    email: true,
     experimental: true,
   })
   .partial()
@@ -163,6 +167,7 @@ export const SETTING_KEYS: Record<keyof Settings, string> = {
   memory: "memory.flags",
   learnCorrections: "dictionary.learn_corrections",
   voiceProfile: "voice_profile.flags",
+  email: "email.settings",
   experimental: "experimental.flags",
 };
 

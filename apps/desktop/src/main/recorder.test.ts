@@ -548,6 +548,142 @@ describe("recorder", () => {
     });
   });
 
+  describe("email", () => {
+    const styleFor = (category: "email" | "personal") => ({
+      resolve: () => ({
+        category,
+        source: "default" as const,
+        style: {
+          id: `style-${category}`,
+          category,
+          preset: "caps" as const,
+          instructions: "",
+          updatedAt: 0,
+        },
+      }),
+    });
+
+    function emailSetup(
+      category: "email" | "personal",
+      options: {
+        said?: string;
+        language?: string;
+        title?: string;
+        settings?: Partial<import("@murmur/shared").EmailSettings>;
+        translate?: (text: string) => Promise<string | null>;
+      } = {},
+    ) {
+      const insert = vi.fn(async (_text: string, _options: { pressEnter: boolean }) => ({
+        method: "paste_cmd_v" as const,
+        delivered: true,
+        clipboardRestored: true,
+      }));
+      const events: string[] = [];
+      const translate = vi.fn(options.translate ?? (async (text: string) => `[fr] ${text}`));
+      const records: DictationRecord[] = [];
+      const { recorder } = setup({
+        transcribe: async () => ({
+          ...transcript,
+          text: options.said ?? "See you at 5.",
+          language: options.language ?? "en",
+        }),
+        insert,
+        onEvent: (event) => events.push(event.type),
+        record: (record) => {
+          records.push(record);
+          return "h1";
+        },
+        readContext: async () => ({
+          appName: "Mail",
+          bundleId: "com.apple.mail",
+          windowTitle: options.title ?? "New Message",
+          role: null,
+          subrole: null,
+          editable: true,
+          secure: false,
+          textBefore: "",
+          textAfter: "",
+        }),
+        styles: styleFor(category),
+        email: {
+          settings: () => ({
+            signature: "Best,\nTirth",
+            addToNew: true,
+            addToReplies: false,
+            language: null,
+            ...options.settings,
+          }),
+          translate,
+        },
+      });
+      const dictate = async () => {
+        recorder.handleHotkey(key("down"));
+        recorder.handleHotkey(key("up"));
+        await recorder.idle();
+      };
+      return { insert, events, translate, records, dictate };
+    }
+
+    it("adds the signature once to a new message in Mail", async () => {
+      const { insert, records, dictate } = emailSetup("email");
+      await dictate();
+      expect(insert).toHaveBeenCalledWith("See you at 5.\n\nBest,\nTirth", { pressEnter: false });
+      expect(records[0]!.finalText).toBe("See you at 5.\n\nBest,\nTirth");
+    });
+
+    it("does not add it when the owner said it, in replies, or in Personal apps", async () => {
+      const said = emailSetup("email", { said: "See you at 5. Best, Tirth." });
+      await said.dictate();
+      expect(said.insert).toHaveBeenCalledWith("See you at 5. Best, Tirth.", { pressEnter: false });
+
+      const reply = emailSetup("email", { title: "Re: Friday" });
+      await reply.dictate();
+      expect(reply.insert).toHaveBeenCalledWith("See you at 5.", { pressEnter: false });
+
+      const replyOn = emailSetup("email", {
+        title: "Re: Friday",
+        settings: { addToReplies: true },
+      });
+      await replyOn.dictate();
+      expect(replyOn.insert).toHaveBeenCalledWith("See you at 5.\n\nBest,\nTirth", {
+        pressEnter: false,
+      });
+
+      const personal = emailSetup("personal", { settings: { language: "fr" } });
+      await personal.dictate();
+      expect(personal.insert).toHaveBeenCalledWith("See you at 5.", { pressEnter: false });
+      expect(personal.translate).not.toHaveBeenCalled();
+    });
+
+    it("translates Email text into the email language, before the signature", async () => {
+      const { insert, translate, dictate } = emailSetup("email", { settings: { language: "fr" } });
+      await dictate();
+      expect(translate).toHaveBeenCalledWith("See you at 5.", "fr", expect.any(Array));
+      expect(insert).toHaveBeenCalledWith("[fr] See you at 5.\n\nBest,\nTirth", {
+        pressEnter: false,
+      });
+    });
+
+    it("skips translation when the dictation is already in the email language", async () => {
+      const { translate, dictate } = emailSetup("email", {
+        language: "fr",
+        settings: { language: "fr" },
+      });
+      await dictate();
+      expect(translate).not.toHaveBeenCalled();
+    });
+
+    it("inserts the text as dictated and warns when translation fails", async () => {
+      const { insert, events, dictate } = emailSetup("email", {
+        settings: { language: "fr" },
+        translate: async () => null,
+      });
+      await dictate();
+      expect(insert).toHaveBeenCalledWith("See you at 5.\n\nBest,\nTirth", { pressEnter: false });
+      expect(events).toContain("translation-failed");
+    });
+  });
+
   it("retries a failure from the folder history moved its audio to", async () => {
     const transcribe = vi
       .fn()

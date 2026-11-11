@@ -1,4 +1,6 @@
 import type {
+  EmailLanguage,
+  EmailSettings,
   AudioLevel,
   AudioRouteChanged,
   AudioSilent,
@@ -14,7 +16,13 @@ import type {
 import type { CleanupResult } from "./cleanup/cleanup-service";
 import { DictationGesture, type GestureCommand } from "./gesture";
 import { contextTerms, describeContext, speechPrompt } from "./context/context";
-import { applyStyleRules, PRESETS } from "@murmur/shared";
+import {
+  applyStyleRules,
+  plainToHtml,
+  PRESETS,
+  wantsSignature,
+  withSignature,
+} from "@murmur/shared";
 import { splitMessages } from "./experimental/split-messages";
 import { splitPressEnter } from "./insertion/press-enter";
 import { applyReplacements, keepSpellings, speechPromptWithTerms } from "./dictionary/apply";
@@ -94,6 +102,15 @@ export interface RecorderDeps {
   };
   /** How the owner usually writes, for the cleanup model (PZ-15); null when not used. */
   voiceSummary?: () => string | null;
+  /**
+   * Email (PZ-21, PZ-22), for the Email category only: the signature and language, read at
+   * each dictation, and the translation into the email language (null when it ran out of
+   * time, had no model, or was refused by its guard).
+   */
+  email?: {
+    settings(): EmailSettings;
+    translate(text: string, language: EmailLanguage, keep: string[]): Promise<string | null>;
+  };
   /** Called with the text after it went in, for learning from corrections (PZ-02). */
   afterInsert?: (text: string) => void;
   /** Snippets (PZ-08): a trigger said on its own inserts the saved body, unchanged. */
@@ -233,7 +250,9 @@ export type RecorderEvent =
   /** A failed dictation is being transcribed again. */
   | { type: "retrying" }
   /** A "remember that" fact waits for Save or Dismiss on the Bar (PZ-19). */
-  | { type: "memory-offered"; text: string };
+  | { type: "memory-offered"; text: string }
+  /** Email text went in untranslated: the translation ran out of time or failed (PZ-22). */
+  | { type: "translation-failed" };
 
 export interface Recorder {
   start(): void;
@@ -584,8 +603,16 @@ export function createRecorder(deps: RecorderDeps): Recorder {
           flags: PRESETS[resolved.style.preset].flags,
           instructions: notes,
           appName: context?.appName ?? null,
+          email:
+            resolved.category === "email" ? { windowTitle: context?.windowTitle ?? null } : null,
         }
-      : { id: null, flags: null, instructions: notes, appName: context?.appName ?? null };
+      : {
+          id: null,
+          flags: null,
+          instructions: notes,
+          appName: context?.appName ?? null,
+          email: null,
+        };
     if (resolved) {
       logger.info(
         `style: ${resolved.style.category} (${resolved.category}, from ${resolved.source})`,
@@ -630,6 +657,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
         terms,
         (text) => styled(respell(text)),
         style,
+        (text) => translateEmail(text, style, transcript.language, terms),
       );
       countUses();
       return;
@@ -638,7 +666,15 @@ export function createRecorder(deps: RecorderDeps): Recorder {
       spoken.text.trim() === ""
         ? null
         : await cleanUp(spoken.text, terms, take.releasedAt, style.instructions);
-    const final = styled(respell(cleanup?.text ?? spoken.text.trim()));
+    // Email only: translated after cleanup, then the style's rules, then the signature, which
+    // never goes through the model.
+    const translated = await translateEmail(
+      cleanup?.text ?? spoken.text.trim(),
+      style,
+      transcript.language,
+      terms,
+    );
+    const final = signEmail(styled(respell(translated)), style);
     countUses();
     const finalWords = final.split(/\s+/).filter(Boolean).length;
     emit(
@@ -674,6 +710,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
     terms: string[],
     finish: (text: string) => string,
     style: TakeStyle,
+    translate: (text: string) => Promise<string>,
   ): Promise<void> {
     const cleaned: Piece[] = [];
     for (const piece of pieces) {
@@ -682,14 +719,20 @@ export function createRecorder(deps: RecorderDeps): Recorder {
         continue;
       }
       const cleanup = await cleanUp(piece.text, terms, take.releasedAt, style.instructions);
-      cleaned.push({ kind: "text", text: finish(cleanup?.text ?? piece.text) });
+      cleaned.push({ kind: "text", text: finish(await translate(cleanup?.text ?? piece.text)) });
     }
     const expanded = cleaned.filter((piece) => piece.kind === "snippet");
     logger.info(`expanded ${expanded.length} snippet${expanded.length === 1 ? "" : "s"}`);
     for (const piece of expanded) {
       if (piece.kind === "snippet") deps.snippets?.recordUse(piece.snippet.id);
     }
-    const { text, html } = assemble(cleaned);
+    const assembled = assemble(cleaned);
+    const text = signEmail(assembled.text, style);
+    const signature = text.slice(assembled.text.trimEnd().length).trim();
+    const html =
+      assembled.html !== null && text !== assembled.text
+        ? `${assembled.html}<p>${plainToHtml(signature)}</p>`
+        : assembled.html;
     const words = text.split(/\s+/).filter(Boolean).length;
     emit({ type: "transcribed", words });
     const outcome = await insert(text, pressEnter, html);
@@ -745,6 +788,39 @@ export function createRecorder(deps: RecorderDeps): Recorder {
       styleId: style.id,
       appName: style.appName,
     });
+  }
+
+  /**
+   * Email category only: the text in the email language (PZ-22). Nothing runs when no email
+   * language is set or the dictation was already in it. On any failure the text goes in as
+   * it is and the Bar says so.
+   */
+  async function translateEmail(
+    text: string,
+    style: TakeStyle,
+    spokenIn: string,
+    keep: string[],
+  ): Promise<string> {
+    if (!style.email || !deps.email || text.trim() === "") return text;
+    const target = deps.email.settings().language;
+    if (target === null || spokenIn.split("-")[0] === target) return text;
+    const started = now();
+    const translated = await deps.email.translate(text, target, keep).catch(() => null);
+    if (translated === null) {
+      logger.warn(`not translated to ${target}; inserting the text as dictated`);
+      emit({ type: "translation-failed" });
+      return text;
+    }
+    logger.info(`translated to ${target} in ${now() - started} ms`);
+    return translated;
+  }
+
+  /** Email category only: the signature after the body, when the settings want it (PZ-21). */
+  function signEmail(text: string, style: TakeStyle): string {
+    if (!style.email || !deps.email) return text;
+    const settings = deps.email.settings();
+    if (!wantsSignature(settings, style.email.windowTitle)) return text;
+    return withSignature(text, settings.signature);
   }
 
   async function cleanUp(
@@ -996,6 +1072,8 @@ interface TakeStyle {
   flags: StyleFlags | null;
   instructions: string[];
   appName: string | null;
+  /** In the Email category: the window title, for telling replies (PZ-21). Null otherwise. */
+  email: { windowTitle: string | null } | null;
 }
 
 /** The preset's instruction and the owner's own, as one line for the cleanup model. */

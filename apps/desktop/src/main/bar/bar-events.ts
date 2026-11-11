@@ -42,5 +42,7 @@ export function barEventFor(event: RecorderEvent): BarEvent {
       return { type: "warn", message: "The text could not be pasted" };
     case "memory-offered":
       return { type: "ask", message: "Save to Memory?", detail: event.text };
+    case "translation-failed":
+      return { type: "warn", message: "Not translated: inserted as dictated" };
   }
 }

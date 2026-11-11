@@ -1,7 +1,7 @@
 // The cleanup model, run with node-llama-cpp (Metal on Apple silicon). Used inside the LLM
 // utility process and by the benchmark script; never in the main process.
 import type { LlamaChatSession, LlamaJsonSchemaGrammar, LlamaModel } from "node-llama-cpp";
-import { maxTokensFor, systemPrompt } from "./prompt.ts";
+import { maxTokensFor, maxTranslateTokens, systemPrompt, translatePrompt } from "./prompt.ts";
 import type { CleanupLevel } from "./rules.ts";
 
 const SCHEMA = {
@@ -69,6 +69,25 @@ export class CleanupEngine {
     const answer = await loaded.session.prompt(text, {
       grammar: loaded.grammar,
       maxTokens: maxTokensFor(text),
+      temperature: 0,
+      ...(signal ? { signal } : {}),
+    });
+    return parseAnswer(answer, (value) => loaded.grammar.parse(value).text);
+  }
+
+  /** Translates Email-category text (PZ-22). `language` is its English name. */
+  async translate(
+    text: string,
+    language: string,
+    signal?: AbortSignal,
+    keep: string[] = [],
+  ): Promise<string> {
+    const loaded = this.loaded;
+    if (!loaded) throw new Error("The cleanup model is not loaded");
+    loaded.session.setChatHistory([{ type: "system", text: translatePrompt(language, keep) }]);
+    const answer = await loaded.session.prompt(text, {
+      grammar: loaded.grammar,
+      maxTokens: maxTranslateTokens(text),
       temperature: 0,
       ...(signal ? { signal } : {}),
     });

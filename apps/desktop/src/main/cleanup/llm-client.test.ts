@@ -88,6 +88,34 @@ describe("LLM client", () => {
     expect(workers[0]!.requests.at(-1)).toEqual({ type: "abort", target: clean.id });
   });
 
+  it("translates with its own time limit, and aborts it when the limit runs out", async () => {
+    const { client, workers, clock } = setup();
+    client.prepare();
+    await flush();
+    workers[0]!.reply("load", "900");
+    await flush();
+    const done = client.translate("See you at 5.", "French", 6000, ["Murmur"]);
+    await flush();
+    expect(workers[0]!.requests.at(-1)).toMatchObject({
+      type: "translate",
+      text: "See you at 5.",
+      language: "French",
+      keep: ["Murmur"],
+    });
+    workers[0]!.reply("translate", "À 5 h.");
+    await expect(done).resolves.toBe("À 5 h.");
+
+    const slow = client.translate("Hello.", "French", 6000);
+    const rejection = expect(slow).rejects.toBeInstanceOf(LlmTimeoutError);
+    await clock.advance(5999);
+    await clock.advance(1);
+    await rejection;
+    const last = workers[0]!.requests.filter((request) => request.type === "translate").at(-1) as {
+      id: number;
+    };
+    expect(workers[0]!.requests.at(-1)).toEqual({ type: "abort", target: last.id });
+  });
+
   it("counts a slow first load against the budget", async () => {
     const { client, clock } = setup();
     const result = client.clean("hello", "standard", 1500);
