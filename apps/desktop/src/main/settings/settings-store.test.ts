@@ -14,6 +14,7 @@ const defaults: Settings = {
   setupComplete: true,
   pressEnterCommand: true,
   contextAwareness: true,
+  mouseButtons: { hold: null, handsFree: null },
 };
 
 describe("settings store", () => {

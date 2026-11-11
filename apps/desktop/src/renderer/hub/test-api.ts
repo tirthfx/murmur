@@ -13,6 +13,7 @@ export const SAMPLE_SETTINGS: SettingsView = {
     setupComplete: true,
     pressEnterCommand: true,
     contextAwareness: true,
+    mouseButtons: { hold: null, handsFree: null },
   },
   shortcutLabels: { hold: "Right Option", handsFree: "Double-tap Right Option" },
   devices: [

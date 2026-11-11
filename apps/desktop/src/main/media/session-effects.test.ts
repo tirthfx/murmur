@@ -15,6 +15,7 @@ const base: Settings = {
   setupComplete: true,
   pressEnterCommand: true,
   contextAwareness: true,
+  mouseButtons: { hold: null, handsFree: null },
 };
 
 function setup(
@@ -114,6 +115,7 @@ describe("session effects", () => {
         setupComplete: true,
         pressEnterCommand: true,
         contextAwareness: true,
+        mouseButtons: { hold: null, handsFree: null },
         sounds: { start: false, lock: true, success: true, error: false, cancel: false },
       },
     });

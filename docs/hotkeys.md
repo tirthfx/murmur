@@ -44,3 +44,24 @@ Grant it from the Hub (Request, or Open System Settings), as described in [permi
 4. Press Left Option: nothing is logged.
 5. Hold Right Option and type a few letters: they still type as usual (with Option's characters), and nothing about them is logged.
 6. Hold Right Option for several seconds: still only one `down` line.
+
+## Mouse buttons
+
+Extra mouse buttons can start dictation (DC-04): Settings has "Push to talk (mouse)" (hold
+the button) and "Hands-free (mouse)" (press to start, press again to stop). Press **Set**,
+then the button, inside the Murmur window; Escape cancels. Nothing is bound by default.
+
+- Only extra buttons: the middle button and above (CoreGraphics numbers 2 to 31; back is 3,
+  forward is 4). Left and right are never bound, and the key listener does not even observe
+  them.
+- One button cannot do both jobs; choosing it for one clears the other.
+- Like keys, the listener is listen-only: the button still does what it did before (for
+  example, back in a browser). Choose a button you do not otherwise use.
+- The helper binding uses `trigger: {type: "mouse", button}`; capability `hotkey.mouse`.
+
+### Manual test
+
+1. In Settings, press Set next to "Push to talk (mouse)" and press the mouse's middle (or
+   back) button. The label shows the button.
+2. Click into TextEdit, hold that button, say a sentence, release: the text is inserted.
+3. Left and right clicks behave as always, everywhere.

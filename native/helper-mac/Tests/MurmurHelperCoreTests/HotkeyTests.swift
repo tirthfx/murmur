@@ -25,6 +25,24 @@ final class HotkeyMatcherTests: XCTestCase {
         XCTAssertEqual(m.handle(.modifier(keyCode: 61, isDown: false)), [HotkeyFiring(binding: rightOptionHold, state: .up)])
     }
 
+    func testAMouseButtonHoldsLikeAKey() {
+        let mouseHold = HotkeyBinding(
+            id: "mouse-hold", action: "dictate.hold", trigger: HotkeyTrigger(mouseButton: 3), mode: .hold)
+        var m = matcher([rightOptionHold, mouseHold])
+        XCTAssertEqual(m.handle(.mouseDown(button: 4)), [])
+        XCTAssertEqual(m.handle(.mouseDown(button: 3)), [HotkeyFiring(binding: mouseHold, state: .down)])
+        XCTAssertEqual(m.handle(.mouseUp(button: 3)), [HotkeyFiring(binding: mouseHold, state: .up)])
+        // A key with the same number is not the mouse button.
+        XCTAssertEqual(m.handle(.keyDown(keyCode: 3, modifiers: [], isRepeat: false)), [])
+    }
+
+    func testLeftAndRightClicksNeverBecomeInput() {
+        XCTAssertNil(TapHandler.mouseInput(type: .otherMouseDown, button: 0))
+        XCTAssertNil(TapHandler.mouseInput(type: .otherMouseDown, button: 1))
+        XCTAssertEqual(TapHandler.mouseInput(type: .otherMouseDown, button: 2), .mouseDown(button: 2))
+        XCTAssertEqual(TapHandler.mouseInput(type: .otherMouseUp, button: 4), .mouseUp(button: 4))
+    }
+
     func testLeftOptionDoesNothing() {
         var m = matcher([rightOptionHold])
         XCTAssertEqual(m.handle(.modifier(keyCode: 58, isDown: true)), [])
@@ -178,6 +196,23 @@ final class HotkeyParseTests: XCTestCase {
         for id in ["action", "mode", "mouse", "caps", "range", "mods", "plain", "unknown-mod", "rewrite"] {
             XCTAssertTrue(rejected[id]?.hasPrefix("INVALID_PAYLOAD") ?? false, id)
         }
+    }
+
+    func testMouseTriggersAllowOnlyExtraButtons() {
+        func mouse(_ id: String, _ button: JSONValue) -> JSONValue {
+            .object([
+                "id": .string(id), "action": .string("dictate.hold"), "mode": .string("hold"),
+                "trigger": .object(["type": .string("mouse"), "button": button]),
+            ])
+        }
+        let parsed = HotkeyMatcher.parse([
+            "bindings": .array([mouse("middle", .int(2)), mouse("back", .int(3)), mouse("left", .int(0)),
+                mouse("right", .int(1)), mouse("text", .string("4")), mouse("dup", .int(3))]),
+        ])!
+        XCTAssertEqual(parsed.valid.map(\.id), ["middle", "back"])
+        XCTAssertEqual(parsed.valid[1].trigger, HotkeyTrigger(mouseButton: 3))
+        let rejected = Dictionary(uniqueKeysWithValues: parsed.rejected.map { ($0.id, $0.code) })
+        XCTAssertEqual(rejected, ["left": .invalidPayload, "right": .invalidPayload, "text": .invalidPayload, "dup": .conflict])
     }
 
     func testFunctionKeyAloneIsAllowed() {

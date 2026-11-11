@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { audioDeviceSchema } from "./audio";
-import { hotkeyTriggerSchema } from "./hotkeys";
+import { hotkeyTriggerSchema, mouseButtonSchema } from "./hotkeys";
 
 /**
  * User settings (DC-06, DC-09, DC-17, DC-28). Stored one key per row in the `settings`
@@ -43,6 +43,13 @@ export const settingsSchema = z.strictObject({
   holdShortcut: hotkeyTriggerSchema,
   /** Toggles hands-free. Null means a double tap of the hold key. */
   handsFreeShortcut: hotkeyTriggerSchema.nullable(),
+  /** Extra mouse buttons for push to talk and hands-free; null when unbound (DC-04). */
+  mouseButtons: z
+    .strictObject({ hold: mouseButtonSchema.nullable(), handsFree: mouseButtonSchema.nullable() })
+    .refine(
+      (buttons) => buttons.hold === null || buttons.hold !== buttons.handsFree,
+      "One mouse button cannot do both",
+    ),
   /** "auto" or a device id from the device list. */
   inputDevice: z.string().min(1).max(512),
   language: z.enum(languageCodes),
@@ -77,6 +84,7 @@ export const settingsPatchSchema = settingsSchema
     setupComplete: true,
     pressEnterCommand: true,
     contextAwareness: true,
+    mouseButtons: true,
   })
   .partial()
   .strict();
@@ -94,6 +102,7 @@ export const SETTING_KEYS: Record<keyof Settings, string> = {
   setupComplete: "onboarding.complete",
   pressEnterCommand: "press_enter.enabled",
   contextAwareness: "context.enabled",
+  mouseButtons: "hotkey.mouse_buttons",
 };
 
 export const SOUND_NAMES = ["start", "lock", "success", "error", "cancel"] as const;

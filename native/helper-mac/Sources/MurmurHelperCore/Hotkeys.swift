@@ -27,18 +27,33 @@ public enum HotkeyActions {
     ]
 }
 
-/// A key, with the exact set of modifiers that must be held. A modifier key on its own
-/// (for example Right Option) has an empty modifier set.
+/// A key, with the exact set of modifiers that must be held, or an extra mouse button. A
+/// modifier key on its own (for example Right Option) has an empty modifier set.
 public struct HotkeyTrigger: Sendable, Hashable {
+    /// -1 for a mouse trigger.
     public var keyCode: Int
     public var modifiers: Set<HotkeyModifier>
+    /// CoreGraphics button number (2 is the middle button); nil for a key trigger.
+    public var mouseButton: Int?
 
     public init(keyCode: Int, modifiers: Set<HotkeyModifier> = []) {
         self.keyCode = keyCode
         self.modifiers = modifiers
+        self.mouseButton = nil
     }
 
-    public var isModifierOnly: Bool { KeyCodes.modifierFamily(of: keyCode) != nil }
+    public init(mouseButton: Int) {
+        self.keyCode = -1
+        self.modifiers = []
+        self.mouseButton = mouseButton
+    }
+
+    public var isModifierOnly: Bool { mouseButton == nil && KeyCodes.modifierFamily(of: keyCode) != nil }
+}
+
+public enum MouseButtons {
+    /// Left (0) and right (1) are never bound, so clicking always works.
+    public static let allowed = 2...31
 }
 
 public struct HotkeyBinding: Sendable, Equatable {
@@ -75,6 +90,9 @@ public enum RawKeyInput: Sendable, Equatable {
     case modifier(keyCode: Int, isDown: Bool)
     case keyDown(keyCode: Int, modifiers: Set<HotkeyModifier>, isRepeat: Bool)
     case keyUp(keyCode: Int)
+    /// An extra mouse button (CoreGraphics numbering: 2 is the middle button).
+    case mouseDown(button: Int)
+    case mouseUp(button: Int)
 }
 
 /// macOS virtual key codes and modifier flags used by the matcher.
@@ -182,6 +200,14 @@ public struct HotkeyMatcher: Sendable {
             for binding in bindings where !binding.trigger.isModifierOnly && binding.trigger.keyCode == keyCode {
                 if let firing = release(binding) { firings.append(firing) }
             }
+        case .mouseDown(let button):
+            for binding in bindings where binding.trigger.mouseButton == button {
+                if let firing = press(binding) { firings.append(firing) }
+            }
+        case .mouseUp(let button):
+            for binding in bindings where binding.trigger.mouseButton == button {
+                if let firing = release(binding) { firings.append(firing) }
+            }
         }
         return firings
     }
@@ -257,8 +283,15 @@ public struct HotkeyMatcher: Sendable {
             return fail("Mode must be hold, toggle or press")
         }
         guard let trigger = object["trigger"]?.objectValue else { return fail("Trigger must be an object") }
+        if trigger["type"]?.stringValue == "mouse" {
+            guard let button = trigger["button"]?.intValue, MouseButtons.allowed.contains(button) else {
+                return fail("button must be an extra mouse button from 2 to 31; left and right cannot be bound")
+            }
+            return .success(
+                HotkeyBinding(id: id, action: action, trigger: HotkeyTrigger(mouseButton: button), mode: mode, rewriteId: rewriteId))
+        }
         guard trigger["type"]?.stringValue == "key" else {
-            return fail("Only key triggers are supported in this version")
+            return fail("Trigger type must be key or mouse")
         }
         guard let keyCode = trigger["keyCode"]?.intValue, (0...127).contains(keyCode), keyCode != KeyCodes.capsLock else {
             return fail("keyCode must be a macOS virtual key code from 0 to 127, not Caps Lock")

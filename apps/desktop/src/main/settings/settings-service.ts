@@ -42,6 +42,22 @@ export function bindingsFor(
       mode: "press",
     });
   }
+  if (settings.mouseButtons.hold !== null) {
+    bindings.push({
+      id: "dictate-hold-mouse",
+      action: "dictate.hold",
+      trigger: { type: "mouse", button: settings.mouseButtons.hold },
+      mode: "hold",
+    });
+  }
+  if (settings.mouseButtons.handsFree !== null) {
+    bindings.push({
+      id: "dictate-toggle-mouse",
+      action: "dictate.toggle",
+      trigger: { type: "mouse", button: settings.mouseButtons.handsFree },
+      mode: "press",
+    });
+  }
   if (cancelKeyCode !== null) {
     bindings.push({
       id: "dictate-cancel",
