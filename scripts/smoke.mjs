@@ -182,6 +182,9 @@ if (full) {
   // About as loud as a whisper at a normal distance: 40 dB below the spoken clip.
   writeFileSync(path.join(clipsDir, "quiet.wav"), wav(quieter(speech, 40)));
   lengths.quiet = lengths.speech;
+  lengths.remember = msOf(
+    speak("Remember that I prefer metric units", path.join(clipsDir, "remember.wav")),
+  );
   writeFileSync(path.join(clipsDir, "clips.json"), JSON.stringify(lengths));
 }
 console.log(`profile: ${profile}`);

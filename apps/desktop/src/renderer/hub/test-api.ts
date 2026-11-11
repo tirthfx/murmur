@@ -22,6 +22,7 @@ export const SAMPLE_SETTINGS: SettingsView = {
     mouseButtons: { hold: null, handsFree: null },
     typingReminder: { enabled: true, snoozedUntil: null },
     whisperMode: false,
+    memory: { enabled: true, fromDictation: true },
     experimental: {
       splitMessages: false,
       pauseMedia: false,
@@ -110,6 +111,9 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
     stylesUpdate: vi.fn().mockResolvedValue(SAMPLE_STYLES),
     stylesSetOverride: vi.fn().mockResolvedValue(SAMPLE_STYLES),
     stylesClearOverride: vi.fn().mockResolvedValue(SAMPLE_STYLES),
+    memoryList: vi.fn().mockResolvedValue([]),
+    memorySave: vi.fn(),
+    memoryDelete: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 }

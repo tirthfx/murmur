@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { BarView } from "@murmur/shared";
 import { BarPill } from "./BarPill";
 import { elapsed, meterFill } from "./bar-text";
@@ -40,6 +40,28 @@ describe("Bar pill", () => {
       expect(screen.getByRole("status").getAttribute("aria-label")).toBe(text || "Murmur");
     });
   }
+
+  it("asks with Save and Dismiss, and the buttons do not start a drag", () => {
+    const onAnswer = vi.fn();
+    const onPointerDown = vi.fn();
+    render(
+      <BarPill
+        view={view("ask", { message: "Save to Memory?", detail: "I prefer metric units." })}
+        level={null}
+        now={now}
+        onAnswer={onAnswer}
+        onPointerDown={onPointerDown}
+      />,
+    );
+    expect(screen.getByRole("alertdialog", { name: "Save to Memory?" })).toBeTruthy();
+    expect(screen.getByText("I prefer metric units.")).toBeTruthy();
+    const save = screen.getByRole("button", { name: "Save" });
+    fireEvent.pointerDown(save);
+    expect(onPointerDown).not.toHaveBeenCalled();
+    save.click();
+    screen.getByRole("button", { name: "Dismiss" }).click();
+    expect(onAnswer.mock.calls).toEqual([["yes"], ["no"]]);
+  });
 
   it("draws nothing when hidden", () => {
     const { container } = render(<BarPill view={view("hidden")} level={null} now={now} />);

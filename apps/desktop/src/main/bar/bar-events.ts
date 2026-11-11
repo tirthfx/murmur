@@ -40,5 +40,7 @@ export function barEventFor(event: RecorderEvent): BarEvent {
       return { type: "warn", message: "Return was not pressed: another app is in front" };
     case "insert-failed":
       return { type: "warn", message: "The text could not be pasted" };
+    case "memory-offered":
+      return { type: "ask", message: "Save to Memory?", detail: event.text };
   }
 }

@@ -21,7 +21,10 @@ export type BarEvent =
   | { type: "retry" }
   /** Something to tell the user. While recording it stays until the recording ends. */
   | { type: "warn"; message: string }
-  | { type: "timeout" };
+  | { type: "timeout" }
+  /** Ask a question with Yes and No (PZ-19); it goes away after ASK_MS. */
+  | { type: "ask"; message: string; detail: string }
+  | { type: "answered" };
 
 export interface BarStep {
   view: BarView;
@@ -34,6 +37,8 @@ export interface BarStep {
 export const DONE_MS = 800;
 export const CANCELLED_MS = 600;
 export const WARNING_MS = 3000;
+/** How long a question stays on the Bar (PZ-19: five minutes). */
+export const ASK_MS = 5 * 60_000;
 
 export const INITIAL_VIEW: BarView = { state: "idle", startedAt: null, words: null, message: null };
 
@@ -64,7 +69,7 @@ export function transition(current: BarView, event: BarEvent): BarStep {
     case "hide":
       return current.state === "hidden" ? same : to(view("hidden"));
     case "start":
-      if (["idle", "done", "cancelled", "error"].includes(current.state)) {
+      if (["idle", "done", "cancelled", "error", "ask"].includes(current.state)) {
         return to(view("listening", { startedAt: event.at }));
       }
       if (current.state === "warning" && !isRecordingWarning(current)) {
@@ -103,7 +108,15 @@ export function transition(current: BarView, event: BarEvent): BarStep {
         return to(view("warning", { startedAt: current.startedAt, message: event.message }));
       }
       return to(view("warning", { message: event.message }), WARNING_MS);
+    case "ask":
+      // After a dictation or at rest; never over a recording.
+      return isRecording(current) || current.state === "hidden"
+        ? same
+        : to(view("ask", { message: event.message, detail: event.detail }), ASK_MS);
+    case "answered":
+      return current.state === "ask" ? to(view("idle")) : same;
     case "timeout":
+      if (current.state === "ask") return to(view("idle"));
       if (current.state === "done" || current.state === "cancelled") return to(view("idle"));
       if (current.state === "warning" && !isRecordingWarning(current)) return to(view("idle"));
       return same;

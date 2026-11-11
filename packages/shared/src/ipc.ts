@@ -51,6 +51,14 @@ import {
   type StylesView,
   type StyleUpdate,
 } from "./styles";
+import {
+  memoryInputSchema,
+  memoryItemSchema,
+  memorySaveResultSchema,
+  type MemoryInput,
+  type MemoryItem,
+  type MemorySaveResult,
+} from "./memory";
 
 /**
  * Renderer-to-main IPC contract. Channel names, payload schemas and the API the
@@ -82,6 +90,9 @@ export const IPC_CHANNELS = {
   stylesUpdate: "styles:update",
   stylesSetOverride: "styles:set-override",
   stylesClearOverride: "styles:clear-override",
+  memoryList: "memory:list",
+  memorySave: "memory:save",
+  memoryDelete: "memory:delete",
 } as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
@@ -200,6 +211,18 @@ export const IPC_CONTRACT = {
     args: z.tuple([z.string().min(1).max(255)]),
     result: stylesViewSchema,
   },
+  [IPC_CHANNELS.memoryList]: {
+    args: z.tuple([]),
+    result: z.array(memoryItemSchema),
+  },
+  [IPC_CHANNELS.memorySave]: {
+    args: z.tuple([memoryInputSchema]),
+    result: memorySaveResultSchema,
+  },
+  [IPC_CHANNELS.memoryDelete]: {
+    args: z.tuple([z.string().min(1)]),
+    result: z.void(),
+  },
 } as const satisfies Record<IpcChannel, { args: z.ZodType; result: z.ZodType }>;
 
 export function isIpcChannel(value: unknown): value is IpcChannel {
@@ -262,6 +285,10 @@ export interface MurmurApi {
   stylesUpdate(update: StyleUpdate): Promise<StylesView>;
   stylesSetOverride(override: AppCategoryOverride): Promise<StylesView>;
   stylesClearOverride(bundleId: string): Promise<StylesView>;
+  /** Saved facts, newest first. */
+  memoryList(): Promise<MemoryItem[]>;
+  memorySave(input: MemoryInput): Promise<MemorySaveResult>;
+  memoryDelete(id: string): Promise<void>;
   /** Input levels during a microphone check, about 20 a second. Returns an unsubscribe. */
   onMicCheckLevel(handler: (rmsDb: number) => void): () => void;
 }

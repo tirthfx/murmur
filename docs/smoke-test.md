@@ -40,29 +40,30 @@ The script prints `PASS` and exits with 0, or `FAIL: <reason>` and exits with 1.
 `npm run smoke -- --full` runs the main dictation, then these checks, and prints one line
 each (`ok`, `FAIL`, or `SKIP` when the Mac cannot run it):
 
-| Check                                           | How                                                                                                          |
-| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| Bar position is saved and restored              | Moves the Bar, closes and reopens its window                                                                 |
-| Tray: choosing a microphone and a language      | Runs the menu actions; the settings follow, then go back                                                     |
-| Bar shows listening, processing, done           | Records the Bar states during a dictation                                                                    |
-| Text arrives while the test box keeps the focus | The Bar never takes the focus                                                                                |
-| Start and success sounds play                   | Records the sounds asked for                                                                                 |
-| Output muted while dictating, restored after    | Turns on mute while dictating; reads the output mute during and after                                        |
-| Tray: Start and Stop dictation                  | Dictates through the menu's Start and Stop                                                                   |
-| An output that was already muted stays muted    | Mutes the Mac first, dictates, reads it after, unmutes                                                       |
-| Tray: Copy last transcript                      | Saves the clipboard, copies, compares, puts the clipboard back                                               |
-| Silent microphone warns                         | Copies a silent clip over the fixture; the Bar says "No sound from …"                                        |
-| Context: the text before the caret is read      | Puts text in the box first; the context read at the start holds it                                           |
-| Press enter                                     | A clip ending in "press enter": the text without the command, then a Return                                  |
-| Languages                                       | A Hindi clip (system voice Lekha): Devanagari with Hindi chosen, Latin letters with Hindi in Latin script    |
-| Whisper mode                                    | The speech clip 40 dB quieter gives text with whisper mode on (the line also says what came out with it off) |
-| Mic check                                       | Runs the Hub's check on the clip: speech and background levels and advice                                    |
-| Retry                                           | One transcription is made to fail on purpose; Retry last dictation from the tray types the text              |
-| Typing reminder                                 | 70 words are handed to the reminder: nothing while snoozed, the suggestion once on again                     |
-| Dictionary                                      | Saves "FOX" as a spelling and "lazy dog" → "sleepy cat", dictates the clip, removes them                     |
-| Snippets                                        | Makes the clip's sentence a trigger for a two-line rich body, dictates it, removes it                        |
-| Styles                                          | Puts the test window's app in Personal, dictates, expects no capital and no final full stop                  |
-| Quit                                            | The app exits by itself and the helper process is gone                                                       |
+| Check                                           | How                                                                                                           |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Bar position is saved and restored              | Moves the Bar, closes and reopens its window                                                                  |
+| Tray: choosing a microphone and a language      | Runs the menu actions; the settings follow, then go back                                                      |
+| Bar shows listening, processing, done           | Records the Bar states during a dictation                                                                     |
+| Text arrives while the test box keeps the focus | The Bar never takes the focus                                                                                 |
+| Start and success sounds play                   | Records the sounds asked for                                                                                  |
+| Output muted while dictating, restored after    | Turns on mute while dictating; reads the output mute during and after                                         |
+| Tray: Start and Stop dictation                  | Dictates through the menu's Start and Stop                                                                    |
+| An output that was already muted stays muted    | Mutes the Mac first, dictates, reads it after, unmutes                                                        |
+| Tray: Copy last transcript                      | Saves the clipboard, copies, compares, puts the clipboard back                                                |
+| Silent microphone warns                         | Copies a silent clip over the fixture; the Bar says "No sound from …"                                         |
+| Context: the text before the caret is read      | Puts text in the box first; the context read at the start holds it                                            |
+| Press enter                                     | A clip ending in "press enter": the text without the command, then a Return                                   |
+| Languages                                       | A Hindi clip (system voice Lekha): Devanagari with Hindi chosen, Latin letters with Hindi in Latin script     |
+| Whisper mode                                    | The speech clip 40 dB quieter gives text with whisper mode on (the line also says what came out with it off)  |
+| Mic check                                       | Runs the Hub's check on the clip: speech and background levels and advice                                     |
+| Retry                                           | One transcription is made to fail on purpose; Retry last dictation from the tray types the text               |
+| Typing reminder                                 | 70 words are handed to the reminder: nothing while snoozed, the suggestion once on again                      |
+| Dictionary                                      | Saves "FOX" as a spelling and "lazy dog" → "sleepy cat", dictates the clip, removes them                      |
+| Snippets                                        | Makes the clip's sentence a trigger for a two-line rich body, dictates it, removes it                         |
+| Styles                                          | Puts the test window's app in Personal, dictates, expects no capital and no final full stop                   |
+| Memory                                          | Dictates "Remember that I prefer metric units": the Bar asks, nothing is typed, Save stores it (then removed) |
+| Quit                                            | The app exits by itself and the helper process is gone                                                        |
 
 The typing reminder is handed word counts instead of real key presses, which would type on the
 desktop; counting key presses is covered by the helper's unit tests. Mouse buttons and plugging

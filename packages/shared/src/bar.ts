@@ -16,6 +16,8 @@ export const BAR_STATES = [
   "warning",
   "error",
   "cancelled",
+  /** A yes-or-no question, such as "Save to Memory?" (PZ-19). */
+  "ask",
 ] as const;
 export type BarState = (typeof BAR_STATES)[number];
 
@@ -26,8 +28,10 @@ export const barViewSchema = z.strictObject({
   startedAt: z.number().nullable(),
   /** Word count in `done`. */
   words: z.number().int().nonnegative().nullable(),
-  /** Text for `warning` and `error`. */
+  /** Text for `warning`, `error` and `ask`. */
   message: z.string().nullable(),
+  /** The second line of `ask`: what the question is about. */
+  detail: z.string().nullable().optional(),
 });
 export type BarView = z.infer<typeof barViewSchema>;
 
@@ -40,6 +44,8 @@ export const BAR_IPC_CHANNELS = {
   drag: "bar:drag",
   dragEnd: "bar:drag-end",
   click: "bar:click",
+  /** The answer to an `ask`. */
+  answer: "bar:answer",
 } as const;
 
 /** Main to Bar page. */
@@ -57,6 +63,7 @@ export const BAR_IPC_CONTRACT = {
   [BAR_IPC_CHANNELS.drag]: z.tuple([offset, offset]),
   [BAR_IPC_CHANNELS.dragEnd]: z.tuple([]),
   [BAR_IPC_CHANNELS.click]: z.tuple([]),
+  [BAR_IPC_CHANNELS.answer]: z.tuple([z.enum(["yes", "no"])]),
 } as const;
 
 export type BarIpcChannel = keyof typeof BAR_IPC_CONTRACT;
@@ -81,4 +88,6 @@ export interface MurmurBarApi {
   drag(dx: number, dy: number): void;
   dragEnd(): void;
   click(): void;
+  /** The answer to the question the Bar shows. */
+  answer(choice: "yes" | "no"): void;
 }

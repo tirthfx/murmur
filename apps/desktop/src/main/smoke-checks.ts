@@ -8,7 +8,7 @@ import type { TrayAction } from "./tray/tray-menu";
 // context, languages, whisper mode, the mic check, retry and the typing reminder.
 
 /** The clips the script makes; each one is copied over the fixture before it is used. */
-export type ClipName = "speech" | "silent" | "enter" | "hindi" | "quiet";
+export type ClipName = "speech" | "silent" | "enter" | "hindi" | "quiet" | "remember";
 
 export interface CheckResult {
   name: string;
@@ -56,6 +56,12 @@ export interface SmokeChecksDeps {
   feedTypedWords(words: number): void;
   /** Adds dictionary entries for one check; returns a function that removes them. */
   addDictionary(entries: { term: string; replacement: string | null }[]): () => void;
+  /** Answers the Bar's question, as a click on Save or Dismiss would. */
+  answerBar(choice: "yes" | "no"): void;
+  /** The saved facts' texts. */
+  memoryTexts(): string[];
+  /** Deletes a saved fact by its text. */
+  forgetMemory(text: string): void;
   /** Puts an app in a category for one check; returns a function that undoes it. */
   setAppCategory(bundleId: string, category: "personal" | "work" | "email" | "other"): () => void;
   /** Adds a rich snippet for one check; returns a function that removes it. */
@@ -534,6 +540,22 @@ export function createSmokeChecks(deps: SmokeChecksDeps): SmokeChecks {
     }
   }
 
+  async function rememberThat(): Promise<CheckResult> {
+    const name = 'Memory: "remember that" asks on the Bar and saves on Save';
+    const result = await dictate(deps.keyDown, deps.keyUp, { clip: "remember", expectText: false });
+    const asked = deps.barView();
+    const fact = asked.detail ?? "";
+    deps.answerBar("yes");
+    const saved = deps.memoryTexts().includes(fact);
+    if (saved) deps.forgetMemory(fact);
+    return check(
+      name,
+      asked.state === "ask" && /metric units/i.test(fact) && result.text === "" && saved,
+      `asked "${asked.message}" about ${JSON.stringify(fact)}; nothing typed; saved`,
+      `Bar: ${asked.state} ${JSON.stringify(fact)}; box: ${JSON.stringify(result.text)}; saved: ${saved}`,
+    );
+  }
+
   async function typingReminder(): Promise<CheckResult> {
     const name = "Typing reminder: snooze holds it, then it suggests dictating";
     const message = () => deps.barView().message ?? "";
@@ -588,6 +610,7 @@ export function createSmokeChecks(deps: SmokeChecksDeps): SmokeChecks {
         async () => void results.push(await dictionary()),
         async () => void results.push(await snippet()),
         async () => void results.push(await personalStyle()),
+        async () => void results.push(await rememberThat()),
       ];
       for (const step of steps) {
         try {

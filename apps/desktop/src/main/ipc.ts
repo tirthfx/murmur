@@ -19,6 +19,9 @@ import {
   type StylesView,
   type StyleUpdate,
   type AppCategoryOverride,
+  type MemoryInput,
+  type MemoryItem,
+  type MemorySaveResult,
   type ShortcutResult,
   type ShortcutSlot,
   type PermissionKind,
@@ -56,6 +59,9 @@ export interface IpcDeps {
   stylesUpdate: (update: StyleUpdate) => StylesView;
   stylesSetOverride: (override: AppCategoryOverride) => StylesView;
   stylesClearOverride: (bundleId: string) => StylesView;
+  memoryList: () => MemoryItem[];
+  memorySave: (input: MemoryInput) => MemorySaveResult;
+  memoryDelete: (id: string) => void;
 }
 
 export interface IpcEventLike {
@@ -128,6 +134,12 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.stylesSetOverride(request.args[0] as AppCategoryOverride);
       case IPC_CHANNELS.stylesClearOverride:
         return deps.stylesClearOverride(request.args[0] as string);
+      case IPC_CHANNELS.memoryList:
+        return deps.memoryList();
+      case IPC_CHANNELS.memorySave:
+        return deps.memorySave(request.args[0] as MemoryInput);
+      case IPC_CHANNELS.memoryDelete:
+        return deps.memoryDelete(request.args[0] as string);
       default:
         throw new Error("IPC rejected: unknown-channel");
     }

@@ -27,6 +27,9 @@ const api: MurmurApi = {
   stylesUpdate: (update) => ipcRenderer.invoke(IPC_CHANNELS.stylesUpdate, update),
   stylesSetOverride: (override) => ipcRenderer.invoke(IPC_CHANNELS.stylesSetOverride, override),
   stylesClearOverride: (bundleId) => ipcRenderer.invoke(IPC_CHANNELS.stylesClearOverride, bundleId),
+  memoryList: () => ipcRenderer.invoke(IPC_CHANNELS.memoryList),
+  memorySave: (input) => ipcRenderer.invoke(IPC_CHANNELS.memorySave, input),
+  memoryDelete: (id) => ipcRenderer.invoke(IPC_CHANNELS.memoryDelete, id),
   onMicCheckLevel: (handler) => {
     // Only a number crosses over; the event object stays in the preload.
     const listener = (_event: unknown, rmsDb: unknown) => {

@@ -20,3 +20,4 @@ export * from "./mic-check";
 export * from "./dictionary";
 export * from "./snippets";
 export * from "./styles";
+export * from "./memory";

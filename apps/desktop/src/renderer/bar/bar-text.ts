@@ -25,6 +25,8 @@ export function describeView(view: BarView): { text: string; icon: BarIcon | nul
       return { text: view.message ?? "Transcription failed. Tap to retry.", icon: "retry" };
     case "cancelled":
       return { text: "Cancelled", icon: "cancel" };
+    case "ask":
+      return { text: view.message ?? "", icon: "check" };
   }
 }
 

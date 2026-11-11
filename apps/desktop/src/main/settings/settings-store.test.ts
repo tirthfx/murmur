@@ -17,6 +17,7 @@ const defaults: Settings = {
   mouseButtons: { hold: null, handsFree: null },
   typingReminder: { enabled: true, snoozedUntil: null },
   whisperMode: false,
+  memory: { enabled: true, fromDictation: true },
   experimental: {
     splitMessages: false,
     pauseMedia: false,
