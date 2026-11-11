@@ -33,6 +33,15 @@ const api: MurmurApi = {
   memoryDelete: (id) => ipcRenderer.invoke(IPC_CHANNELS.memoryDelete, id),
   importPreview: (request) => ipcRenderer.invoke(IPC_CHANNELS.importPreview, request),
   importApply: (request) => ipcRenderer.invoke(IPC_CHANNELS.importApply, request),
+  voiceProfileView: () => ipcRenderer.invoke(IPC_CHANNELS.voiceProfileView),
+  voiceProfileReset: () => ipcRenderer.invoke(IPC_CHANNELS.voiceProfileReset),
+  onOpenPage: (handler) => {
+    const listener = (_event: unknown, pageId: unknown) => {
+      if (typeof pageId === "string" && /^[a-z-]{1,40}$/.test(pageId)) handler(pageId);
+    };
+    ipcRenderer.on(IPC_EVENTS.openPage, listener);
+    return () => ipcRenderer.removeListener(IPC_EVENTS.openPage, listener);
+  },
   onMicCheckLevel: (handler) => {
     // Only a number crosses over; the event object stays in the preload.
     const listener = (_event: unknown, rmsDb: unknown) => {

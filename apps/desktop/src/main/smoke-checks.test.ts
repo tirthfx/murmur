@@ -19,6 +19,7 @@ const settings: Settings = {
   whisperMode: false,
   memory: { enabled: true, fromDictation: true },
   learnCorrections: true,
+  voiceProfile: { enabled: true, useInCleanup: true, prompts: true },
   experimental: {
     splitMessages: false,
     pauseMedia: false,
@@ -299,6 +300,7 @@ describe("full smoke checks", () => {
       whisperMode: false,
       memory: { enabled: true, fromDictation: true },
       learnCorrections: true,
+      voiceProfile: { enabled: true, useInCleanup: true, prompts: true },
       typingReminder: { enabled: true, snoozedUntil: null },
     });
   });

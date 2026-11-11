@@ -67,6 +67,7 @@ import {
   type ImportRequest,
   type ImportResult,
 } from "./imports";
+import { voiceProfileViewSchema, type VoiceProfileView } from "./voice-profile";
 
 /**
  * Renderer-to-main IPC contract. Channel names, payload schemas and the API the
@@ -104,6 +105,8 @@ export const IPC_CHANNELS = {
   memoryDelete: "memory:delete",
   importPreview: "import:preview",
   importApply: "import:apply",
+  voiceProfileView: "voice-profile:view",
+  voiceProfileReset: "voice-profile:reset",
 } as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
@@ -248,6 +251,15 @@ export const IPC_CONTRACT = {
     args: z.tuple([importRequestSchema]),
     result: importResultSchema,
   },
+  [IPC_CHANNELS.voiceProfileView]: {
+    args: z.tuple([]),
+    result: voiceProfileViewSchema,
+  },
+  // Clears every count and sample row.
+  [IPC_CHANNELS.voiceProfileReset]: {
+    args: z.tuple([]),
+    result: voiceProfileViewSchema,
+  },
 } as const satisfies Record<IpcChannel, { args: z.ZodType; result: z.ZodType }>;
 
 export function isIpcChannel(value: unknown): value is IpcChannel {
@@ -317,6 +329,10 @@ export interface MurmurApi {
   memoryDelete(id: string): Promise<void>;
   importPreview(request: ImportRequest): Promise<ImportPreview>;
   importApply(request: ImportRequest): Promise<ImportResult>;
+  voiceProfileView(): Promise<VoiceProfileView>;
+  voiceProfileReset(): Promise<VoiceProfileView>;
+  /** Main asks the Hub to show a page (for example after a Bar prompt). */
+  onOpenPage(handler: (pageId: string) => void): () => void;
   /** Input levels during a microphone check, about 20 a second. Returns an unsubscribe. */
   onMicCheckLevel(handler: (rmsDb: number) => void): () => void;
 }
@@ -324,4 +340,5 @@ export interface MurmurApi {
 /** Main-to-Hub messages (no reply). */
 export const IPC_EVENTS = {
   micCheckLevel: "mic-check:level",
+  openPage: "hub:open-page",
 } as const;

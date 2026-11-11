@@ -5,6 +5,7 @@ import type {
   SettingsView,
   SetupStatus,
   StylesView,
+  VoiceProfileView,
 } from "@murmur/shared";
 
 export const SAMPLE_SETTINGS: SettingsView = {
@@ -24,6 +25,7 @@ export const SAMPLE_SETTINGS: SettingsView = {
     whisperMode: false,
     memory: { enabled: true, fromDictation: true },
     learnCorrections: true,
+    voiceProfile: { enabled: true, useInCleanup: true, prompts: true },
     experimental: {
       splitMessages: false,
       pauseMedia: false,
@@ -64,6 +66,17 @@ export const SAMPLE_SETUP: SetupStatus = {
     message: null,
   },
   blockers: [],
+};
+
+export const SAMPLE_PROFILE: VoiceProfileView = {
+  sessions: 0,
+  totalWords: 0,
+  measures: [],
+  topPhrases: [],
+  summary: null,
+  milestones: [],
+  examples: { personal: [], work: [], email: [], other: [] },
+  passage: "",
 };
 
 export const SAMPLE_STYLES: StylesView = {
@@ -119,6 +132,9 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
     memoryDelete: vi.fn().mockResolvedValue(undefined),
     importPreview: vi.fn(),
     importApply: vi.fn(),
+    voiceProfileView: vi.fn().mockResolvedValue(SAMPLE_PROFILE),
+    voiceProfileReset: vi.fn().mockResolvedValue(SAMPLE_PROFILE),
+    onOpenPage: vi.fn().mockReturnValue(() => {}),
     ...overrides,
   };
 }

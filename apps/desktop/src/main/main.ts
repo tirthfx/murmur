@@ -17,6 +17,8 @@ import {
 import {
   BAR_IPC_CHANNELS,
   MEMORY_LIMITS,
+  STYLE_CATEGORIES,
+  type StyleCategory,
   EDIT_WATCH_MAX_MS,
   DEFAULT_CLEANUP_MODEL,
   DEFAULT_SOUNDS,
@@ -49,6 +51,7 @@ import { createSnippetStore } from "./snippets/snippet-store";
 import { createStyleStore } from "./styles/style-store";
 import { createMemoryStore } from "./memory/memory-store";
 import { createImporter } from "./imports/importer";
+import { createVoiceProfile, recentExamples } from "./voice/voice-profile";
 import { createLlmClient, type LlmReply } from "./cleanup/llm-client";
 import { createConsoleLogger, systemClock } from "./helper/node-runtime";
 import { HelperError } from "./helper/types";
@@ -64,7 +67,7 @@ import {
   wantsLatinHindi,
 } from "./settings/settings-service";
 import { createSettingsStore } from "./settings/settings-store";
-import { createRecorder, type RecorderEvent } from "./recorder";
+import { createRecorder, type DictationRecord, type RecorderEvent } from "./recorder";
 import { createSessionEffects } from "./media/session-effects";
 import { createSpeechService } from "./speech/speech-service";
 import { checkModel, downloadModel, modelLocation } from "./speech/model-store";
@@ -159,9 +162,18 @@ const styles = database ? createStyleStore(database) : null;
 const memory = database ? createMemoryStore(database) : null;
 // Bulk import of dictionary entries and snippets (PZ-07, PZ-10).
 const importer = createImporter({ dictionary, snippets });
+// Voice Profile (PZ-15 to PZ-17), and whether its weekly prompt waits on the Bar.
+const voiceProfile = database ? createVoiceProfile(database) : null;
+let profilePromptShown = false;
 let offeredFact: { text: string; until: number } | null = null;
-/** Save or Dismiss on the Bar's "Save to Memory?" question. */
+/** The Bar's question was answered: "Save to Memory?" or the weekly profile prompt. */
 function answerBar(choice: "yes" | "no"): void {
+  if (profilePromptShown && !offeredFact) {
+    profilePromptShown = false;
+    bar.dispatch({ type: "answered" });
+    if (choice === "yes") openHubPage("my-voice");
+    return;
+  }
   const fact = offeredFact;
   offeredFact = null;
   const saved =
@@ -217,6 +229,7 @@ const settingsStore = createSettingsStore(database, {
   whisperMode: false,
   memory: { enabled: true, fromDictation: true },
   learnCorrections: true,
+  voiceProfile: { enabled: true, useInCleanup: true, prompts: true },
   experimental: {
     splitMessages: false,
     pauseMedia: false,
@@ -422,7 +435,15 @@ const recorder = createRecorder({
   afterEnd: () => effects.afterEnd(),
   clean: (text, options) => cleanup.clean(text, options),
   prepareCleanup: () => cleanup.prepare(),
-  record: (dictation) => history?.add(dictation) ?? null,
+  record: (dictation) => {
+    const id = history?.add(dictation) ?? null;
+    learnVoice(dictation, id);
+    return id;
+  },
+  voiceSummary: () => {
+    const flags = settingsStore.get().voiceProfile;
+    return flags.enabled && flags.useInCleanup ? (voiceProfile?.summary(Date.now()) ?? null) : null;
+  },
   deviceId: () => deviceFor(settingsStore.get()),
   whisperMode: () => settingsStore.get().whisperMode,
   ...(history
@@ -751,6 +772,64 @@ async function openPermissionSettings(kind: PermissionKind): Promise<void> {
 
 let hubWindow: BrowserWindow | null = null;
 
+/** Shows the Hub on one page, opening it if it is closed. */
+function openHubPage(pageId: string): void {
+  if (isSmokeRun) return;
+  const window = hubWindow ?? createHubWindow();
+  const send = () => window.webContents.send(IPC_EVENTS.openPage, pageId);
+  if (window.webContents.isLoading()) window.webContents.once("did-finish-load", send);
+  else send();
+  window.show();
+  window.focus();
+}
+
+/** Learns from an inserted dictation; marks milestones; offers the weekly passage prompt. */
+function learnVoice(dictation: DictationRecord, historyId: string | null): void {
+  const flags = settingsStore.get().voiceProfile;
+  if (!voiceProfile || !flags.enabled) return;
+  if (dictation.insertStatus !== "inserted" || !dictation.finalText || !dictation.rawText) return;
+  const category = (dictation.styleId ?? "").replace(/^style-/, "");
+  const reached = voiceProfile.learn({
+    historyId,
+    createdAt: dictation.createdAt,
+    category: (STYLE_CATEGORIES as readonly string[]).includes(category)
+      ? (category as StyleCategory)
+      : "other",
+    rawText: dictation.rawText,
+    finalText: dictation.finalText,
+  });
+  if (reached !== null) {
+    console.log(`[voice] milestone: ${reached} words`);
+    bar.dispatch({ type: "warn", message: `${reached.toLocaleString("en")} words dictated` });
+    effects.sound("success");
+    return;
+  }
+  if (flags.prompts && !offeredFact && voiceProfile.takePrompt(Date.now())) {
+    profilePromptShown = true;
+    bar.dispatch({
+      type: "ask",
+      message: "Update your voice profile?",
+      detail: "Read a short passage aloud on the My Voice page.",
+    });
+  }
+}
+
+function profileView() {
+  const now = Date.now();
+  return voiceProfile && database
+    ? voiceProfile.view(now, recentExamples(database, now))
+    : {
+        sessions: 0,
+        totalWords: 0,
+        measures: [],
+        topPhrases: [],
+        summary: null,
+        milestones: [],
+        examples: { personal: [], work: [], email: [], other: [] },
+        passage: "",
+      };
+}
+
 function createHubWindow(): BrowserWindow {
   const window = new BrowserWindow(
     createHubWindowOptions({
@@ -822,6 +901,11 @@ function registerIpc(): void {
     stylesSetOverride: (override) => {
       styles?.setOverride(override);
       return styles?.view() ?? { styles: [], overrides: [], recentApps: [] };
+    },
+    voiceProfileView: () => profileView(),
+    voiceProfileReset: () => {
+      voiceProfile?.reset();
+      return profileView();
     },
     importPreview: (request) => importer.preview(request),
     importApply: (request) => importer.apply(request),

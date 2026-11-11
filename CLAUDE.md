@@ -124,6 +124,8 @@ Styles and app categories (presets, the default app table, what is read): see `d
 
 Memory (facts, keywords, "remember that" on the Bar): see `docs/memory.md`.
 
+Voice Profile (what is learned and kept, summary, milestones, My Voice): see `docs/voice-profile.md`.
+
 Transcript cleanup (rules, the local model and its guard, the 1.5 s budget, benchmark): see `docs/cleanup.md`.
 
 Dictation history (database, tables, migrations): see `docs/history.md`.
