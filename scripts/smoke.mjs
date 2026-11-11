@@ -7,7 +7,7 @@
 // the expected words reached a test text box and that exactly one history row was written.
 
 import { execFileSync, spawn } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync, statSync } from "node:fs";
+import { copyFileSync, existsSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -22,6 +22,8 @@ const repo = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const keep = process.argv.includes("--keep");
 // `--packaged` runs the app built by `npm run package` instead of the development build.
 const packaged = process.argv.includes("--packaged");
+// `--full` adds the Bar, sounds and mute, tray, silent microphone and quit checks.
+const full = process.argv.includes("--full");
 const packagedBinary = path.join(
   repo,
   "apps/desktop/out/Murmur-darwin-arm64/Murmur.app/Contents/MacOS/Murmur",
@@ -53,6 +55,25 @@ function sameSentence(expected, actual) {
 }
 
 /** Lower case, letters and digits only, single spaces. */
+/** A 16 kHz mono 16-bit WAV file of silence. */
+function silentWav(seconds) {
+  const data = seconds * 16_000 * 2;
+  const header = Buffer.alloc(44);
+  header.write("RIFF", 0);
+  header.writeUInt32LE(36 + data, 4);
+  header.write("WAVEfmt ", 8);
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20);
+  header.writeUInt16LE(1, 22);
+  header.writeUInt32LE(16_000, 24);
+  header.writeUInt32LE(32_000, 28);
+  header.writeUInt16LE(2, 32);
+  header.writeUInt16LE(16, 34);
+  header.write("data", 36);
+  header.writeUInt32LE(data, 40);
+  return Buffer.concat([header, Buffer.alloc(data)]);
+}
+
 const normalise = (text) =>
   text
     .toLowerCase()
@@ -89,6 +110,13 @@ execFileSync("afconvert", [
   clip,
 ]);
 const clipMs = Math.round(((statSync(clip).size - 44) / 32_000) * 1000);
+// In full mode the app copies one of these over the clip to switch between them.
+const speechClip = path.join(profile, "clip-speech.wav");
+const silentClip = path.join(profile, "clip-silent.wav");
+if (full) {
+  copyFileSync(clip, speechClip);
+  writeFileSync(silentClip, silentWav(8));
+}
 console.log(`profile: ${profile}`);
 console.log(`clip: "${PHRASE}" (${(clipMs / 1000).toFixed(1)} s)`);
 
@@ -104,9 +132,21 @@ const child = spawn(packaged ? packagedBinary : "npm", packaged ? [] : ["run", "
     MURMUR_SMOKE_HOLD_MS: String(clipMs + 800),
     MURMUR_AUDIO_FIXTURE: clip,
     MURMUR_AUDIO_DIR: path.join(profile, "audio-tmp"),
+    ...(full
+      ? {
+          MURMUR_SMOKE_FULL: "1",
+          MURMUR_SMOKE_SPEECH_CLIP: speechClip,
+          MURMUR_SMOKE_SILENT_CLIP: silentClip,
+        }
+      : {}),
   },
 });
 
+let helperPid = null;
+let exited = false;
+child.on("exit", () => {
+  exited = true;
+});
 const result = await new Promise((resolve) => {
   let buffer = "";
   const timer = setTimeout(() => resolve(null), TIMEOUT_MS);
@@ -116,6 +156,8 @@ const result = await new Promise((resolve) => {
     while ((end = buffer.indexOf("\n")) >= 0) {
       const line = buffer.slice(0, end);
       buffer = buffer.slice(end + 1);
+      const ready = /helper ready: .*pid (\d+)/.exec(line);
+      if (ready) helperPid = Number(ready[1]);
       if (/^\[(smoke|audio|speech|cleanup|helper|permissions|profile|db)\]/.test(line)) {
         console.log(`  ${line}`);
       }
@@ -136,7 +178,25 @@ const result = await new Promise((resolve) => {
 });
 
 // Give the app a moment to quit by itself, then stop whatever is left.
-await new Promise((resolve) => setTimeout(resolve, 1500));
+await new Promise((resolve) => setTimeout(resolve, full ? 4000 : 1500));
+const isRunning = (pid) => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+};
+// Checked before anything is stopped from here, so only the app's own quit counts.
+const quitCheck = !full
+  ? null
+  : helperPid === null
+    ? "the helper's process id was not seen"
+    : isRunning(helperPid)
+      ? `the helper (pid ${helperPid}) is still running after the app quit`
+      : !exited
+        ? "the app did not exit by itself"
+        : null;
 try {
   process.kill(-child.pid, "SIGTERM");
 } catch {
@@ -152,7 +212,15 @@ if (result === null) {
     console.log(`key release to text: ${result.releaseToTextMs} ms`);
   }
   if (!result.ok) fail(result.reason);
-  else if (!sameSentence(PHRASE, result.fieldText)) {
+  for (const check of result.checks ?? []) {
+    const mark = check.ok === null ? "SKIP" : check.ok ? "ok  " : "FAIL";
+    console.log(`${mark} ${check.name}: ${check.detail}`);
+    if (check.ok === false) fail(check.name);
+  }
+  if (full) {
+    if (quitCheck) fail(`Quit: ${quitCheck}`);
+    else console.log("ok   Quit: the app and the helper exited");
+  } else if (!sameSentence(PHRASE, result.fieldText)) {
     fail(`the test box does not hold the expected sentence "${PHRASE}"`);
   }
 
@@ -160,9 +228,13 @@ if (result === null) {
   if (!existsSync(dbFile)) fail("no database was created");
   else {
     const db = new DatabaseSync(dbFile, { readOnly: true });
-    const rows = db.prepare("SELECT raw_text, final_text, insert_status FROM history").all();
+    // Full mode dictates again after the main run; the main run's row is the first.
+    const all = db
+      .prepare("SELECT raw_text, final_text, insert_status FROM history ORDER BY rowid")
+      .all();
+    const rows = full ? all.slice(0, 1) : all;
     db.close();
-    console.log(`history rows: ${rows.length}`);
+    console.log(`history rows: ${all.length}`);
     if (rows.length !== 1) fail(`expected exactly one history row, found ${rows.length}`);
     else {
       const [row] = rows;

@@ -35,6 +35,29 @@ first (see `docs/permissions.md`).
 
 The script prints `PASS` and exits with 0, or `FAIL: <reason>` and exits with 1.
 
+## Full mode
+
+`npm run smoke -- --full` runs the main dictation, then these checks, and prints one line
+each (`ok`, `FAIL`, or `SKIP` when the Mac cannot run it):
+
+| Check                                           | How                                                                   |
+| ----------------------------------------------- | --------------------------------------------------------------------- |
+| Bar position is saved and restored              | Moves the Bar, closes and reopens its window                          |
+| Tray: choosing a microphone and a language      | Runs the menu actions; the settings follow, then go back              |
+| Bar shows listening, processing, done           | Records the Bar states during a dictation                             |
+| Text arrives while the test box keeps the focus | The Bar never takes the focus                                         |
+| Start and success sounds play                   | Records the sounds asked for                                          |
+| Output muted while dictating, restored after    | Turns on mute while dictating; reads the output mute during and after |
+| Tray: Start and Stop dictation                  | Dictates through the menu's Start and Stop                            |
+| An output that was already muted stays muted    | Mutes the Mac first, dictates, reads it after, unmutes                |
+| Tray: Copy last transcript                      | Saves the clipboard, copies, compares, puts the clipboard back        |
+| Silent microphone warns                         | Copies a silent clip over the fixture; the Bar says "No sound from …" |
+| Quit                                            | The app exits by itself and the helper process is gone                |
+
+It changes the Mac's own output mute for a few seconds and leaves it as it was. The
+clipboard is saved with every type it holds and written back. Sounds are checked as
+requested, not heard.
+
 ## What it needs
 
 - `npm run build:helper` has been run.
@@ -57,14 +80,16 @@ The script prints `PASS` and exits with 0, or `FAIL: <reason>` and exits with 1.
 
 ## Test-only switches
 
-| Variable               | Effect                                                       |
-| ---------------------- | ------------------------------------------------------------ |
-| `MURMUR_PROFILE_DIR`   | Keeps the database, settings and window state in this folder |
-| `MURMUR_SHARE_MODELS`  | `1`: still read the models from the normal folder            |
-| `MURMUR_SMOKE`         | `1`: open the test window and run the smoke steps, then quit |
-| `MURMUR_SMOKE_HOLD_MS` | How long the key is held                                     |
-| `MURMUR_AUDIO_FIXTURE` | Helper: read this audio file in place of the microphone      |
-| `MURMUR_AUDIO_DIR`     | Helper: where temporary recordings go                        |
+| Variable                                               | Effect                                                       |
+| ------------------------------------------------------ | ------------------------------------------------------------ |
+| `MURMUR_PROFILE_DIR`                                   | Keeps the database, settings and window state in this folder |
+| `MURMUR_SHARE_MODELS`                                  | `1`: still read the models from the normal folder            |
+| `MURMUR_SMOKE`                                         | `1`: open the test window and run the smoke steps, then quit |
+| `MURMUR_SMOKE_HOLD_MS`                                 | How long the key is held                                     |
+| `MURMUR_AUDIO_FIXTURE`                                 | Helper: read this audio file in place of the microphone      |
+| `MURMUR_AUDIO_DIR`                                     | Helper: where temporary recordings go                        |
+| `MURMUR_SMOKE_FULL`                                    | `1`: run the full-mode checks after the main dictation       |
+| `MURMUR_SMOKE_SPEECH_CLIP`, `MURMUR_SMOKE_SILENT_CLIP` | The clips full mode copies over the fixture                  |
 
 None of these is set in normal use.
 
@@ -72,4 +97,5 @@ None of these is set in normal use.
 
 - `scripts/smoke.mjs`: the runner and the checks.
 - `apps/desktop/src/main/smoke.ts`: the steps inside the app.
+- `apps/desktop/src/main/smoke-checks.ts`: the full-mode checks.
 - `native/helper-mac/Sources/MurmurHelperCore/FileAudioSource.swift`: the clip as an input.
