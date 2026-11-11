@@ -21,6 +21,7 @@ function setup() {
     cleanupLevel: "standard",
     sounds: DEFAULT_SOUNDS,
     muteWhileDictating: false,
+    setupComplete: true,
   };
   const views: TrayView[] = [];
   const clock = new FakeClock();

@@ -12,6 +12,7 @@ const defaults: Settings = {
   cleanupLevel: "standard",
   sounds: { start: true, lock: true, success: true, error: true, cancel: false },
   muteWhileDictating: false,
+  setupComplete: true,
 };
 
 function setup() {

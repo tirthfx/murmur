@@ -27,6 +27,8 @@ export interface SpeechService {
   start(): void;
   stop(): void;
   getState(): SpeechState;
+  /** Looks at the files again and loads the model, for example after a download. */
+  recheck(): void;
   /** Transcribes a recorded file. Rejects when the model is not ready. */
   transcribe(path: string): Promise<Transcript>;
 }
@@ -107,6 +109,10 @@ export function createSpeechService(deps: SpeechServiceDeps): SpeechService {
       generation++;
     },
     getState: () => state,
+    recheck() {
+      verified = false;
+      if (subscription && helper.getStatus().state === "ready") void prepare();
+    },
     transcribe(path) {
       if (state !== "ready") {
         return Promise.reject(new Error(`The speech model is not ready (${state})`));

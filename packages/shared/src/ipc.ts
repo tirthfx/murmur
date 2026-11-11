@@ -19,6 +19,7 @@ import {
   type ShortcutResult,
   type ShortcutSlot,
 } from "./settings";
+import { setupStatusSchema, type SetupStatus } from "./setup";
 
 /**
  * Renderer-to-main IPC contract. Channel names, payload schemas and the API the
@@ -35,6 +36,8 @@ export const IPC_CHANNELS = {
   updateSettings: "settings:update",
   setShortcut: "settings:set-shortcut",
   captureShortcut: "settings:capture-shortcut",
+  getSetupStatus: "setup:get-status",
+  downloadSpeechModel: "setup:download-speech-model",
 } as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
@@ -89,6 +92,15 @@ export const IPC_CONTRACT = {
     args: z.tuple([z.boolean()]),
     result: z.void(),
   },
+  [IPC_CHANNELS.getSetupStatus]: {
+    args: z.tuple([]),
+    result: setupStatusSchema,
+  },
+  // Starts the download if none is running. Progress is read with getSetupStatus.
+  [IPC_CHANNELS.downloadSpeechModel]: {
+    args: z.tuple([]),
+    result: setupStatusSchema,
+  },
 } as const satisfies Record<IpcChannel, { args: z.ZodType; result: z.ZodType }>;
 
 export function isIpcChannel(value: unknown): value is IpcChannel {
@@ -129,4 +141,8 @@ export interface MurmurApi {
   setShortcut(slot: ShortcutSlot, key: CapturedKey | null): Promise<ShortcutResult>;
   /** True while the Hub listens for a new shortcut, so the old one does not start dictation. */
   captureShortcut(active: boolean): Promise<void>;
+  /** The speech model's state and whatever still blocks dictation. */
+  getSetupStatus(): Promise<SetupStatus>;
+  /** Starts the speech model download (once); poll getSetupStatus for progress. */
+  downloadSpeechModel(): Promise<SetupStatus>;
 }

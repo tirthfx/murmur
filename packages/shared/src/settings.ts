@@ -57,6 +57,8 @@ export const settingsSchema = z.strictObject({
   }),
   /** Mute the system output while recording (DC-41). */
   muteWhileDictating: z.boolean(),
+  /** True once first-run setup was finished (DC-44). */
+  setupComplete: z.boolean(),
 });
 export type Settings = z.infer<typeof settingsSchema>;
 
@@ -68,6 +70,7 @@ export const settingsPatchSchema = settingsSchema
     cleanupLevel: true,
     sounds: true,
     muteWhileDictating: true,
+    setupComplete: true,
   })
   .partial()
   .strict();
@@ -82,6 +85,7 @@ export const SETTING_KEYS: Record<keyof Settings, string> = {
   cleanupLevel: "cleanup.level",
   sounds: "sounds.events",
   muteWhileDictating: "media.mute_while_dictating",
+  setupComplete: "onboarding.complete",
 };
 
 export const SOUND_NAMES = ["start", "lock", "success", "error", "cancel"] as const;

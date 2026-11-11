@@ -32,6 +32,7 @@ function stubBrowserApis() {
 async function openSettings() {
   const user = userEvent.setup();
   render(<App />);
+  await screen.findByRole("navigation", { name: "Hub pages" });
   await user.click(screen.getByText("Settings"));
   await screen.findByRole("heading", { level: 2, name: "Permissions" });
   return user;
@@ -52,6 +53,7 @@ describe("Permissions section", () => {
 
   it("does not check or request anything until the Settings page is open", async () => {
     render(<App />);
+    await screen.findByRole("navigation", { name: "Hub pages" });
     await waitFor(() => expect(window.murmur.getAppInfo).toHaveBeenCalled());
     expect(window.murmur.getPermissions).not.toHaveBeenCalled();
     expect(window.murmur.requestPermission).not.toHaveBeenCalled();

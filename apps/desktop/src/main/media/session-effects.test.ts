@@ -12,6 +12,7 @@ const base: Settings = {
   cleanupLevel: "standard",
   sounds: { start: true, lock: true, success: true, error: true, cancel: false },
   muteWhileDictating: true,
+  setupComplete: true,
 };
 
 function setup(
@@ -108,6 +109,7 @@ describe("session effects", () => {
     const { effects, steps } = setup({
       settings: {
         muteWhileDictating: false,
+        setupComplete: true,
         sounds: { start: false, lock: true, success: true, error: false, cancel: false },
       },
     });

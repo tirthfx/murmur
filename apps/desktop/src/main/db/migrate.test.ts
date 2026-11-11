@@ -1,3 +1,6 @@
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 import { MIGRATIONS, openDatabase } from "./database";
@@ -62,6 +65,17 @@ describe("migrations", () => {
     expect(() => parseMigration("0001_ok.sql", "CREATE TABLE x (a);")).toThrow("sections");
     const two = parseMigration("0002_two.sql", "-- migrate:up\n-- migrate:down");
     expect(() => orderMigrations([two])).toThrow("no gaps");
+  });
+
+  it("creates the data folder on a first run", () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "murmur-db-"));
+    try {
+      const file = path.join(root, "Murmur", "murmur.db");
+      openDatabase(file).close();
+      expect(existsSync(file)).toBe(true);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it("opens with the house pragmas", () => {

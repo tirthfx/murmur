@@ -1,5 +1,5 @@
 import { vi } from "vitest";
-import type { MurmurApi, PermissionsInfo, SettingsView } from "@murmur/shared";
+import type { MurmurApi, PermissionsInfo, SettingsView, SetupStatus } from "@murmur/shared";
 
 export const SAMPLE_SETTINGS: SettingsView = {
   settings: {
@@ -10,6 +10,7 @@ export const SAMPLE_SETTINGS: SettingsView = {
     cleanupLevel: "standard",
     sounds: { start: true, lock: true, success: true, error: true, cancel: false },
     muteWhileDictating: false,
+    setupComplete: true,
   },
   shortcutLabels: { hold: "Right Option", handsFree: "Double-tap Right Option" },
   devices: [
@@ -34,6 +35,17 @@ export const SAMPLE_PERMISSIONS: PermissionsInfo = {
   message: null,
 };
 
+export const SAMPLE_SETUP: SetupStatus = {
+  model: {
+    state: "ready",
+    label: "Test speech model",
+    totalBytes: 648_000_000,
+    downloadedBytes: 0,
+    message: null,
+  },
+  blockers: [],
+};
+
 /** A mocked preload API for renderer tests. Override any member. */
 export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
   return {
@@ -48,6 +60,8 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
     updateSettings: vi.fn().mockResolvedValue(SAMPLE_SETTINGS),
     setShortcut: vi.fn().mockResolvedValue({ ok: true, view: SAMPLE_SETTINGS }),
     captureShortcut: vi.fn().mockResolvedValue(undefined),
+    getSetupStatus: vi.fn().mockResolvedValue(SAMPLE_SETUP),
+    downloadSpeechModel: vi.fn().mockResolvedValue(SAMPLE_SETUP),
     ...overrides,
   };
 }
