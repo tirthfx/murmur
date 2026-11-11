@@ -15,6 +15,18 @@ interface Loaded {
   grammar: LlamaJsonSchemaGrammar<typeof SCHEMA>;
 }
 
+/**
+ * The text from a model answer. An answer cut off by the token limit is not valid JSON; it
+ * gives an empty string, which the output guard rejects, so the rules-only text is used.
+ */
+export function parseAnswer(answer: string, parse: (value: string) => string | undefined): string {
+  try {
+    return parse(answer) ?? "";
+  } catch {
+    return "";
+  }
+}
+
 export class CleanupEngine {
   private loaded: Loaded | null = null;
 
@@ -52,7 +64,7 @@ export class CleanupEngine {
       temperature: 0,
       ...(signal ? { signal } : {}),
     });
-    return loaded.grammar.parse(answer).text ?? "";
+    return parseAnswer(answer, (value) => loaded.grammar.parse(value).text);
   }
 
   async unload(): Promise<void> {
