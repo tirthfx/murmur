@@ -1,5 +1,6 @@
 import type {
   AudioLevel,
+  AudioRouteChanged,
   AudioSilent,
   HotkeyEvent,
   FocusContext,
@@ -21,7 +22,13 @@ const CONTEXT_WAIT_MS = 1500;
 export interface RecorderDeps {
   helper: Pick<
     PlatformHelper,
-    "startAudio" | "stopAudio" | "cancelAudio" | "onAudioLevel" | "onAudioSilent" | "onStatusChange"
+    | "startAudio"
+    | "stopAudio"
+    | "cancelAudio"
+    | "onAudioLevel"
+    | "onAudioSilent"
+    | "onStatusChange"
+    | "onAudioRouteChanged"
   >;
   logger: Logger;
   newSessionId: () => string;
@@ -117,6 +124,8 @@ export type RecorderEvent =
   | { type: "transcription-failed" }
   | { type: "copied-instead" }
   | { type: "insert-failed" }
+  /** The microphone in use went away mid-recording; recording goes on with another one. */
+  | { type: "mic-switched"; deviceName: string | null }
   /** Return was asked for but another app had come to the front. */
   | { type: "enter-skipped" };
 
@@ -141,6 +150,8 @@ interface Session {
   deviceName: string | null;
   levels: number;
   context: Promise<FocusContext | null>;
+  /** The Bar is told about an input change once per session. */
+  switched: boolean;
 }
 
 function errorCode(error: unknown): unknown {
@@ -227,6 +238,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
       id: deps.newSessionId(),
       deviceName: null,
       levels: 0,
+      switched: false,
       // Read before the microphone starts, while the field the user is in still has focus.
       context: readContext(),
     };
@@ -461,6 +473,20 @@ export function createRecorder(deps: RecorderDeps): Recorder {
     if (current && level.sessionId === current.id) current.levels += 1;
   }
 
+  function handleRouteChanged(change: AudioRouteChanged): void {
+    if (!current || change.sessionId !== current.id) return;
+    const name = change.deviceName;
+    logger.warn(
+      name === null
+        ? `the microphone went away (${change.reason}) and no other input could start`
+        : `the microphone changed (${change.reason}); recording goes on from ${name}`,
+    );
+    if (name !== null) current.deviceName = name;
+    if (current.switched) return;
+    current.switched = true;
+    emit({ type: "mic-switched", deviceName: name });
+  }
+
   function handleSilent(silent: AudioSilent): void {
     if (!current || silent.sessionId !== current.id) return;
     const name = silent.deviceName ?? current.deviceName ?? "the microphone";
@@ -474,6 +500,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
       subscriptions = [
         helper.onAudioLevel(handleLevel),
         helper.onAudioSilent(handleSilent),
+        helper.onAudioRouteChanged(handleRouteChanged),
         helper.onStatusChange((status) => {
           // A restarted helper has no session; forget ours, and any lock.
           if (status.state !== "ready") {

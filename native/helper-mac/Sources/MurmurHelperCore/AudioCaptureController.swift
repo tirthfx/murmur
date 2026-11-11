@@ -11,6 +11,18 @@ public protocol AudioInputSource: AnyObject, Sendable {
     func listDevices() -> [AudioDevice]
     /// Stops capture. No `onSamples` call runs after this returns. Safe when not started.
     func stop()
+    /// UID of the device being recorded; nil when stopped or unknown.
+    var runningDeviceUID: String? { get }
+    /// False when capture stopped by itself (the engine's configuration changed).
+    var isRunning: Bool { get }
+    /// Called on any queue when the device list, the default input or the route changes.
+    func onChange(_ handler: @escaping @Sendable () -> Void)
+}
+
+extension AudioInputSource {
+    public var runningDeviceUID: String? { nil }
+    public var isRunning: Bool { true }
+    public func onChange(_ handler: @escaping @Sendable () -> Void) {}
 }
 
 public enum AudioSourceError: Error, Equatable {
@@ -86,10 +98,19 @@ public final class AudioCaptureController: @unchecked Sendable {
     /// Temporary audio older than this is deleted when a new session starts.
     public static let tempFileMaxAge: TimeInterval = 24 * 60 * 60
 
+    /// Every call into `source` goes through this queue, so a device change never races a
+    /// request.
+    private let sourceQueue = DispatchQueue(label: "murmur.audio.source")
+    private var changeToken = 0
+    /// Device changes come in bursts; act once they settle.
+    static let changeDebounce: TimeInterval = 0.3
+
     private final class Session {
         let id: String
         let generation: Int
-        let deviceName: String
+        /// The device asked for; nil means the system default.
+        let requestedUID: String?
+        var deviceName: String
         let fileURL: URL
         let handle: FileHandle
         var pipeline: AudioPipeline
@@ -97,9 +118,13 @@ public final class AudioCaptureController: @unchecked Sendable {
         var bytes = 0
         var writeFailed = false
 
-        init(id: String, generation: Int, deviceName: String, fileURL: URL, handle: FileHandle, pipeline: AudioPipeline) {
+        init(
+            id: String, generation: Int, requestedUID: String?, deviceName: String, fileURL: URL, handle: FileHandle,
+            pipeline: AudioPipeline
+        ) {
             self.id = id
             self.generation = generation
+            self.requestedUID = requestedUID
             self.deviceName = deviceName
             self.fileURL = fileURL
             self.handle = handle
@@ -119,6 +144,7 @@ public final class AudioCaptureController: @unchecked Sendable {
         self.directory = directory
         self.emit = emit
         self.now = now
+        source.onChange { [weak self] in self?.devicesChanged() }
     }
 
     public var isCapturing: Bool { lock.withLock { session != nil } }
@@ -170,8 +196,8 @@ public final class AudioCaptureController: @unchecked Sendable {
         }
         let deviceName: String
         do {
-            deviceName = try source.start(deviceUID: deviceUID) { [weak self] samples, rate in
-                self?.receive(samples, rate: rate, generation: generation)
+            deviceName = try sourceQueue.sync {
+                try source.start(deviceUID: deviceUID, onSamples: sampleHandler(generation: generation))
             }
         } catch {
             try? handle.close()
@@ -187,8 +213,8 @@ public final class AudioCaptureController: @unchecked Sendable {
         let startedAt = now()
         lock.withLock {
             session = Session(
-                id: sessionId, generation: generation, deviceName: deviceName, fileURL: fileURL,
-                handle: handle, pipeline: AudioPipeline(settings: settings))
+                id: sessionId, generation: generation, requestedUID: deviceUID, deviceName: deviceName,
+                fileURL: fileURL, handle: handle, pipeline: AudioPipeline(settings: settings))
         }
         Log.info("audio started on \(deviceName)")
         return .success([
@@ -243,13 +269,7 @@ public final class AudioCaptureController: @unchecked Sendable {
         .init(uniqueKeysWithValues: [
             (
                 "devices",
-                JSONValue.array(
-                    source.listDevices().map {
-                        .object([
-                            "id": .string($0.id), "name": .string($0.name), "isDefault": .bool($0.isDefault),
-                            "transport": .string($0.transport), "sampleRate": .int($0.sampleRate),
-                        ])
-                    })
+                JSONValue.array(source.listDevices().map(Self.json))
             )
         ])
     }
@@ -258,6 +278,66 @@ public final class AudioCaptureController: @unchecked Sendable {
     public func shutdown() {
         guard let current = lock.withLock({ session }) else { return }
         _ = cancel(["sessionId": .string(current.id)])
+    }
+
+    // MARK: Device changes
+
+    /// Called by the source on any change. Waits for the burst to settle, then acts once.
+    public func devicesChanged() {
+        let token = lock.withLock { () -> Int in
+            changeToken += 1
+            return changeToken
+        }
+        sourceQueue.asyncAfter(deadline: .now() + Self.changeDebounce) { [weak self] in
+            guard let self, self.lock.withLock({ self.changeToken == token }) else { return }
+            self.applyDeviceChange()
+        }
+    }
+
+    /// Sends the new device list, and keeps a running session recording: if its device is
+    /// gone, or capture stopped by itself, it continues on the chosen device (if still there)
+    /// or the system default, into the same file. Runs on `sourceQueue`; tests call
+    /// `applyDeviceChangeNow`.
+    private func applyDeviceChange() {
+        let devices = source.listDevices()
+        emit(
+            Envelope(
+                id: nil, type: "audio.devices.changed",
+                payload: ["devices": .array(devices.map(Self.json))]))
+        guard let current = lock.withLock({ session }) else { return }
+        let running = source.runningDeviceUID
+        let removed = running.map { uid in !devices.contains { $0.id == uid } } ?? false
+        let stopped = !source.isRunning
+        guard removed || stopped else { return }
+        let reason = removed ? "device-removed" : "interrupted"
+        let target = current.requestedUID.flatMap { uid in devices.contains { $0.id == uid } ? uid : nil }
+        source.stop()
+        var payload: [String: JSONValue] = ["sessionId": .string(current.id), "reason": .string(reason)]
+        do {
+            let name = try source.start(deviceUID: target, onSamples: sampleHandler(generation: current.generation))
+            lock.withLock { current.deviceName = name }
+            payload["deviceName"] = .string(name)
+            Log.info("audio input changed (\(reason)); now recording from \(name)")
+        } catch {
+            payload["deviceName"] = .null
+            Log.info("audio input changed (\(reason)); no input could be started: \(error)")
+        }
+        emit(Envelope(id: nil, type: "audio.route.changed", payload: payload))
+    }
+
+    func applyDeviceChangeNow() {
+        sourceQueue.sync { applyDeviceChange() }
+    }
+
+    private func sampleHandler(generation: Int) -> @Sendable ([Float], Double) -> Void {
+        { [weak self] samples, rate in self?.receive(samples, rate: rate, generation: generation) }
+    }
+
+    static func json(_ device: AudioDevice) -> JSONValue {
+        .object([
+            "id": .string(device.id), "name": .string(device.name), "isDefault": .bool(device.isDefault),
+            "transport": .string(device.transport), "sampleRate": .int(device.sampleRate),
+        ])
     }
 
     // MARK: Internals
@@ -270,7 +350,7 @@ public final class AudioCaptureController: @unchecked Sendable {
             return .failure(.notFound("No microphone session with this id is running"))
         }
         // Outside the lock: stop waits for the last sample callback, which takes the lock.
-        source.stop()
+        sourceQueue.sync { source.stop() }
         return lock.withLock { () -> Result<Session, AudioFailure> in
             guard let current = session else { return .failure(.notFound("The session already ended")) }
             session = nil

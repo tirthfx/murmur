@@ -354,6 +354,8 @@ function createTray(): void {
     else controller.handleHelperDown();
   });
   host.onHover(() => void controller.refreshDevices());
+  // Plugging a microphone in or out updates the menu at once.
+  helper.onAudioDevicesChanged(() => void controller.refreshDevices());
   void controller.refreshDevices();
 }
 

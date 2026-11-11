@@ -85,3 +85,19 @@ export const audioSilentPayloadSchema = z.object({
   deviceName: z.string().optional(),
 });
 export type AudioSilent = z.infer<typeof audioSilentPayloadSchema>;
+
+/** The connected inputs changed (plugged in, removed, new default). Sent at any time. */
+export const audioDevicesChangedPayloadSchema = z.object({ devices: z.array(audioDeviceSchema) });
+export type AudioDevicesChanged = z.infer<typeof audioDevicesChangedPayloadSchema>;
+
+/**
+ * A running session moved to another input because its device was removed or capture was
+ * interrupted (DC-10, DC-16). Recording goes on into the same file. `deviceName` is null
+ * when no input could be started.
+ */
+export const audioRouteChangedPayloadSchema = z.object({
+  sessionId: z.string(),
+  reason: z.enum(["device-removed", "interrupted"]),
+  deviceName: z.string().nullable(),
+});
+export type AudioRouteChanged = z.infer<typeof audioRouteChangedPayloadSchema>;

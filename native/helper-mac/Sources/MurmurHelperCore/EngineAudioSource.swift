@@ -6,11 +6,40 @@ import Foundation
 /// The caller checks the microphone permission first: starting the engine without it would
 /// show a prompt. Device lookups use Core Audio, which needs no permission.
 public final class EngineAudioSource: AudioInputSource, @unchecked Sendable {
-    // @unchecked: `engine` is only touched from the stdin loop (start and stop).
+    // @unchecked: `engine` is touched only through start and stop, which the capture controller
+    // calls from one serial queue; the other state is guarded by `lock`.
     private var engine: AVAudioEngine?
     private let queue = DispatchQueue(label: "murmur.audio.samples")
+    private let lock = NSLock()
+    private var runningUID: String?
+    private var changeHandler: (@Sendable () -> Void)?
+    private var configurationObserver: NSObjectProtocol?
+    private var listening = false
 
     public init() {}
+
+    public var runningDeviceUID: String? { lock.withLock { runningUID } }
+
+    public var isRunning: Bool { engine?.isRunning ?? false }
+
+    /// Listens to Core Audio for device and default-input changes, and to the engine for
+    /// configuration changes (for example a Bluetooth headset switching profile).
+    public func onChange(_ handler: @escaping @Sendable () -> Void) {
+        lock.withLock { changeHandler = handler }
+        guard !listening else { return }
+        listening = true
+        let system = AudioObjectID(kAudioObjectSystemObject)
+        let notify: AudioObjectPropertyListenerBlock = { [weak self] _, _ in self?.notifyChange() }
+        for selector in [kAudioHardwarePropertyDevices, kAudioHardwarePropertyDefaultInputDevice] {
+            var address = AudioObjectPropertyAddress(
+                mSelector: selector, mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
+            AudioObjectAddPropertyListenerBlock(system, &address, queue, notify)
+        }
+    }
+
+    private func notifyChange() {
+        lock.withLock { changeHandler }?()
+    }
 
     public func start(deviceUID: String?, onSamples: @escaping @Sendable ([Float], Double) -> Void) throws -> String {
         stop()
@@ -56,6 +85,10 @@ public final class EngineAudioSource: AudioInputSource, @unchecked Sendable {
             let samples = mono
             queue.async { onSamples(samples, rate) }
         }
+        if let configurationObserver { NotificationCenter.default.removeObserver(configurationObserver) }
+        configurationObserver = NotificationCenter.default.addObserver(
+            forName: .AVAudioEngineConfigurationChange, object: engine, queue: nil
+        ) { [weak self] _ in self?.notifyChange() }
         engine.prepare()
         do {
             try engine.start()
@@ -64,10 +97,17 @@ public final class EngineAudioSource: AudioInputSource, @unchecked Sendable {
             throw AudioSourceError.engine(error.localizedDescription)
         }
         self.engine = engine
+        let uid = Self.inputDevices().first(where: { $0.id == device })?.uid
+        lock.withLock { runningUID = uid }
         return Self.deviceName(device) ?? "Default microphone"
     }
 
     public func stop() {
+        lock.withLock { runningUID = nil }
+        if let configurationObserver {
+            NotificationCenter.default.removeObserver(configurationObserver)
+            self.configurationObserver = nil
+        }
         guard let engine else { return }
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()

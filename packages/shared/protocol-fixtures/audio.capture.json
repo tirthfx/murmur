@@ -181,6 +181,39 @@
           "retryable": false
         }
       }
+    },
+    {
+      "id": null,
+      "type": "audio.devices.changed",
+      "payload": {
+        "devices": [
+          {
+            "id": "BuiltInMicrophoneDevice",
+            "name": "MacBook Air Microphone",
+            "isDefault": true,
+            "transport": "builtin",
+            "sampleRate": 48000
+          }
+        ]
+      }
+    },
+    {
+      "id": null,
+      "type": "audio.route.changed",
+      "payload": {
+        "sessionId": "s-1",
+        "reason": "device-removed",
+        "deviceName": "MacBook Air Microphone"
+      }
+    },
+    {
+      "id": null,
+      "type": "audio.route.changed",
+      "payload": {
+        "sessionId": "s-1",
+        "reason": "interrupted",
+        "deviceName": null
+      }
     }
   ],
   "invalidMessages": [
@@ -255,6 +288,15 @@
             }
           ]
         }
+      }
+    },
+    {
+      "id": null,
+      "type": "audio.route.changed",
+      "payload": {
+        "sessionId": "s-1",
+        "reason": "unplugged",
+        "deviceName": "x"
       }
     }
   ]

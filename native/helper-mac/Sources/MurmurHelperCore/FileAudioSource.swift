@@ -36,7 +36,7 @@ public final class FileAudioSource: AudioInputSource, @unchecked Sendable {
         let thread = Thread { [weak self] in
             defer { done.signal() }
             var offset = 0
-            while let self, self.isRunning {
+            while let self, self.isActive {
                 let slice: [Float]
                 if offset < samples.count {
                     slice = Array(samples[offset..<min(offset + chunk, samples.count)])
@@ -81,7 +81,7 @@ public final class FileAudioSource: AudioInputSource, @unchecked Sendable {
         [AudioDevice(id: Self.deviceId, name: "Fixture clip", isDefault: true, transport: "virtual", sampleRate: 16_000)]
     }
 
-    private var isRunning: Bool {
+    private var isActive: Bool {
         lock.lock()
         defer { lock.unlock() }
         return running

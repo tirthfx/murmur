@@ -3,6 +3,8 @@ import {
   type AudioDevice,
   type AudioLevel,
   type AudioSilent,
+  type AudioDevicesChanged,
+  type AudioRouteChanged,
   type AudioStartInput,
   type AudioStartResult,
   type AudioStopResult,
@@ -93,6 +95,8 @@ export class HelperSupervisor implements PlatformHelper {
   private readonly tapStatusHandlers = new Set<(status: HotkeyTapStatus) => void>();
   private readonly audioLevelHandlers = new Set<(level: AudioLevel) => void>();
   private readonly audioSilentHandlers = new Set<(silent: AudioSilent) => void>();
+  private readonly devicesChangedHandlers = new Set<(change: AudioDevicesChanged) => void>();
+  private readonly routeChangedHandlers = new Set<(change: AudioRouteChanged) => void>();
 
   private connection: HelperConnection | null = null;
   private restartTimes: number[] = [];
@@ -292,6 +296,14 @@ export class HelperSupervisor implements PlatformHelper {
 
   onAudioSilent(handler: (silent: AudioSilent) => void): Unsubscribe {
     return subscribe(this.audioSilentHandlers, handler);
+  }
+
+  onAudioDevicesChanged(handler: (change: AudioDevicesChanged) => void): Unsubscribe {
+    return subscribe(this.devicesChangedHandlers, handler);
+  }
+
+  onAudioRouteChanged(handler: (change: AudioRouteChanged) => void): Unsubscribe {
+    return subscribe(this.routeChangedHandlers, handler);
   }
 
   onHotkeyEvent(handler: (event: HotkeyEvent) => void): Unsubscribe {
@@ -502,6 +514,12 @@ export class HelperSupervisor implements PlatformHelper {
         break;
       case "audio.silent":
         for (const handler of this.audioSilentHandlers) handler(event.payload);
+        break;
+      case "audio.devices.changed":
+        for (const handler of this.devicesChangedHandlers) handler(event.payload);
+        break;
+      case "audio.route.changed":
+        for (const handler of this.routeChangedHandlers) handler(event.payload);
         break;
     }
   }

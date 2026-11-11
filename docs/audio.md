@@ -33,3 +33,30 @@ The helper only reads the permission. If it is not granted, `audio.start` fails 
 2. Hold Right Option, speak for about 10 seconds, release. The terminal shows `[audio] recording from <your mic>`, then `[audio] captured 10.0x s (about 160000 samples at 16 kHz) … about 100 level events`.
 3. Mute the input (or turn the input volume to zero in System Settings, Sound), hold Right Option for 4 seconds: `No sound from <your mic>` appears about 3 seconds in.
 4. Tap Right Option quickly several times: each tap logs one start and one stop, in order, with no `BUSY`.
+
+## Plugging microphones in and out
+
+The helper listens to Core Audio for changes to the device list and the default input, and
+to the audio engine for configuration changes (for example a Bluetooth headset switching
+to its call profile). Changes come in bursts, so it acts 0.3 s after the last one.
+
+- **Always:** it sends `audio.devices.changed` with the new list. The tray menu updates at
+  once; Settings shows the new list the next time it opens.
+- **While idle:** nothing else happens. The next recording uses the chosen microphone, or
+  the system default under Auto, so a newly plugged-in default is picked up then.
+- **While recording:** a newly connected device never interrupts the recording. If the
+  device in use is removed, or capture stops by itself, recording continues into the same
+  file: on the chosen microphone if it is still there, otherwise on the system default. The
+  helper sends `audio.route.changed` (`device-removed` or `interrupted`) and the Bar says
+  "Microphone changed. Continuing with ..." once per recording. If no input is left, the
+  recording keeps what it had and the Bar says the microphone went away.
+
+### Manual test
+
+1. Plug in a USB microphone or connect a headset while Murmur is idle: the tray's
+   Microphone menu lists it without a restart.
+2. Choose it, start a hands-free recording, speak, unplug it, keep speaking, then stop.
+   The Bar says the microphone changed; the text contains both parts; the log shows
+   `audio input changed (device-removed)`.
+3. With AirPods as the input, start a recording and play a video so the headset changes
+   profile: the log shows `interrupted` and the recording carries on.

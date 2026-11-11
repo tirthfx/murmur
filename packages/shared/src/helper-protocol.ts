@@ -1,6 +1,8 @@
 import { z } from "zod";
 import {
   audioDevicesResultSchema,
+  audioDevicesChangedPayloadSchema,
+  audioRouteChangedPayloadSchema,
   audioCancelResultSchema,
   audioLevelPayloadSchema,
   audioSessionPayloadSchema,
@@ -218,6 +220,8 @@ export const HELPER_EVENTS = {
   "hotkey.tap.status": hotkeyTapStatusPayloadSchema,
   "audio.level": audioLevelPayloadSchema,
   "audio.silent": audioSilentPayloadSchema,
+  "audio.devices.changed": audioDevicesChangedPayloadSchema,
+  "audio.route.changed": audioRouteChangedPayloadSchema,
 } as const;
 
 export type HelperEventType = keyof typeof HELPER_EVENTS;
@@ -296,6 +300,14 @@ export const audioStopRequestSchema = requestEnvelope("audio.stop", audioSession
 export const audioCancelRequestSchema = requestEnvelope("audio.cancel", audioSessionPayloadSchema);
 export const audioLevelEventSchema = eventEnvelope("audio.level", audioLevelPayloadSchema);
 export const audioSilentEventSchema = eventEnvelope("audio.silent", audioSilentPayloadSchema);
+export const audioDevicesChangedEventSchema = eventEnvelope(
+  "audio.devices.changed",
+  audioDevicesChangedPayloadSchema,
+);
+export const audioRouteChangedEventSchema = eventEnvelope(
+  "audio.route.changed",
+  audioRouteChangedPayloadSchema,
+);
 
 export const transcribeLoadRequestSchema = requestEnvelope(
   "transcribe.load",
