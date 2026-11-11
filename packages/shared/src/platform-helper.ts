@@ -3,6 +3,8 @@ import type {
   AudioDevice,
   AudioLevel,
   AudioSilent,
+  AudioDevicesChanged,
+  AudioRouteChanged,
   AudioStartInput,
   AudioStartResult,
   AudioStopResult,
@@ -82,6 +84,10 @@ export interface PlatformHelper {
   cancelAudio(sessionId: string): Promise<{ discarded: boolean }>;
   onAudioLevel(handler: (level: AudioLevel) => void): Unsubscribe;
   onAudioSilent(handler: (silent: AudioSilent) => void): Unsubscribe;
+  /** The connected inputs changed. Works without a session and needs no permission. */
+  onAudioDevicesChanged(handler: (change: AudioDevicesChanged) => void): Unsubscribe;
+  /** A running session moved to another input. */
+  onAudioRouteChanged(handler: (change: AudioRouteChanged) => void): Unsubscribe;
   /** Loads a speech model from local folders. The first load can take minutes. */
   loadSpeechModel(input: SpeechModelLoadInput): Promise<SpeechModelLoadResult>;
   unloadSpeechModel(): Promise<void>;

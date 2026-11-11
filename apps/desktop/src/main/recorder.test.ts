@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type {
   AudioLevel,
   AudioSilent,
+  AudioRouteChanged,
   AudioStartInput,
   AudioStopResult,
   HelperStatus,
@@ -33,6 +34,7 @@ function setup(options: Partial<Parameters<typeof createRecorder>[0]> = {}) {
   const levelHandlers = new Set<(level: AudioLevel) => void>();
   const silentHandlers = new Set<(silent: AudioSilent) => void>();
   const statusHandlers = new Set<(status: HelperStatus) => void>();
+  const routeHandlers = new Set<(change: AudioRouteChanged) => void>();
   const calls: string[] = [];
   const helper = {
     startAudio: vi.fn(async (input: AudioStartInput) => {
@@ -60,6 +62,10 @@ function setup(options: Partial<Parameters<typeof createRecorder>[0]> = {}) {
       silentHandlers.add(handler);
       return () => silentHandlers.delete(handler);
     },
+    onAudioRouteChanged: (handler: (change: AudioRouteChanged) => void) => {
+      routeHandlers.add(handler);
+      return () => routeHandlers.delete(handler);
+    },
     onStatusChange: (handler: (status: HelperStatus) => void) => {
       statusHandlers.add(handler);
       return () => statusHandlers.delete(handler);
@@ -82,6 +88,9 @@ function setup(options: Partial<Parameters<typeof createRecorder>[0]> = {}) {
     level: (sessionId: string) => {
       for (const handler of levelHandlers)
         handler({ sessionId, source: "mic", rmsDb: -30, peakDb: -10, at: 1 });
+    },
+    route: (payload: AudioRouteChanged) => {
+      for (const handler of routeHandlers) handler(payload);
     },
     silent: (payload: AudioSilent) => {
       for (const handler of silentHandlers) handler(payload);
@@ -647,6 +656,23 @@ describe("recorder", () => {
     recorder.toggle();
     await recorder.idle();
     expect(transcribe).toHaveBeenCalledWith("/tmp/a.pcm", { prompt: "" });
+  });
+
+  it("tells the Bar once when the microphone changes mid-recording, and only for this session", async () => {
+    const events: unknown[] = [];
+    const { recorder, route, logger } = setup({
+      clock: new FakeClock(),
+      onEvent: (event) => events.push(event),
+    });
+    recorder.toggle();
+    await recorder.idle();
+    route({ sessionId: "other", reason: "device-removed", deviceName: "X" });
+    route({ sessionId: "s1", reason: "device-removed", deviceName: "MacBook Air Microphone" });
+    route({ sessionId: "s1", reason: "interrupted", deviceName: "MacBook Air Microphone" });
+    expect(events.filter((event) => (event as { type: string }).type === "mic-switched")).toEqual([
+      { type: "mic-switched", deviceName: "MacBook Air Microphone" },
+    ]);
+    expect(logger.lines.filter((line) => line.includes("microphone changed"))).toHaveLength(2);
   });
 
   it("Escape discards the recording and inserts nothing", async () => {

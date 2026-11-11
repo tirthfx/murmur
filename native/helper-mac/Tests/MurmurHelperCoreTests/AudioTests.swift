@@ -191,10 +191,15 @@ final class FakeAudioSource: AudioInputSource, @unchecked Sendable {
             if let startError { throw startError }
             if let deviceUID {
                 guard let device = devices.first(where: { $0.id == deviceUID }) else { throw AudioSourceError.deviceNotFound }
+                running = device.id
+                engineStopped = false
                 self.onSamples = onSamples
                 lastHandler = onSamples
                 return device.name
             }
+            guard !devices.isEmpty else { throw AudioSourceError.noInputDevice }
+            running = devices.first(where: \.isDefault)?.id ?? devices.first?.id
+            engineStopped = false
             self.onSamples = onSamples
             lastHandler = onSamples
             return "Test Microphone"
@@ -205,8 +210,18 @@ final class FakeAudioSource: AudioInputSource, @unchecked Sendable {
         lock.withLock {
             stops += 1
             onSamples = nil
+            running = nil
         }
     }
+
+    /// What the real source would report for the device it records from.
+    private var running: String?
+    var engineStopped = false
+    var runningDeviceUID: String? { lock.withLock { running } }
+    var isRunning: Bool { lock.withLock { onSamples != nil && !engineStopped } }
+
+    func setDevices(_ next: [AudioDevice]) { lock.withLock { devices = next } }
+    func setEngineStopped(_ stopped: Bool) { lock.withLock { engineStopped = stopped } }
 
     func feed(_ samples: [Float], rate: Double) {
         let handler = lock.withLock { onSamples }
@@ -323,6 +338,64 @@ final class AudioCaptureControllerTests: XCTestCase {
             .failure(.deviceNotFound("Selected input device is not connected")))
         XCTAssertEqual(source.startedWith, ["USB-1", "Gone"])
         XCTAssertFalse(controller.isCapturing)
+    }
+
+    func testADeviceChangeSendsTheNewListAndLeavesAnIdleHelperAlone() throws {
+        let (controller, source, events, _) = make()
+        source.setDevices(source.listDevices() + [AudioDevice(id: "BT", name: "Headset", isDefault: false, transport: "bluetooth", sampleRate: 16_000)])
+        controller.applyDeviceChangeNow()
+        let changed = try XCTUnwrap(events.all.first { $0.type == "audio.devices.changed" })
+        guard case .array(let devices)? = changed.payload["devices"] else { return XCTFail("no devices") }
+        XCTAssertEqual(devices.count, 3)
+        XCTAssertNil(events.all.first { $0.type == "audio.route.changed" })
+        XCTAssertEqual(source.starts, 0)
+    }
+
+    func testAPluggedInDeviceNeverInterruptsARecording() throws {
+        let (controller, source, events, _) = make()
+        _ = try controller.start(start()).get()
+        source.setDevices(source.listDevices() + [AudioDevice(id: "BT", name: "Headset", isDefault: true, transport: "bluetooth", sampleRate: 16_000)])
+        controller.applyDeviceChangeNow()
+        XCTAssertEqual(source.starts, 1)
+        XCTAssertNil(events.all.first { $0.type == "audio.route.changed" })
+    }
+
+    func testRemovingTheDeviceInUseContinuesOnTheDefaultIntoTheSameFile() throws {
+        let (controller, source, events, _) = make()
+        _ = try controller.start(["sessionId": .string("s-1"), "deviceId": .string("USB-1")]).get()
+        source.feed(Signal.sine(seconds: 1, rate: 44_100, amplitude: 0.3), rate: 44_100)
+        source.setDevices(source.listDevices().filter { $0.id != "USB-1" })
+        controller.applyDeviceChangeNow()
+        XCTAssertEqual(source.startedWith, ["USB-1", nil])
+        let route = try XCTUnwrap(events.all.first { $0.type == "audio.route.changed" })
+        XCTAssertEqual(route.payload["sessionId"], .string("s-1"))
+        XCTAssertEqual(route.payload["reason"], .string("device-removed"))
+        XCTAssertEqual(route.payload["deviceName"], .string("Test Microphone"))
+        source.feed(Signal.sine(seconds: 1, rate: 48_000, amplitude: 0.3), rate: 48_000)
+        let stopped = try controller.stop(["sessionId": .string("s-1")]).get()
+        // Both seconds are in one file, each resampled to 16 kHz.
+        XCTAssertEqual(Double(stopped["samples"]?.intValue ?? 0), 32_000, accuracy: 320)
+    }
+
+    func testAnInterruptedEngineRestartsOnTheSameDevice() throws {
+        let (controller, source, events, _) = make()
+        _ = try controller.start(["sessionId": .string("s-1"), "deviceId": .string("USB-1")]).get()
+        source.setEngineStopped(true)
+        controller.applyDeviceChangeNow()
+        XCTAssertEqual(source.startedWith, ["USB-1", "USB-1"])
+        let route = try XCTUnwrap(events.all.first { $0.type == "audio.route.changed" })
+        XCTAssertEqual(route.payload["reason"], .string("interrupted"))
+        XCTAssertEqual(route.payload["deviceName"], .string("Desk Mic"))
+    }
+
+    func testNoInputLeftIsReportedAndTheSessionCanStillStop() throws {
+        let (controller, source, events, _) = make()
+        _ = try controller.start(start()).get()
+        source.setDevices([])
+        controller.applyDeviceChangeNow()
+        let route = try XCTUnwrap(events.all.first { $0.type == "audio.route.changed" })
+        XCTAssertEqual(route.payload["deviceName"], .null)
+        XCTAssertNoThrow(try controller.stop(["sessionId": .string("s-1")]).get())
     }
 
     func testDevicesAreListed() {

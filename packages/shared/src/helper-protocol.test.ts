@@ -9,6 +9,8 @@ import {
   audioDevicesRequestSchema,
   audioLevelEventSchema,
   audioSilentEventSchema,
+  audioDevicesChangedEventSchema,
+  audioRouteChangedEventSchema,
   audioStartRequestSchema,
   audioStopRequestSchema,
   envelopeSchema,
@@ -94,6 +96,10 @@ function validateMessage(message: unknown): boolean {
       return audioLevelEventSchema.safeParse(message).success;
     case "audio.silent":
       return audioSilentEventSchema.safeParse(message).success;
+    case "audio.devices.changed":
+      return audioDevicesChangedEventSchema.safeParse(message).success;
+    case "audio.route.changed":
+      return audioRouteChangedEventSchema.safeParse(message).success;
     case "transcribe.load":
       return transcribeLoadRequestSchema.safeParse(message).success;
     case "transcribe.unload":
