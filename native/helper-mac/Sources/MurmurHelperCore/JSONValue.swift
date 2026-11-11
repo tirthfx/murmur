@@ -25,6 +25,12 @@ public enum JSONValue: Sendable, Equatable {
         return nil
     }
 
+    public var doubleValue: Double? {
+        if case .double(let value) = self { return value }
+        if case .int(let value) = self { return Double(value) }
+        return nil
+    }
+
     public var arrayValue: [JSONValue]? {
         if case .array(let value) = self { return value }
         return nil

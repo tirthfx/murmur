@@ -131,6 +131,29 @@ final class AudioPipelineTests: XCTestCase {
         XCTAssertEqual(pipeline.gainDb, 24)
     }
 
+    func testWhisperModeAllowsMoreGainForQuieterSpeech() {
+        // A sine peaking at -57 dBFS has an RMS of -60: under the normal speech gate, over the
+        // whisper one.
+        let quiet = Signal.sine(seconds: 8, rate: 16_000, amplitude: amplitudeDb(-57))
+        XCTAssertEqual(runPipeline(quiet).pipeline.gainDb, 0)
+        let (whisper, output, _) = runPipeline(quiet, settings: .whisper())
+        XCTAssertEqual(whisper.gainDb, 20, accuracy: 0.5)
+        XCTAssertLessThanOrEqual(output.map { abs($0) }.max() ?? 0, amplitudeDb(-1))
+        var capped = AudioPipelineSettings.whisper()
+        capped.speechGateDb = -90
+        let veryQuiet = Signal.sine(seconds: 10, rate: 16_000, amplitude: amplitudeDb(-80))
+        XCTAssertEqual(runPipeline(veryQuiet, settings: capped).pipeline.gainDb, 30)
+    }
+
+    func testReportsNoiseFloorAndSpeechLevelFromTheInput() throws {
+        let noise = Signal.sine(seconds: 3, rate: 16_000, amplitude: amplitudeDb(-60))
+        let speech = Signal.sine(seconds: 3, rate: 16_000, amplitude: amplitudeDb(-20))
+        let (pipeline, _, _) = runPipeline(noise + speech + noise)
+        XCTAssertEqual(try XCTUnwrap(pipeline.noiseFloorDb), -63, accuracy: 1)
+        XCTAssertEqual(try XCTUnwrap(pipeline.speechLevelInputDb), -23, accuracy: 1)
+        XCTAssertNil(AudioPipeline().noiseFloorDb)
+    }
+
     func testLoudSpeechAfterQuietSpeechStillDoesNotClip() {
         let quiet = Signal.sine(seconds: 3, rate: 16_000, amplitude: amplitudeDb(-50))
         let loud = Signal.sine(seconds: 1, rate: 16_000, amplitude: 0.9)
@@ -285,6 +308,20 @@ final class AudioCaptureControllerTests: XCTestCase {
         XCTAssertEqual(levels.first?.payload["source"], .string("mic"))
         XCTAssertEqual(source.stops, 1)
         XCTAssertFalse(controller.isCapturing)
+    }
+
+    func testAMicrophoneCheckWritesNoFile() throws {
+        let (controller, source, events, _) = make()
+        var payload = start()
+        payload["test"] = .bool(true)
+        _ = try controller.start(payload).get()
+        source.feed(Signal.sine(seconds: 2, rate: 48_000, amplitude: 0.2), rate: 48_000)
+        let stopped = try controller.stop(["sessionId": .string("s-1")]).get()
+        XCTAssertEqual(stopped["audioFile"], .null)
+        XCTAssertNotNil(stopped["inputSpeechDb"]?.doubleValue)
+        XCTAssertFalse(events.all.filter { $0.type == "audio.level" }.isEmpty)
+        let files = (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
+        XCTAssertEqual(files, [])
     }
 
     func testSilentMicrophoneWarnsWithTheDeviceName() throws {

@@ -32,6 +32,10 @@ export const audioStartPayloadSchema = z.object({
   deviceId: z.string().min(1).max(512).nullable().optional(),
   emitLevels: z.boolean(),
   levelIntervalMs: z.number().int().min(20).max(5000),
+  /** Whisper mode (DC-12): up to +30 dB of gain, quieter speech still counts. */
+  whisper: z.boolean().optional(),
+  /** Microphone check (DC-13): nothing is written. */
+  test: z.boolean().optional(),
 });
 export type AudioStartInput = z.infer<typeof audioStartPayloadSchema>;
 
@@ -64,6 +68,10 @@ export const audioStopResultSchema = z.object({
   silent: z.boolean(),
   /** Null when no audio was written. */
   audioFile: audioFileSchema.nullable(),
+  /** Background level of the input before gain (quietest tenth); null when empty. */
+  inputNoiseDb: z.number().nullable().optional(),
+  /** Speech level of the input before gain (loudest tenth); null when empty. */
+  inputSpeechDb: z.number().nullable().optional(),
 });
 export type AudioStopResult = z.infer<typeof audioStopResultSchema>;
 

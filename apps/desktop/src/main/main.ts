@@ -19,6 +19,7 @@ import {
   DEFAULT_SOUNDS,
   DEFAULT_SPEECH_MODEL,
   IPC_CHANNELS,
+  IPC_EVENTS,
   blockerMessage,
   type DictationBlocker,
   type PermissionKind,
@@ -61,6 +62,7 @@ import { dictationBlockers, hasPermissionBlocker } from "./setup/readiness";
 import { cleanupModelRoot, speechModelRoot } from "./speech/paths";
 import { insertionRules } from "./insertion/app-rules";
 import { createTypingReminder } from "./reminder/typing-reminder";
+import { createMicCheck } from "./mic-check/mic-check";
 import { profilePaths } from "./profile";
 import { createSmokeRun, SMOKE_PAGE, type SmokeRun } from "./smoke";
 import { permissionSettingsUrl } from "./platform/mac-settings-links";
@@ -152,6 +154,7 @@ const settingsStore = createSettingsStore(database, {
   contextAwareness: true,
   mouseButtons: { hold: null, handsFree: null },
   typingReminder: { enabled: true, snoozedUntil: null },
+  whisperMode: false,
 });
 const keys = keyPlatform(process.platform);
 const settingsService = createSettingsService({
@@ -330,6 +333,16 @@ const recorder = createRecorder({
   prepareCleanup: () => cleanup.prepare(),
   record: (dictation) => history?.add(dictation) ?? null,
   deviceId: () => deviceFor(settingsStore.get()),
+  whisperMode: () => settingsStore.get().whisperMode,
+});
+const micCheck = createMicCheck({
+  helper,
+  logger: createConsoleLogger("[mic-check]"),
+  newSessionId: () => `check-${randomUUID()}`,
+  deviceId: () => deviceFor(settingsStore.get()),
+  whisper: () => settingsStore.get().whisperMode,
+  isDictating: () => recorder.isBusy(),
+  sendLevel: (rmsDb) => hubWindow?.webContents.send(IPC_EVENTS.micCheckLevel, rmsDb),
 });
 hotkeys.onEvent((event) => recorder.handleHotkey(event));
 helper.onAudioLevel((level) => bar.level(level.rmsDb));
@@ -499,6 +512,8 @@ function registerIpc(): void {
     setShortcut: (slot, key) => settingsService.setShortcut(slot, key),
     captureShortcut: (active) => hotkeys.setPaused(active),
     getSetupStatus: async () => ({ model: modelDownload.status(), blockers: blockersNow() }),
+    micCheckStart: () => micCheck.start(),
+    micCheckStop: () => micCheck.stop(),
     downloadSpeechModel: async () => {
       modelDownload.start();
       return { model: modelDownload.status(), blockers: blockersNow() };

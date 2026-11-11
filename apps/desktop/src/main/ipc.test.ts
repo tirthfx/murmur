@@ -28,6 +28,8 @@ function setup() {
   const captureShortcut = vi.fn();
   const getSetupStatus = vi.fn(() => Promise.resolve(SAMPLE_SETUP));
   const downloadSpeechModel = vi.fn(() => Promise.resolve(SAMPLE_SETUP));
+  const micCheckStart = vi.fn(() => Promise.resolve({ ok: true as const, deviceName: "Desk Mic" }));
+  const micCheckStop = vi.fn(() => Promise.resolve(null));
   const handle = createIpcHandler({
     entryUrl,
     getAppInfo,
@@ -41,6 +43,8 @@ function setup() {
     captureShortcut,
     getSetupStatus,
     downloadSpeechModel,
+    micCheckStart,
+    micCheckStop,
   });
   return {
     getSetupStatus,

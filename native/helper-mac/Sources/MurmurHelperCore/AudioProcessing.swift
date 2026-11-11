@@ -47,6 +47,15 @@ public struct AudioPipelineSettings: Sendable, Equatable {
     public var levelIntervalMs = 100
 
     public init() {}
+
+    /// Whisper mode (DC-12): more gain, and quieter blocks still count as speech.
+    public static func whisper() -> AudioPipelineSettings {
+        var settings = AudioPipelineSettings()
+        settings.maxGainDb = 30
+        settings.speechGateDb = -62
+        settings.silenceThresholdDb = -62
+        return settings
+    }
 }
 
 /// What the pipeline asks the caller to send to main.
@@ -85,6 +94,8 @@ public struct AudioPipeline: Sendable {
     private var windowSquares = 0.0
     /// Input above the threshold anywhere in the session.
     public private(set) var heardInput = false
+    /// Input level (before gain) of every 100 ms window, for the microphone check.
+    public private(set) var inputWindowsDb: [Double] = []
     private var silentChecked = false
 
     // Whole-session statistics on the output.
@@ -98,6 +109,18 @@ public struct AudioPipeline: Sendable {
     }
 
     public var peakDb: Double { Decibels.fromAmplitude(Double(totalPeak)) }
+
+    /// Background level: the quietest tenth of the input, before gain.
+    public var noiseFloorDb: Double? { Self.percentile(inputWindowsDb, 0.1) }
+    /// Speech level: the loudest tenth of the input, before gain.
+    public var speechLevelInputDb: Double? { Self.percentile(inputWindowsDb, 0.9) }
+
+    static func percentile(_ values: [Double], _ fraction: Double) -> Double? {
+        guard !values.isEmpty else { return nil }
+        let sorted = values.sorted()
+        let index = min(sorted.count - 1, max(0, Int((Double(sorted.count - 1) * fraction).rounded())))
+        return sorted[index]
+    }
     public var meanDb: Double {
         totalSamples == 0 ? Decibels.floor : Decibels.fromMeanSquare(totalSquares / Double(totalSamples))
     }
@@ -180,9 +203,9 @@ public struct AudioPipeline: Sendable {
         windowSamples += block.count
         windowSquares += squares
         if windowSamples >= Self.samplesPer100ms {
-            if Decibels.fromMeanSquare(windowSquares / Double(windowSamples)) > settings.silenceThresholdDb {
-                heardInput = true
-            }
+            let windowDb = Decibels.fromMeanSquare(windowSquares / Double(windowSamples))
+            if windowDb > settings.silenceThresholdDb { heardInput = true }
+            inputWindowsDb.append(windowDb)
             windowSamples = 0
             windowSquares = 0
         }

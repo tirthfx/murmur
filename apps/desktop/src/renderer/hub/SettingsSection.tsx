@@ -165,6 +165,12 @@ export function SettingsSection() {
         />
       ))}
       <Switch
+        label="Whisper mode"
+        description="For very quiet speech: more gain, and softer sounds still count as speech. May pick up more background noise."
+        value={settings.whisperMode}
+        onChange={(whisperMode) => update({ whisperMode })}
+      />
+      <Switch
         label="Mute other audio while dictating"
         description="Silences the Mac's output while recording and turns it back on afterwards."
         value={settings.muteWhileDictating}

@@ -17,6 +17,7 @@ const base: Settings = {
   contextAwareness: true,
   mouseButtons: { hold: null, handsFree: null },
   typingReminder: { enabled: true, snoozedUntil: null },
+  whisperMode: false,
 };
 
 function setup(
@@ -118,6 +119,7 @@ describe("session effects", () => {
         contextAwareness: true,
         mouseButtons: { hold: null, handsFree: null },
         typingReminder: { enabled: true, snoozedUntil: null },
+        whisperMode: false,
         sounds: { start: false, lock: true, success: true, error: false, cancel: false },
       },
     });
