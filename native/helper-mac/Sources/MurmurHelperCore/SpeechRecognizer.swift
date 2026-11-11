@@ -40,6 +40,26 @@ public struct RecognitionOptions: Sendable, Equatable {
     }
 }
 
+/// Picks the language to force when the user chose several (DC-17, DC-19).
+public enum LanguageChoice {
+    /// The base code: "en-GB" becomes "en".
+    public static func base(_ code: String) -> String {
+        String(code.prefix(while: { $0 != "-" })).lowercased()
+    }
+
+    /// The chosen language the detector found most likely. On a tie, or when none of them
+    /// was scored, the earlier one in the list wins (the first is the primary).
+    public static func pick(probabilities: [String: Float], allowed: [String]) -> String? {
+        let bases = allowed.map(base)
+        var best: (code: String, score: Float)?
+        for code in bases {
+            guard let score = probabilities[code] else { continue }
+            if best == nil || score > best!.score { best = (code, score) }
+        }
+        return best?.code ?? bases.first
+    }
+}
+
 public struct LoadedModel: Sendable, Equatable {
     public var computeUnits: String
     public init(computeUnits: String) { self.computeUnits = computeUnits }

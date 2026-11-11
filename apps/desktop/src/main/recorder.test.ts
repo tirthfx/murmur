@@ -675,6 +675,31 @@ describe("recorder", () => {
     expect(logger.lines.filter((line) => line.includes("microphone changed"))).toHaveLength(2);
   });
 
+  it("rewrites the recognised text first, and keeps the raw text as heard", async () => {
+    const insert = vi.fn(async () => ({
+      method: "paste_cmd_v" as const,
+      delivered: true,
+      clipboardRestored: true,
+    }));
+    const records: DictationRecord[] = [];
+    const { recorder } = setup({
+      clock: new FakeClock(),
+      transcribe: async () => ({ ...transcript, text: "ठीक है" }),
+      rewriteText: (text) => (text === "ठीक है" ? "theek hai" : text),
+      insert,
+      record: (record) => {
+        records.push(record);
+        return "h1";
+      },
+    });
+    recorder.toggle();
+    await recorder.idle();
+    recorder.toggle();
+    await recorder.idle();
+    expect(insert).toHaveBeenCalledWith("theek hai", { pressEnter: false });
+    expect(records[0]).toMatchObject({ rawText: "ठीक है", finalText: "theek hai" });
+  });
+
   it("Escape discards the recording and inserts nothing", async () => {
     const events: { type: string }[] = [];
     const transcribe = vi.fn();

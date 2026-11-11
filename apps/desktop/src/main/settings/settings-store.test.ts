@@ -7,7 +7,7 @@ const defaults: Settings = {
   holdShortcut: { type: "key", keyCode: 61, modifiers: [] },
   handsFreeShortcut: null,
   inputDevice: "auto",
-  language: "auto",
+  languages: [],
   cleanupLevel: "standard",
   sounds: { start: true, lock: true, success: true, error: true, cancel: false },
   muteWhileDictating: false,
@@ -24,23 +24,23 @@ describe("settings store", () => {
     const db = openDatabase(":memory:");
     const first = createSettingsStore(db, defaults, () => 7);
     expect(first.get()).toEqual(defaults);
-    first.update({ language: "hi", inputDevice: "USB-1" });
+    first.update({ languages: ["hi"], inputDevice: "USB-1" });
     first.setShortcut("handsFree", { type: "key", keyCode: 2, modifiers: ["control", "option"] });
 
     const again = createSettingsStore(db, defaults);
     expect(again.get()).toEqual({
       ...defaults,
-      language: "hi",
+      languages: ["hi"],
       inputDevice: "USB-1",
       handsFreeShortcut: { type: "key", keyCode: 2, modifiers: ["control", "option"] },
     });
     expect(
       db
-        .prepare("SELECT key, value_json, updated_at FROM settings WHERE key = 'speech.language'")
+        .prepare("SELECT key, value_json, updated_at FROM settings WHERE key = 'speech.languages'")
         .get(),
     ).toEqual({
-      key: "speech.language",
-      value_json: '"hi"',
+      key: "speech.languages",
+      value_json: '["hi"]',
       updated_at: 7,
     });
   });
@@ -55,18 +55,34 @@ describe("settings store", () => {
     expect(handler.mock.calls[0]![1]).toEqual(["cleanupLevel"]);
   });
 
-  it("ignores stored values that no longer validate", () => {
+  it("carries a single language stored before over to the list", () => {
     const db = openDatabase(":memory:");
     db.prepare("INSERT INTO settings (key, value_json, updated_at) VALUES (?, ?, 1)").run(
       "speech.language",
-      '"klingon"',
+      '"hi"',
     );
-    expect(createSettingsStore(db, defaults).get().language).toBe("auto");
+    expect(createSettingsStore(db, defaults).get().languages).toEqual(["hi"]);
+    const auto = openDatabase(":memory:");
+    auto
+      .prepare("INSERT INTO settings (key, value_json, updated_at) VALUES (?, ?, 1)")
+      .run("speech.language", '"auto"');
+    expect(createSettingsStore(auto, defaults).get().languages).toEqual([]);
+  });
+
+  it("ignores stored values that no longer validate", () => {
+    const db = openDatabase(":memory:");
+    db.prepare("INSERT INTO settings (key, value_json, updated_at) VALUES (?, ?, 1)").run(
+      "speech.languages",
+      '["klingon"]',
+    );
+    expect(createSettingsStore(db, defaults).get().languages).toEqual([]);
   });
 
   it("refuses invalid values and clearing the hold key", () => {
     const store = createSettingsStore(null, defaults);
-    expect(() => store.update({ language: "xx" as never })).toThrow();
+    expect(() => store.update({ languages: ["xx"] as never })).toThrow();
+    expect(() => store.update({ languages: ["en", "hi", "fr", "de", "it", "es"] })).toThrow();
+    expect(() => store.update({ languages: ["en", "en"] })).toThrow();
     expect(() => store.setShortcut("hold", null)).toThrow("always needs a key");
     expect(store.setShortcut("handsFree", null).handsFreeShortcut).toBeNull();
   });

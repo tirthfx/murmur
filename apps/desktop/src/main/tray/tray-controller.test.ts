@@ -17,7 +17,7 @@ function setup() {
     holdShortcut: { type: "key", keyCode: 61, modifiers: [] },
     handsFreeShortcut: null,
     inputDevice: "auto",
-    language: "auto",
+    languages: [],
     cleanupLevel: "standard",
     sounds: DEFAULT_SOUNDS,
     muteWhileDictating: false,
@@ -129,7 +129,11 @@ describe("tray controller", () => {
     controller.perform({ type: "device", id: "desk" });
     expect(settings().inputDevice).toBe("desk");
     controller.perform({ type: "language", code: "hi" });
-    expect(settings().language).toBe("hi");
+    expect(settings().languages).toEqual(["hi"]);
+    controller.perform({ type: "language", code: "en" });
+    expect(settings().languages).toEqual(["en", "hi"]);
+    controller.perform({ type: "language", code: "auto" });
+    expect(settings().languages).toEqual([]);
     controller.perform({ type: "copy-last" });
     expect(deps.copy).not.toHaveBeenCalled();
     state.last = "Hello there.";

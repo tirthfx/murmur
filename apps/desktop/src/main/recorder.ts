@@ -54,6 +54,8 @@ export interface RecorderDeps {
   clean?: (text: string, options: { terms: string[] }) => Promise<CleanupResult>;
   /** Warms the cleanup model when recording starts. */
   prepareCleanup?: () => void;
+  /** Rewrites the recognised text before anything else (Hindi in Latin letters, DC-18). */
+  rewriteText?: (text: string) => string;
   /** Whisper mode for the next recording (DC-12). */
   whisperMode?: () => boolean;
   /** The microphone for the next session: a device id, or null for the system default. */
@@ -380,10 +382,11 @@ export function createRecorder(deps: RecorderDeps): Recorder {
     );
     if (deps.logTranscripts) logger.info(`text: ${transcript.text}`);
     lastFailed = null;
+    const heard = deps.rewriteText ? deps.rewriteText(transcript.text) : transcript.text;
     // The command is taken off before cleanup, so the model never sees it.
     const spoken = deps.pressEnterCommand?.()
-      ? splitPressEnter(transcript.text.trim())
-      : { text: transcript.text, pressEnter: false };
+      ? splitPressEnter(heard.trim())
+      : { text: heard, pressEnter: false };
     const terms = contextTerms(await take.context);
     const cleanup = spoken.text.trim() === "" ? null : await cleanUp(spoken.text, terms);
     const final = cleanup?.text ?? spoken.text.trim();

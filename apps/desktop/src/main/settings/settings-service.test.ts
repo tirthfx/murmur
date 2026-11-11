@@ -1,14 +1,20 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Settings } from "@murmur/shared";
 import { keyPlatform } from "../platform";
-import { bindingsFor, createSettingsService, deviceFor, languagesFor } from "./settings-service";
+import {
+  bindingsFor,
+  createSettingsService,
+  deviceFor,
+  languagesFor,
+  wantsLatinHindi,
+} from "./settings-service";
 import { createSettingsStore } from "./settings-store";
 
 const defaults: Settings = {
   holdShortcut: { type: "key", keyCode: 61, modifiers: [] },
   handsFreeShortcut: null,
   inputDevice: "auto",
-  language: "auto",
+  languages: [],
   cleanupLevel: "standard",
   sounds: { start: true, lock: true, success: true, error: true, cancel: false },
   muteWhileDictating: false,
@@ -123,6 +129,13 @@ describe("settings service", () => {
     expect(deviceFor(defaults)).toBeNull();
     expect(deviceFor({ ...defaults, inputDevice: "USB-1" })).toBe("USB-1");
     expect(languagesFor(defaults)).toEqual([]);
-    expect(languagesFor({ ...defaults, language: "hi" })).toEqual(["hi"]);
+    expect(languagesFor({ ...defaults, languages: ["hi", "en"] })).toEqual(["hi", "en"]);
+    expect(languagesFor({ ...defaults, languages: ["hi-Latn", "en", "fr"] })).toEqual([
+      "hi",
+      "en",
+      "fr",
+    ]);
+    expect(wantsLatinHindi({ ...defaults, languages: ["en", "hi-Latn"] })).toBe(true);
+    expect(wantsLatinHindi({ ...defaults, languages: ["hi"] })).toBe(false);
   });
 });

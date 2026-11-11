@@ -10,7 +10,8 @@ export interface TrayState {
   devices: AudioDevice[] | null;
   /** "auto" or a device id. */
   inputDevice: string;
-  language: SpeechLanguage;
+  /** In order, primary first; empty means detect. */
+  languages: SpeechLanguage[];
   hasLastTranscript: boolean;
   typingReminder: "on" | "snoozed" | "off";
 }
@@ -18,7 +19,8 @@ export interface TrayState {
 export type TrayAction =
   | { type: "toggle" }
   | { type: "device"; id: string }
-  | { type: "language"; code: SpeechLanguage }
+  /** Makes a language the primary one, or "auto" to detect. */
+  | { type: "language"; code: SpeechLanguage | "auto" }
   | { type: "copy-last" }
   | { type: "reminder"; choice: "hour" | "tomorrow" | "off" | "on" }
   | { type: "quit" };
@@ -108,12 +110,21 @@ export function trayMenu(state: TrayState): TrayItem[] {
     {
       kind: "item",
       label: "Languages",
-      submenu: SPEECH_LANGUAGES.map((language) => ({
-        kind: "item" as const,
-        label: language.label,
-        checked: state.language === language.code,
-        action: { type: "language" as const, code: language.code },
-      })),
+      submenu: [
+        {
+          kind: "item" as const,
+          label: "Detect automatically",
+          checked: state.languages.length === 0,
+          action: { type: "language" as const, code: "auto" as const },
+        },
+        // The check marks the primary language; the others stay chosen in Settings.
+        ...SPEECH_LANGUAGES.map((language) => ({
+          kind: "item" as const,
+          label: language.label,
+          checked: state.languages[0] === language.code,
+          action: { type: "language" as const, code: language.code },
+        })),
+      ],
     },
     { kind: "separator" },
     {

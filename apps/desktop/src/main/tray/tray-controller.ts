@@ -1,4 +1,4 @@
-import type { AudioDevice, Settings, SettingsPatch } from "@murmur/shared";
+import { makePrimary, type AudioDevice, type Settings, type SettingsPatch } from "@murmur/shared";
 import type { Clock, Logger, TimerHandle } from "../helper/types";
 import type { RecorderEvent } from "../recorder";
 import {
@@ -74,7 +74,7 @@ export function createTrayController(deps: TrayControllerDeps): TrayController {
       status: recording ? "listening" : warning ? "warning" : "idle",
       devices,
       inputDevice: settings.inputDevice,
-      language: settings.language,
+      languages: settings.languages,
       hasLastTranscript: deps.lastTranscript() !== null,
       typingReminder: !settings.typingReminder.enabled
         ? "off"
@@ -153,7 +153,10 @@ export function createTrayController(deps: TrayControllerDeps): TrayController {
           deps.updateSettings({ inputDevice: action.id });
           return;
         case "language":
-          deps.updateSettings({ language: action.code });
+          deps.updateSettings({
+            languages:
+              action.code === "auto" ? [] : makePrimary(deps.settings().languages, action.code),
+          });
           return;
         case "copy-last": {
           const text = deps.lastTranscript();

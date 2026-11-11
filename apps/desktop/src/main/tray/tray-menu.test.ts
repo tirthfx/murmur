@@ -15,7 +15,7 @@ const base: TrayState = {
   status: "idle",
   devices: [device("desk", "Desk Mic"), device("built-in", "MacBook Microphone")],
   inputDevice: "auto",
-  language: "auto",
+  languages: [],
   hasLastTranscript: true,
   typingReminder: "on",
 };
@@ -67,9 +67,14 @@ describe("tray menu", () => {
   });
 
   it("checks the chosen language only", () => {
-    const submenu = rows(row({ ...base, language: "hi" }, "Languages").submenu!);
+    const submenu = rows(row({ ...base, languages: ["hi", "en"] }, "Languages").submenu!);
     expect(submenu.filter((item) => item.checked).map((item) => item.label)).toEqual(["Hindi"]);
     expect(submenu[0]!.label).toBe("Detect automatically");
+    const auto = rows(row(base, "Languages").submenu!);
+    expect(auto.filter((item) => item.checked).map((item) => item.label)).toEqual([
+      "Detect automatically",
+    ]);
+    expect(auto.at(-1)!.label).toBe("Mixed: Hindi in Latin script");
   });
 
   it("disables copy when there is no transcript", () => {

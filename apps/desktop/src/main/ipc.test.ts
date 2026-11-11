@@ -172,14 +172,14 @@ describe("settings IPC", () => {
   it("reads, updates and sets shortcuts", async () => {
     const context = setup();
     await context.handle(IPC_CHANNELS.getSettings, sender, []);
-    await context.handle(IPC_CHANNELS.updateSettings, sender, [{ language: "hi" }]);
+    await context.handle(IPC_CHANNELS.updateSettings, sender, [{ languages: ["hi", "en"] }]);
     await context.handle(IPC_CHANNELS.setShortcut, sender, [
       "handsFree",
       { code: "KeyD", modifiers: ["control"] },
     ]);
     await context.handle(IPC_CHANNELS.setShortcut, sender, ["handsFree", null]);
     context.handle(IPC_CHANNELS.captureShortcut, sender, [true]);
-    expect(context.updateSettings).toHaveBeenCalledWith({ language: "hi" });
+    expect(context.updateSettings).toHaveBeenCalledWith({ languages: ["hi", "en"] });
     expect(context.setShortcut).toHaveBeenCalledWith("handsFree", {
       code: "KeyD",
       modifiers: ["control"],
@@ -202,9 +202,9 @@ describe("settings IPC", () => {
 
   it("refuses bad settings before they reach main", () => {
     const context = setup();
-    expect(() => context.handle(IPC_CHANNELS.updateSettings, sender, [{ language: "xx" }])).toThrow(
-      "invalid-args",
-    );
+    expect(() =>
+      context.handle(IPC_CHANNELS.updateSettings, sender, [{ languages: ["xx"] }]),
+    ).toThrow("invalid-args");
     expect(() =>
       context.handle(IPC_CHANNELS.updateSettings, sender, [{ holdShortcut: {} }]),
     ).toThrow("invalid-args");
