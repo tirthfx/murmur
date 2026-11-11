@@ -108,12 +108,14 @@ const settingsStore = createSettingsStore(database, {
   language: "auto",
   cleanupLevel: "standard",
 });
+const keys = keyPlatform(process.platform);
 const settingsService = createSettingsService({
   store: settingsStore,
-  platform: keyPlatform(process.platform),
+  platform: keys,
   listDevices: () => helper.listAudioDevices(),
 });
-const bindingsNow = () => (platformDefaults.length > 0 ? bindingsFor(settingsStore.get()) : []);
+const bindingsNow = () =>
+  platformDefaults.length > 0 ? bindingsFor(settingsStore.get(), keys.cancelKeyCode) : [];
 
 const hotkeys = createHotkeyService({
   helper,

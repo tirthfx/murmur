@@ -6,6 +6,10 @@ export function barEventFor(event: RecorderEvent): BarEvent {
   switch (event.type) {
     case "started":
       return { type: "start", at: event.at };
+    case "locked":
+      return { type: "lock" };
+    case "cancelled":
+      return { type: "cancel" };
     case "start-failed":
       return { type: "warn", message: event.message };
     case "stopped":

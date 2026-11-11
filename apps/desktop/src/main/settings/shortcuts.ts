@@ -8,6 +8,8 @@ export interface KeyPlatform {
   capsLock: number;
   functionKeys: ReadonlySet<number>;
   reserved: readonly { keyCode: number; modifiers: readonly string[]; use: string }[];
+  /** The key that cancels a dictation (Escape), or null if the platform has none. */
+  cancelKeyCode: number | null;
 }
 
 export const SLOT_NAMES: Record<ShortcutSlot, string> = {

@@ -23,8 +23,14 @@ export interface SettingsService {
   setShortcut(slot: ShortcutSlot, key: CapturedKey | null): Promise<ShortcutResult>;
 }
 
-/** The hotkey bindings the settings ask for. Hands-free is a press binding when set. */
-export function bindingsFor(settings: Settings): HotkeyBinding[] {
+/**
+ * The hotkey bindings the settings ask for. Hands-free is a press binding when set, and the
+ * cancel key (Escape) is always bound; main ignores it unless a dictation is running.
+ */
+export function bindingsFor(
+  settings: Settings,
+  cancelKeyCode: number | null = null,
+): HotkeyBinding[] {
   const bindings: HotkeyBinding[] = [
     { id: "dictate-hold", action: "dictate.hold", trigger: settings.holdShortcut, mode: "hold" },
   ];
@@ -33,6 +39,14 @@ export function bindingsFor(settings: Settings): HotkeyBinding[] {
       id: "dictate-toggle",
       action: "dictate.toggle",
       trigger: settings.handsFreeShortcut,
+      mode: "press",
+    });
+  }
+  if (cancelKeyCode !== null) {
+    bindings.push({
+      id: "dictate-cancel",
+      action: "dictate.cancel",
+      trigger: { type: "key", keyCode: cancelKeyCode, modifiers: [] },
       mode: "press",
     });
   }
