@@ -102,6 +102,8 @@ export interface Recorder {
    * cancel. See `DictationGesture`.
    */
   handleHotkey(event: HotkeyEvent): void;
+  /** Starts hands-free dictation, or stops the recording in progress. For the tray menu. */
+  toggle(): void;
   /** Transcribes the last recording that failed to transcribe. False when there is none. */
   retryLast(): boolean;
   /** Resolves when every queued start, stop and transcription is done. For tests and shutdown. */
@@ -414,6 +416,9 @@ export function createRecorder(deps: RecorderDeps): Recorder {
       } else if (event.action === "dictate.cancel" && event.state !== "up") {
         gesture.cancel();
       }
+    },
+    toggle() {
+      gesture.toggle();
     },
     retryLast() {
       const failed = lastFailed;
