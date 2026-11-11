@@ -123,6 +123,8 @@ Sounds and output mute (the tones, mute while dictating, crash recovery): see `d
 
 Tray menu (items, the status dot, when it is rebuilt, manual test): see `docs/tray.md`.
 
+First-run setup (steps, what blocks dictation, a clean profile with `MURMUR_PROFILE_DIR`): see `docs/onboarding.md`.
+
 ## Definition of done for a PR
 
 - Builds locally with the commands above.

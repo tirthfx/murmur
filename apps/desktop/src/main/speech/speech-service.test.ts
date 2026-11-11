@@ -102,6 +102,19 @@ describe("speech service", () => {
     expect(service.getState()).toBe("ready");
   });
 
+  it("looks again after a download and loads the model", async () => {
+    const { service, helper, check } = setup({ ok: false, reason: "missing", file: "a" });
+    service.start();
+    await flush();
+    expect(service.getState()).toBe("missing");
+    check.mockResolvedValue({ ok: true });
+    service.recheck();
+    await flush();
+    expect(check).toHaveBeenCalledTimes(2);
+    expect(helper.loadSpeechModel).toHaveBeenCalledOnce();
+    expect(service.getState()).toBe("ready");
+  });
+
   it("reports a load failure", async () => {
     const { service, helper, logger } = setup();
     helper.loadSpeechModel.mockRejectedValueOnce(

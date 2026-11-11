@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { IPC_CHANNELS } from "@murmur/shared";
 import { createIpcHandler } from "./ipc";
-import { SAMPLE_SETTINGS } from "../renderer/hub/test-api";
+import { SAMPLE_SETTINGS, SAMPLE_SETUP } from "../renderer/hub/test-api";
 
 const entryUrl = "file:///app/.vite/renderer/main_window/index.html";
 const info = { name: "Murmur", version: "0.0.0", platform: "darwin" };
@@ -26,6 +26,8 @@ function setup() {
   const updateSettings = vi.fn(() => Promise.resolve(SAMPLE_SETTINGS));
   const setShortcut = vi.fn(() => Promise.resolve({ ok: true as const, view: SAMPLE_SETTINGS }));
   const captureShortcut = vi.fn();
+  const getSetupStatus = vi.fn(() => Promise.resolve(SAMPLE_SETUP));
+  const downloadSpeechModel = vi.fn(() => Promise.resolve(SAMPLE_SETUP));
   const handle = createIpcHandler({
     entryUrl,
     getAppInfo,
@@ -37,8 +39,12 @@ function setup() {
     updateSettings,
     setShortcut,
     captureShortcut,
+    getSetupStatus,
+    downloadSpeechModel,
   });
   return {
+    getSetupStatus,
+    downloadSpeechModel,
     getSettings,
     updateSettings,
     setShortcut,
@@ -176,6 +182,18 @@ describe("settings IPC", () => {
     });
     expect(context.setShortcut).toHaveBeenCalledWith("handsFree", null);
     expect(context.captureShortcut).toHaveBeenCalledWith(true);
+  });
+
+  it("serves the setup status and starts the model download", async () => {
+    const context = setup();
+    expect(await context.handle(IPC_CHANNELS.getSetupStatus, sender, [])).toEqual(SAMPLE_SETUP);
+    expect(await context.handle(IPC_CHANNELS.downloadSpeechModel, sender, [])).toEqual(
+      SAMPLE_SETUP,
+    );
+    expect(context.downloadSpeechModel).toHaveBeenCalledOnce();
+    expect(() => context.handle(IPC_CHANNELS.downloadSpeechModel, sender, ["x"])).toThrow(
+      "invalid-args",
+    );
   });
 
   it("refuses bad settings before they reach main", () => {

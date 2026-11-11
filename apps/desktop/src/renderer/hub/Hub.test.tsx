@@ -41,8 +41,9 @@ describe("Hub", () => {
     vi.unstubAllGlobals();
   });
 
-  it("lists every planned page in the navigation", () => {
+  it("lists every planned page in the navigation", async () => {
     render(<App />);
+    await screen.findByRole("navigation", { name: "Hub pages" });
     const nav = screen.getByRole("navigation", { name: "Hub pages" });
     for (const page of PAGES) {
       expect(nav.textContent).toContain(page.title);
@@ -64,6 +65,7 @@ describe("Hub", () => {
   it("starts on Home and switches page when a navigation item is chosen", async () => {
     const user = userEvent.setup();
     render(<App />);
+    await screen.findByRole("navigation", { name: "Hub pages" });
 
     expect(screen.getByRole("heading", { level: 1, name: "Home" })).toBeTruthy();
 
@@ -76,6 +78,7 @@ describe("Hub", () => {
 
   it("shows the app version from the preload API", async () => {
     render(<App />);
+    await screen.findByRole("navigation", { name: "Hub pages" });
     await waitFor(() =>
       expect(screen.getByTestId("app-version").textContent).toBe("Version 1.2.3"),
     );
@@ -88,6 +91,7 @@ describe("Hub", () => {
       getHelperStatus: vi.fn().mockRejectedValue(new Error("nope")),
     });
     render(<App />);
+    await screen.findByRole("navigation", { name: "Hub pages" });
     await waitFor(() => expect(window.murmur.getAppInfo).toHaveBeenCalled());
     expect(screen.getByRole("heading", { level: 1, name: "Home" })).toBeTruthy();
     expect(screen.queryByTestId("app-version")).toBeNull();
@@ -96,6 +100,7 @@ describe("Hub", () => {
   it("shows the helper status on the Settings page only", async () => {
     const user = userEvent.setup();
     render(<App />);
+    await screen.findByRole("navigation", { name: "Hub pages" });
     expect(screen.queryByTestId("helper-status")).toBeNull();
 
     await user.click(screen.getByText("Settings"));
@@ -113,6 +118,7 @@ describe("Hub", () => {
     });
     const user = userEvent.setup();
     render(<App />);
+    await screen.findByRole("navigation", { name: "Hub pages" });
     await user.click(screen.getByText("Settings"));
     await waitFor(() =>
       expect(screen.getByTestId("helper-status").textContent).toBe(

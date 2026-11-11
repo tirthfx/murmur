@@ -508,6 +508,25 @@ describe("recorder", () => {
     expect(calls).toEqual(["start s1", "stop s1"]);
   });
 
+  it("does not record while setup is unfinished, and says why", async () => {
+    const events: unknown[] = [];
+    let reason: string | null = "Open Murmur to finish setup: the speech model is not ready";
+    const { recorder, calls } = setup({
+      clock: new FakeClock(),
+      blocked: async () => reason,
+      onEvent: (event) => events.push(event),
+    });
+    recorder.toggle();
+    await recorder.idle();
+    expect(calls).toEqual([]);
+    expect(events).toEqual([{ type: "start-failed", message: reason }]);
+    // Once the missing piece is there, the very next press records.
+    reason = null;
+    recorder.toggle();
+    await recorder.idle();
+    expect(calls).toEqual(["start s1"]);
+  });
+
   it("Escape discards the recording and inserts nothing", async () => {
     const events: { type: string }[] = [];
     const transcribe = vi.fn();

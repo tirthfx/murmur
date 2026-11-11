@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { existsSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { pathToFileURL } from "node:url";
@@ -19,7 +19,10 @@ import {
   DEFAULT_SOUNDS,
   DEFAULT_SPEECH_MODEL,
   IPC_CHANNELS,
+  blockerMessage,
+  type DictationBlocker,
   type PermissionKind,
+  type PermissionSnapshot,
   type SoundName,
 } from "@murmur/shared";
 import {
@@ -52,13 +55,27 @@ import { createSettingsStore } from "./settings/settings-store";
 import { createRecorder, type RecorderEvent } from "./recorder";
 import { createSessionEffects } from "./media/session-effects";
 import { createSpeechService } from "./speech/speech-service";
-import { checkModel, modelLocation } from "./speech/model-store";
+import { checkModel, downloadModel, modelLocation } from "./speech/model-store";
+import { createModelDownload } from "./setup/model-download";
+import { dictationBlockers, hasPermissionBlocker } from "./setup/readiness";
 import { cleanupModelRoot, speechModelRoot } from "./speech/paths";
+import { profilePaths } from "./profile";
 import { permissionSettingsUrl } from "./platform/mac-settings-links";
 import { createTrayController, type TrayController } from "./tray/tray-controller";
 import { createElectronTray } from "./tray/tray-electron";
 
 const isDevelopment = !app.isPackaged;
+
+// A separate profile for a clean first run or a test; see `profilePaths`.
+const profile = profilePaths(process.env, {
+  appData: app.getPath("appData"),
+  userData: app.getPath("userData"),
+});
+if (profile.isOverridden) {
+  mkdirSync(profile.userData, { recursive: true });
+  app.setPath("userData", profile.userData);
+  console.log(`[profile] using ${profile.appData}`);
+}
 
 /** URL of the Hub page: the Vite dev server in development, the bundled file otherwise. */
 function resolveHubEntryUrl(): string {
@@ -102,7 +119,7 @@ const permissions = createPermissionsService({
 // with default settings and no history.
 function openMurmurDatabase(): DatabaseSync | null {
   try {
-    return openDatabase(databasePath(app.getPath("appData")));
+    return openDatabase(databasePath(profile.appData));
   } catch (error) {
     console.error(
       `[db] database could not open: ${error instanceof Error ? error.message : String(error)}`,
@@ -112,7 +129,7 @@ function openMurmurDatabase(): DatabaseSync | null {
 }
 const database = openMurmurDatabase();
 const history: HistoryStore | null = database
-  ? createHistoryStore(database, path.join(app.getPath("appData"), "Murmur", "audio"))
+  ? createHistoryStore(database, path.join(profile.appData, "Murmur", "audio"))
   : null;
 
 const platformDefaults = defaultHotkeyBindings(process.platform);
@@ -124,6 +141,7 @@ const settingsStore = createSettingsStore(database, {
   cleanupLevel: "standard",
   sounds: DEFAULT_SOUNDS,
   muteWhileDictating: false,
+  setupComplete: false,
 });
 const keys = keyPlatform(process.platform);
 const settingsService = createSettingsService({
@@ -146,10 +164,39 @@ permissions.onChecked((statuses) => hotkeys.handlePermissions(statuses));
 const speech = createSpeechService({
   helper,
   model: DEFAULT_SPEECH_MODEL,
-  root: speechModelRoot(app.getPath("appData")),
+  root: speechModelRoot(profile.modelsAppData),
   logger: createConsoleLogger("[speech]"),
   languages: () => languagesFor(settingsStore.get()),
 });
+
+// First-run setup: the model download behind the setup screen, and what blocks dictation.
+const modelDownload = createModelDownload({
+  model: DEFAULT_SPEECH_MODEL,
+  download: (onProgress) =>
+    downloadModel(speechModelRoot(profile.modelsAppData), DEFAULT_SPEECH_MODEL, { onProgress }),
+  speechState: () => speech.getState(),
+  onDownloaded: () => speech.recheck(),
+  logger: createConsoleLogger("[setup]"),
+});
+let lastPermissions: PermissionSnapshot | null = null;
+permissions.onChecked((statuses) => {
+  lastPermissions = statuses;
+});
+const blockersNow = (): DictationBlocker[] =>
+  dictationBlockers({
+    helper: helper.getStatus().state,
+    permissions: lastPermissions,
+    speech: speech.getState(),
+  });
+/** Why dictation cannot start, or null. A permission is read again before it counts. */
+async function dictationBlocked(): Promise<string | null> {
+  let blockers = blockersNow();
+  if (hasPermissionBlocker(blockers)) {
+    await permissions.check("dictation start");
+    blockers = blockersNow();
+  }
+  return blockerMessage(blockers);
+}
 
 const displayArea = (display: Electron.Display) => ({ id: display.id, workArea: display.workArea });
 const barWindow = new BarWindow({
@@ -157,7 +204,7 @@ const barWindow = new BarWindow({
   preloadPath: path.join(__dirname, "bar-preload.cjs"),
   entryUrl: barEntryUrl,
   isDevelopment,
-  positionFile: barPositionFile(app.getPath("userData")),
+  positionFile: barPositionFile(profile.userData),
   displays: () => screen.getAllDisplays().map(displayArea),
   primaryDisplay: () => displayArea(screen.getPrimaryDisplay()),
   logger: createConsoleLogger("[bar]"),
@@ -166,7 +213,7 @@ const bar = createBarController(barWindow, systemClock);
 
 // Sounds and output mute around each recording. The marker file exists only while Murmur
 // holds the output muted, so a crash leaves a note for the next launch to undo.
-const muteMarker = path.join(app.getPath("userData"), "output-muted-by-murmur.json");
+const muteMarker = path.join(profile.userData, "output-muted-by-murmur.json");
 const effects = createSessionEffects({
   settings: () => settingsStore.get(),
   playSound: (name) => barWindow.sound(name),
@@ -192,7 +239,7 @@ const SOUND_FOR: Partial<Record<RecorderEvent["type"], SoundName>> = {
   cancelled: "cancel",
 };
 
-const cleanupRoot = cleanupModelRoot(app.getPath("appData"));
+const cleanupRoot = cleanupModelRoot(profile.modelsAppData);
 const cleanupModelFile = path.join(
   modelLocation(cleanupRoot, DEFAULT_CLEANUP_MODEL).dir,
   DEFAULT_CLEANUP_MODEL.files[0]!.path,
@@ -249,6 +296,7 @@ const recorder = createRecorder({
     const sound = SOUND_FOR[event.type];
     if (sound) effects.sound(sound);
   },
+  blocked: dictationBlocked,
   beforeStart: () => effects.beforeStart(),
   afterEnd: () => effects.afterEnd(),
   clean: (text) => cleanup.clean(text),
@@ -340,6 +388,11 @@ function registerIpc(): void {
     updateSettings: (patch) => settingsService.update(patch),
     setShortcut: (slot, key) => settingsService.setShortcut(slot, key),
     captureShortcut: (active) => hotkeys.setPaused(active),
+    getSetupStatus: async () => ({ model: modelDownload.status(), blockers: blockersNow() }),
+    downloadSpeechModel: async () => {
+      modelDownload.start();
+      return { model: modelDownload.status(), blockers: blockersNow() };
+    },
   });
   for (const channel of Object.values(IPC_CHANNELS)) {
     ipcMain.handle(channel, (event, ...args: unknown[]) => handle(channel, event, args));

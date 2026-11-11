@@ -45,6 +45,11 @@ export interface RecorderDeps {
   beforeStart?: () => Promise<void>;
   /** Runs after every recording ends, whatever the outcome (restore the output). */
   afterEnd?: () => Promise<void>;
+  /**
+   * Asked before each recording: a sentence saying why dictation cannot start (setup not
+   * finished), or null to go ahead.
+   */
+  blocked?: () => Promise<string | null>;
 }
 
 /** One finished dictation, as the history store keeps it. */
@@ -171,6 +176,14 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 
   async function begin(): Promise<void> {
     if (current) return;
+    const reason = (await deps.blocked?.()) ?? null;
+    if (reason !== null) {
+      logger.warn(`dictation is blocked: ${reason}`);
+      // Nothing was started, so no lock or hold may linger.
+      gesture.reset();
+      emit({ type: "start-failed", message: reason });
+      return;
+    }
     const session: Session = { id: deps.newSessionId(), deviceName: null, levels: 0 };
     current = session;
     try {
@@ -192,6 +205,8 @@ export function createRecorder(deps: RecorderDeps): Recorder {
       deps.prepareCleanup?.();
     } catch (error) {
       if (current === session) current = null;
+      // A failed start leaves no lock behind, so the next press starts cleanly.
+      gesture.reset();
       await deps.afterEnd?.();
       if (errorCode(error) === "PERMISSION_DENIED") {
         logger.warn(

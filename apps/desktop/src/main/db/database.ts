@@ -1,3 +1,4 @@
+import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import m0001 from "./migrations/0001_core_settings_dictation.sql?raw";
@@ -16,6 +17,8 @@ export function databasePath(appData: string): string {
  * built-in SQLite, so there is no native module to rebuild for Electron.
  */
 export function openDatabase(file: string, migrations: Migration[] = MIGRATIONS): DatabaseSync {
+  // A first run has no data folder yet.
+  if (file !== ":memory:") mkdirSync(path.dirname(file), { recursive: true });
   const db = new DatabaseSync(file);
   db.exec("PRAGMA journal_mode = WAL");
   db.exec("PRAGMA foreign_keys = ON");

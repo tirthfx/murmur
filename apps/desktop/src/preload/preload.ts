@@ -12,6 +12,8 @@ const api: MurmurApi = {
   updateSettings: (patch) => ipcRenderer.invoke(IPC_CHANNELS.updateSettings, patch),
   setShortcut: (slot, key) => ipcRenderer.invoke(IPC_CHANNELS.setShortcut, slot, key),
   captureShortcut: (active) => ipcRenderer.invoke(IPC_CHANNELS.captureShortcut, active),
+  getSetupStatus: () => ipcRenderer.invoke(IPC_CHANNELS.getSetupStatus),
+  downloadSpeechModel: () => ipcRenderer.invoke(IPC_CHANNELS.downloadSpeechModel),
 };
 
 contextBridge.exposeInMainWorld("murmur", api);

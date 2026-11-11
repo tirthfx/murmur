@@ -6,6 +6,7 @@ import {
   type HelperStatus,
   type SettingsPatch,
   type SettingsView,
+  type SetupStatus,
   type ShortcutResult,
   type ShortcutSlot,
   type PermissionKind,
@@ -28,6 +29,8 @@ export interface IpcDeps {
   updateSettings: (patch: SettingsPatch) => Promise<SettingsView>;
   setShortcut: (slot: ShortcutSlot, key: CapturedKey | null) => Promise<ShortcutResult>;
   captureShortcut: (active: boolean) => void;
+  getSetupStatus: () => Promise<SetupStatus>;
+  downloadSpeechModel: () => Promise<SetupStatus>;
 }
 
 export interface IpcEventLike {
@@ -70,6 +73,10 @@ export function createIpcHandler(deps: IpcDeps) {
         );
       case IPC_CHANNELS.captureShortcut:
         return deps.captureShortcut(request.args[0] as boolean);
+      case IPC_CHANNELS.getSetupStatus:
+        return deps.getSetupStatus();
+      case IPC_CHANNELS.downloadSpeechModel:
+        return deps.downloadSpeechModel();
       default:
         throw new Error("IPC rejected: unknown-channel");
     }
