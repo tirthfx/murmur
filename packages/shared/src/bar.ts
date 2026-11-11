@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { SoundName } from "./settings";
 
 /**
  * The Bar: a small floating pill that shows the dictation state. Main owns the state and
@@ -45,6 +46,7 @@ export const BAR_IPC_CHANNELS = {
 export const BAR_PUSH_CHANNELS = {
   view: "bar:view",
   level: "bar:level",
+  sound: "bar:sound",
 } as const;
 
 const offset = z.number().int().min(-20000).max(20000);
@@ -72,6 +74,8 @@ export interface MurmurBarApi {
   onView(handler: (view: BarView) => void): () => void;
   /** Input level while listening, in dBFS. */
   onLevel(handler: (rmsDb: number) => void): () => void;
+  /** A feedback sound to play now. */
+  onSound(handler: (name: SoundName) => void): () => void;
   dragStart(): void;
   /** Total movement since `dragStart`, in screen points. */
   drag(dx: number, dy: number): void;

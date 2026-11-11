@@ -58,7 +58,7 @@ final class FixtureTests: XCTestCase {
     }
 
     func testEveryFixtureMessageDecodesAsAnEnvelope() throws {
-        let names = ["hello.json", "hello.ack.json", "ping.json", "shutdown.json", "helper.error.json", "unsupported.json", "permissions.status.json", "permissions.request.json", "hotkey.configure.json", "hotkey.event.json", "audio.capture.json", "transcribe.json", "insert.json"]
+        let names = ["hello.json", "hello.ack.json", "ping.json", "shutdown.json", "helper.error.json", "unsupported.json", "permissions.status.json", "permissions.request.json", "hotkey.configure.json", "hotkey.event.json", "audio.capture.json", "transcribe.json", "insert.json", "media.json"]
         for name in names {
             guard case .array(let messages)? = try loadFixture(name)["messages"] else {
                 return XCTFail("\(name) has no messages")

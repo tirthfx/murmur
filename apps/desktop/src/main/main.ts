@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { existsSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { pathToFileURL } from "node:url";
@@ -6,9 +7,11 @@ import { app, BrowserWindow, ipcMain, screen, session, shell, utilityProcess } f
 import {
   BAR_IPC_CHANNELS,
   DEFAULT_CLEANUP_MODEL,
+  DEFAULT_SOUNDS,
   DEFAULT_SPEECH_MODEL,
   IPC_CHANNELS,
   type PermissionKind,
+  type SoundName,
 } from "@murmur/shared";
 import {
   createNavigationGuard,
@@ -37,7 +40,8 @@ import {
   languagesFor,
 } from "./settings/settings-service";
 import { createSettingsStore } from "./settings/settings-store";
-import { createRecorder } from "./recorder";
+import { createRecorder, type RecorderEvent } from "./recorder";
+import { createSessionEffects } from "./media/session-effects";
 import { createSpeechService } from "./speech/speech-service";
 import { checkModel, modelLocation } from "./speech/model-store";
 import { cleanupModelRoot, speechModelRoot } from "./speech/paths";
@@ -107,6 +111,8 @@ const settingsStore = createSettingsStore(database, {
   inputDevice: "auto",
   language: "auto",
   cleanupLevel: "standard",
+  sounds: DEFAULT_SOUNDS,
+  muteWhileDictating: false,
 });
 const keys = keyPlatform(process.platform);
 const settingsService = createSettingsService({
@@ -146,6 +152,34 @@ const barWindow = new BarWindow({
   logger: createConsoleLogger("[bar]"),
 });
 const bar = createBarController(barWindow, systemClock);
+
+// Sounds and output mute around each recording. The marker file exists only while Murmur
+// holds the output muted, so a crash leaves a note for the next launch to undo.
+const muteMarker = path.join(app.getPath("userData"), "output-muted-by-murmur.json");
+const effects = createSessionEffects({
+  settings: () => settingsStore.get(),
+  playSound: (name) => barWindow.sound(name),
+  helper,
+  marker: {
+    exists: () => existsSync(muteMarker),
+    write: (content) => writeFileSync(muteMarker, content),
+    remove: () => rmSync(muteMarker, { force: true }),
+  },
+  sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  logger: createConsoleLogger("[media]"),
+});
+helper.onStatusChange((status) => {
+  if (status.state === "ready") void effects.recover();
+});
+
+/** Feedback sounds for the steps the Bar shows. */
+const SOUND_FOR: Partial<Record<RecorderEvent["type"], SoundName>> = {
+  locked: "lock",
+  transcribed: "success",
+  "transcription-failed": "error",
+  "start-failed": "error",
+  cancelled: "cancel",
+};
 
 const cleanupRoot = cleanupModelRoot(app.getPath("appData"));
 const cleanupModelFile = path.join(
@@ -198,7 +232,13 @@ const recorder = createRecorder({
   insert: (text) =>
     helper.insertText({ text, method: "auto", restoreClipboard: true, restoreDelayMs: 350 }),
   copy: (text) => helper.copyText(text),
-  onEvent: (event) => bar.dispatch(barEventFor(event)),
+  onEvent: (event) => {
+    bar.dispatch(barEventFor(event));
+    const sound = SOUND_FOR[event.type];
+    if (sound) effects.sound(sound);
+  },
+  beforeStart: () => effects.beforeStart(),
+  afterEnd: () => effects.afterEnd(),
   clean: (text) => cleanup.clean(text),
   prepareCleanup: () => cleanup.prepare(),
   record: (dictation) => history?.add(dictation) ?? null,

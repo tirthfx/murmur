@@ -18,6 +18,8 @@ export function buildCsp(mode: CspMode): string {
     "style-src": development ? ["'self'", "'unsafe-inline'"] : ["'self'"],
     "img-src": ["'self'", "data:"],
     "font-src": ["'self'"],
+    // The Bar's feedback sounds, bundled with the app.
+    "media-src": ["'self'"],
     "connect-src": development
       ? [
           "'self'",

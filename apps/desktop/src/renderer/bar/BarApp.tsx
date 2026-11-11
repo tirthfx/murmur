@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type PointerEvent } from "react";
 import { BAR_STATES, type BarView, type MurmurBarApi } from "@murmur/shared";
 import { BarPill } from "./BarPill";
+import { playSound } from "./sounds";
 
 /** Movement below this many points is a click, not a drag. */
 const CLICK_SLOP = 4;
@@ -19,10 +20,12 @@ export function BarApp({ api }: { api: MurmurBarApi }) {
       if (next.state !== "listening" && next.state !== "locked") setLevel(null);
     });
     const offLevel = api.onLevel(setLevel);
+    const offSound = api.onSound(playSound);
     return () => {
       alive = false;
       offView();
       offLevel();
+      offSound();
     };
   }, [api]);
 

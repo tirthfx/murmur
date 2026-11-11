@@ -9,6 +9,8 @@ const defaults: Settings = {
   inputDevice: "auto",
   language: "auto",
   cleanupLevel: "standard",
+  sounds: { start: true, lock: true, success: true, error: true, cancel: false },
+  muteWhileDictating: false,
 };
 
 describe("settings store", () => {

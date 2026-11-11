@@ -41,6 +41,10 @@ export interface RecorderDeps {
   now?: () => number;
   /** Timers for the double-tap window. */
   clock?: Clock;
+  /** Runs before the microphone starts (start sound, output mute). */
+  beforeStart?: () => Promise<void>;
+  /** Runs after every recording ends, whatever the outcome (restore the output). */
+  afterEnd?: () => Promise<void>;
 }
 
 /** One finished dictation, as the history store keeps it. */
@@ -168,6 +172,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
     const session: Session = { id: deps.newSessionId(), deviceName: null, levels: 0 };
     current = session;
     try {
+      await deps.beforeStart?.();
       const chosen = deps.deviceId?.() ?? null;
       const options = { sessionId: session.id, emitLevels: true, levelIntervalMs };
       let started;
@@ -185,6 +190,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
       deps.prepareCleanup?.();
     } catch (error) {
       if (current === session) current = null;
+      await deps.afterEnd?.();
       if (errorCode(error) === "PERMISSION_DENIED") {
         logger.warn(
           "Microphone access is not granted, so nothing was recorded. Grant it from the Hub's Settings.",
@@ -233,6 +239,8 @@ export function createRecorder(deps: RecorderDeps): Recorder {
     } catch (error) {
       logger.warn(`could not stop recording: ${errorMessage(error)}`);
       emit({ type: "stop-failed" });
+    } finally {
+      await deps.afterEnd?.();
     }
   }
 
@@ -247,6 +255,8 @@ export function createRecorder(deps: RecorderDeps): Recorder {
       logger.info("dictation cancelled; the recording was discarded");
     } catch (error) {
       logger.warn(`could not cancel the recording: ${errorMessage(error)}`);
+    } finally {
+      await deps.afterEnd?.();
     }
   }
 

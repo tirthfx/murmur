@@ -263,6 +263,20 @@ export class HelperSupervisor implements PlatformHelper {
     await this.connection.request("insert.copy", { text });
   }
 
+  async getOutputMuted(): Promise<boolean | null> {
+    if (!this.connection || this.status.state !== "ready") {
+      throw new HelperError("HELPER_UNAVAILABLE", "The helper is not running");
+    }
+    return (await this.connection.request("media.status", {})).outputMuted;
+  }
+
+  async setOutputMuted(muted: boolean): Promise<boolean> {
+    if (!this.connection || this.status.state !== "ready") {
+      throw new HelperError("HELPER_UNAVAILABLE", "The helper is not running");
+    }
+    return (await this.connection.request("media.mute", { muted })).previousMuted;
+  }
+
   onAudioLevel(handler: (level: AudioLevel) => void): Unsubscribe {
     return subscribe(this.audioLevelHandlers, handler);
   }

@@ -2,14 +2,24 @@ import { useCallback, useEffect, useState } from "react";
 import { Banner } from "@astryxdesign/core/Banner";
 import { Heading } from "@astryxdesign/core/Heading";
 import { Selector } from "@astryxdesign/core/Selector";
+import { Switch } from "@astryxdesign/core/Switch";
 import { VStack } from "@astryxdesign/core/VStack";
 import {
   SETTINGS_CLEANUP_LEVELS,
+  SOUND_NAMES,
   SPEECH_LANGUAGES,
   type SettingsPatch,
   type SettingsView,
 } from "@murmur/shared";
 import { ShortcutField } from "./ShortcutField";
+
+const SOUND_LABELS: Record<(typeof SOUND_NAMES)[number], string> = {
+  start: "Start sound",
+  lock: "Hands-free sound",
+  success: "Done sound",
+  error: "Error sound",
+  cancel: "Cancel sound",
+};
 
 const CLEANUP_LABELS: Record<(typeof SETTINGS_CLEANUP_LEVELS)[number], string> = {
   off: "Off: the words as heard",
@@ -106,6 +116,21 @@ export function SettingsSection() {
         onChange={(cleanupLevel) =>
           update({ cleanupLevel: cleanupLevel as SettingsView["settings"]["cleanupLevel"] })
         }
+      />
+      <Heading level={2}>Sounds and audio</Heading>
+      {SOUND_NAMES.map((name) => (
+        <Switch
+          key={name}
+          label={SOUND_LABELS[name]}
+          value={settings.sounds[name]}
+          onChange={(on) => update({ sounds: { ...settings.sounds, [name]: on } })}
+        />
+      ))}
+      <Switch
+        label="Mute other audio while dictating"
+        description="Silences the Mac's output while recording and turns it back on afterwards."
+        value={settings.muteWhileDictating}
+        onChange={(muteWhileDictating) => update({ muteWhileDictating })}
       />
       {problem ? <Banner status="error" title={problem} /> : null}
     </VStack>
