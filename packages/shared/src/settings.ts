@@ -50,6 +50,11 @@ export const settingsSchema = z.strictObject({
       (buttons) => buttons.hold === null || buttons.hold !== buttons.handsFree,
       "One mouse button cannot do both",
     ),
+  /** Suggest dictating after a lot of typing (DC-08). `snoozedUntil` is epoch ms. */
+  typingReminder: z.strictObject({
+    enabled: z.boolean(),
+    snoozedUntil: z.number().int().nonnegative().nullable(),
+  }),
   /** "auto" or a device id from the device list. */
   inputDevice: z.string().min(1).max(512),
   language: z.enum(languageCodes),
@@ -85,6 +90,7 @@ export const settingsPatchSchema = settingsSchema
     pressEnterCommand: true,
     contextAwareness: true,
     mouseButtons: true,
+    typingReminder: true,
   })
   .partial()
   .strict();
@@ -103,6 +109,7 @@ export const SETTING_KEYS: Record<keyof Settings, string> = {
   pressEnterCommand: "press_enter.enabled",
   contextAwareness: "context.enabled",
   mouseButtons: "hotkey.mouse_buttons",
+  typingReminder: "reminder.typing",
 };
 
 export const SOUND_NAMES = ["start", "lock", "success", "error", "cancel"] as const;

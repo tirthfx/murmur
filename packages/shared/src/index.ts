@@ -15,3 +15,4 @@ export * from "./settings";
 export * from "./media";
 export * from "./setup";
 export * from "./context";
+export * from "./typing";

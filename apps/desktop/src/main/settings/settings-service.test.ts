@@ -16,6 +16,7 @@ const defaults: Settings = {
   pressEnterCommand: true,
   contextAwareness: true,
   mouseButtons: { hold: null, handsFree: null },
+  typingReminder: { enabled: true, snoozedUntil: null },
 };
 
 function setup() {

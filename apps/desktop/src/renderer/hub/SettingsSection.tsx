@@ -149,6 +149,12 @@ export function SettingsSection() {
         value={settings.contextAwareness}
         onChange={(contextAwareness) => update({ contextAwareness })}
       />
+      <Switch
+        label="Suggest dictating after a lot of typing"
+        description="After more than 60 typed words in two minutes, at most once an hour. Only words are counted, never what you type."
+        value={settings.typingReminder.enabled}
+        onChange={(enabled) => update({ typingReminder: { enabled, snoozedUntil: null } })}
+      />
       <Heading level={2}>Sounds and audio</Heading>
       {SOUND_NAMES.map((name) => (
         <Switch

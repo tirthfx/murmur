@@ -19,6 +19,7 @@ import {
   type HotkeyTapStatus,
   type ContextSnapshotInput,
   type FocusContext,
+  type TypingActivity,
   type InsertTextInput,
   type InsertTextResult,
   type PermissionKind,
@@ -97,6 +98,7 @@ export class HelperSupervisor implements PlatformHelper {
   private readonly audioSilentHandlers = new Set<(silent: AudioSilent) => void>();
   private readonly devicesChangedHandlers = new Set<(change: AudioDevicesChanged) => void>();
   private readonly routeChangedHandlers = new Set<(change: AudioRouteChanged) => void>();
+  private readonly typingHandlers = new Set<(activity: TypingActivity) => void>();
 
   private connection: HelperConnection | null = null;
   private restartTimes: number[] = [];
@@ -304,6 +306,17 @@ export class HelperSupervisor implements PlatformHelper {
 
   onAudioRouteChanged(handler: (change: AudioRouteChanged) => void): Unsubscribe {
     return subscribe(this.routeChangedHandlers, handler);
+  }
+
+  onTypingActivity(handler: (activity: TypingActivity) => void): Unsubscribe {
+    return subscribe(this.typingHandlers, handler);
+  }
+
+  async watchTyping(enabled: boolean): Promise<void> {
+    if (!this.connection || this.status.state !== "ready") {
+      throw new HelperError("HELPER_UNAVAILABLE", "The helper is not running");
+    }
+    await this.connection.request("typing.watch", { enabled });
   }
 
   onHotkeyEvent(handler: (event: HotkeyEvent) => void): Unsubscribe {
@@ -520,6 +533,9 @@ export class HelperSupervisor implements PlatformHelper {
         break;
       case "audio.route.changed":
         for (const handler of this.routeChangedHandlers) handler(event.payload);
+        break;
+      case "typing.activity":
+        for (const handler of this.typingHandlers) handler(event.payload);
         break;
     }
   }

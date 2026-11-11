@@ -139,6 +139,8 @@ export interface Recorder {
   handleHotkey(event: HotkeyEvent): void;
   /** Starts hands-free dictation, or stops the recording in progress. For the tray menu. */
   toggle(): void;
+  /** True while recording, or while a recording is transcribed, cleaned or inserted. */
+  isBusy(): boolean;
   /** Transcribes the last recording that failed to transcribe. False when there is none. */
   retryLast(): boolean;
   /** Resolves when every queued start, stop and transcription is done. For tests and shutdown. */
@@ -336,7 +338,18 @@ export function createRecorder(deps: RecorderDeps): Recorder {
   }
 
   /** Transcribe, clean, insert, then write the history row. */
+  let processing = 0;
+
   async function runTake(take: Take): Promise<void> {
+    processing++;
+    try {
+      await processTake(take);
+    } finally {
+      processing--;
+    }
+  }
+
+  async function processTake(take: Take): Promise<void> {
     let transcript: Transcript;
     try {
       const context = await take.context;
@@ -527,6 +540,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
     toggle() {
       gesture.toggle();
     },
+    isBusy: () => current !== null || processing > 0,
     retryLast() {
       const failed = lastFailed;
       if (!failed || !deps.transcribe) return false;

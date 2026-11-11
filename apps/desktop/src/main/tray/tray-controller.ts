@@ -34,6 +34,7 @@ export interface TrayControllerDeps {
   /** The most recent successful dictation, or null. */
   lastTranscript(): string | null;
   toggleDictation(): void;
+  snoozeReminder(choice: "hour" | "tomorrow" | "off" | "on"): void;
   copy(text: string): void;
   quit(): void;
 }
@@ -75,6 +76,12 @@ export function createTrayController(deps: TrayControllerDeps): TrayController {
       inputDevice: settings.inputDevice,
       language: settings.language,
       hasLastTranscript: deps.lastTranscript() !== null,
+      typingReminder: !settings.typingReminder.enabled
+        ? "off"
+        : settings.typingReminder.snoozedUntil !== null &&
+            settings.typingReminder.snoozedUntil > deps.clock.now()
+          ? "snoozed"
+          : "on",
     };
   }
 
@@ -154,6 +161,9 @@ export function createTrayController(deps: TrayControllerDeps): TrayController {
           else deps.copy(text);
           return;
         }
+        case "reminder":
+          deps.snoozeReminder(action.choice);
+          return;
         case "quit":
           deps.quit();
           return;

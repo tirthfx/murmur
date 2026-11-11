@@ -16,6 +16,7 @@ const base: Settings = {
   pressEnterCommand: true,
   contextAwareness: true,
   mouseButtons: { hold: null, handsFree: null },
+  typingReminder: { enabled: true, snoozedUntil: null },
 };
 
 function setup(
@@ -116,6 +117,7 @@ describe("session effects", () => {
         pressEnterCommand: true,
         contextAwareness: true,
         mouseButtons: { hold: null, handsFree: null },
+        typingReminder: { enabled: true, snoozedUntil: null },
         sounds: { start: false, lock: true, success: true, error: false, cancel: false },
       },
     });

@@ -21,6 +21,8 @@ import {
   insertCopyRequestSchema,
   mediaMuteRequestSchema,
   contextSnapshotRequestSchema,
+  typingWatchRequestSchema,
+  typingActivityEventSchema,
   mediaStatusRequestSchema,
   insertTextRequestSchema,
   hotkeyConfigureRequestSchema,
@@ -114,6 +116,10 @@ function validateMessage(message: unknown): boolean {
       return mediaStatusRequestSchema.safeParse(message).success;
     case "media.mute":
       return mediaMuteRequestSchema.safeParse(message).success;
+    case "typing.watch":
+      return typingWatchRequestSchema.safeParse(message).success;
+    case "typing.activity":
+      return typingActivityEventSchema.safeParse(message).success;
     case "context.snapshot":
       return contextSnapshotRequestSchema.safeParse(message).success;
     case "response": {

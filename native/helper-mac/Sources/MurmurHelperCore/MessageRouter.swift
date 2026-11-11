@@ -123,6 +123,15 @@ public struct MessageRouter: Sendable {
             case .success(let value): return [Self.success(id: id, requestType: type, value)]
             case .failure(let failure): return [Self.failure(id: id, requestType: type, failure.code, failure.message)]
             }
+        case "typing.watch":
+            guard let hotkeys else {
+                return [Self.failure(id: id, requestType: type, .unsupportedRequest, "Unknown request type")]
+            }
+            guard let enabled = envelope.payload["enabled"]?.boolValue else {
+                return [Self.failure(id: id, requestType: type, .invalidPayload, "typing.watch needs enabled")]
+            }
+            hotkeys.watchTyping(enabled)
+            return [Self.success(id: id, requestType: type, ["watching": .bool(enabled)])]
         case "context.snapshot":
             guard let context else {
                 return [Self.failure(id: id, requestType: type, .unsupportedRequest, "Unknown request type")]

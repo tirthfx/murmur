@@ -27,6 +27,11 @@ public final class HotkeyController: @unchecked Sendable {
     private let lock = NSLock()
     private var matcher = HotkeyMatcher()
     private var running = false
+    private var typing: TypingCounter?
+    private var typingTimer: DispatchSourceTimer?
+
+    /// How often the typed-word count is reported while counting is on.
+    public static let typingReportInterval: TimeInterval = 30
 
     private let source: any KeyEventSource
     private let permissions: any PermissionProvider
@@ -95,6 +100,7 @@ public final class HotkeyController: @unchecked Sendable {
 
     /// Stops the source. Used on shutdown.
     public func stop() {
+        watchTyping(false)
         lock.withLock {
             if running { source.stop() }
             running = false
@@ -104,9 +110,42 @@ public final class HotkeyController: @unchecked Sendable {
 
     public var isRunning: Bool { lock.withLock { running } }
 
+    /// `typing.watch`: turns word counting on or off. Counting needs the key listener, so it
+    /// only sees keys while a binding keeps the listener running. Off clears the count.
+    public func watchTyping(_ enabled: Bool, interval: TimeInterval = HotkeyController.typingReportInterval) {
+        let old = lock.withLock { () -> DispatchSourceTimer? in
+            let timer = typingTimer
+            typingTimer = nil
+            typing = enabled ? TypingCounter() : nil
+            return timer
+        }
+        old?.cancel()
+        guard enabled else { return }
+        let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.global(qos: .utility))
+        timer.schedule(deadline: .now() + interval, repeating: interval)
+        timer.setEventHandler { [weak self] in self?.reportTyping(periodMs: Int(interval * 1000)) }
+        lock.withLock { typingTimer = timer }
+        timer.resume()
+    }
+
+    public var isWatchingTyping: Bool { lock.withLock { typing != nil } }
+
+    /// Sends the count since the last report, if any words were typed.
+    func reportTyping(periodMs: Int) {
+        let words = lock.withLock { typing?.take() ?? 0 }
+        guard words > 0 else { return }
+        emit(
+            Envelope(
+                id: nil, type: "typing.activity", payload: ["words": .int(words), "periodMs": .int(periodMs)]))
+    }
+
     private func receive(_ input: RawKeyInput, at: Int) {
-        // Unmatched input produces nothing: no event, no log line.
-        let firings = lock.withLock { matcher.handle(input) }
+        // Unmatched input produces nothing: no event, no log line. The typing counter, when
+        // on, keeps only a number.
+        let firings = lock.withLock { () -> [HotkeyFiring] in
+            typing?.handle(input)
+            return matcher.handle(input)
+        }
         for firing in firings { emit(Self.event(firing, at: at)) }
     }
 

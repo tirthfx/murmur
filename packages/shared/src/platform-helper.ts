@@ -11,6 +11,7 @@ import type {
 } from "./audio";
 import type { HelloPayload } from "./helper-protocol";
 import type { ContextSnapshotInput, FocusContext } from "./context";
+import type { TypingActivity } from "./typing";
 import type { InsertTextInput, InsertTextResult } from "./insert";
 import type {
   SpeechModelLoadInput,
@@ -106,6 +107,9 @@ export interface PlatformHelper {
    * without prompting when it is missing. Secure fields come back with no text.
    */
   focusContext(input?: ContextSnapshotInput): Promise<FocusContext>;
+  /** Turns typed-word counting on or off (DC-08). Counts only, never characters. */
+  watchTyping(enabled: boolean): Promise<void>;
+  onTypingActivity(handler: (activity: TypingActivity) => void): Unsubscribe;
   /** The output's mute switch: null when there is none. */
   getOutputMuted(): Promise<boolean | null>;
   /** Sets the output mute and returns what it was before. */

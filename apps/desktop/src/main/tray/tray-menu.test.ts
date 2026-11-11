@@ -17,6 +17,7 @@ const base: TrayState = {
   inputDevice: "auto",
   language: "auto",
   hasLastTranscript: true,
+  typingReminder: "on",
 };
 
 type Row = Extract<TrayItem, { kind: "item" }>;
@@ -31,6 +32,7 @@ describe("tray menu", () => {
       "Microphone",
       "Languages",
       "Copy last transcript",
+      "Typing reminder",
       "Quit Murmur",
     ]);
   });
@@ -85,6 +87,22 @@ describe("tray menu", () => {
       expect(quit).toMatchObject({ label: "Quit Murmur", action: { type: "quit" } });
       expect(quit.enabled ?? true).toBe(true);
     }
+  });
+
+  it("offers snoozes for the typing reminder, or turning it on", () => {
+    const labels = (status: TrayState["typingReminder"]) =>
+      rows(row({ ...base, typingReminder: status }, "Typing reminder").submenu!).map(
+        (item) => item.label,
+      );
+    expect(labels("on")).toEqual(["Snooze for 1 hour", "Snooze until tomorrow", "Turn off"]);
+    expect(labels("snoozed")).toEqual([
+      "Snoozed",
+      "Resume now",
+      "Snooze for 1 hour",
+      "Snooze until tomorrow",
+      "Turn off",
+    ]);
+    expect(labels("off")).toEqual(["Turn on"]);
   });
 
   it("has a tooltip for each status", () => {
