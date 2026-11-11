@@ -166,8 +166,9 @@ public final class TranscriptionController: @unchecked Sendable {
                     lock.withLock { decoding = false }
                     recognition = Recognition(text: "", language: languages.first ?? "", segments: [])
                 } else {
+                    let speech = SilenceTrim.trim(samples)
                     recognition = try await withTimeout(seconds: timeout) {
-                        try await recognizer.transcribe(samples, options: options)
+                        try await recognizer.transcribe(speech, options: options)
                     }
                 }
                 let decodeMs = Int(((clock() - started) * 1000).rounded())

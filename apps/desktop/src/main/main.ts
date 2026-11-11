@@ -359,7 +359,7 @@ const recorder = createRecorder({
   blocked: dictationBlocked,
   beforeStart: () => effects.beforeStart(),
   afterEnd: () => effects.afterEnd(),
-  clean: (text, { terms }) => cleanup.clean(text, { terms }),
+  clean: (text, options) => cleanup.clean(text, options),
   prepareCleanup: () => cleanup.prepare(),
   record: (dictation) => history?.add(dictation) ?? null,
   deviceId: () => deviceFor(settingsStore.get()),

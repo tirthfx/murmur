@@ -154,6 +154,21 @@ final class AudioPipelineTests: XCTestCase {
         XCTAssertNil(AudioPipeline().noiseFloorDb)
     }
 
+    func testTrimsSilenceAtBothEndsKeepingAPad() {
+        let quiet = Signal.sine(seconds: 2, rate: 16_000, amplitude: amplitudeDb(-70))
+        let speech = Signal.sine(seconds: 3, rate: 16_000, amplitude: amplitudeDb(-25))
+        let trimmed = SilenceTrim.trim(quiet + speech + quiet)
+        // Three seconds of speech plus 300 ms on each side.
+        XCTAssertEqual(Double(trimmed.count), 3.6 * 16_000, accuracy: 0.02 * 16_000)
+    }
+
+    func testLeavesARecordingWithoutAClearGapAlone() {
+        let steady = Signal.sine(seconds: 3, rate: 16_000, amplitude: amplitudeDb(-30))
+        XCTAssertEqual(SilenceTrim.trim(steady).count, steady.count)
+        let short = Signal.sine(seconds: 0.1, rate: 16_000, amplitude: 0.5)
+        XCTAssertEqual(SilenceTrim.trim(short).count, short.count)
+    }
+
     func testLoudSpeechAfterQuietSpeechStillDoesNotClip() {
         let quiet = Signal.sine(seconds: 3, rate: 16_000, amplitude: amplitudeDb(-50))
         let loud = Signal.sine(seconds: 1, rate: 16_000, amplitude: 0.9)

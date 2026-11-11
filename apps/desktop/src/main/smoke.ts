@@ -13,6 +13,8 @@ export interface SmokeResult {
   fieldText: string;
   /** The dictation steps seen, in order. */
   events: string[];
+  /** From key release to text in the box; null when no text arrived. */
+  releaseToTextMs: number | null;
 }
 
 export interface SmokeDeps {
@@ -32,6 +34,8 @@ export interface SmokeDeps {
   holdMs: number;
   readyTimeoutMs?: number;
   log(message: string): void;
+  /** Wall-clock milliseconds; tests pass a fake. */
+  now?: () => number;
 }
 
 export interface SmokeRun {
@@ -41,12 +45,14 @@ export interface SmokeRun {
   run(): Promise<SmokeResult>;
 }
 
-const POLL_MS = 250;
+const POLL_MS = 50;
 const START_TIMEOUT_MS = 15_000;
 const FIELD_TIMEOUT_MS = 10_000;
 
 export function createSmokeRun(deps: SmokeDeps): SmokeRun {
   const events: RecorderEvent[] = [];
+  const now = deps.now ?? Date.now;
+  let releaseToTextMs: number | null = null;
   const seen = (type: RecorderEvent["type"]) => events.some((event) => event.type === type);
 
   async function waitFor(done: () => boolean, timeoutMs: number): Promise<boolean> {
@@ -75,6 +81,19 @@ export function createSmokeRun(deps: SmokeDeps): SmokeRun {
     await deps.sleep(deps.holdMs);
     deps.log("key up");
     deps.keyUp();
+    const released = now();
+    // The time the user waits: until the text is in the box, not until bookkeeping ends.
+    let arrived = false;
+    await waitFor(() => {
+      if (arrived) return true;
+      void deps.readField().then((value) => {
+        if (!arrived && value.trim() !== "") {
+          arrived = true;
+          releaseToTextMs = now() - released;
+        }
+      });
+      return arrived;
+    }, FIELD_TIMEOUT_MS * 3);
     await deps.settled();
 
     if (!seen("transcribed")) return "no transcript was produced";
@@ -107,7 +126,13 @@ export function createSmokeRun(deps: SmokeDeps): SmokeRun {
         reason = error instanceof Error ? error.message : String(error);
       }
       const fieldText = await deps.readField().catch(() => "");
-      return { ok: reason === null, reason, fieldText, events: events.map((event) => event.type) };
+      return {
+        ok: reason === null,
+        reason,
+        fieldText,
+        events: events.map((event) => event.type),
+        releaseToTextMs,
+      };
     },
   };
 }

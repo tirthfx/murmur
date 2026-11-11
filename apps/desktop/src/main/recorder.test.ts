@@ -10,7 +10,7 @@ import type {
 } from "@murmur/shared";
 import { FakeClock, createTestLogger } from "./helper/fakes";
 import { HelperError } from "./helper/types";
-import { createRecorder, type DictationRecord } from "./recorder";
+import { RESPONSE_TARGET_MS, createRecorder, type DictationRecord } from "./recorder";
 
 const stopResult: AudioStopResult = {
   durationMs: 10020,
@@ -484,6 +484,30 @@ describe("recorder", () => {
     );
   });
 
+  it("gives cleanup only what is left of the response time after key release", async () => {
+    const budgets: number[] = [];
+    let time = 10_000;
+    const clean = vi.fn(async (text: string, options: { budgetMs: number }) => {
+      budgets.push(options.budgetMs);
+      return { text, source: "rules" as const };
+    });
+    const { recorder } = setup({
+      clock: new FakeClock(),
+      now: () => time,
+      clean: clean as never,
+      transcribe: async () => {
+        // Transcription takes 1.2 s of the time.
+        time += 1200;
+        return { ...transcript, text: "hello there" };
+      },
+    });
+    recorder.toggle();
+    await recorder.idle();
+    recorder.toggle();
+    await recorder.idle();
+    expect(budgets).toEqual([RESPONSE_TARGET_MS - 1200]);
+  });
+
   it("reports a silent recording as no speech", async () => {
     const events: { type: string }[] = [];
     const { recorder, helper } = setup({ onEvent: (event) => events.push(event) });
@@ -528,7 +552,10 @@ describe("recorder", () => {
     expect(prepareCleanup).toHaveBeenCalledOnce();
     recorder.handleHotkey(key("up"));
     await recorder.idle();
-    expect(clean).toHaveBeenCalledWith("Um, so we go.", { terms: [] });
+    expect(clean).toHaveBeenCalledWith("Um, so we go.", {
+      terms: [],
+      budgetMs: expect.any(Number),
+    });
     expect(insert).toHaveBeenCalledWith("So we go.", { pressEnter: false });
     expect(events.at(-1)).toEqual({ type: "transcribed", words: 3 });
     expect(logger.lines).toContain("info: cleanup: model in 420 ms");
@@ -728,7 +755,10 @@ describe("recorder", () => {
     await recorder.idle();
     recorder.toggle();
     await recorder.idle();
-    expect(clean).toHaveBeenCalledWith("Send the file.", { terms: [] });
+    expect(clean).toHaveBeenCalledWith("Send the file.", {
+      terms: [],
+      budgetMs: expect.any(Number),
+    });
     expect(insert).toHaveBeenCalledWith("Send the file.", { pressEnter: true });
     expect(records[0]).toMatchObject({
       finalText: "Send the file.",
@@ -801,6 +831,7 @@ describe("recorder", () => {
     });
     expect(clean).toHaveBeenCalledWith("send it to priya ragunathan", {
       terms: ["Priya", "Raghunathan"],
+      budgetMs: expect.any(Number),
     });
     // Nothing from the screen is kept with the dictation or written to the log.
     expect(JSON.stringify(records)).not.toContain("Raghunathan");

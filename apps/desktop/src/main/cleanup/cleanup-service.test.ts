@@ -40,6 +40,15 @@ describe("cleanup service", () => {
     );
   });
 
+  it("skips the model when too little of the response time is left", async () => {
+    const { service, llm } = setup(async () => "So I think we should go.");
+    const result = await service.clean("um so I think we should go", { budgetMs: 100 });
+    expect(result).toMatchObject({ source: "rules", fallback: true, reason: "timeout" });
+    expect(llm.clean).not.toHaveBeenCalled();
+    await service.clean("um so I think we should go", { budgetMs: 900 });
+    expect(llm.clean).toHaveBeenLastCalledWith(expect.any(String), "standard", 900, []);
+  });
+
   it("falls back to the rules' text on timeout and records why", async () => {
     const { service } = setup(async () => {
       throw new LlmTimeoutError();
