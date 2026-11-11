@@ -116,6 +116,8 @@ public final class EngineAudioSource: AudioInputSource, @unchecked Sendable {
         queue.sync {}
     }
 
+    public func lidClosed() -> Bool? { Clamshell.isClosed() }
+
     public func listDevices() -> [AudioDevice] {
         let defaultId = Self.defaultInputDevice()
         return Self.inputDevices().map { device in

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type {
   AudioDevice,
+  AudioInputs,
   AudioLevel,
   AudioSilent,
   AudioDevicesChanged,
@@ -81,6 +82,8 @@ export interface PlatformHelper {
   startAudio(input: AudioStartInput): Promise<AudioStartResult>;
   /** Connected input devices. Needs no permission. */
   listAudioDevices(): Promise<AudioDevice[]>;
+  /** The devices and whether the lid is closed, for choosing a microphone in Auto. */
+  audioInputs(): Promise<AudioInputs>;
   /** Ends the session and returns its statistics and file reference. */
   stopAudio(sessionId: string): Promise<AudioStopResult>;
   /** Ends the session and deletes its file. */

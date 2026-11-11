@@ -37,7 +37,7 @@ export interface ClipRecorderDeps {
   /** Where clips are kept: `<appData>/Murmur/clips`. */
   dir: string;
   isDictating(): boolean;
-  deviceId(): string | null;
+  deviceId(): string | null | Promise<string | null>;
   newSessionId(): string;
   clock: Clock;
   logger: Logger;
@@ -100,7 +100,7 @@ export function createClipRecorder(deps: ClipRecorderDeps): ClipRecorder {
       try {
         await deps.helper.startAudio({
           sessionId,
-          deviceId: deps.deviceId(),
+          deviceId: await deps.deviceId(),
           emitLevels: false,
           levelIntervalMs: 100,
         });

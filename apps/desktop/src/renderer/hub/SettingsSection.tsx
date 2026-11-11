@@ -59,7 +59,7 @@ export function SettingsSection() {
   const devices = view.devices ?? [];
   const known = devices.some((device) => device.id === settings.inputDevice);
   const microphoneOptions = [
-    { value: "auto", label: "System default" },
+    { value: "auto", label: "Automatic" },
     ...devices.map((device) => ({ value: device.id, label: device.name })),
     ...(settings.inputDevice !== "auto" && !known
       ? [{ value: settings.inputDevice, label: "Saved microphone (not connected)" }]
@@ -108,7 +108,7 @@ export function SettingsSection() {
         label="Microphone"
         description={
           view.devices
-            ? "Used from the next dictation."
+            ? "Used from the next dictation. Automatic follows the system default, but never picks a virtual input over a real microphone, or the built-in microphone while the lid is closed."
             : "The device list appears when the helper is running."
         }
         options={microphoneOptions}
