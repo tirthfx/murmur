@@ -40,19 +40,30 @@ The script prints `PASS` and exits with 0, or `FAIL: <reason>` and exits with 1.
 `npm run smoke -- --full` runs the main dictation, then these checks, and prints one line
 each (`ok`, `FAIL`, or `SKIP` when the Mac cannot run it):
 
-| Check                                           | How                                                                   |
-| ----------------------------------------------- | --------------------------------------------------------------------- |
-| Bar position is saved and restored              | Moves the Bar, closes and reopens its window                          |
-| Tray: choosing a microphone and a language      | Runs the menu actions; the settings follow, then go back              |
-| Bar shows listening, processing, done           | Records the Bar states during a dictation                             |
-| Text arrives while the test box keeps the focus | The Bar never takes the focus                                         |
-| Start and success sounds play                   | Records the sounds asked for                                          |
-| Output muted while dictating, restored after    | Turns on mute while dictating; reads the output mute during and after |
-| Tray: Start and Stop dictation                  | Dictates through the menu's Start and Stop                            |
-| An output that was already muted stays muted    | Mutes the Mac first, dictates, reads it after, unmutes                |
-| Tray: Copy last transcript                      | Saves the clipboard, copies, compares, puts the clipboard back        |
-| Silent microphone warns                         | Copies a silent clip over the fixture; the Bar says "No sound from …" |
-| Quit                                            | The app exits by itself and the helper process is gone                |
+| Check                                           | How                                                                                                          |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Bar position is saved and restored              | Moves the Bar, closes and reopens its window                                                                 |
+| Tray: choosing a microphone and a language      | Runs the menu actions; the settings follow, then go back                                                     |
+| Bar shows listening, processing, done           | Records the Bar states during a dictation                                                                    |
+| Text arrives while the test box keeps the focus | The Bar never takes the focus                                                                                |
+| Start and success sounds play                   | Records the sounds asked for                                                                                 |
+| Output muted while dictating, restored after    | Turns on mute while dictating; reads the output mute during and after                                        |
+| Tray: Start and Stop dictation                  | Dictates through the menu's Start and Stop                                                                   |
+| An output that was already muted stays muted    | Mutes the Mac first, dictates, reads it after, unmutes                                                       |
+| Tray: Copy last transcript                      | Saves the clipboard, copies, compares, puts the clipboard back                                               |
+| Silent microphone warns                         | Copies a silent clip over the fixture; the Bar says "No sound from …"                                        |
+| Context: the text before the caret is read      | Puts text in the box first; the context read at the start holds it                                           |
+| Press enter                                     | A clip ending in "press enter": the text without the command, then a Return                                  |
+| Languages                                       | A Hindi clip (system voice Lekha): Devanagari with Hindi chosen, Latin letters with Hindi in Latin script    |
+| Whisper mode                                    | The speech clip 40 dB quieter gives text with whisper mode on (the line also says what came out with it off) |
+| Mic check                                       | Runs the Hub's check on the clip: speech and background levels and advice                                    |
+| Retry                                           | One transcription is made to fail on purpose; Retry last dictation from the tray types the text              |
+| Typing reminder                                 | 70 words are handed to the reminder: nothing while snoozed, the suggestion once on again                     |
+| Quit                                            | The app exits by itself and the helper process is gone                                                       |
+
+The typing reminder is handed word counts instead of real key presses, which would type on the
+desktop; counting key presses is covered by the helper's unit tests. Mouse buttons and plugging
+a microphone in or out still need the owner.
 
 It changes the Mac's own output mute for a few seconds and leaves it as it was. The
 clipboard is saved with every type it holds and written back. Sounds are checked as
@@ -80,16 +91,16 @@ requested, not heard.
 
 ## Test-only switches
 
-| Variable                                               | Effect                                                       |
-| ------------------------------------------------------ | ------------------------------------------------------------ |
-| `MURMUR_PROFILE_DIR`                                   | Keeps the database, settings and window state in this folder |
-| `MURMUR_SHARE_MODELS`                                  | `1`: still read the models from the normal folder            |
-| `MURMUR_SMOKE`                                         | `1`: open the test window and run the smoke steps, then quit |
-| `MURMUR_SMOKE_HOLD_MS`                                 | How long the key is held                                     |
-| `MURMUR_AUDIO_FIXTURE`                                 | Helper: read this audio file in place of the microphone      |
-| `MURMUR_AUDIO_DIR`                                     | Helper: where temporary recordings go                        |
-| `MURMUR_SMOKE_FULL`                                    | `1`: run the full-mode checks after the main dictation       |
-| `MURMUR_SMOKE_SPEECH_CLIP`, `MURMUR_SMOKE_SILENT_CLIP` | The clips full mode copies over the fixture                  |
+| Variable                 | Effect                                                                  |
+| ------------------------ | ----------------------------------------------------------------------- |
+| `MURMUR_PROFILE_DIR`     | Keeps the database, settings and window state in this folder            |
+| `MURMUR_SHARE_MODELS`    | `1`: still read the models from the normal folder                       |
+| `MURMUR_SMOKE`           | `1`: open the test window and run the smoke steps, then quit            |
+| `MURMUR_SMOKE_HOLD_MS`   | How long the key is held                                                |
+| `MURMUR_AUDIO_FIXTURE`   | Helper: read this audio file in place of the microphone                 |
+| `MURMUR_AUDIO_DIR`       | Helper: where temporary recordings go                                   |
+| `MURMUR_SMOKE_FULL`      | `1`: run the full-mode checks after the main dictation                  |
+| `MURMUR_SMOKE_CLIPS_DIR` | Full mode: the clips (`<name>.wav`) and `clips.json` with their lengths |
 
 None of these is set in normal use.
 
