@@ -14,6 +14,7 @@ import { DictationGesture, type GestureCommand } from "./gesture";
 import { contextTerms, describeContext, speechPrompt } from "./context/context";
 import { splitMessages } from "./experimental/split-messages";
 import { splitPressEnter } from "./insertion/press-enter";
+import { dropSoundTags } from "./speech/sound-tags";
 import { systemClock } from "./helper/node-runtime";
 import type { Clock, Logger } from "./helper/types";
 
@@ -462,7 +463,9 @@ export function createRecorder(deps: RecorderDeps): Recorder {
     );
     if (deps.logTranscripts) logger.info(`text: ${transcript.text}`);
     lastFailed = null;
-    const heard = deps.rewriteText ? deps.rewriteText(transcript.text) : transcript.text;
+    // Noise labels ("*thud*") were never said; then any script rewrite (Hindi in Latin letters).
+    const spokenOnly = dropSoundTags(transcript.text);
+    const heard = deps.rewriteText ? deps.rewriteText(spokenOnly) : spokenOnly;
     // The command is taken off before cleanup, so the model never sees it.
     const spoken = deps.pressEnterCommand?.()
       ? splitPressEnter(heard.trim())

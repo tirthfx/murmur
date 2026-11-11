@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createTestLogger } from "../helper/fakes";
-import { createCleanupService } from "./cleanup-service";
+import { keepFirstCapital, createCleanupService } from "./cleanup-service";
 import { LlmTimeoutError, type LlmClient } from "./llm-client";
 
 function setup(
@@ -20,6 +20,15 @@ function setup(
 }
 
 const raw = "Um, so I think, uh, we should go to the office at three";
+
+describe("first capital", () => {
+  it("keeps the rules' first capital when the model lowered it", () => {
+    expect(keepFirstCapital("Text to hands free", "text to hands free")).toBe("Text to hands free");
+    expect(keepFirstCapital("Hello there.", "Hello there.")).toBe("Hello there.");
+    expect(keepFirstCapital("iPhone is here.", "iPhone is here.")).toBe("iPhone is here.");
+    expect(keepFirstCapital("Okay", "Fine")).toBe("Fine");
+  });
+});
 
 describe("cleanup service", () => {
   it("uses the model's answer when the guard accepts it", async () => {

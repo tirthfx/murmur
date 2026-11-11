@@ -43,6 +43,19 @@ export interface CleanupService {
  * Rules first, always. Then the model, if present, within the budget; its answer is used
  * only if the output guard accepts it. Otherwise the rules' text is used.
  */
+/**
+ * The model sometimes lower-cases the first letter that the rules capitalised ("text to
+ * hands free"). The first letter keeps the rules' capital.
+ */
+export function keepFirstCapital(rules: string, answer: string): string {
+  const first = rules.match(/\p{L}/u)?.[0];
+  const index = answer.search(/\p{L}/u);
+  if (!first || index < 0) return answer;
+  const letter = answer[index]!;
+  if (first !== first.toUpperCase() || letter !== first.toLowerCase()) return answer;
+  return answer.slice(0, index) + first + answer.slice(index + 1);
+}
+
 export function createCleanupService(deps: CleanupServiceDeps): CleanupService {
   const levelOf = deps.level ?? (() => "standard" as CleanupLevel);
   const now = deps.now ?? Date.now;
@@ -72,7 +85,13 @@ export function createCleanupService(deps: CleanupServiceDeps): CleanupService {
           deps.logger.warn("cleanup model answer refused by the guard; using the rules' text");
           return { ...base, fallback: true, reason: "rejected", modelMs };
         }
-        return { text: answer, source: "model", fallback: false, reason: null, modelMs };
+        return {
+          text: keepFirstCapital(rules, answer),
+          source: "model",
+          fallback: false,
+          reason: null,
+          modelMs,
+        };
       } catch (error) {
         const reason = error instanceof LlmTimeoutError ? "timeout" : "error";
         return { ...base, fallback: true, reason, modelMs: now() - started };
