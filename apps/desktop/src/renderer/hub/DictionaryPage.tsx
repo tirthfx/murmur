@@ -9,6 +9,7 @@ import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { VStack } from "@astryxdesign/core/VStack";
 import { ImportSection } from "./ImportSection";
+import { JargonPacksSection } from "./JargonPacksSection";
 import { DICTIONARY_LIMITS, type DictionaryEntry } from "@murmur/shared";
 
 export type DictionarySort = "az" | "recent" | "used";
@@ -229,6 +230,8 @@ export function DictionaryPage() {
       </section>
 
       {importing ? <ImportSection kind="dictionary" onImported={() => void reload()} /> : null}
+
+      <JargonPacksSection />
 
       <section aria-labelledby="dictionary-list-heading">
         <VStack gap={2}>

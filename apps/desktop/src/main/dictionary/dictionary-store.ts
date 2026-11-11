@@ -13,6 +13,8 @@ import type { ReplacementRule, SpellingRule } from "./apply";
 export interface DictionaryRules {
   /** Terms for the speech prompt and cleanup: starred first, then the most used. */
   promptTerms: string[];
+  /** How many of `promptTerms` are starred; jargon packs go in after them (PZ-27). */
+  starredCount: number;
   /** Terms spelled exactly after recognition and after cleanup. */
   spellings: SpellingRule[];
   /** Most recent first. */
@@ -120,6 +122,7 @@ export function createDictionaryStore(
       .slice(0, DICTIONARY_LIMITS.promptTerms);
     return {
       promptTerms: [...starred, ...others].map((entry) => entry.term),
+      starredCount: starred.length,
       spellings: terms.map((entry) => ({ id: entry.id, term: entry.term })),
       replacements: entries
         .filter((entry) => entry.replacement !== null)

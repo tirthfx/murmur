@@ -10,6 +10,8 @@ import type {
 } from "@murmur/shared";
 import { FakeClock, createTestLogger } from "./helper/fakes";
 import { HelperError } from "./helper/types";
+import { DEFAULT_JARGON_PACKS } from "@murmur/shared";
+import { developerVocabulary } from "./developer/packs";
 import { RESPONSE_TARGET_MS, createRecorder, type DictationRecord } from "./recorder";
 
 const stopResult: AudioStopResult = {
@@ -348,6 +350,7 @@ describe("recorder", () => {
       dictionary: {
         rules: () => ({
           promptTerms: ["Priya"],
+          starredCount: 1,
           spellings: [{ id: "p", term: "Priya" }],
           replacements: [{ id: "k", term: "k8s", replacement: "Kubernetes", caseSensitive: false }],
         }),
@@ -681,6 +684,118 @@ describe("recorder", () => {
       await dictate();
       expect(insert).toHaveBeenCalledWith("See you at 5.\n\nBest,\nTirth", { pressEnter: false });
       expect(events).toContain("translation-failed");
+    });
+  });
+
+  describe("developer apps", () => {
+    function devSetup(
+      category: "developer" | "personal",
+      said: string,
+      packs: Partial<import("@murmur/shared").JargonPacks> = {},
+      cleaned?: (text: string) => string,
+    ) {
+      const insert = vi.fn(async (_text: string, _options: { pressEnter: boolean }) => ({
+        method: "paste_cmd_v" as const,
+        delivered: true,
+        clipboardRestored: true,
+      }));
+      const transcribe = vi.fn(async (_path: string, _options: { prompt: string }) => ({
+        ...transcript,
+        text: said,
+      }));
+      const { recorder, logger } = setup({
+        transcribe,
+        insert,
+        ...(cleaned
+          ? {
+              clean: async (text: string) => ({
+                text: cleaned(text),
+                source: "model" as const,
+                fallback: false,
+                modelMs: 5,
+                reason: null,
+              }),
+            }
+          : {}),
+        readContext: async () => ({
+          appName: category === "developer" ? "Terminal" : "Messages",
+          bundleId: category === "developer" ? "com.apple.Terminal" : "com.apple.MobileSMS",
+          windowTitle: null,
+          role: null,
+          subrole: null,
+          editable: true,
+          secure: false,
+          textBefore: "",
+          textAfter: "",
+        }),
+        styles: {
+          resolve: () => ({
+            category,
+            source: "default" as const,
+            style: {
+              id: category === "developer" ? "style-other" : "style-personal",
+              category: category === "developer" ? ("other" as const) : ("personal" as const),
+              preset: "caps" as const,
+              instructions: "",
+              updatedAt: 0,
+            },
+          }),
+        },
+        developer: {
+          vocabulary: () => developerVocabulary({ ...DEFAULT_JARGON_PACKS, ...packs }),
+        },
+      });
+      const dictate = async () => {
+        recorder.handleHotkey(key("down"));
+        recorder.handleHotkey(key("up"));
+        await recorder.idle();
+      };
+      return { insert, transcribe, logger, dictate };
+    }
+
+    it("writes spoken syntax as code in a Developer app", async () => {
+      const camel = devSetup("developer", "Camel case user ID.");
+      await camel.dictate();
+      expect(camel.insert).toHaveBeenCalledWith("userId", { pressEnter: false });
+      const flag = devSetup("developer", "Dash dash help.");
+      await flag.dictate();
+      expect(flag.insert).toHaveBeenCalledWith("--help", { pressEnter: false });
+    });
+
+    it("converts before cleanup and keeps the code exact through it", async () => {
+      const seen: string[] = [];
+      const run = devSetup("developer", "camel case user id", {}, (text) => {
+        seen.push(text);
+        return "UserId.";
+      });
+      await run.dictate();
+      expect(seen).toEqual(["userId"]);
+      expect(run.insert).toHaveBeenCalledWith("userId", { pressEnter: false });
+    });
+
+    it("leaves the same phrases as words in a Personal app", async () => {
+      const personal = devSetup("personal", "Camel case user ID.");
+      await personal.dictate();
+      expect(personal.insert).toHaveBeenCalledWith("Camel case user ID.", { pressEnter: false });
+      expect(personal.transcribe.mock.calls[0]![1].prompt).toBe("");
+    });
+
+    it("keeps kubectl with the cloud pack on, and drops pack terms when it is off", async () => {
+      const on = devSetup("developer", "Run cube control apply.", { cloud: true });
+      await on.dictate();
+      expect(on.insert).toHaveBeenCalledWith("run kubectl apply", { pressEnter: false });
+      expect(on.transcribe.mock.calls[0]![1].prompt).toContain("kubectl");
+      expect(on.logger.lines.join("\n")).toContain("packs git, packages, web, cloud");
+
+      const off = devSetup("developer", "Run cube control apply.", {
+        git: false,
+        packages: false,
+        web: false,
+      });
+      await off.dictate();
+      expect(off.transcribe.mock.calls[0]![1].prompt).toBe("");
+      expect(off.insert).toHaveBeenCalledWith("run cube control apply", { pressEnter: false });
+      expect(off.logger.lines.join("\n")).toContain("packs none");
     });
   });
 

@@ -31,6 +31,7 @@ function setup() {
     learnCorrections: true,
     voiceProfile: { enabled: true, useInCleanup: true, prompts: true },
     email: { signature: "", addToNew: true, addToReplies: false, language: null },
+    jargonPacks: { git: true, packages: true, web: true, cloud: false, databases: false },
     experimental: {
       splitMessages: false,
       pauseMedia: false,

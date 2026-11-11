@@ -22,6 +22,7 @@ import {
   EDIT_WATCH_MAX_MS,
   DEFAULT_CLEANUP_MODEL,
   DEFAULT_EMAIL,
+  DEFAULT_JARGON_PACKS,
   DEFAULT_SOUNDS,
   DEFAULT_SPEECH_MODEL,
   IPC_CHANNELS,
@@ -53,6 +54,7 @@ import { createStyleStore } from "./styles/style-store";
 import { createMemoryStore } from "./memory/memory-store";
 import { createWritingSampleStore } from "./email/writing-samples";
 import { createTranslator } from "./email/translator";
+import { developerVocabulary, type DeveloperVocabulary } from "./developer/packs";
 import { createImporter } from "./imports/importer";
 import { createVoiceProfile, recentExamples } from "./voice/voice-profile";
 import { createLlmClient, type LlmReply } from "./cleanup/llm-client";
@@ -235,6 +237,7 @@ const settingsStore = createSettingsStore(database, {
   learnCorrections: true,
   voiceProfile: { enabled: true, useInCleanup: true, prompts: true },
   email: DEFAULT_EMAIL,
+  jargonPacks: DEFAULT_JARGON_PACKS,
   experimental: {
     splitMessages: false,
     pauseMedia: false,
@@ -385,6 +388,14 @@ const cleanup = createCleanupService({
   logger: cleanupLogger,
   level: () => settingsStore.get().cleanupLevel,
 });
+// Jargon packs (PZ-27): rebuilt only when the pack switches change.
+let developerCache: { key: string; vocabulary: DeveloperVocabulary } | null = null;
+function developerVocabularyNow(): DeveloperVocabulary {
+  const packs = settingsStore.get().jargonPacks;
+  const key = JSON.stringify(packs);
+  if (developerCache?.key !== key) developerCache = { key, vocabulary: developerVocabulary(packs) };
+  return developerCache.vocabulary;
+}
 const translateEmail = createTranslator({
   llm,
   modelReady: cleanupModelReady,
@@ -447,6 +458,7 @@ const recorder = createRecorder({
   afterEnd: () => effects.afterEnd(),
   clean: (text, options) => cleanup.clean(text, options),
   email: { settings: () => settingsStore.get().email, translate: translateEmail },
+  developer: { vocabulary: () => developerVocabularyNow() },
   prepareCleanup: () => cleanup.prepare(),
   record: (dictation) => {
     const id = history?.add(dictation) ?? null;
