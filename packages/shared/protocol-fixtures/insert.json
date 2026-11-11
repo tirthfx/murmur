@@ -12,12 +12,44 @@
       }
     },
     {
+      "id": "m-000053",
+      "type": "insert.text",
+      "payload": {
+        "text": "Send the file.",
+        "method": "auto",
+        "restoreClipboard": true,
+        "restoreDelayMs": 350,
+        "pressEnter": true,
+        "typeInApps": ["com.microsoft.rdc.macos"],
+        "trimTrailingNewlinesInApps": ["com.apple.Terminal"]
+      }
+    },
+    {
+      "id": "m-000053",
+      "type": "response",
+      "payload": {
+        "requestType": "insert.text",
+        "ok": true,
+        "result": {
+          "method": "paste_cmd_v",
+          "delivered": true,
+          "clipboardRestored": true,
+          "appBundleId": "com.apple.TextEdit",
+          "enterPressed": true
+        }
+      }
+    },
+    {
       "id": "m-000050",
       "type": "response",
       "payload": {
         "requestType": "insert.text",
         "ok": true,
-        "result": { "method": "paste_cmd_v", "delivered": true, "clipboardRestored": true }
+        "result": {
+          "method": "paste_cmd_v",
+          "delivered": true,
+          "clipboardRestored": true
+        }
       }
     },
     {
@@ -26,7 +58,11 @@
       "payload": {
         "requestType": "insert.text",
         "ok": true,
-        "result": { "method": "keystrokes", "delivered": true, "clipboardRestored": null }
+        "result": {
+          "method": "keystrokes",
+          "delivered": true,
+          "clipboardRestored": null
+        }
       }
     },
     {
@@ -45,29 +81,53 @@
     {
       "id": "m-000053",
       "type": "insert.copy",
-      "payload": { "text": "Let's move the review to Thursday." }
+      "payload": {
+        "text": "Let's move the review to Thursday."
+      }
     },
     {
       "id": "m-000053",
       "type": "response",
-      "payload": { "requestType": "insert.copy", "ok": true, "result": {} }
+      "payload": {
+        "requestType": "insert.copy",
+        "ok": true,
+        "result": {}
+      }
     }
   ],
   "invalidMessages": [
     {
       "id": "m-000050",
       "type": "insert.text",
-      "payload": { "text": "x", "method": "shout", "restoreClipboard": true, "restoreDelayMs": 350 }
+      "payload": {
+        "text": "x",
+        "method": "shout",
+        "restoreClipboard": true,
+        "restoreDelayMs": 350
+      }
     },
-    { "id": "m-000050", "type": "insert.text", "payload": { "method": "auto" } },
-    { "id": "m-000053", "type": "insert.copy", "payload": {} },
+    {
+      "id": "m-000050",
+      "type": "insert.text",
+      "payload": {
+        "method": "auto"
+      }
+    },
+    {
+      "id": "m-000053",
+      "type": "insert.copy",
+      "payload": {}
+    },
     {
       "id": "m-000050",
       "type": "response",
       "payload": {
         "requestType": "insert.text",
         "ok": true,
-        "result": { "method": "paste_cmd_v", "delivered": true }
+        "result": {
+          "method": "paste_cmd_v",
+          "delivered": true
+        }
       }
     }
   ]

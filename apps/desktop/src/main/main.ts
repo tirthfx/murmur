@@ -59,6 +59,7 @@ import { checkModel, downloadModel, modelLocation } from "./speech/model-store";
 import { createModelDownload } from "./setup/model-download";
 import { dictationBlockers, hasPermissionBlocker } from "./setup/readiness";
 import { cleanupModelRoot, speechModelRoot } from "./speech/paths";
+import { insertionRules } from "./insertion/app-rules";
 import { profilePaths } from "./profile";
 import { createSmokeRun, SMOKE_PAGE, type SmokeRun } from "./smoke";
 import { permissionSettingsUrl } from "./platform/mac-settings-links";
@@ -143,6 +144,7 @@ const settingsStore = createSettingsStore(database, {
   sounds: DEFAULT_SOUNDS,
   muteWhileDictating: false,
   setupComplete: false,
+  pressEnterCommand: true,
 });
 const keys = keyPlatform(process.platform);
 const settingsService = createSettingsService({
@@ -288,11 +290,19 @@ const recorder = createRecorder({
   newSessionId: randomUUID,
   transcribe: (file) => speech.transcribe(file),
   logTranscripts: process.env.MURMUR_LOG_TRANSCRIPTS === "1",
-  insert: (text) => {
+  insert: (text, { pressEnter }) => {
     // During a smoke run text may only go into the test box.
     smoke?.assertFieldFocused();
-    return helper.insertText({ text, method: "auto", restoreClipboard: true, restoreDelayMs: 350 });
+    return helper.insertText({
+      text,
+      method: "auto",
+      restoreClipboard: true,
+      restoreDelayMs: 350,
+      pressEnter,
+      ...insertionRules(),
+    });
   },
+  pressEnterCommand: () => settingsStore.get().pressEnterCommand,
   copy: (text) => helper.copyText(text),
   onEvent: (event) => {
     bar.dispatch(barEventFor(event));

@@ -57,6 +57,7 @@ public final class SystemPasteboard: PasteboardAccess, @unchecked Sendable {
 /// Needs Accessibility; the controller checks it before calling.
 public struct SystemKeyPoster: KeyPoster {
     private static let keyV: CGKeyCode = 9
+    private static let keyReturn: CGKeyCode = 36
 
     public init() {}
 
@@ -68,6 +69,18 @@ public struct SystemKeyPoster: KeyPoster {
         // Command only, whatever modifiers are physically held.
         down.flags = .maskCommand
         up.flags = .maskCommand
+        down.post(tap: .cghidEventTap)
+        up.post(tap: .cghidEventTap)
+        return true
+    }
+
+    public func postReturn() -> Bool {
+        let source = CGEventSource(stateID: .combinedSessionState)
+        guard let down = CGEvent(keyboardEventSource: source, virtualKey: Self.keyReturn, keyDown: true),
+            let up = CGEvent(keyboardEventSource: source, virtualKey: Self.keyReturn, keyDown: false)
+        else { return false }
+        down.flags = []
+        up.flags = []
         down.post(tap: .cghidEventTap)
         up.post(tap: .cghidEventTap)
         return true

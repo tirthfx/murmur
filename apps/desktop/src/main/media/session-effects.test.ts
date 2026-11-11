@@ -13,6 +13,7 @@ const base: Settings = {
   sounds: { start: true, lock: true, success: true, error: true, cancel: false },
   muteWhileDictating: true,
   setupComplete: true,
+  pressEnterCommand: true,
 };
 
 function setup(
@@ -110,6 +111,7 @@ describe("session effects", () => {
       settings: {
         muteWhileDictating: false,
         setupComplete: true,
+        pressEnterCommand: true,
         sounds: { start: false, lock: true, success: true, error: false, cancel: false },
       },
     });

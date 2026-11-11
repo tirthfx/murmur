@@ -24,6 +24,8 @@ public protocol KeyPoster: Sendable {
     func postPaste() -> Bool
     /// Posts the text as Unicode key events. Returns false on failure.
     func postText(_ chunk: String) -> Bool
+    /// Posts one Return key press. Returns false on failure.
+    func postReturn() -> Bool
 }
 
 public enum InsertMethod: String, Sendable {
@@ -72,6 +74,8 @@ public struct Inserter: Sendable {
         pasteboard.restore(saved)
         return InsertOutcome(method: .pasteCommandV, delivered: true, clipboardRestored: true)
     }
+
+    public func pressReturn() -> Bool { keys.postReturn() }
 
     /// Types the text in chunks, each retried once. Returns false if a chunk failed twice.
     public func type(_ text: String) async -> Bool {
@@ -124,6 +128,13 @@ public final class InsertionController: @unchecked Sendable {
         "com.microsoft.rdc.macos", "com.vmware.horizon", "com.citrix.receiver.icaviewer.mac",
     ]
 
+    /// Pause between the text and Return, so the app has taken the paste first.
+    static let enterDelayNanoseconds: UInt64 = 150_000_000
+
+    static func strings(_ value: JSONValue?) -> Set<String> {
+        Set((value?.arrayValue ?? []).compactMap(\.stringValue))
+    }
+
     public init(
         inserter: Inserter,
         pasteboard: any PasteboardAccess,
@@ -156,7 +167,7 @@ public final class InsertionController: @unchecked Sendable {
 
     private func insertText(id: String, payload: [String: JSONValue]) -> Envelope? {
         let type = "insert.text"
-        guard let text = payload["text"]?.stringValue else {
+        guard let given = payload["text"]?.stringValue else {
             return MessageRouter.failure(id: id, requestType: type, .invalidPayload, "insert.text needs text")
         }
         let methodName = payload["method"]?.stringValue ?? "auto"
@@ -169,10 +180,24 @@ public final class InsertionController: @unchecked Sendable {
         guard (0...2_000).contains(delayMs) else {
             return MessageRouter.failure(id: id, requestType: type, .invalidPayload, "restoreDelayMs must be from 0 to 2000")
         }
-        if text.isEmpty {
+        let pressEnter = payload["pressEnter"]?.boolValue ?? false
+        let typeInApps = Self.strings(payload["typeInApps"])
+        let trimInApps = Self.strings(payload["trimTrailingNewlinesInApps"])
+        // The app that is in front now is the target; Return later goes only to the same app.
+        let bundle = frontmostBundleId()
+        var trimmed = given
+        if let bundle, trimInApps.contains(bundle) {
+            while trimmed.last?.isNewline == true { trimmed.removeLast() }
+        }
+        let text = trimmed
+        let bundleValue: JSONValue = bundle.map { .string($0) } ?? .null
+        if text.isEmpty && !pressEnter {
             return MessageRouter.success(
                 id: id, requestType: type,
-                ["method": .string(method.rawValue), "delivered": .bool(false), "clipboardRestored": .null])
+                [
+                    "method": .string(method.rawValue), "delivered": .bool(false), "clipboardRestored": .null,
+                    "appBundleId": bundleValue, "enterPressed": .null,
+                ])
         }
         // Posting key events to other apps needs Accessibility. Read the status only.
         guard permissions.status(of: .accessibility) == .granted else {
@@ -188,21 +213,31 @@ public final class InsertionController: @unchecked Sendable {
             return MessageRouter.failure(id: id, requestType: type, .busy, "Another insertion is running")
         }
         let chosen: InsertMethod
-        if method == .auto, let bundle = frontmostBundleId(), Self.keystrokeApps.contains(bundle) {
+        if method == .auto, let bundle, Self.keystrokeApps.contains(bundle) || typeInApps.contains(bundle) {
             chosen = .keystrokes
         } else {
             chosen = method == .auto ? .pasteCommandV : method
         }
         let inserter = self.inserter
+        let frontmost = self.frontmostBundleId
         Task {
             var outcome: InsertOutcome?
-            if chosen == .pasteCommandV {
+            if text.isEmpty {
+                // Only "press enter" was said: nothing to insert.
+                outcome = InsertOutcome(method: .keystrokes, delivered: true, clipboardRestored: nil)
+            } else if chosen == .pasteCommandV {
                 outcome = await inserter.paste(text, restore: restore, restoreDelay: Double(delayMs) / 1000)
             }
             // Typed fallback when paste was not handled, or when typing was chosen.
             if outcome == nil {
                 let typed = await inserter.type(text)
                 outcome = InsertOutcome(method: .keystrokes, delivered: typed, clipboardRestored: nil)
+            }
+            // Return goes out only after the text, and only if the same app is still in front.
+            var enterPressed: Bool?
+            if pressEnter, outcome?.delivered == true {
+                try? await Task.sleep(nanoseconds: Self.enterDelayNanoseconds)
+                enterPressed = frontmost() == bundle && inserter.pressReturn()
             }
             lock.withLock { busy = false }
             guard let outcome, outcome.delivered else {
@@ -215,6 +250,8 @@ public final class InsertionController: @unchecked Sendable {
                     [
                         "method": .string(outcome.method.rawValue), "delivered": .bool(true),
                         "clipboardRestored": outcome.clipboardRestored.map { .bool($0) } ?? .null,
+                        "appBundleId": bundleValue,
+                        "enterPressed": enterPressed.map { .bool($0) } ?? .null,
                     ]))
         }
         return nil

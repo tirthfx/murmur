@@ -11,6 +11,7 @@ export const SAMPLE_SETTINGS: SettingsView = {
     sounds: { start: true, lock: true, success: true, error: true, cancel: false },
     muteWhileDictating: false,
     setupComplete: true,
+    pressEnterCommand: true,
   },
   shortcutLabels: { hold: "Right Option", handsFree: "Double-tap Right Option" },
   devices: [

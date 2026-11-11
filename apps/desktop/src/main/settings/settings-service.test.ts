@@ -13,6 +13,7 @@ const defaults: Settings = {
   sounds: { start: true, lock: true, success: true, error: true, cancel: false },
   muteWhileDictating: false,
   setupComplete: true,
+  pressEnterCommand: true,
 };
 
 function setup() {

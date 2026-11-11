@@ -22,6 +22,7 @@ function setup() {
     sounds: DEFAULT_SOUNDS,
     muteWhileDictating: false,
     setupComplete: true,
+    pressEnterCommand: true,
   };
   const views: TrayView[] = [];
   const clock = new FakeClock();
