@@ -114,6 +114,8 @@ Text insertion (paste with clipboard restore, typed fallback, manual test): see 
 
 The Bar (states, the non-focusable window, drag and saved position, manual test): see `docs/bar.md`.
 
+Context awareness (what is read around the caret, secure fields, nothing kept): see `docs/context.md`.
+
 Transcript cleanup (rules, the local model and its guard, the 1.5 s budget, benchmark): see `docs/cleanup.md`.
 
 Dictation history (database, tables, migrations): see `docs/history.md`.

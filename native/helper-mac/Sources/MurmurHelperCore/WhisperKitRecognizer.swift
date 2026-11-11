@@ -60,6 +60,13 @@ public actor WhisperKitRecognizer: SpeechRecognizer {
         decode.skipSpecialTokens = true
         decode.withoutTimestamps = false
         decode.chunkingStrategy = ChunkingStrategy.none
+        if let prompt = options.prompt, let tokenizer = pipe.tokenizer {
+            // Words already on screen help the decoder spell names and terms. Only the last
+            // 200 tokens are kept; special tokens are never passed in.
+            let tokens = tokenizer.encode(text: " " + prompt.trimmingCharacters(in: .whitespacesAndNewlines))
+                .filter { $0 < tokenizer.specialTokens.specialTokenBegin }
+            decode.promptTokens = Array(tokens.suffix(Self.maxPromptTokens))
+        }
         let results: [TranscriptionResult]
         do {
             results = try await pipe.transcribe(audioArray: samples, decodeOptions: decode)
@@ -82,6 +89,8 @@ public actor WhisperKitRecognizer: SpeechRecognizer {
         let text = segments.map(\.text).joined(separator: " ")
         return Recognition(text: text, language: results.first?.language ?? "", segments: segments)
     }
+
+    static let maxPromptTokens = 200
 
     /// Strips special tokens such as `<|startoftranscript|>` that can survive in segment text.
     static func clean(_ text: String) -> String {

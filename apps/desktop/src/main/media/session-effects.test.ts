@@ -14,6 +14,7 @@ const base: Settings = {
   muteWhileDictating: true,
   setupComplete: true,
   pressEnterCommand: true,
+  contextAwareness: true,
 };
 
 function setup(
@@ -112,6 +113,7 @@ describe("session effects", () => {
         muteWhileDictating: false,
         setupComplete: true,
         pressEnterCommand: true,
+        contextAwareness: true,
         sounds: { start: false, lock: true, success: true, error: false, cancel: false },
       },
     });

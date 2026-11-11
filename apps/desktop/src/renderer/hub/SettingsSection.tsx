@@ -123,6 +123,12 @@ export function SettingsSection() {
         value={settings.pressEnterCommand}
         onChange={(pressEnterCommand) => update({ pressEnterCommand })}
       />
+      <Switch
+        label="Use the text around the cursor"
+        description="Helps spell names and terms already on screen. Read when dictation starts, kept only until the text is inserted, never saved. Password fields are never read."
+        value={settings.contextAwareness}
+        onChange={(contextAwareness) => update({ contextAwareness })}
+      />
       <Heading level={2}>Sounds and audio</Heading>
       {SOUND_NAMES.map((name) => (
         <Switch

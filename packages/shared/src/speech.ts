@@ -23,6 +23,8 @@ export const transcribeFilePayloadSchema = z.object({
   path: z.string().startsWith("/"),
   /** BCP-47 codes. Empty means detect the language. */
   languages: z.array(z.string().min(1)).max(20),
+  /** Words already on screen, to help spell names and terms (DC-30). */
+  prompt: z.string().max(2000).optional(),
 });
 export type TranscribeFileInput = z.infer<typeof transcribeFilePayloadSchema>;
 

@@ -124,6 +124,14 @@ public final class TranscriptionController: @unchecked Sendable {
             }
             languages = names
         }
+        var prompt: String?
+        if let value = payload["prompt"], value != .null {
+            guard let text = value.stringValue, text.utf16.count <= 2_000 else {
+                return MessageRouter.failure(
+                    id: id, requestType: type, .invalidPayload, "prompt must be text of at most 2000 characters")
+            }
+            prompt = text.isEmpty ? nil : text
+        }
         let data: Data
         do {
             data = try Data(contentsOf: URL(fileURLWithPath: path))
@@ -147,7 +155,7 @@ public final class TranscriptionController: @unchecked Sendable {
         let audioMs = samples.count * 1000 / AudioFormat.sampleRate
         let windows = max(1, Int((Double(audioMs) / 30_000).rounded(.up)))
         let timeout = timeoutPerWindow * Double(windows)
-        let options = RecognitionOptions(languages: languages)
+        let options = RecognitionOptions(languages: languages, prompt: prompt)
         let recognizer = self.recognizer
         let started = clock()
         Task {

@@ -12,6 +12,7 @@ public struct MessageRouter: Sendable {
     private let speech: TranscriptionController?
     private let insertion: InsertionController?
     private let media: MediaController?
+    private let context: ContextController?
     private var handshakeComplete = false
 
     /// Set once a `shutdown` request has been answered. The host exits after writing the reply.
@@ -26,6 +27,7 @@ public struct MessageRouter: Sendable {
         speech: TranscriptionController? = nil,
         insertion: InsertionController? = nil,
         media: MediaController? = nil,
+        context: ContextController? = nil,
         uptimeMs: @escaping @Sendable () -> Int
     ) {
         self.helperVersion = helperVersion
@@ -36,6 +38,7 @@ public struct MessageRouter: Sendable {
         self.speech = speech
         self.insertion = insertion
         self.media = media
+        self.context = context
         self.uptimeMs = uptimeMs
     }
 
@@ -120,6 +123,11 @@ public struct MessageRouter: Sendable {
             case .success(let value): return [Self.success(id: id, requestType: type, value)]
             case .failure(let failure): return [Self.failure(id: id, requestType: type, failure.code, failure.message)]
             }
+        case "context.snapshot":
+            guard let context else {
+                return [Self.failure(id: id, requestType: type, .unsupportedRequest, "Unknown request type")]
+            }
+            return context.snapshot(id: id, payload: envelope.payload).map { [$0] } ?? []
         case "insert.text", "insert.copy":
             guard let insertion else {
                 return [Self.failure(id: id, requestType: type, .unsupportedRequest, "Unknown request type")]

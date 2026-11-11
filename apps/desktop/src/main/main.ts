@@ -145,6 +145,7 @@ const settingsStore = createSettingsStore(database, {
   muteWhileDictating: false,
   setupComplete: false,
   pressEnterCommand: true,
+  contextAwareness: true,
 });
 const keys = keyPlatform(process.platform);
 const settingsService = createSettingsService({
@@ -288,7 +289,12 @@ const recorder = createRecorder({
   helper,
   logger: createConsoleLogger("[audio]"),
   newSessionId: randomUUID,
-  transcribe: (file) => speech.transcribe(file),
+  transcribe: (file, { prompt }) => speech.transcribe(file, prompt),
+  readContext: async () => {
+    if (!settingsStore.get().contextAwareness) return null;
+    // Without Accessibility there is no context, and nothing is asked for.
+    return helper.focusContext().catch(() => null);
+  },
   logTranscripts: process.env.MURMUR_LOG_TRANSCRIPTS === "1",
   insert: (text, { pressEnter }) => {
     // During a smoke run text may only go into the test box.
@@ -314,7 +320,7 @@ const recorder = createRecorder({
   blocked: dictationBlocked,
   beforeStart: () => effects.beforeStart(),
   afterEnd: () => effects.afterEnd(),
-  clean: (text) => cleanup.clean(text),
+  clean: (text, { terms }) => cleanup.clean(text, { terms }),
   prepareCleanup: () => cleanup.prepare(),
   record: (dictation) => history?.add(dictation) ?? null,
   deviceId: () => deviceFor(settingsStore.get()),

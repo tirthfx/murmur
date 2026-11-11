@@ -31,8 +31,13 @@ public struct Recognition: Sendable, Equatable {
 public struct RecognitionOptions: Sendable, Equatable {
     /// BCP-47 codes. Empty means detect; one means force that language.
     public var languages: [String]
+    /// Text to condition the decoder on (words already on screen); nil for none.
+    public var prompt: String?
 
-    public init(languages: [String] = []) { self.languages = languages }
+    public init(languages: [String] = [], prompt: String? = nil) {
+        self.languages = languages
+        self.prompt = prompt
+    }
 }
 
 public struct LoadedModel: Sendable, Equatable {

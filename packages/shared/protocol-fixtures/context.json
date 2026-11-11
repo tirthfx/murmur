@@ -1,0 +1,93 @@
+{
+  "description": "Focused-field context (DC-30): read at the start of a dictation, memory only. Secure fields carry no text.",
+  "messages": [
+    {
+      "id": "m-000060",
+      "type": "context.snapshot",
+      "payload": {
+        "maxBefore": 1500,
+        "maxAfter": 300
+      }
+    },
+    {
+      "id": "m-000060",
+      "type": "response",
+      "payload": {
+        "requestType": "context.snapshot",
+        "ok": true,
+        "result": {
+          "appName": "Slack",
+          "bundleId": "com.tinyspeck.slackmacgap",
+          "windowTitle": "Priya Raghunathan",
+          "role": "AXTextArea",
+          "subrole": null,
+          "editable": true,
+          "secure": false,
+          "textBefore": "Hi Priya, ",
+          "textAfter": ""
+        }
+      }
+    },
+    {
+      "id": "m-000061",
+      "type": "response",
+      "payload": {
+        "requestType": "context.snapshot",
+        "ok": true,
+        "result": {
+          "appName": "Safari",
+          "bundleId": "com.apple.Safari",
+          "windowTitle": "Sign in",
+          "role": "AXTextField",
+          "subrole": "AXSecureTextField",
+          "editable": true,
+          "secure": true,
+          "textBefore": "",
+          "textAfter": ""
+        }
+      }
+    },
+    {
+      "id": "m-000062",
+      "type": "response",
+      "payload": {
+        "requestType": "context.snapshot",
+        "ok": false,
+        "error": {
+          "code": "PERMISSION_DENIED",
+          "message": "accessibility: Accessibility is not granted",
+          "retryable": false
+        }
+      }
+    },
+    {
+      "id": "m-000063",
+      "type": "transcribe.file",
+      "payload": {
+        "path": "/tmp/a.pcm",
+        "languages": [],
+        "prompt": "Hi Priya Raghunathan"
+      }
+    }
+  ],
+  "invalidMessages": [
+    {
+      "id": "m-000064",
+      "type": "context.snapshot",
+      "payload": {
+        "maxBefore": 5000
+      }
+    },
+    {
+      "id": "m-000065",
+      "type": "response",
+      "payload": {
+        "requestType": "context.snapshot",
+        "ok": true,
+        "result": {
+          "appName": "Slack"
+        }
+      }
+    }
+  ]
+}

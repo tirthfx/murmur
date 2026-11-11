@@ -18,6 +18,7 @@ import {
   helperErrorEventSchema,
   insertCopyRequestSchema,
   mediaMuteRequestSchema,
+  contextSnapshotRequestSchema,
   mediaStatusRequestSchema,
   insertTextRequestSchema,
   hotkeyConfigureRequestSchema,
@@ -107,6 +108,8 @@ function validateMessage(message: unknown): boolean {
       return mediaStatusRequestSchema.safeParse(message).success;
     case "media.mute":
       return mediaMuteRequestSchema.safeParse(message).success;
+    case "context.snapshot":
+      return contextSnapshotRequestSchema.safeParse(message).success;
     case "response": {
       const response = responseSchema.safeParse(message);
       if (!response.success) return false;

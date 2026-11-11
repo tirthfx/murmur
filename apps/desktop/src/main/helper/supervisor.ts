@@ -15,6 +15,8 @@ import {
   type HotkeyConfigureResult,
   type HotkeyEvent,
   type HotkeyTapStatus,
+  type ContextSnapshotInput,
+  type FocusContext,
   type InsertTextInput,
   type InsertTextResult,
   type PermissionKind,
@@ -261,6 +263,13 @@ export class HelperSupervisor implements PlatformHelper {
       throw new HelperError("HELPER_UNAVAILABLE", "The helper is not running");
     }
     await this.connection.request("insert.copy", { text });
+  }
+
+  focusContext(input: ContextSnapshotInput = {}): Promise<FocusContext> {
+    if (!this.connection || this.status.state !== "ready") {
+      return Promise.reject(new HelperError("HELPER_UNAVAILABLE", "The helper is not running"));
+    }
+    return this.connection.request("context.snapshot", input);
   }
 
   async getOutputMuted(): Promise<boolean | null> {

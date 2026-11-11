@@ -30,7 +30,8 @@ export interface SpeechService {
   /** Looks at the files again and loads the model, for example after a download. */
   recheck(): void;
   /** Transcribes a recorded file. Rejects when the model is not ready. */
-  transcribe(path: string): Promise<Transcript>;
+  /** `prompt`: words already on screen, to help spell names. */
+  transcribe(path: string, prompt?: string): Promise<Transcript>;
 }
 
 function errorMessage(error: unknown): string {
@@ -113,11 +114,15 @@ export function createSpeechService(deps: SpeechServiceDeps): SpeechService {
       verified = false;
       if (subscription && helper.getStatus().state === "ready") void prepare();
     },
-    transcribe(path) {
+    transcribe(path, prompt) {
       if (state !== "ready") {
         return Promise.reject(new Error(`The speech model is not ready (${state})`));
       }
-      return helper.transcribeFile({ path, languages: languages() });
+      return helper.transcribeFile({
+        path,
+        languages: languages(),
+        ...(prompt ? { prompt } : {}),
+      });
     },
   };
 }

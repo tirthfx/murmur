@@ -9,6 +9,7 @@ import {
   audioStartResultSchema,
   audioStopResultSchema,
 } from "./audio";
+import { contextSnapshotPayloadSchema, focusContextSchema } from "./context";
 import { mediaMutePayloadSchema, mediaMuteResultSchema, mediaStatusResultSchema } from "./media";
 import { insertCopyPayloadSchema, insertTextPayloadSchema, insertTextResultSchema } from "./insert";
 import {
@@ -187,6 +188,10 @@ export const HELPER_REQUESTS = {
     payload: mediaMutePayloadSchema,
     result: mediaMuteResultSchema,
   },
+  "context.snapshot": {
+    payload: contextSnapshotPayloadSchema,
+    result: focusContextSchema,
+  },
 } as const;
 
 export type HelperRequestType = keyof typeof HELPER_REQUESTS;
@@ -310,6 +315,10 @@ export const insertCopyRequestSchema = requestEnvelope("insert.copy", insertCopy
 
 export const mediaStatusRequestSchema = requestEnvelope("media.status", emptyObjectSchema);
 export const mediaMuteRequestSchema = requestEnvelope("media.mute", mediaMutePayloadSchema);
+export const contextSnapshotRequestSchema = requestEnvelope(
+  "context.snapshot",
+  contextSnapshotPayloadSchema,
+);
 
 export type HelloEvent = z.infer<typeof helloEventSchema>;
 export type HelperResponse = z.infer<typeof responseSchema>;

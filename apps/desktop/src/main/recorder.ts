@@ -2,6 +2,7 @@ import type {
   AudioLevel,
   AudioSilent,
   HotkeyEvent,
+  FocusContext,
   InsertTextResult,
   PlatformHelper,
   Transcript,
@@ -9,9 +10,13 @@ import type {
 } from "@murmur/shared";
 import type { CleanupResult } from "./cleanup/cleanup-service";
 import { DictationGesture, type GestureCommand } from "./gesture";
+import { contextTerms, describeContext, speechPrompt } from "./context/context";
 import { splitPressEnter } from "./insertion/press-enter";
 import { systemClock } from "./helper/node-runtime";
 import type { Clock, Logger } from "./helper/types";
+
+/** Longest wait for the focused field; a slow app never delays the text. */
+const CONTEXT_WAIT_MS = 1500;
 
 export interface RecorderDeps {
   helper: Pick<
@@ -22,7 +27,12 @@ export interface RecorderDeps {
   newSessionId: () => string;
   levelIntervalMs?: number;
   /** Turns a recorded file into text. Without it, recordings are only logged. */
-  transcribe?: (path: string) => Promise<Transcript>;
+  transcribe?: (path: string, options: { prompt: string }) => Promise<Transcript>;
+  /**
+   * Reads the focused field when a recording starts (DC-30). Null when context is off or
+   * cannot be read. Kept in memory for that dictation only.
+   */
+  readContext?: () => Promise<FocusContext | null>;
   /** Also log the recognised text. Off by default: logs never hold what was said. */
   logTranscripts?: boolean;
   /** Puts the text into the focused field. Without it, text is only logged. */
@@ -34,7 +44,7 @@ export interface RecorderDeps {
   /** What happened, for the Bar. */
   onEvent?: (event: RecorderEvent) => void;
   /** Cleans the transcript before it is inserted. Without it, the raw text is inserted. */
-  clean?: (text: string) => Promise<CleanupResult>;
+  clean?: (text: string, options: { terms: string[] }) => Promise<CleanupResult>;
   /** Warms the cleanup model when recording starts. */
   prepareCleanup?: () => void;
   /** The microphone for the next session: a device id, or null for the system default. */
@@ -86,6 +96,8 @@ interface Take {
   durationMs: number;
   audio: DictationRecord["audio"];
   retryOf: string | null;
+  /** The focused field at the start; memory only, never stored. */
+  context: Promise<FocusContext | null>;
 }
 
 type InsertOutcome = Pick<DictationRecord, "insertStatus"> &
@@ -128,6 +140,7 @@ interface Session {
   id: string;
   deviceName: string | null;
   levels: number;
+  context: Promise<FocusContext | null>;
 }
 
 function errorCode(error: unknown): unknown {
@@ -155,6 +168,23 @@ export function createRecorder(deps: RecorderDeps): Recorder {
   let lastFailed: { take: Take; historyId: string | null } | null = null;
   const now = deps.now ?? Date.now;
   const emit = (event: RecorderEvent) => deps.onEvent?.(event);
+
+  /** Never rejects and never holds up a dictation for long. */
+  function readContext(): Promise<FocusContext | null> {
+    if (!deps.readContext) return Promise.resolve(null);
+    const read = deps.readContext().then(
+      (context) => {
+        logger.info(describeContext(context));
+        return context;
+      },
+      () => null,
+    );
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const limit = new Promise<null>((resolve) => {
+      timer = setTimeout(() => resolve(null), CONTEXT_WAIT_MS);
+    });
+    return Promise.race([read, limit]).finally(() => clearTimeout(timer));
+  }
   const gesture = new DictationGesture(deps.clock ?? systemClock, (command) => perform(command));
 
   function perform(command: GestureCommand): void {
@@ -193,7 +223,13 @@ export function createRecorder(deps: RecorderDeps): Recorder {
       emit({ type: "start-failed", message: reason });
       return;
     }
-    const session: Session = { id: deps.newSessionId(), deviceName: null, levels: 0 };
+    const session: Session = {
+      id: deps.newSessionId(),
+      deviceName: null,
+      levels: 0,
+      // Read before the microphone starts, while the field the user is in still has focus.
+      context: readContext(),
+    };
     current = session;
     try {
       await deps.beforeStart?.();
@@ -254,6 +290,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
             }
           : null,
         retryOf: null,
+        context: session.context,
       };
       if (result.silent || !result.audioFile) {
         if (result.silent) logger.warn("nothing above the silence threshold was heard");
@@ -290,7 +327,8 @@ export function createRecorder(deps: RecorderDeps): Recorder {
   async function runTake(take: Take): Promise<void> {
     let transcript: Transcript;
     try {
-      transcript = await deps.transcribe!(take.audio!.path);
+      const context = await take.context;
+      transcript = await deps.transcribe!(take.audio!.path, { prompt: speechPrompt(context) });
     } catch (error) {
       logger.warn(`could not transcribe: ${errorMessage(error)}`);
       const historyId = record(take, {
@@ -314,7 +352,8 @@ export function createRecorder(deps: RecorderDeps): Recorder {
     const spoken = deps.pressEnterCommand?.()
       ? splitPressEnter(transcript.text.trim())
       : { text: transcript.text, pressEnter: false };
-    const cleanup = spoken.text.trim() === "" ? null : await cleanUp(spoken.text);
+    const terms = contextTerms(await take.context);
+    const cleanup = spoken.text.trim() === "" ? null : await cleanUp(spoken.text, terms);
     const final = cleanup?.text ?? spoken.text.trim();
     const finalWords = final.split(/\s+/).filter(Boolean).length;
     emit(
@@ -336,9 +375,9 @@ export function createRecorder(deps: RecorderDeps): Recorder {
     });
   }
 
-  async function cleanUp(text: string): Promise<CleanupResult | null> {
+  async function cleanUp(text: string, terms: string[]): Promise<CleanupResult | null> {
     if (!deps.clean) return null;
-    const result = await deps.clean(text);
+    const result = await deps.clean(text, { terms });
     const how =
       result.source === "model"
         ? `model in ${result.modelMs} ms`
