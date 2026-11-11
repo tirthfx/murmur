@@ -13,6 +13,8 @@ export interface TrayState {
   /** In order, primary first; empty means detect. */
   languages: SpeechLanguage[];
   hasLastTranscript: boolean;
+  /** A failed dictation can be transcribed again. */
+  canRetry: boolean;
   typingReminder: "on" | "snoozed" | "off";
 }
 
@@ -22,6 +24,7 @@ export type TrayAction =
   /** Makes a language the primary one, or "auto" to detect. */
   | { type: "language"; code: SpeechLanguage | "auto" }
   | { type: "copy-last" }
+  | { type: "retry-last" }
   | { type: "reminder"; choice: "hour" | "tomorrow" | "off" | "on" }
   | { type: "quit" };
 
@@ -132,6 +135,12 @@ export function trayMenu(state: TrayState): TrayItem[] {
       label: "Copy last transcript",
       enabled: state.hasLastTranscript,
       action: { type: "copy-last" },
+    },
+    {
+      kind: "item",
+      label: "Retry last dictation",
+      enabled: state.canRetry,
+      action: { type: "retry-last" },
     },
     { kind: "item", label: "Typing reminder", submenu: reminderItems(state.typingReminder) },
     { kind: "separator" },

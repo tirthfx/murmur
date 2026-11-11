@@ -34,6 +34,8 @@ export interface TrayControllerDeps {
   /** The most recent successful dictation, or null. */
   lastTranscript(): string | null;
   toggleDictation(): void;
+  canRetry(): boolean;
+  retryLast(): void;
   snoozeReminder(choice: "hour" | "tomorrow" | "off" | "on"): void;
   copy(text: string): void;
   quit(): void;
@@ -76,6 +78,7 @@ export function createTrayController(deps: TrayControllerDeps): TrayController {
       inputDevice: settings.inputDevice,
       languages: settings.languages,
       hasLastTranscript: deps.lastTranscript() !== null,
+      canRetry: deps.canRetry(),
       typingReminder: !settings.typingReminder.enabled
         ? "off"
         : settings.typingReminder.snoozedUntil !== null &&
@@ -164,6 +167,9 @@ export function createTrayController(deps: TrayControllerDeps): TrayController {
           else deps.copy(text);
           return;
         }
+        case "retry-last":
+          deps.retryLast();
+          return;
         case "reminder":
           deps.snoozeReminder(action.choice);
           return;

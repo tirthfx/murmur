@@ -17,7 +17,7 @@ export type BarEvent =
   | { type: "cancel" }
   | { type: "transcribed"; words: number }
   | { type: "failed"; message?: string }
-  /** Click in error: transcribe the last recording again. */
+  /** Transcribe the last failed recording again (Bar click in error, or the tray). */
   | { type: "retry" }
   /** Something to tell the user. While recording it stays until the recording ends. */
   | { type: "warn"; message: string }
@@ -90,7 +90,13 @@ export function transition(current: BarView, event: BarEvent): BarStep {
         ? to(view("error", { message: event.message ?? BAR_ERROR_TEXT }))
         : same;
     case "retry":
-      return current.state === "error" ? to(view("processing")) : same;
+      // From an error (a click on the Bar), or from rest (Retry last in the tray).
+      return current.state === "error" ||
+        current.state === "idle" ||
+        current.state === "done" ||
+        (current.state === "warning" && !isRecordingWarning(current))
+        ? to(view("processing"))
+        : same;
     case "warn":
       if (current.state === "hidden") return same;
       if (isRecording(current)) {

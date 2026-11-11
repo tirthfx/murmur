@@ -2,10 +2,14 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import m0001 from "./migrations/0001_core_settings_dictation.sql?raw";
+import m0002 from "./migrations/0002_pending_sessions.sql?raw";
 import { migrateUp, parseMigration, type Migration } from "./migrate";
 
 /** Every migration, in the order the files are numbered. */
-export const MIGRATIONS: Migration[] = [parseMigration("0001_core_settings_dictation.sql", m0001)];
+export const MIGRATIONS: Migration[] = [
+  parseMigration("0001_core_settings_dictation.sql", m0001),
+  parseMigration("0002_pending_sessions.sql", m0002),
+];
 
 /** `<appData>/Murmur/murmur.db`, shared by the dev build and the packaged app. */
 export function databasePath(appData: string): string {

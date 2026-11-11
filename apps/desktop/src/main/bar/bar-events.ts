@@ -34,6 +34,8 @@ export function barEventFor(event: RecorderEvent): BarEvent {
             ? "The microphone went away"
             : `Microphone changed. Continuing with ${event.deviceName}.`,
       };
+    case "retrying":
+      return { type: "retry" };
     case "enter-skipped":
       return { type: "warn", message: "Return was not pressed: another app is in front" };
     case "insert-failed":
