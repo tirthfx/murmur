@@ -5,6 +5,8 @@ import { cleanRules, type CleanupLevel } from "./rules";
 
 /** M1 budget for the model stage (roadmap; DC-23). */
 export const CLEANUP_BUDGET_MS = 1500;
+/** With less time than this left, the model is not asked at all. */
+export const MIN_MODEL_BUDGET_MS = 250;
 
 export interface CleanupResult {
   text: string;
@@ -30,8 +32,11 @@ export interface CleanupServiceDeps {
 export interface CleanupService {
   /** Called when recording starts, so the model is warm by the time the text arrives. */
   prepare(): void;
-  /** `terms`: names and terms on screen, for spelling (DC-30). */
-  clean(raw: string, options?: { terms?: string[] }): Promise<CleanupResult>;
+  /**
+   * `terms`: names and terms on screen, for spelling (DC-30). `budgetMs`: the time left for
+   * the model in this dictation; never more than the usual budget.
+   */
+  clean(raw: string, options?: { terms?: string[]; budgetMs?: number }): Promise<CleanupResult>;
 }
 
 /**
@@ -57,9 +62,11 @@ export function createCleanupService(deps: CleanupServiceDeps): CleanupService {
       if (!deps.llm || !(await deps.modelReady())) {
         return { ...base, fallback: true, reason: "model-missing" };
       }
+      const budget = Math.min(budgetMs, options.budgetMs ?? budgetMs);
+      if (budget < MIN_MODEL_BUDGET_MS) return { ...base, fallback: true, reason: "timeout" };
       const started = now();
       try {
-        const answer = (await deps.llm.clean(rules, level, budgetMs, terms)).trim();
+        const answer = (await deps.llm.clean(rules, level, budget, terms)).trim();
         const modelMs = now() - started;
         if (!acceptCleanup(rules, answer, level, terms)) {
           deps.logger.warn("cleanup model answer refused by the guard; using the rules' text");

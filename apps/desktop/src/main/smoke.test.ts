@@ -31,6 +31,8 @@ function setup(options: {
     },
     keyUp: () => {
       calls.push("up");
+      // The real app inserts while the run waits; the fake fills the box at once.
+      if (options.onSettled === undefined) state.field = options.field ?? "The quick brown fox.";
     },
     settled: async () => {
       emit(options.onSettled ?? [{ type: "stopped" }, { type: "transcribed", words: 9 }]);
@@ -52,8 +54,9 @@ describe("smoke run", () => {
       reason: null,
       fieldText: "The quick brown fox.",
       events: ["started", "stopped", "transcribed"],
+      releaseToTextMs: expect.any(Number),
     });
-    expect(calls.filter((call) => !call.startsWith("sleep 250"))).toEqual([
+    expect(calls.filter((call) => !call.startsWith("sleep 50"))).toEqual([
       "focus",
       "down",
       "sleep 3000",

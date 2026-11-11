@@ -13,7 +13,10 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 
-const PHRASE = "The quick brown fox jumps over the lazy dog";
+// `--long` uses a sentence of about ten seconds, for the M1 timing check.
+const PHRASE = process.argv.includes("--long")
+  ? "This is a longer test of dictation. We want to know how quickly the words appear after the key is released, so this sentence keeps going for roughly ten seconds in all."
+  : "The quick brown fox jumps over the lazy dog";
 const TIMEOUT_MS = 5 * 60_000;
 const repo = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const keep = process.argv.includes("--keep");
@@ -27,6 +30,26 @@ const packagedBinary = path.join(
 function fail(message) {
   console.error(`FAIL: ${message}`);
   process.exitCode = 1;
+}
+
+/**
+ * Whether the inserted text says the expected sentence: at least 90% of the expected words,
+ * in order, and at most one extra word (so words the model invents still fail). A number
+ * written as digits ("10" for "ten") costs one word.
+ */
+function sameSentence(expected, actual) {
+  const want = normalise(expected).split(" ").filter(Boolean);
+  const got = normalise(actual).split(" ").filter(Boolean);
+  const table = Array.from({ length: want.length + 1 }, () => new Array(got.length + 1).fill(0));
+  for (let i = 1; i <= want.length; i++) {
+    for (let j = 1; j <= got.length; j++) {
+      table[i][j] =
+        want[i - 1] === got[j - 1]
+          ? table[i - 1][j - 1] + 1
+          : Math.max(table[i - 1][j], table[i][j - 1]);
+    }
+  }
+  return table[want.length][got.length] >= want.length * 0.9 && got.length <= want.length + 1;
 }
 
 /** Lower case, letters and digits only, single spaces. */
@@ -125,8 +148,11 @@ if (result === null) {
 } else {
   console.log(`steps: ${result.events.join(", ")}`);
   console.log(`test box: ${JSON.stringify(result.fieldText)}`);
+  if (result.releaseToTextMs !== null) {
+    console.log(`key release to text: ${result.releaseToTextMs} ms`);
+  }
   if (!result.ok) fail(result.reason);
-  else if (normalise(result.fieldText) !== normalise(PHRASE)) {
+  else if (!sameSentence(PHRASE, result.fieldText)) {
     fail(`the test box does not hold the expected sentence "${PHRASE}"`);
   }
 

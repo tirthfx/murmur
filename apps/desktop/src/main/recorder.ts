@@ -25,6 +25,13 @@ const AUTO_RETRY_CODES: ReadonlySet<unknown> = new Set([
   "HELPER_UNAVAILABLE",
   "MODEL_NOT_READY",
 ]);
+/**
+ * Key release to text in the field (M1: under 2.5 s for ten seconds of speech). Cleanup gets
+ * what is left of this after transcription, so a long dictation uses the rules' text rather
+ * than arrive late. Paste takes about 50 ms more.
+ */
+export const RESPONSE_TARGET_MS = 2300;
+
 /** Wait before the automatic retry. */
 export const AUTO_RETRY_DELAY_MS = 2000;
 
@@ -65,7 +72,7 @@ export interface RecorderDeps {
   /** What happened, for the Bar. */
   onEvent?: (event: RecorderEvent) => void;
   /** Cleans the transcript before it is inserted. Without it, the raw text is inserted. */
-  clean?: (text: string, options: { terms: string[] }) => Promise<CleanupResult>;
+  clean?: (text: string, options: { terms: string[]; budgetMs: number }) => Promise<CleanupResult>;
   /** Warms the cleanup model when recording starts. */
   prepareCleanup?: () => void;
   /** Rewrites the recognised text before anything else (Hindi in Latin letters, DC-18). */
@@ -143,6 +150,8 @@ interface Take {
   retryOf: string | null;
   /** The focused field at the start; memory only, never stored. */
   context: Promise<FocusContext | null>;
+  /** When the key was released (or a retry began): the response deadline counts from here. */
+  releasedAt: number;
   /** Set on the one automatic retry, so it is never retried twice. */
   autoRetried?: boolean;
 }
@@ -345,6 +354,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
     const session = current;
     if (!session) return;
     current = null;
+    const releasedAt = now();
     emit({ type: "stopped" });
     try {
       const result = await helper.stopAudio(session.id);
@@ -367,6 +377,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
           : null,
         retryOf: null,
         context: session.context,
+        releasedAt,
       };
       if (result.audioFile) {
         const audioPath = result.audioFile.path;
@@ -430,6 +441,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
           AUTO_RETRY_DELAY_MS,
         );
         await deps.waitForSpeech?.().catch(() => {});
+        // The wait used the time; the retried text uses the rules unless time is left.
         await processTake({ ...take, autoRetried: true });
         return;
       }
@@ -470,7 +482,8 @@ export function createRecorder(deps: RecorderDeps): Recorder {
       await sendMessages(take, transcript, parts, spoken.pressEnter, terms);
       return;
     }
-    const cleanup = spoken.text.trim() === "" ? null : await cleanUp(spoken.text, terms);
+    const cleanup =
+      spoken.text.trim() === "" ? null : await cleanUp(spoken.text, terms, take.releasedAt);
     const final = cleanup?.text ?? spoken.text.trim();
     const finalWords = final.split(/\s+/).filter(Boolean).length;
     emit(
@@ -508,7 +521,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
     const finals: string[] = [];
     let outcome: InsertOutcome = { insertStatus: "inserted" };
     for (const [index, text] of texts.entries()) {
-      const cleanup = text.trim() === "" ? null : await cleanUp(text, terms);
+      const cleanup = text.trim() === "" ? null : await cleanUp(text, terms, take.releasedAt);
       const final = cleanup?.text ?? text.trim();
       finals.push(final);
       const isLast = index === texts.length - 1;
@@ -529,9 +542,14 @@ export function createRecorder(deps: RecorderDeps): Recorder {
     });
   }
 
-  async function cleanUp(text: string, terms: string[]): Promise<CleanupResult | null> {
+  async function cleanUp(
+    text: string,
+    terms: string[],
+    releasedAt: number,
+  ): Promise<CleanupResult | null> {
     if (!deps.clean) return null;
-    const result = await deps.clean(text, { terms });
+    const budgetMs = Math.max(0, RESPONSE_TARGET_MS - (now() - releasedAt));
+    const result = await deps.clean(text, { terms, budgetMs });
     const how =
       result.source === "model"
         ? `model in ${result.modelMs} ms`
@@ -676,7 +694,13 @@ export function createRecorder(deps: RecorderDeps): Recorder {
       const failed = lastFailed;
       lastFailed = null;
       if (failed) {
-        take = { ...failed.take, source: "retry", createdAt: now(), retryOf: failed.historyId };
+        take = {
+          ...failed.take,
+          source: "retry",
+          createdAt: now(),
+          retryOf: failed.historyId,
+          releasedAt: now(),
+        };
       } else {
         // After a restart: the newest failed or interrupted dictation in history.
         const stored = deps.lastRetryable?.() ?? null;
@@ -689,6 +713,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
             audio: { path: stored.audioPath, codec: "pcm_s16le", durationMs: stored.durationMs },
             retryOf: stored.historyId,
             context: Promise.resolve(null),
+            releasedAt: now(),
           };
         }
       }

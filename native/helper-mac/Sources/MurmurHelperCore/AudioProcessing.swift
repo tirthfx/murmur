@@ -304,3 +304,38 @@ public final class Resampler {
         return result
     }
 }
+
+/// Cuts silence off both ends of a recording before it is transcribed. The speech model tends
+/// to invent words ("Thank you.") in trailing silence, and less audio decodes faster. The
+/// threshold follows the recording: 10 dB over its background, never under -55 dBFS. A
+/// recording without a clear gap between speech and background is left as it is.
+public enum SilenceTrim {
+    static let windowMs = 20
+    /// Kept around the speech, so soft word endings are not cut.
+    static let padMs = 300
+
+    public static func trim(_ samples: [Float], sampleRate: Int = AudioFormat.sampleRate) -> [Float] {
+        let window = sampleRate * windowMs / 1000
+        guard window > 0, samples.count >= window * 10 else { return samples }
+        var levels: [Double] = []
+        levels.reserveCapacity(samples.count / window)
+        var start = 0
+        while start + window <= samples.count {
+            var squares = 0.0
+            for sample in samples[start..<start + window] { squares += Double(sample) * Double(sample) }
+            levels.append(Decibels.fromMeanSquare(squares / Double(window)))
+            start += window
+        }
+        guard let noise = AudioPipeline.percentile(levels, 0.1), let speech = AudioPipeline.percentile(levels, 0.9),
+            speech - noise >= 15
+        else { return samples }
+        let threshold = max(-55, noise + 10)
+        guard let first = levels.firstIndex(where: { $0 > threshold }),
+            let last = levels.lastIndex(where: { $0 > threshold })
+        else { return samples }
+        let pad = padMs / windowMs
+        let from = max(0, first - pad) * window
+        let to = min(samples.count, (last + 1 + pad) * window)
+        return Array(samples[from..<to])
+    }
+}
