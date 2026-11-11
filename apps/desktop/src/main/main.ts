@@ -3,7 +3,16 @@ import { existsSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { pathToFileURL } from "node:url";
-import { app, BrowserWindow, ipcMain, screen, session, shell, utilityProcess } from "electron";
+import {
+  app,
+  BrowserWindow,
+  clipboard,
+  ipcMain,
+  screen,
+  session,
+  shell,
+  utilityProcess,
+} from "electron";
 import {
   BAR_IPC_CHANNELS,
   DEFAULT_CLEANUP_MODEL,
@@ -46,6 +55,8 @@ import { createSpeechService } from "./speech/speech-service";
 import { checkModel, modelLocation } from "./speech/model-store";
 import { cleanupModelRoot, speechModelRoot } from "./speech/paths";
 import { permissionSettingsUrl } from "./platform/mac-settings-links";
+import { createTrayController, type TrayController } from "./tray/tray-controller";
+import { createElectronTray } from "./tray/tray-electron";
 
 const isDevelopment = !app.isPackaged;
 
@@ -234,6 +245,7 @@ const recorder = createRecorder({
   copy: (text) => helper.copyText(text),
   onEvent: (event) => {
     bar.dispatch(barEventFor(event));
+    tray?.handleRecorderEvent(event);
     const sound = SOUND_FOR[event.type];
     if (sound) effects.sound(sound);
   },
@@ -246,6 +258,35 @@ const recorder = createRecorder({
 });
 hotkeys.onEvent((event) => recorder.handleHotkey(event));
 helper.onAudioLevel((level) => bar.level(level.rmsDb));
+
+// The menu bar item. Created once the app is ready; it works with the Hub closed.
+let tray: TrayController | null = null;
+function createTray(): void {
+  const host = createElectronTray((action) => tray?.perform(action));
+  const controller = createTrayController({
+    host,
+    clock: systemClock,
+    logger: createConsoleLogger("[tray]"),
+    settings: () => settingsStore.get(),
+    updateSettings: (patch) => settingsStore.update(patch),
+    listDevices: () => helper.listAudioDevices(),
+    lastTranscript: () => history?.lastText() ?? null,
+    toggleDictation: () => recorder.toggle(),
+    copy: (text) => clipboard.writeText(text),
+    quit: () => app.quit(),
+  });
+  tray = controller;
+  controller.refresh();
+  settingsStore.onChange(() => controller.refresh());
+  // The microphone list is read when the helper comes up and each time the pointer reaches
+  // the icon, so the menu is current by the time it opens.
+  helper.onStatusChange((status) => {
+    if (status.state === "ready") void controller.refreshDevices();
+    else controller.handleHelperDown();
+  });
+  host.onHover(() => void controller.refreshDevices());
+  void controller.refreshDevices();
+}
 
 async function openPermissionSettings(kind: PermissionKind): Promise<void> {
   const url = process.platform === "darwin" ? permissionSettingsUrl(kind) : null;
@@ -356,6 +397,7 @@ void app.whenReady().then(() => {
     },
   );
   createHubWindow();
+  createTray();
   // The Bar never takes focus; it shows itself on the first state push.
   void barWindow.open().then(
     () => barWindow.render(bar.getView()),

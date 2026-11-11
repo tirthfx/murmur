@@ -496,6 +496,18 @@ describe("recorder", () => {
     expect(calls).toEqual(["start s1", "stop s1"]);
   });
 
+  it("toggle starts hands-free and stops it, for the tray menu", async () => {
+    const events: string[] = [];
+    const clock = new FakeClock();
+    const { recorder, calls } = setup({ clock, onEvent: (event) => events.push(event.type) });
+    recorder.toggle();
+    await recorder.idle();
+    expect(events).toEqual(["started", "locked"]);
+    recorder.toggle();
+    await recorder.idle();
+    expect(calls).toEqual(["start s1", "stop s1"]);
+  });
+
   it("Escape discards the recording and inserts nothing", async () => {
     const events: { type: string }[] = [];
     const transcribe = vi.fn();

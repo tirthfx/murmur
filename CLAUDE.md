@@ -121,6 +121,8 @@ Settings (shortcuts and their checks, microphone, language, cleanup level): see 
 
 Sounds and output mute (the tones, mute while dictating, crash recovery): see `docs/sounds.md`.
 
+Tray menu (items, the status dot, when it is rebuilt, manual test): see `docs/tray.md`.
+
 ## Definition of done for a PR
 
 - Builds locally with the commands above.
