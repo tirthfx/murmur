@@ -8,6 +8,7 @@ import type { AppInfo } from "@murmur/shared";
 import { Button } from "@astryxdesign/core/Button";
 import { DictionaryPage } from "./DictionaryPage";
 import { SnippetsPage } from "./SnippetsPage";
+import { StylesPage } from "./StylesPage";
 import { HelperStatusLine } from "./HelperStatusLine";
 import { Onboarding } from "./Onboarding";
 import { MicCheckSection } from "./MicCheckSection";
@@ -129,6 +130,8 @@ function HubPages({ onRunSetup }: { onRunSetup: () => void }) {
             <DictionaryPage />
           ) : page.id === "snippets" ? (
             <SnippetsPage />
+          ) : page.id === "styles" ? (
+            <StylesPage />
           ) : (
             <div className="hub-empty">
               <EmptyState

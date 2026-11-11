@@ -53,6 +53,10 @@ function setup() {
     snippetsList: vi.fn(() => []),
     snippetsSave: vi.fn(),
     snippetsDelete: vi.fn(),
+    stylesView: vi.fn(() => ({ styles: [], overrides: [], recentApps: [] })),
+    stylesUpdate: vi.fn(() => ({ styles: [], overrides: [], recentApps: [] })),
+    stylesSetOverride: vi.fn(() => ({ styles: [], overrides: [], recentApps: [] })),
+    stylesClearOverride: vi.fn(() => ({ styles: [], overrides: [], recentApps: [] })),
   });
   return {
     getSetupStatus,

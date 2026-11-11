@@ -43,6 +43,14 @@ import {
   type SnippetInput,
   type SnippetSaveResult,
 } from "./snippets";
+import {
+  appCategoryOverrideSchema,
+  styleUpdateSchema,
+  stylesViewSchema,
+  type AppCategoryOverride,
+  type StylesView,
+  type StyleUpdate,
+} from "./styles";
 
 /**
  * Renderer-to-main IPC contract. Channel names, payload schemas and the API the
@@ -70,6 +78,10 @@ export const IPC_CHANNELS = {
   snippetsList: "snippets:list",
   snippetsSave: "snippets:save",
   snippetsDelete: "snippets:delete",
+  stylesView: "styles:view",
+  stylesUpdate: "styles:update",
+  stylesSetOverride: "styles:set-override",
+  stylesClearOverride: "styles:clear-override",
 } as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
@@ -172,6 +184,22 @@ export const IPC_CONTRACT = {
     args: z.tuple([z.string().min(1)]),
     result: z.void(),
   },
+  [IPC_CHANNELS.stylesView]: {
+    args: z.tuple([]),
+    result: stylesViewSchema,
+  },
+  [IPC_CHANNELS.stylesUpdate]: {
+    args: z.tuple([styleUpdateSchema]),
+    result: stylesViewSchema,
+  },
+  [IPC_CHANNELS.stylesSetOverride]: {
+    args: z.tuple([appCategoryOverrideSchema]),
+    result: stylesViewSchema,
+  },
+  [IPC_CHANNELS.stylesClearOverride]: {
+    args: z.tuple([z.string().min(1).max(255)]),
+    result: stylesViewSchema,
+  },
 } as const satisfies Record<IpcChannel, { args: z.ZodType; result: z.ZodType }>;
 
 export function isIpcChannel(value: unknown): value is IpcChannel {
@@ -229,6 +257,11 @@ export interface MurmurApi {
   snippetsList(): Promise<Snippet[]>;
   snippetsSave(input: SnippetInput): Promise<SnippetSaveResult>;
   snippetsDelete(id: string): Promise<void>;
+  /** The four styles, the owner's app categories and recently used apps. */
+  stylesView(): Promise<StylesView>;
+  stylesUpdate(update: StyleUpdate): Promise<StylesView>;
+  stylesSetOverride(override: AppCategoryOverride): Promise<StylesView>;
+  stylesClearOverride(bundleId: string): Promise<StylesView>;
   /** Input levels during a microphone check, about 20 a second. Returns an unsubscribe. */
   onMicCheckLevel(handler: (rmsDb: number) => void): () => void;
 }

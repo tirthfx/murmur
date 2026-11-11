@@ -6,6 +6,7 @@ import type {
   FocusContext,
   InsertTextResult,
   Snippet,
+  StyleFlags,
   PlatformHelper,
   Transcript,
   Unsubscribe,
@@ -13,11 +14,13 @@ import type {
 import type { CleanupResult } from "./cleanup/cleanup-service";
 import { DictationGesture, type GestureCommand } from "./gesture";
 import { contextTerms, describeContext, speechPrompt } from "./context/context";
+import { applyStyleRules, PRESETS } from "@murmur/shared";
 import { splitMessages } from "./experimental/split-messages";
 import { splitPressEnter } from "./insertion/press-enter";
 import { applyReplacements, keepSpellings, speechPromptWithTerms } from "./dictionary/apply";
 import type { DictionaryRules } from "./dictionary/dictionary-store";
 import { assemble, findSnippets, type Piece } from "./snippets/match";
+import type { ResolvedStyle } from "./styles/style-store";
 import { dropSoundTags } from "./speech/sound-tags";
 import { systemClock } from "./helper/node-runtime";
 import type { Clock, Logger } from "./helper/types";
@@ -71,6 +74,15 @@ export interface RecorderDeps {
     text: string,
     options: { pressEnter: boolean; html?: string },
   ) => Promise<InsertTextResult>;
+  /**
+   * Whether the text around the caret may be used (context awareness). When false the context
+   * still names the app, for its style, but its text and title are not used. On when missing.
+   */
+  useContextText?: () => boolean;
+  /** The style for the app in front (PZ-11, PZ-13). */
+  styles?: {
+    resolve(app: { bundleId: string | null; windowTitle: string | null }): ResolvedStyle;
+  };
   /** Snippets (PZ-08): a trigger said on its own inserts the saved body, unchanged. */
   snippets?: {
     list(): Snippet[];
@@ -85,7 +97,10 @@ export interface RecorderDeps {
   /** What happened, for the Bar. */
   onEvent?: (event: RecorderEvent) => void;
   /** Cleans the transcript before it is inserted. Without it, the raw text is inserted. */
-  clean?: (text: string, options: { terms: string[]; budgetMs: number }) => Promise<CleanupResult>;
+  clean?: (
+    text: string,
+    options: { terms: string[]; budgetMs: number; instructions?: string[] },
+  ) => Promise<CleanupResult>;
   /** Warms the cleanup model when recording starts. */
   prepareCleanup?: () => void;
   /**
@@ -159,6 +174,10 @@ export interface DictationRecord {
   pressEnter?: boolean;
   /** The app the text went into. */
   appBundleId?: string | null;
+  /** The app's name, from the context read at the start. */
+  appName?: string | null;
+  /** The style used (PZ-11). */
+  styleId?: string | null;
 }
 
 /** A recording on its way through transcription, cleanup and insertion. */
@@ -451,7 +470,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
   async function processTake(take: Take): Promise<void> {
     let transcript: Transcript;
     try {
-      const context = await take.context;
+      const context = textContext(await take.context);
       const promptTerms = deps.dictionary?.rules().promptTerms ?? [];
       transcript = await deps.transcribe!(take.audio!.path, {
         prompt: speechPromptWithTerms(promptTerms, speechPrompt(context)),
@@ -509,10 +528,33 @@ export function createRecorder(deps: RecorderDeps): Recorder {
     const spoken = deps.pressEnterCommand?.()
       ? splitPressEnter(heard.trim())
       : { text: heard, pressEnter: false };
+    const context = await take.context;
     const terms = [
-      ...contextTerms(await take.context),
+      ...contextTerms(textContext(context)),
       ...(rules ? dictionaryTermsIn(heard, rules) : []),
     ];
+    // The style for the app in front: rules after cleanup, instructions for the model.
+    const resolved =
+      deps.styles?.resolve({
+        bundleId: context?.bundleId ?? null,
+        windowTitle: context?.windowTitle ?? null,
+      }) ?? null;
+    const style: TakeStyle = resolved
+      ? {
+          id: resolved.style.id,
+          flags: PRESETS[resolved.style.preset].flags,
+          instructions: styleInstructions(resolved),
+          appName: context?.appName ?? null,
+        }
+      : { id: null, flags: null, instructions: [], appName: context?.appName ?? null };
+    if (resolved) {
+      logger.info(
+        `style: ${resolved.style.category} (${resolved.category}, from ${resolved.source})`,
+      );
+    }
+    const keep = new Set(terms.map((term) => term.toLowerCase()));
+    const styled = (text: string) =>
+      style.flags ? applyStyleRules(text, style.flags, keep) : text;
     // Split into messages (experimental, DC-37): each part goes in and is sent with Return.
     const parts = deps.splitMessages?.()
       ? splitMessages({
@@ -527,19 +569,37 @@ export function createRecorder(deps: RecorderDeps): Recorder {
       if (used.size > 0) deps.dictionary?.recordUses([...used]);
     };
     if (parts.length > 1) {
-      await sendMessages(take, transcript, parts, spoken.pressEnter, terms, respell);
+      await sendMessages(
+        take,
+        transcript,
+        parts,
+        spoken.pressEnter,
+        terms,
+        (text) => styled(respell(text)),
+        style,
+      );
       countUses();
       return;
     }
     const pieces = deps.snippets ? findSnippets(spoken.text, deps.snippets.list()) : null;
     if (pieces) {
-      await insertWithSnippets(take, transcript, pieces, spoken.pressEnter, terms, respell);
+      await insertWithSnippets(
+        take,
+        transcript,
+        pieces,
+        spoken.pressEnter,
+        terms,
+        (text) => styled(respell(text)),
+        style,
+      );
       countUses();
       return;
     }
     const cleanup =
-      spoken.text.trim() === "" ? null : await cleanUp(spoken.text, terms, take.releasedAt);
-    const final = respell(cleanup?.text ?? spoken.text.trim());
+      spoken.text.trim() === ""
+        ? null
+        : await cleanUp(spoken.text, terms, take.releasedAt, style.instructions);
+    const final = styled(respell(cleanup?.text ?? spoken.text.trim()));
     countUses();
     const finalWords = final.split(/\s+/).filter(Boolean).length;
     emit(
@@ -558,6 +618,8 @@ export function createRecorder(deps: RecorderDeps): Recorder {
       finalText: final,
       wordCount: finalWords,
       cleanup,
+      styleId: style.id,
+      appName: style.appName,
     });
   }
 
@@ -571,7 +633,8 @@ export function createRecorder(deps: RecorderDeps): Recorder {
     pieces: Piece[],
     pressEnter: boolean,
     terms: string[],
-    respell: (text: string) => string,
+    finish: (text: string) => string,
+    style: TakeStyle,
   ): Promise<void> {
     const cleaned: Piece[] = [];
     for (const piece of pieces) {
@@ -579,8 +642,8 @@ export function createRecorder(deps: RecorderDeps): Recorder {
         cleaned.push(piece);
         continue;
       }
-      const cleanup = await cleanUp(piece.text, terms, take.releasedAt);
-      cleaned.push({ kind: "text", text: respell(cleanup?.text ?? piece.text) });
+      const cleanup = await cleanUp(piece.text, terms, take.releasedAt, style.instructions);
+      cleaned.push({ kind: "text", text: finish(cleanup?.text ?? piece.text) });
     }
     const expanded = cleaned.filter((piece) => piece.kind === "snippet");
     logger.info(`expanded ${expanded.length} snippet${expanded.length === 1 ? "" : "s"}`);
@@ -598,6 +661,8 @@ export function createRecorder(deps: RecorderDeps): Recorder {
       finalText: text,
       wordCount: words,
       cleanup: null,
+      styleId: style.id,
+      appName: style.appName,
     });
   }
 
@@ -608,7 +673,8 @@ export function createRecorder(deps: RecorderDeps): Recorder {
     parts: string[],
     pressEnterAtEnd: boolean,
     terms: string[],
-    respell: (text: string) => string,
+    finish: (text: string) => string,
+    style: TakeStyle,
   ): Promise<void> {
     logger.info(`split into ${parts.length} messages`);
     // The spoken command, if any, was on the last part's segments; take it off there too.
@@ -618,8 +684,9 @@ export function createRecorder(deps: RecorderDeps): Recorder {
     const finals: string[] = [];
     let outcome: InsertOutcome = { insertStatus: "inserted" };
     for (const [index, text] of texts.entries()) {
-      const cleanup = text.trim() === "" ? null : await cleanUp(text, terms, take.releasedAt);
-      const final = respell(cleanup?.text ?? text.trim());
+      const cleanup =
+        text.trim() === "" ? null : await cleanUp(text, terms, take.releasedAt, style.instructions);
+      const final = finish(cleanup?.text ?? text.trim());
       finals.push(final);
       const isLast = index === texts.length - 1;
       const result = await insert(final, isLast ? pressEnterAtEnd : true);
@@ -636,6 +703,8 @@ export function createRecorder(deps: RecorderDeps): Recorder {
       finalText,
       wordCount: finalWords,
       cleanup: null,
+      styleId: style.id,
+      appName: style.appName,
     });
   }
 
@@ -643,10 +712,15 @@ export function createRecorder(deps: RecorderDeps): Recorder {
     text: string,
     terms: string[],
     releasedAt: number,
+    instructions: string[] = [],
   ): Promise<CleanupResult | null> {
     if (!deps.clean) return null;
     const budgetMs = Math.max(0, RESPONSE_TARGET_MS - (now() - releasedAt));
-    const result = await deps.clean(text, { terms, budgetMs });
+    const result = await deps.clean(text, {
+      terms,
+      budgetMs,
+      ...(instructions.length > 0 ? { instructions } : {}),
+    });
     const how =
       result.source === "model"
         ? `model in ${result.modelMs} ms`
@@ -728,6 +802,12 @@ export function createRecorder(deps: RecorderDeps): Recorder {
       logger.warn(`could not save to history: ${errorMessage(error)}`);
       return null;
     }
+  }
+
+  /** The context as far as its text may be used: none of it when context awareness is off. */
+  function textContext(context: FocusContext | null): FocusContext | null {
+    if (!context || deps.useContextText?.() !== false) return context;
+    return { ...context, windowTitle: null, textBefore: "", textAfter: "" };
   }
 
   function handleLevel(level: AudioLevel): void {
@@ -868,4 +948,19 @@ export function dictionaryTermsIn(text: string, rules: DictionaryRules): string[
     }
   }
   return found;
+}
+
+/** The style a dictation was resolved to, as the pipeline needs it. */
+interface TakeStyle {
+  id: string | null;
+  flags: StyleFlags | null;
+  instructions: string[];
+  appName: string | null;
+}
+
+/** The preset's instruction and the owner's own, for the cleanup model. */
+export function styleInstructions(resolved: ResolvedStyle): string[] {
+  const preset = PRESETS[resolved.style.preset].instruction;
+  const own = resolved.style.instructions.trim();
+  return [...(preset ? [preset] : []), ...(own ? [own] : [])];
 }

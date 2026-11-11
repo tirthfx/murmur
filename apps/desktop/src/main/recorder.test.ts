@@ -422,6 +422,74 @@ describe("recorder", () => {
     expect(recordUse).toHaveBeenCalledWith("s1");
   });
 
+  it("applies the app's style: instructions to the model, rules after it, recorded with the text", async () => {
+    const transcribe = vi.fn().mockResolvedValue({
+      text: "sounds good see you at five",
+      language: "en",
+      segments: [],
+      decodeMs: 1,
+      audioMs: 1,
+    });
+    const clean = vi.fn(async (_text: string, _options: { terms: string[]; budgetMs: number }) => ({
+      text: "Sounds good. See you at five.",
+      source: "model" as const,
+      fallback: false,
+      modelMs: 5,
+      reason: null,
+    }));
+    const insert = vi.fn(async () => ({
+      method: "paste_cmd_v" as const,
+      delivered: true,
+      clipboardRestored: true,
+    }));
+    const records: DictationRecord[] = [];
+    const resolve = vi.fn(() => ({
+      category: "personal" as const,
+      source: "default" as const,
+      style: {
+        id: "style-personal",
+        category: "personal" as const,
+        preset: "no-caps-less" as const,
+        instructions: "Keep it short.",
+        updatedAt: 0,
+      },
+    }));
+    const { recorder } = setup({
+      transcribe,
+      clean,
+      insert,
+      record: (record) => {
+        records.push(record);
+        return "h1";
+      },
+      readContext: async () => ({
+        appName: "WhatsApp",
+        bundleId: "net.whatsapp.WhatsApp",
+        windowTitle: "Chat with Sam",
+        role: null,
+        subrole: null,
+        editable: true,
+        secure: false,
+        textBefore: "Hello Sam",
+        textAfter: "",
+      }),
+      // Context awareness off: the app is used for the style, its text and title are not.
+      useContextText: () => false,
+      styles: { resolve },
+    });
+    recorder.handleHotkey(key("down"));
+    recorder.handleHotkey(key("up"));
+    await recorder.idle();
+    expect(resolve).toHaveBeenCalledWith({
+      bundleId: "net.whatsapp.WhatsApp",
+      windowTitle: "Chat with Sam",
+    });
+    expect(transcribe).toHaveBeenCalledWith("/tmp/a.pcm", { prompt: "" });
+    expect(clean.mock.calls[0]![1]).toMatchObject({ terms: [], instructions: ["Keep it short."] });
+    expect(insert).toHaveBeenCalledWith("sounds good. see you at five", { pressEnter: false });
+    expect(records[0]).toMatchObject({ styleId: "style-personal", appName: "WhatsApp" });
+  });
+
   it("retries a failure from the folder history moved its audio to", async () => {
     const transcribe = vi
       .fn()

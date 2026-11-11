@@ -1,5 +1,11 @@
 import { vi } from "vitest";
-import type { MurmurApi, PermissionsInfo, SettingsView, SetupStatus } from "@murmur/shared";
+import type {
+  MurmurApi,
+  PermissionsInfo,
+  SettingsView,
+  SetupStatus,
+  StylesView,
+} from "@murmur/shared";
 
 export const SAMPLE_SETTINGS: SettingsView = {
   settings: {
@@ -57,6 +63,23 @@ export const SAMPLE_SETUP: SetupStatus = {
   blockers: [],
 };
 
+export const SAMPLE_STYLES: StylesView = {
+  styles: [
+    {
+      id: "style-personal",
+      category: "personal",
+      preset: "no-caps-less",
+      instructions: "",
+      updatedAt: 0,
+    },
+    { id: "style-work", category: "work", preset: "caps", instructions: "", updatedAt: 0 },
+    { id: "style-email", category: "email", preset: "formal", instructions: "", updatedAt: 0 },
+    { id: "style-other", category: "other", preset: "caps", instructions: "", updatedAt: 0 },
+  ],
+  overrides: [],
+  recentApps: [],
+};
+
 /** A mocked preload API for renderer tests. Override any member. */
 export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
   return {
@@ -83,6 +106,10 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
     snippetsList: vi.fn().mockResolvedValue([]),
     snippetsSave: vi.fn(),
     snippetsDelete: vi.fn().mockResolvedValue(undefined),
+    stylesView: vi.fn().mockResolvedValue(SAMPLE_STYLES),
+    stylesUpdate: vi.fn().mockResolvedValue(SAMPLE_STYLES),
+    stylesSetOverride: vi.fn().mockResolvedValue(SAMPLE_STYLES),
+    stylesClearOverride: vi.fn().mockResolvedValue(SAMPLE_STYLES),
     ...overrides,
   };
 }

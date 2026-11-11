@@ -9,6 +9,8 @@ export type LlmRequest =
       text: string;
       level: Exclude<CleanupLevel, "off">;
       terms?: string[];
+      /** The style's instructions (PZ-11), and later Memory. */
+      instructions?: string[];
     }
   | { id: number; type: "unload" }
   | { type: "abort"; target: number };
@@ -54,6 +56,7 @@ export interface LlmClient {
     level: Exclude<CleanupLevel, "off">,
     budgetMs: number,
     terms?: string[],
+    instructions?: string[],
   ): Promise<string>;
   stop(): void;
 }
@@ -156,7 +159,7 @@ export function createLlmClient(deps: LlmClientDeps): LlmClient {
       touch();
       void start().catch(() => {});
     },
-    async clean(text, level, budgetMs, terms = []) {
+    async clean(text, level, budgetMs, terms = [], instructions = []) {
       touch();
       const started = clock.now();
       const loading = start();
@@ -171,7 +174,14 @@ export function createLlmClient(deps: LlmClientDeps): LlmClient {
       await Promise.race([loading, loadTimer]);
       const left = Math.max(1, budgetMs - (clock.now() - started));
       return send(
-        { id: nextId++, type: "clean", text, level, ...(terms.length > 0 ? { terms } : {}) },
+        {
+          id: nextId++,
+          type: "clean",
+          text,
+          level,
+          ...(terms.length > 0 ? { terms } : {}),
+          ...(instructions.length > 0 ? { instructions } : {}),
+        },
         left,
       );
     },

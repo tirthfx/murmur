@@ -36,7 +36,10 @@ export interface CleanupService {
    * `terms`: names and terms on screen, for spelling (DC-30). `budgetMs`: the time left for
    * the model in this dictation; never more than the usual budget.
    */
-  clean(raw: string, options?: { terms?: string[]; budgetMs?: number }): Promise<CleanupResult>;
+  clean(
+    raw: string,
+    options?: { terms?: string[]; budgetMs?: number; instructions?: string[] },
+  ): Promise<CleanupResult>;
 }
 
 /**
@@ -79,7 +82,9 @@ export function createCleanupService(deps: CleanupServiceDeps): CleanupService {
       if (budget < MIN_MODEL_BUDGET_MS) return { ...base, fallback: true, reason: "timeout" };
       const started = now();
       try {
-        const answer = (await deps.llm.clean(rules, level, budget, terms)).trim();
+        const answer = (
+          await deps.llm.clean(rules, level, budget, terms, options.instructions ?? [])
+        ).trim();
         const modelMs = now() - started;
         if (!acceptCleanup(rules, answer, level, terms)) {
           deps.logger.warn("cleanup model answer refused by the guard; using the rules' text");

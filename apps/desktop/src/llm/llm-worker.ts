@@ -53,6 +53,7 @@ async function handle(request: LlmRequest): Promise<void> {
             request.level,
             controller.signal,
             request.terms ?? [],
+            request.instructions ?? [],
           );
           reply({ id: request.id, ok: true, value: text });
         } finally {

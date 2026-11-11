@@ -23,6 +23,10 @@ const api: MurmurApi = {
   snippetsList: () => ipcRenderer.invoke(IPC_CHANNELS.snippetsList),
   snippetsSave: (input) => ipcRenderer.invoke(IPC_CHANNELS.snippetsSave, input),
   snippetsDelete: (id) => ipcRenderer.invoke(IPC_CHANNELS.snippetsDelete, id),
+  stylesView: () => ipcRenderer.invoke(IPC_CHANNELS.stylesView),
+  stylesUpdate: (update) => ipcRenderer.invoke(IPC_CHANNELS.stylesUpdate, update),
+  stylesSetOverride: (override) => ipcRenderer.invoke(IPC_CHANNELS.stylesSetOverride, override),
+  stylesClearOverride: (bundleId) => ipcRenderer.invoke(IPC_CHANNELS.stylesClearOverride, bundleId),
   onMicCheckLevel: (handler) => {
     // Only a number crosses over; the event object stays in the preload.
     const listener = (_event: unknown, rmsDb: unknown) => {

@@ -94,8 +94,8 @@ export function createHistoryStore(
   const insertHistory = db.prepare(`INSERT INTO history (
       id, created_at, session_id, source, language, duration_ms, raw_text, final_text, word_count,
       cleanup_level, cleanup_status, cleanup_fallback, insert_status, insert_method, error_code,
-      press_enter, app_bundle_id, audio_path, audio_expires_at, retry_of
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+      press_enter, app_bundle_id, audio_path, audio_expires_at, retry_of, app_name, style_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
   const insertChunk = db.prepare(`INSERT INTO audio_chunks
       (id, history_id, seq, path, codec, duration_ms, gain_db, expires_at, created_at)
       VALUES (?, ?, 0, ?, ?, ?, NULL, ?, ?)`);
@@ -204,6 +204,8 @@ export function createHistoryStore(
           audioPath,
           expires,
           record.retryOf,
+          record.appName ?? null,
+          record.styleId ?? null,
         );
         if (record.audio && audioPath) {
           insertChunk.run(

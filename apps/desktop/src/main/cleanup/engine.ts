@@ -58,11 +58,14 @@ export class CleanupEngine {
     level: Exclude<CleanupLevel, "off">,
     signal?: AbortSignal,
     terms: string[] = [],
+    instructions: string[] = [],
   ): Promise<string> {
     const loaded = this.loaded;
     if (!loaded) throw new Error("The cleanup model is not loaded");
     // The fixed part of the system prompt comes first, so the model reuses its cached prefix.
-    loaded.session.setChatHistory([{ type: "system", text: systemPrompt(level, terms) }]);
+    loaded.session.setChatHistory([
+      { type: "system", text: systemPrompt(level, terms, instructions) },
+    ]);
     const answer = await loaded.session.prompt(text, {
       grammar: loaded.grammar,
       maxTokens: maxTokensFor(text),
