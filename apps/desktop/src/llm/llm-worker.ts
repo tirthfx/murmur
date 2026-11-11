@@ -1,6 +1,28 @@
 // Entry of the LLM utility process. A crash or a slow model here never blocks main.
+import { existsSync } from "node:fs";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { CleanupEngine } from "../main/cleanup/engine";
 import type { LlmReply, LlmRequest } from "../main/cleanup/llm-client";
+
+/**
+ * The packaged app carries node-llama-cpp in `Resources/llm-modules` (outside the asar
+ * archive); in development it comes from `node_modules`.
+ */
+function importLlama(): Promise<typeof import("node-llama-cpp")> {
+  const packaged = path.join(
+    process.resourcesPath ?? "",
+    "llm-modules",
+    "node_modules",
+    "node-llama-cpp",
+    "dist",
+    "index.js",
+  );
+  if (!existsSync(packaged)) return import("node-llama-cpp");
+  return import(/* @vite-ignore */ pathToFileURL(packaged).href) as Promise<
+    typeof import("node-llama-cpp")
+  >;
+}
 
 const engine = new CleanupEngine();
 const running = new Map<number, AbortController>();
@@ -18,7 +40,7 @@ async function handle(request: LlmRequest): Promise<void> {
   try {
     switch (request.type) {
       case "load": {
-        const { loadMs } = await engine.load(request.modelPath);
+        const { loadMs } = await engine.load(request.modelPath, importLlama);
         reply({ id: request.id, ok: true, value: String(loadMs) });
         return;
       }

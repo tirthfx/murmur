@@ -29,6 +29,10 @@ models and the Accessibility permission.
      text, and insert status `inserted`.
 8. The app quits and the temporary profile is removed. `npm run smoke -- --keep` keeps it.
 
+`npm run smoke -- --packaged` runs the same steps against the app built by `npm run package`.
+macOS treats the packaged app as a different app, so it needs its own Accessibility grant
+first (see `docs/permissions.md`).
+
 The script prints `PASS` and exits with 0, or `FAIL: <reason>` and exits with 1.
 
 ## What it needs

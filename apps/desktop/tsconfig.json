@@ -6,5 +6,5 @@
     "allowImportingTsExtensions": true,
     "types": ["vite/client", "node", "@electron-forge/plugin-vite/forge-vite-env"]
   },
-  "include": ["src", "*.config.ts"]
+  "include": ["src", "packaging", "*.config.ts"]
 }
