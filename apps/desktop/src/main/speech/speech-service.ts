@@ -27,6 +27,11 @@ export interface SpeechService {
   start(): void;
   stop(): void;
   getState(): SpeechState;
+  /**
+   * Resolves once the model is ready, or after `timeoutMs`, or as soon as it cannot become
+   * ready (missing, corrupt or failed). Used before an automatic retry.
+   */
+  whenReady(timeoutMs?: number): Promise<void>;
   /** Looks at the files again and loads the model, for example after a download. */
   recheck(): void;
   /** Transcribes a recorded file. Rejects when the model is not ready. */
@@ -110,13 +115,24 @@ export function createSpeechService(deps: SpeechServiceDeps): SpeechService {
       generation++;
     },
     getState: () => state,
+    async whenReady(timeoutMs = 60_000) {
+      const deadline = Date.now() + timeoutMs;
+      while (state !== "ready" && Date.now() < deadline) {
+        if (state === "missing" || state === "corrupt" || state === "failed") return;
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+    },
     recheck() {
       verified = false;
       if (subscription && helper.getStatus().state === "ready") void prepare();
     },
     transcribe(path, prompt) {
       if (state !== "ready") {
-        return Promise.reject(new Error(`The speech model is not ready (${state})`));
+        // A model that is loading or waiting for the helper is worth a retry; see the recorder.
+        const error = Object.assign(new Error(`The speech model is not ready (${state})`), {
+          code: state === "missing" || state === "corrupt" ? "MODEL_MISSING" : "MODEL_NOT_READY",
+        });
+        return Promise.reject(error);
       }
       return helper.transcribeFile({
         path,

@@ -23,3 +23,34 @@ Audio paths are relative to `~/Library/Application Support/Murmur/audio`. Record
 ## Reading it
 
 The store gives the last 200 dictations, newest first, and the last dictated text. The Hub's history page and the tray's "paste last" use them later (#16 and the Hub work).
+
+## Retry and recovery
+
+- **Automatic retry, once.** When transcription times out, the helper restarts or the model
+  is still loading, the recording is transcribed again after 2 seconds (after waiting for
+  the model to be ready, up to a minute). Only the outcome is written to history, so the
+  text is inserted once. Other failures are not retried by themselves.
+- **Retry by hand.** Click the Bar while it shows the error, or choose **Retry last
+  dictation** in the tray. After a restart this finds the newest failed dictation in
+  history whose audio is still there. A retry is a new row with `retry_of` pointing at the
+  failed one. A dictation whose retry already went in, or that is being retried right now,
+  is not retried again.
+- **Crash recovery.** Each recording is noted in `pending_sessions` (migration 0002) when
+  it starts, and the note is removed when its history row is written or the recording is
+  cancelled. Notes left at the next launch become failed rows with error `INTERRUPTED`,
+  using the file the helper was writing; they can then be retried.
+- **Audio retention.** Successful dictations keep their recording for 24 hours in the
+  helper's temporary folder (`audio/tmp`). Failed and interrupted ones are moved to
+  `audio/kept` and kept for 7 days. At launch, recordings past their date are deleted (only
+  inside the audio folder) and their references cleared.
+
+The list of failed sessions with a Retry button on the Dictation page belongs to the Hub
+pages of a later milestone; until then the tray and the Bar are the way in.
+
+### Manual test
+
+1. Hold the dictation key, speak, and quit Murmur from the Activity Monitor (force quit)
+   while it is still transcribing.
+2. Start Murmur: the log says `1 interrupted dictation(s) can be retried`.
+3. Choose **Retry last dictation** in the tray with a text field focused: the text goes in
+   once. Choosing it again does nothing.

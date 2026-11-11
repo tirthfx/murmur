@@ -34,6 +34,8 @@ function setup() {
   const deps = {
     toggleDictation: vi.fn(),
     snoozeReminder: vi.fn(),
+    canRetry: vi.fn(() => false),
+    retryLast: vi.fn(),
     copy: vi.fn(),
     quit: vi.fn(),
   };
@@ -139,6 +141,8 @@ describe("tray controller", () => {
     state.last = "Hello there.";
     controller.perform({ type: "copy-last" });
     expect(deps.copy).toHaveBeenCalledWith("Hello there.");
+    controller.perform({ type: "retry-last" });
+    expect(deps.retryLast).toHaveBeenCalledOnce();
     controller.perform({ type: "reminder", choice: "hour" });
     expect(deps.snoozeReminder).toHaveBeenCalledWith("hour");
     controller.perform({ type: "quit" });

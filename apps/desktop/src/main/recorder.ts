@@ -16,6 +16,17 @@ import { splitPressEnter } from "./insertion/press-enter";
 import { systemClock } from "./helper/node-runtime";
 import type { Clock, Logger } from "./helper/types";
 
+/** Failures worth one automatic retry (DC-38): the model or the helper was briefly away. */
+const AUTO_RETRY_CODES: ReadonlySet<unknown> = new Set([
+  "TRANSCRIPTION_TIMEOUT",
+  "HELPER_RESTARTED",
+  "HELPER_TIMEOUT",
+  "HELPER_UNAVAILABLE",
+  "MODEL_NOT_READY",
+]);
+/** Wait before the automatic retry. */
+export const AUTO_RETRY_DELAY_MS = 2000;
+
 /** Longest wait for the focused field; a slow app never delays the text. */
 const CONTEXT_WAIT_MS = 1500;
 
@@ -69,6 +80,26 @@ export interface RecorderDeps {
   beforeStart?: () => Promise<void>;
   /** Runs after every recording ends, whatever the outcome (restore the output). */
   afterEnd?: () => Promise<void>;
+  /** Keeps a note of each recording until its history row is written (crash recovery). */
+  pending?: {
+    start(sessionId: string, at: number): void;
+    stopped(sessionId: string, audioPath: string, durationMs: number): void;
+    clear(sessionId: string): void;
+  };
+  /** The newest failed dictation in history that can still be retried. */
+  lastRetryable?: () => {
+    historyId: string;
+    sessionId: string;
+    createdAt: number;
+    durationMs: number;
+    audioPath: string;
+  } | null;
+  /** True once a retry of this history row inserted its text. */
+  isResolved?: (historyId: string) => boolean;
+  /** Waits until the speech model is ready again (after a helper restart), or gives up. */
+  waitForSpeech?: () => Promise<void>;
+  /** Sleeps before the automatic retry; tests pass a fake. */
+  sleep?: (ms: number) => Promise<void>;
   /**
    * Asked before each recording: a sentence saying why dictation cannot start (setup not
    * finished), or null to go ahead.
@@ -109,6 +140,8 @@ interface Take {
   retryOf: string | null;
   /** The focused field at the start; memory only, never stored. */
   context: Promise<FocusContext | null>;
+  /** Set on the one automatic retry, so it is never retried twice. */
+  autoRetried?: boolean;
 }
 
 type InsertOutcome = Pick<DictationRecord, "insertStatus"> &
@@ -131,7 +164,9 @@ export type RecorderEvent =
   /** The microphone in use went away mid-recording; recording goes on with another one. */
   | { type: "mic-switched"; deviceName: string | null }
   /** Return was asked for but another app had come to the front. */
-  | { type: "enter-skipped" };
+  | { type: "enter-skipped" }
+  /** A failed dictation is being transcribed again. */
+  | { type: "retrying" };
 
 export interface Recorder {
   start(): void;
@@ -145,8 +180,13 @@ export interface Recorder {
   toggle(): void;
   /** True while recording, or while a recording is transcribed, cleaned or inserted. */
   isBusy(): boolean;
-  /** Transcribes the last recording that failed to transcribe. False when there is none. */
+  /**
+   * Transcribes the last recording that failed, from this run or (after a restart) from
+   * history. False when there is none, or it is already being retried or was inserted.
+   */
   retryLast(): boolean;
+  /** Whether `retryLast` has something to retry. */
+  canRetry(): boolean;
   /** Resolves when every queued start, stop and transcription is done. For tests and shutdown. */
   idle(): Promise<void>;
 }
@@ -183,6 +223,15 @@ export function createRecorder(deps: RecorderDeps): Recorder {
   let current: Session | null = null;
   let subscriptions: Unsubscribe[] = [];
   let lastFailed: { take: Take; historyId: string | null } | null = null;
+  const retrying = new Set<string>();
+  /** Bookkeeping that must never break a dictation. */
+  function note(write: () => void): void {
+    try {
+      write();
+    } catch (error) {
+      logger.warn(`could not note the recording for recovery: ${errorMessage(error)}`);
+    }
+  }
   const now = deps.now ?? Date.now;
   const emit = (event: RecorderEvent) => deps.onEvent?.(event);
 
@@ -269,6 +318,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
       }
       session.deviceName = started.deviceName;
       logger.info(`recording from ${started.deviceName}`);
+      note(() => deps.pending?.start(session.id, now()));
       emit({ type: "started", at: started.startedAt });
       deps.prepareCleanup?.();
     } catch (error) {
@@ -315,6 +365,10 @@ export function createRecorder(deps: RecorderDeps): Recorder {
         retryOf: null,
         context: session.context,
       };
+      if (result.audioFile) {
+        const audioPath = result.audioFile.path;
+        note(() => deps.pending?.stopped(session.id, audioPath, result.durationMs));
+      }
       if (result.silent || !result.audioFile) {
         if (result.silent) logger.warn("nothing above the silence threshold was heard");
         emit({ type: "no-speech" });
@@ -338,6 +392,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
     emit({ type: "cancelled" });
     try {
       await helper.cancelAudio(session.id);
+      note(() => deps.pending?.clear(session.id));
       logger.info("dictation cancelled; the recording was discarded");
     } catch (error) {
       logger.warn(`could not cancel the recording: ${errorMessage(error)}`);
@@ -365,6 +420,16 @@ export function createRecorder(deps: RecorderDeps): Recorder {
       transcript = await deps.transcribe!(take.audio!.path, { prompt: speechPrompt(context) });
     } catch (error) {
       logger.warn(`could not transcribe: ${errorMessage(error)}`);
+      if (AUTO_RETRY_CODES.has(errorCode(error)) && !take.autoRetried) {
+        // Nothing is recorded yet: only the outcome of the retry is, so text goes in once.
+        logger.info(`retrying once in ${AUTO_RETRY_DELAY_MS / 1000} s`);
+        await (deps.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms))))(
+          AUTO_RETRY_DELAY_MS,
+        );
+        await deps.waitForSpeech?.().catch(() => {});
+        await processTake({ ...take, autoRetried: true });
+        return;
+      }
       const historyId = record(take, {
         insertStatus: "failed",
         errorCode:
@@ -552,18 +617,49 @@ export function createRecorder(deps: RecorderDeps): Recorder {
     },
     isBusy: () => current !== null || processing > 0,
     retryLast() {
+      if (!deps.transcribe) return false;
+      let take: Take | null = null;
       const failed = lastFailed;
-      if (!failed || !deps.transcribe) return false;
       lastFailed = null;
+      if (failed) {
+        take = { ...failed.take, source: "retry", createdAt: now(), retryOf: failed.historyId };
+      } else {
+        // After a restart: the newest failed or interrupted dictation in history.
+        const stored = deps.lastRetryable?.() ?? null;
+        if (stored) {
+          take = {
+            sessionId: stored.sessionId,
+            source: "retry",
+            createdAt: now(),
+            durationMs: stored.durationMs,
+            audio: { path: stored.audioPath, codec: "pcm_s16le", durationMs: stored.durationMs },
+            retryOf: stored.historyId,
+            context: Promise.resolve(null),
+          };
+        }
+      }
+      if (!take) return false;
+      const retryOf = take.retryOf;
+      // Never insert the same dictation twice: not while a retry of it runs, and not after
+      // one succeeded.
+      if (retryOf !== null && (retrying.has(retryOf) || deps.isResolved?.(retryOf))) return false;
+      if (retryOf !== null) retrying.add(retryOf);
       logger.info("retrying the last transcription");
-      const take: Take = {
-        ...failed.take,
-        source: "retry",
-        createdAt: now(),
-        retryOf: failed.historyId,
-      };
-      transcriptions = transcriptions.then(() => runTake(take));
+      emit({ type: "retrying" });
+      const chosen = take;
+      transcriptions = transcriptions.then(async () => {
+        try {
+          await runTake(chosen);
+        } finally {
+          if (retryOf !== null) retrying.delete(retryOf);
+        }
+      });
       return true;
+    },
+    canRetry() {
+      if (lastFailed) return true;
+      const stored = deps.lastRetryable?.() ?? null;
+      return stored !== null && !retrying.has(stored.historyId);
     },
     idle: async () => {
       await queue;

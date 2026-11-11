@@ -304,7 +304,7 @@ describe("recorder", () => {
     const events: { type: string }[] = [];
     const transcribe = vi
       .fn()
-      .mockRejectedValueOnce(new HelperError("TRANSCRIPTION_TIMEOUT", "slow"))
+      .mockRejectedValueOnce(new HelperError("TRANSCRIPTION_FAILED", "bad audio"))
       .mockResolvedValueOnce({ text: "ok", language: "en", segments: [], decodeMs: 1, audioMs: 1 });
     const { recorder } = setup({ transcribe, onEvent: (event) => events.push(event) });
     expect(recorder.retryLast()).toBe(false);
@@ -316,6 +316,123 @@ describe("recorder", () => {
     await recorder.idle();
     expect(transcribe).toHaveBeenLastCalledWith("/tmp/a.pcm", { prompt: "" });
     expect(events.at(-1)).toEqual({ type: "transcribed", words: 1 });
+    expect(recorder.retryLast()).toBe(false);
+  });
+
+  it("retries once by itself after a timeout, and records only the outcome", async () => {
+    const records: DictationRecord[] = [];
+    const sleeps: number[] = [];
+    const waitForSpeech = vi.fn(async () => {});
+    const transcribe = vi
+      .fn()
+      .mockRejectedValueOnce(new HelperError("TRANSCRIPTION_TIMEOUT", "slow"))
+      .mockResolvedValueOnce({ text: "ok", language: "en", segments: [], decodeMs: 1, audioMs: 1 });
+    const insert = vi.fn(async () => ({
+      method: "paste_cmd_v" as const,
+      delivered: true,
+      clipboardRestored: true,
+    }));
+    const { recorder } = setup({
+      transcribe,
+      insert,
+      waitForSpeech,
+      sleep: async (ms) => {
+        sleeps.push(ms);
+      },
+      record: (record) => {
+        records.push(record);
+        return "h1";
+      },
+    });
+    recorder.handleHotkey(key("down"));
+    recorder.handleHotkey(key("up"));
+    await recorder.idle();
+    expect(sleeps).toEqual([2000]);
+    expect(waitForSpeech).toHaveBeenCalledOnce();
+    expect(insert).toHaveBeenCalledOnce();
+    expect(records.map((record) => record.insertStatus)).toEqual(["inserted"]);
+  });
+
+  it("gives up after one automatic retry", async () => {
+    const records: DictationRecord[] = [];
+    const transcribe = vi.fn().mockRejectedValue(new HelperError("HELPER_RESTARTED", "gone"));
+    const { recorder } = setup({
+      transcribe,
+      sleep: async () => {},
+      record: (record) => {
+        records.push(record);
+        return "h1";
+      },
+    });
+    recorder.handleHotkey(key("down"));
+    recorder.handleHotkey(key("up"));
+    await recorder.idle();
+    expect(transcribe).toHaveBeenCalledTimes(2);
+    expect(records.map((record) => [record.insertStatus, record.errorCode])).toEqual([
+      ["failed", "HELPER_RESTARTED"],
+    ]);
+  });
+
+  it("notes each recording until its history row exists, and drops it when cancelled", async () => {
+    const calls: string[] = [];
+    const pending = {
+      start: (id: string) => calls.push(`start ${id}`),
+      stopped: (id: string, file: string, ms: number) => calls.push(`stopped ${id} ${file} ${ms}`),
+      clear: (id: string) => calls.push(`clear ${id}`),
+    };
+    const { recorder } = setup({
+      clock: new FakeClock(),
+      pending,
+      transcribe: async () => ({ ...transcript, text: "hi" }),
+    });
+    recorder.toggle();
+    await recorder.idle();
+    recorder.toggle();
+    await recorder.idle();
+    recorder.toggle();
+    await recorder.idle();
+    recorder.handleHotkey({ bindingId: "c", action: "dictate.cancel", state: "press", at: 1 });
+    await recorder.idle();
+    expect(calls).toEqual(["start s1", "stopped s1 /tmp/a.pcm 10020", "start s2", "clear s2"]);
+  });
+
+  it("retries a failed dictation from history after a restart, and never twice", async () => {
+    const events: string[] = [];
+    let resolved = false;
+    const transcribe = vi.fn(async () => ({ ...transcript, text: "found it" }));
+    const insert = vi.fn(async () => ({
+      method: "paste_cmd_v" as const,
+      delivered: true,
+      clipboardRestored: true,
+    }));
+    const records: DictationRecord[] = [];
+    const { recorder } = setup({
+      transcribe,
+      insert,
+      onEvent: (event) => events.push(event.type),
+      lastRetryable: () => ({
+        historyId: "h-old",
+        sessionId: "s-old",
+        createdAt: 5,
+        durationMs: 3000,
+        audioPath: "/kept/s-old.pcm",
+      }),
+      isResolved: () => resolved,
+      record: (record) => {
+        records.push(record);
+        resolved = true;
+        return "h-new";
+      },
+    });
+    expect(recorder.canRetry()).toBe(true);
+    expect(recorder.retryLast()).toBe(true);
+    // A second press while the first retry runs does nothing.
+    expect(recorder.retryLast()).toBe(false);
+    await recorder.idle();
+    expect(events[0]).toBe("retrying");
+    expect(transcribe).toHaveBeenCalledWith("/kept/s-old.pcm", { prompt: "" });
+    expect(insert).toHaveBeenCalledOnce();
+    expect(records[0]).toMatchObject({ source: "retry", retryOf: "h-old", sessionId: "s-old" });
     expect(recorder.retryLast()).toBe(false);
   });
 
@@ -373,7 +490,7 @@ describe("recorder", () => {
     const records: DictationRecord[] = [];
     const transcribe = vi
       .fn()
-      .mockRejectedValueOnce(new HelperError("TRANSCRIPTION_TIMEOUT", "slow"))
+      .mockRejectedValueOnce(new HelperError("TRANSCRIPTION_FAILED", "bad audio"))
       .mockResolvedValue({
         text: "Hello there",
         language: "en",
@@ -407,7 +524,7 @@ describe("recorder", () => {
     await recorder.idle();
 
     expect(records.map((r) => [r.source, r.insertStatus, r.errorCode, r.retryOf])).toEqual([
-      ["hold", "failed", "TRANSCRIPTION_TIMEOUT", null],
+      ["hold", "failed", "TRANSCRIPTION_FAILED", null],
       ["retry", "inserted", null, "h1"],
       ["hold", "empty", null, null],
     ]);

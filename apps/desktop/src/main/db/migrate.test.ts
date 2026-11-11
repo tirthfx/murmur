@@ -17,17 +17,28 @@ function tables(db: DatabaseSync): string[] {
 describe("migrations", () => {
   it("runs up, records the version, and runs down cleanly", () => {
     const db = new DatabaseSync(":memory:");
-    expect(migrateUp(db, MIGRATIONS, 1000)).toEqual([1]);
-    expect(schemaVersion(db)).toBe(1);
-    expect(tables(db)).toEqual(["audio_chunks", "history", "schema_migrations", "settings"]);
-    const row = db.prepare("SELECT version, name, applied_at FROM schema_migrations").get();
-    expect(row).toEqual({ version: 1, name: "0001_core_settings_dictation", applied_at: 1000 });
+    expect(migrateUp(db, MIGRATIONS, 1000)).toEqual([1, 2]);
+    expect(schemaVersion(db)).toBe(2);
+    expect(tables(db)).toEqual([
+      "audio_chunks",
+      "history",
+      "pending_sessions",
+      "schema_migrations",
+      "settings",
+    ]);
+    const rows = db.prepare("SELECT version, name, applied_at FROM schema_migrations").all();
+    expect(rows).toEqual([
+      { version: 1, name: "0001_core_settings_dictation", applied_at: 1000 },
+      { version: 2, name: "0002_pending_sessions", applied_at: 1000 },
+    ]);
 
+    expect(migrateDown(db, MIGRATIONS, 1)).toEqual([2]);
+    expect(tables(db)).not.toContain("pending_sessions");
     expect(migrateDown(db, MIGRATIONS, 0)).toEqual([1]);
     expect(schemaVersion(db)).toBe(0);
     expect(tables(db)).toEqual(["schema_migrations"]);
 
-    expect(migrateUp(db, MIGRATIONS)).toEqual([1]);
+    expect(migrateUp(db, MIGRATIONS)).toEqual([1, 2]);
     expect(migrateUp(db, MIGRATIONS)).toEqual([]);
   });
 
@@ -41,7 +52,7 @@ describe("migrations", () => {
   it("refuses a database from a newer app", () => {
     const db = new DatabaseSync(":memory:");
     const extra = parseMigration(
-      "0002_extra.sql",
+      "0003_extra.sql",
       "-- migrate:up\nCREATE TABLE x (a);\n-- migrate:down\nDROP TABLE x;",
     );
     migrateUp(db, [...MIGRATIONS, extra]);
@@ -52,11 +63,11 @@ describe("migrations", () => {
     const db = new DatabaseSync(":memory:");
     migrateUp(db, MIGRATIONS);
     const broken = parseMigration(
-      "0002_broken.sql",
+      "0003_broken.sql",
       "-- migrate:up\nCREATE TABLE half (a);\nCREATE TABLE settings (a);\n-- migrate:down\nDROP TABLE half;",
     );
     expect(() => migrateUp(db, [...MIGRATIONS, broken])).toThrow();
-    expect(schemaVersion(db)).toBe(1);
+    expect(schemaVersion(db)).toBe(2);
     expect(tables(db)).not.toContain("half");
   });
 

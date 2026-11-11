@@ -139,6 +139,28 @@ const history: HistoryStore | null = database
   ? createHistoryStore(database, path.join(profile.appData, "Murmur", "audio"))
   : null;
 
+// Where the helper writes recordings. A separate profile keeps them inside it too.
+if (profile.isOverridden && !process.env.MURMUR_AUDIO_DIR) {
+  process.env.MURMUR_AUDIO_DIR = path.join(profile.appData, "Murmur", "audio", "tmp");
+}
+const recordingsDir =
+  process.env.MURMUR_AUDIO_DIR || path.join(profile.appData, "Murmur", "audio", "tmp");
+// Recordings a crash left unfinished become failed dictations that can be retried, and audio
+// past its retention is removed.
+if (history) {
+  try {
+    const recovered = history.recoverInterrupted(recordingsDir);
+    if (recovered > 0)
+      console.log(`[history] ${recovered} interrupted dictation(s) can be retried`);
+    const removed = history.pruneAudio(Date.now());
+    if (removed > 0) console.log(`[history] removed ${removed} expired recording(s)`);
+  } catch (error) {
+    console.warn(
+      `[history] recovery failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
 const platformDefaults = defaultHotkeyBindings(process.platform);
 const settingsStore = createSettingsStore(database, {
   holdShortcut:
@@ -336,6 +358,19 @@ const recorder = createRecorder({
   record: (dictation) => history?.add(dictation) ?? null,
   deviceId: () => deviceFor(settingsStore.get()),
   whisperMode: () => settingsStore.get().whisperMode,
+  ...(history
+    ? {
+        pending: {
+          start: (sessionId: string, at: number) => history.markPending(sessionId, at),
+          stopped: (sessionId: string, file: string, ms: number) =>
+            history.pendingStopped(sessionId, file, ms),
+          clear: (sessionId: string) => history.clearPending(sessionId),
+        },
+      }
+    : {}),
+  lastRetryable: () => history?.lastRetryable(Date.now()) ?? null,
+  isResolved: (historyId) => history?.isResolved(historyId) ?? false,
+  waitForSpeech: () => speech.whenReady(),
   rewriteText: (text) => (wantsLatinHindi(settingsStore.get()) ? toLatinHindi(text) : text),
 });
 const micCheck = createMicCheck({
@@ -363,6 +398,8 @@ function createTray(): void {
     listDevices: () => helper.listAudioDevices(),
     lastTranscript: () => history?.lastText() ?? null,
     toggleDictation: () => recorder.toggle(),
+    canRetry: () => recorder.canRetry(),
+    retryLast: () => void recorder.retryLast(),
     snoozeReminder: (choice) => typingReminder.snooze(choice),
     copy: (text) => clipboard.writeText(text),
     quit: () => app.quit(),
@@ -533,7 +570,8 @@ function registerIpc(): void {
     drag: (dx, dy) => barWindow.drag(dx, dy),
     dragEnd: () => void barWindow.dragEnd(),
     click: () => {
-      if (bar.click() === "retry" && recorder.retryLast()) bar.dispatch({ type: "retry" });
+      // The recorder reports "retrying", which moves the Bar to processing.
+      if (bar.click() === "retry") recorder.retryLast();
     },
   });
   ipcMain.handle(BAR_IPC_CHANNELS.ready, (event) =>
