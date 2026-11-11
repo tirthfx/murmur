@@ -10,7 +10,7 @@ public enum ProtocolConstants {
     /// Capabilities this build announces in `hello`. Main checks them before using a feature.
     public static let capabilities = [
         "permissions.check", "hotkey.hold", "audio.capture", "audio.silent-warning", "transcribe.whisperkit", "transcribe.file",
-        "insert.paste", "insert.keystrokes", "insert.press-enter", "media.mute",
+        "insert.paste", "insert.keystrokes", "insert.press-enter", "media.mute", "context.snapshot", "transcribe.prompt",
     ]
 
     /// Longest accepted line in bytes, terminator excluded (1 MiB).

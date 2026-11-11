@@ -36,6 +36,7 @@ describe("cleanup service", () => {
       "So I think we should go to the office at three",
       "standard",
       1500,
+      [],
     );
   });
 

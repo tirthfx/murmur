@@ -48,7 +48,12 @@ async function handle(request: LlmRequest): Promise<void> {
         const controller = new AbortController();
         running.set(request.id, controller);
         try {
-          const text = await engine.clean(request.text, request.level, controller.signal);
+          const text = await engine.clean(
+            request.text,
+            request.level,
+            controller.signal,
+            request.terms ?? [],
+          );
           reply({ id: request.id, ok: true, value: text });
         } finally {
           running.delete(request.id);

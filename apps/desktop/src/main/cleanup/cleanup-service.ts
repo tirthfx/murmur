@@ -30,7 +30,8 @@ export interface CleanupServiceDeps {
 export interface CleanupService {
   /** Called when recording starts, so the model is warm by the time the text arrives. */
   prepare(): void;
-  clean(raw: string): Promise<CleanupResult>;
+  /** `terms`: names and terms on screen, for spelling (DC-30). */
+  clean(raw: string, options?: { terms?: string[] }): Promise<CleanupResult>;
 }
 
 /**
@@ -47,7 +48,8 @@ export function createCleanupService(deps: CleanupServiceDeps): CleanupService {
       if (levelOf() === "off" || !deps.llm) return;
       void deps.modelReady().then((ok) => ok && deps.llm?.prepare());
     },
-    async clean(raw) {
+    async clean(raw, options = {}) {
+      const terms = options.terms ?? [];
       const level = levelOf();
       const rules = cleanRules(raw, level);
       const base = { text: rules, source: "rules" as const, modelMs: null };
@@ -57,9 +59,9 @@ export function createCleanupService(deps: CleanupServiceDeps): CleanupService {
       }
       const started = now();
       try {
-        const answer = (await deps.llm.clean(rules, level, budgetMs)).trim();
+        const answer = (await deps.llm.clean(rules, level, budgetMs, terms)).trim();
         const modelMs = now() - started;
-        if (!acceptCleanup(rules, answer, level)) {
+        if (!acceptCleanup(rules, answer, level, terms)) {
           deps.logger.warn("cleanup model answer refused by the guard; using the rules' text");
           return { ...base, fallback: true, reason: "rejected", modelMs };
         }

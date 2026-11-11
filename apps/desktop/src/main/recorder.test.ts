@@ -184,7 +184,7 @@ describe("recorder", () => {
     recorder.handleHotkey(key("down"));
     recorder.handleHotkey(key("up"));
     await recorder.idle();
-    expect(transcribe).toHaveBeenCalledWith("/tmp/a.pcm");
+    expect(transcribe).toHaveBeenCalledWith("/tmp/a.pcm", { prompt: "" });
     expect(logger.lines).toContain("info: transcribed 10.02 s in 640 ms: 5 words, language en");
     expect(logger.lines.join("\n")).not.toContain("Thursday");
   });
@@ -305,7 +305,7 @@ describe("recorder", () => {
     expect(events.at(-1)).toEqual({ type: "transcription-failed" });
     expect(recorder.retryLast()).toBe(true);
     await recorder.idle();
-    expect(transcribe).toHaveBeenLastCalledWith("/tmp/a.pcm");
+    expect(transcribe).toHaveBeenLastCalledWith("/tmp/a.pcm", { prompt: "" });
     expect(events.at(-1)).toEqual({ type: "transcribed", words: 1 });
     expect(recorder.retryLast()).toBe(false);
   });
@@ -354,7 +354,7 @@ describe("recorder", () => {
     expect(prepareCleanup).toHaveBeenCalledOnce();
     recorder.handleHotkey(key("up"));
     await recorder.idle();
-    expect(clean).toHaveBeenCalledWith("Um, so we go.");
+    expect(clean).toHaveBeenCalledWith("Um, so we go.", { terms: [] });
     expect(insert).toHaveBeenCalledWith("So we go.", { pressEnter: false });
     expect(events.at(-1)).toEqual({ type: "transcribed", words: 3 });
     expect(logger.lines).toContain("info: cleanup: model in 420 ms");
@@ -554,7 +554,7 @@ describe("recorder", () => {
     await recorder.idle();
     recorder.toggle();
     await recorder.idle();
-    expect(clean).toHaveBeenCalledWith("Send the file.");
+    expect(clean).toHaveBeenCalledWith("Send the file.", { terms: [] });
     expect(insert).toHaveBeenCalledWith("Send the file.", { pressEnter: true });
     expect(records[0]).toMatchObject({
       finalText: "Send the file.",
@@ -590,6 +590,63 @@ describe("recorder", () => {
     recorder.toggle();
     await recorder.idle();
     expect(insert).toHaveBeenLastCalledWith("Done. Press enter.", { pressEnter: false });
+  });
+
+  it("reads the focused field at the start and uses it for the prompt and spelling only", async () => {
+    const transcribe = vi.fn(async () => ({ ...transcript, text: "send it to priya ragunathan" }));
+    const clean = vi.fn(async (text: string) => ({ text, source: "rules" as const }));
+    const records: DictationRecord[] = [];
+    const readContext = vi.fn(async () => ({
+      appName: "Slack",
+      bundleId: "com.tinyspeck.slackmacgap",
+      windowTitle: null,
+      role: "AXTextArea",
+      subrole: null,
+      editable: true,
+      secure: false,
+      textBefore: "Thanks Priya Raghunathan for the notes. ",
+      textAfter: "",
+    }));
+    const { recorder, logger } = setup({
+      clock: new FakeClock(),
+      transcribe,
+      clean: clean as never,
+      readContext,
+      record: (record) => {
+        records.push(record);
+        return "h1";
+      },
+    });
+    recorder.toggle();
+    await recorder.idle();
+    recorder.toggle();
+    await recorder.idle();
+    expect(readContext).toHaveBeenCalledOnce();
+    expect(transcribe).toHaveBeenCalledWith("/tmp/a.pcm", {
+      prompt: "Thanks Priya Raghunathan for the notes.",
+    });
+    expect(clean).toHaveBeenCalledWith("send it to priya ragunathan", {
+      terms: ["Priya", "Raghunathan"],
+    });
+    // Nothing from the screen is kept with the dictation or written to the log.
+    expect(JSON.stringify(records)).not.toContain("Raghunathan");
+    expect(logger.lines.join("\n")).not.toContain("Raghunathan");
+  });
+
+  it("goes ahead without context when reading it fails", async () => {
+    const transcribe = vi.fn(async () => ({ ...transcript, text: "hello" }));
+    const { recorder } = setup({
+      clock: new FakeClock(),
+      transcribe,
+      readContext: async () => {
+        throw new Error("PERMISSION_DENIED");
+      },
+    });
+    recorder.toggle();
+    await recorder.idle();
+    recorder.toggle();
+    await recorder.idle();
+    expect(transcribe).toHaveBeenCalledWith("/tmp/a.pcm", { prompt: "" });
   });
 
   it("Escape discards the recording and inserts nothing", async () => {

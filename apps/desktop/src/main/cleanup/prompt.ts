@@ -17,8 +17,22 @@ const BY_LEVEL: Record<Exclude<CleanupLevel, "off">, string> = {
   full: "Remove fillers and false starts, and smooth run-on sentences into clear ones, without changing the meaning. Prefer the speaker's own words.",
 };
 
-export function systemPrompt(level: Exclude<CleanupLevel, "off">): string {
-  return [COMMON[0], BY_LEVEL[level], ...COMMON.slice(1)].join("\n");
+/** At most this many on-screen terms go into the prompt. */
+const MAX_TERMS = 30;
+
+/**
+ * `terms`: names and terms on screen (DC-30). Only single words, listed for spelling; the
+ * model may write a dictated word the way it appears there.
+ */
+export function systemPrompt(level: Exclude<CleanupLevel, "off">, terms: string[] = []): string {
+  const lines = [COMMON[0], BY_LEVEL[level], ...COMMON.slice(1)];
+  const listed = terms.filter((term) => /^[\p{L}\p{N}'’-]{2,40}$/u.test(term)).slice(-MAX_TERMS);
+  if (listed.length > 0) {
+    lines.push(
+      `Words on the user's screen, for spelling only (correct a dictated word to one of these only when it is clearly the same word): ${listed.join(", ")}`,
+    );
+  }
+  return lines.join("\n");
 }
 
 /** Generous token cap: the answer is never much longer than the input. */
@@ -44,12 +58,20 @@ export function acceptCleanup(
   input: string,
   output: string,
   level: Exclude<CleanupLevel, "off">,
+  terms: string[] = [],
 ): boolean {
   const before = words(input);
   const after = words(output);
   if (before.length === 0) return after.length === 0;
   if (after.length === 0) return false;
-  if (level === "light") return before.join(" ") === after.join(" ");
+  // A word written the way it appears on screen replaces a dictated word; it never adds one.
+  const onScreen = new Set(words(terms.join(" ")));
+  if (level === "light") {
+    return (
+      before.length === after.length &&
+      after.every((word, index) => word === before[index] || onScreen.has(word))
+    );
+  }
 
   const available = new Map<string, number>();
   for (const word of before) available.set(word, (available.get(word) ?? 0) + 1);
@@ -57,9 +79,11 @@ export function acceptCleanup(
   for (const word of after) {
     const left = available.get(word) ?? 0;
     if (left > 0) available.set(word, left - 1);
-    else unknown++;
+    else if (!onScreen.has(word)) unknown++;
   }
-  if (level === "standard") return unknown === 0 && after.length >= before.length * 0.5;
+  if (level === "standard") {
+    return unknown === 0 && after.length >= before.length * 0.5 && after.length <= before.length;
+  }
   return (
     unknown <= Math.max(1, after.length * 0.15) &&
     after.length >= before.length * 0.4 &&

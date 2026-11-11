@@ -3,7 +3,13 @@ import type { CleanupLevel } from "./rules";
 
 export type LlmRequest =
   | { id: number; type: "load"; modelPath: string }
-  | { id: number; type: "clean"; text: string; level: Exclude<CleanupLevel, "off"> }
+  | {
+      id: number;
+      type: "clean";
+      text: string;
+      level: Exclude<CleanupLevel, "off">;
+      terms?: string[];
+    }
   | { id: number; type: "unload" }
   | { type: "abort"; target: number };
 
@@ -43,7 +49,12 @@ export interface LlmClient {
   /** Starts the worker and loads the model if needed, so the next request is fast. */
   prepare(): void;
   /** Cleans text within `budgetMs`. Rejects with LlmTimeoutError when the budget runs out. */
-  clean(text: string, level: Exclude<CleanupLevel, "off">, budgetMs: number): Promise<string>;
+  clean(
+    text: string,
+    level: Exclude<CleanupLevel, "off">,
+    budgetMs: number,
+    terms?: string[],
+  ): Promise<string>;
   stop(): void;
 }
 
@@ -145,7 +156,7 @@ export function createLlmClient(deps: LlmClientDeps): LlmClient {
       touch();
       void start().catch(() => {});
     },
-    async clean(text, level, budgetMs) {
+    async clean(text, level, budgetMs, terms = []) {
       touch();
       const started = clock.now();
       const loading = start();
@@ -159,7 +170,10 @@ export function createLlmClient(deps: LlmClientDeps): LlmClient {
       });
       await Promise.race([loading, loadTimer]);
       const left = Math.max(1, budgetMs - (clock.now() - started));
-      return send({ id: nextId++, type: "clean", text, level }, left);
+      return send(
+        { id: nextId++, type: "clean", text, level, ...(terms.length > 0 ? { terms } : {}) },
+        left,
+      );
     },
     stop() {
       if (idleTimer !== null) clock.clearTimeout(idleTimer);

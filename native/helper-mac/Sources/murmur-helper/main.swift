@@ -85,6 +85,7 @@ var host = HelperHost(
         speech: speech,
         insertion: insertion,
         media: MediaController(output: SystemOutputMute()),
+        context: ContextController(reader: SystemFocusContextReader(), permissions: permissions, reply: output.send),
         uptimeMs: HostInfo.uptimeProvider()))
 Log.info("started, helper \(ProtocolConstants.helperVersion), protocol \(ProtocolConstants.protocolVersion)")
 output.send(host.greeting())

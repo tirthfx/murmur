@@ -146,6 +146,23 @@ final class TranscriptionControllerTests: XCTestCase {
         let decodes = await recognizer.decodes
         XCTAssertEqual(decodes.first?.count, 32_000)
         XCTAssertEqual(decodes.first?.options.languages, ["de"])
+        XCTAssertNil(decodes.first?.options.prompt)
+    }
+
+    func testPassesThePromptAndRefusesAnOversizedOne() async throws {
+        let (controller, recognizer, events) = loaded()
+        let path = try pcmFile(seconds: 1)
+        XCTAssertNil(
+            controller.handle(
+                id: "m-2", type: "transcribe.file",
+                payload: ["path": .string(path), "languages": .array([]), "prompt": .string("Hi Priya Raghunathan")]))
+        waitForReplies(events, count: 1)
+        let decodes = await recognizer.decodes
+        XCTAssertEqual(decodes.first?.options.prompt, "Hi Priya Raghunathan")
+        let refused = controller.handle(
+            id: "m-3", type: "transcribe.file",
+            payload: ["path": .string(path), "prompt": .string(String(repeating: "x", count: 2_001))])
+        XCTAssertEqual(refused.flatMap(errorCode), "INVALID_PAYLOAD")
     }
 
     func testBackToBackTranscriptionsAreNotBusy() throws {

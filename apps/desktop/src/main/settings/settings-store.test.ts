@@ -13,6 +13,7 @@ const defaults: Settings = {
   muteWhileDictating: false,
   setupComplete: true,
   pressEnterCommand: true,
+  contextAwareness: true,
 };
 
 describe("settings store", () => {

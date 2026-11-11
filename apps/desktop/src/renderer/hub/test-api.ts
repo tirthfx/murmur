@@ -12,6 +12,7 @@ export const SAMPLE_SETTINGS: SettingsView = {
     muteWhileDictating: false,
     setupComplete: true,
     pressEnterCommand: true,
+    contextAwareness: true,
   },
   shortcutLabels: { hold: "Right Option", handsFree: "Double-tap Right Option" },
   devices: [

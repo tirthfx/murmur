@@ -8,6 +8,7 @@ import type {
   AudioStopResult,
 } from "./audio";
 import type { HelloPayload } from "./helper-protocol";
+import type { ContextSnapshotInput, FocusContext } from "./context";
 import type { InsertTextInput, InsertTextResult } from "./insert";
 import type {
   SpeechModelLoadInput,
@@ -94,6 +95,11 @@ export interface PlatformHelper {
   insertText(input: InsertTextInput): Promise<InsertTextResult>;
   /** Puts text on the clipboard. Needs no permission. */
   copyText(text: string): Promise<void>;
+  /**
+   * The focused field around the caret. Needs Accessibility; rejects with PERMISSION_DENIED
+   * without prompting when it is missing. Secure fields come back with no text.
+   */
+  focusContext(input?: ContextSnapshotInput): Promise<FocusContext>;
   /** The output's mute switch: null when there is none. */
   getOutputMuted(): Promise<boolean | null>;
   /** Sets the output mute and returns what it was before. */
