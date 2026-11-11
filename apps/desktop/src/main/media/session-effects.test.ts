@@ -18,11 +18,23 @@ const base: Settings = {
   mouseButtons: { hold: null, handsFree: null },
   typingReminder: { enabled: true, snoozedUntil: null },
   whisperMode: false,
+  experimental: {
+    splitMessages: false,
+    pauseMedia: false,
+    headsetWear: false,
+    ringMicrophone: false,
+  },
 };
 
 function setup(
-  options: { muted?: boolean | null; settings?: Partial<Settings>; markerThere?: boolean } = {},
+  options: {
+    muted?: boolean | null;
+    settings?: Partial<Settings>;
+    markerThere?: boolean;
+    playing?: boolean;
+  } = {},
 ) {
+  let playing = options.playing ?? false;
   let outputMuted: boolean | null = options.muted === undefined ? false : options.muted;
   let markerThere = options.markerThere ?? false;
   const steps: string[] = [];
@@ -45,6 +57,17 @@ function setup(
       steps.push(muted ? "muted" : "unmuted");
       return previous;
     }),
+    pauseMedia: vi.fn(async () => {
+      if (!playing) return false;
+      playing = false;
+      steps.push("paused");
+      return true;
+    }),
+    resumeMedia: vi.fn(async () => {
+      playing = true;
+      steps.push("resumed");
+      return true;
+    }),
   };
   const effects = createSessionEffects({
     settings: () => ({ ...base, ...options.settings }),
@@ -60,6 +83,32 @@ function setup(
 }
 
 describe("session effects", () => {
+  it("pauses playing media when asked, and resumes only what it paused", async () => {
+    const experimental = {
+      splitMessages: false,
+      pauseMedia: true,
+      headsetWear: false,
+      ringMicrophone: false,
+    };
+    const on = setup({
+      playing: true,
+      settings: { experimental, sounds: { ...base.sounds, start: false } },
+    });
+    await on.effects.beforeStart();
+    await on.effects.afterEnd();
+    expect(on.steps.filter((step) => step === "paused" || step === "resumed")).toEqual([
+      "paused",
+      "resumed",
+    ]);
+    const quiet = setup({ playing: false, settings: { experimental } });
+    await quiet.effects.beforeStart();
+    await quiet.effects.afterEnd();
+    expect(quiet.helper.resumeMedia).not.toHaveBeenCalled();
+    const off = setup({ playing: true });
+    await off.effects.beforeStart();
+    expect(off.helper.pauseMedia).not.toHaveBeenCalled();
+  });
+
   it("plays the start sound and waits for it before muting, then restores at the end", async () => {
     const { effects, steps, output, markerThere } = setup();
     await effects.beforeStart();
@@ -120,6 +169,12 @@ describe("session effects", () => {
         mouseButtons: { hold: null, handsFree: null },
         typingReminder: { enabled: true, snoozedUntil: null },
         whisperMode: false,
+        experimental: {
+          splitMessages: false,
+          pauseMedia: false,
+          headsetWear: false,
+          ringMicrophone: false,
+        },
         sounds: { start: false, lock: true, success: true, error: false, cancel: false },
       },
     });

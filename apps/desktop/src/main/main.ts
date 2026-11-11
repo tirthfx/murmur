@@ -179,6 +179,12 @@ const settingsStore = createSettingsStore(database, {
   mouseButtons: { hold: null, handsFree: null },
   typingReminder: { enabled: true, snoozedUntil: null },
   whisperMode: false,
+  experimental: {
+    splitMessages: false,
+    pauseMedia: false,
+    headsetWear: false,
+    ringMicrophone: false,
+  },
 });
 const keys = keyPlatform(process.platform);
 const settingsService = createSettingsService({
@@ -554,6 +560,7 @@ function registerIpc(): void {
     getSetupStatus: async () => ({ model: modelDownload.status(), blockers: blockersNow() }),
     micCheckStart: () => micCheck.start(),
     micCheckStop: () => micCheck.stop(),
+    getMediaPlayback: () => helper.getPlayback().catch(() => null),
     downloadSpeechModel: async () => {
       modelDownload.start();
       return { model: modelDownload.status(), blockers: blockersNow() };

@@ -436,6 +436,54 @@ describe("recorder", () => {
     expect(recorder.retryLast()).toBe(false);
   });
 
+  it("splits a dictation with long pauses into messages, each sent with Return", async () => {
+    const insert = vi.fn(async () => ({
+      method: "paste_cmd_v" as const,
+      delivered: true,
+      clipboardRestored: true,
+      enterPressed: true,
+    }));
+    const records: DictationRecord[] = [];
+    const segment = (startMs: number, endMs: number, text: string) => ({
+      startMs,
+      endMs,
+      text,
+      confidence: 0.9,
+    });
+    const { recorder } = setup({
+      clock: new FakeClock(),
+      insert,
+      splitMessages: () => true,
+      pressEnterCommand: () => true,
+      transcribe: async () => ({
+        ...transcript,
+        text: "Are you free this afternoon? I wanted to go over the plan. Let me know what time works.",
+        segments: [
+          segment(0, 2000, "Are you free this afternoon?"),
+          segment(5000, 7000, "I wanted to go over the plan."),
+          segment(10_000, 12_000, "Let me know what time works."),
+        ],
+      }),
+      record: (record) => {
+        records.push(record);
+        return "h1";
+      },
+    });
+    recorder.toggle();
+    await recorder.idle();
+    recorder.toggle();
+    await recorder.idle();
+    expect(insert.mock.calls).toEqual([
+      ["Are you free this afternoon?", { pressEnter: true }],
+      ["I wanted to go over the plan.", { pressEnter: true }],
+      ["Let me know what time works.", { pressEnter: false }],
+    ]);
+    expect(records).toHaveLength(1);
+    expect(records[0]!.finalText).toBe(
+      "Are you free this afternoon?\nI wanted to go over the plan.\nLet me know what time works.",
+    );
+  });
+
   it("reports a silent recording as no speech", async () => {
     const events: { type: string }[] = [];
     const { recorder, helper } = setup({ onEvent: (event) => events.push(event) });

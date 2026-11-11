@@ -14,7 +14,7 @@ export interface MarkerFile {
 export interface SessionEffectsDeps {
   settings: () => Settings;
   playSound: (name: SoundName) => void;
-  helper: Pick<PlatformHelper, "getOutputMuted" | "setOutputMuted">;
+  helper: Pick<PlatformHelper, "getOutputMuted" | "setOutputMuted" | "pauseMedia" | "resumeMedia">;
   marker: MarkerFile;
   sleep: (ms: number) => Promise<void>;
   logger: Logger;
@@ -38,6 +38,7 @@ function message(error: unknown): string {
 export function createSessionEffects(deps: SessionEffectsDeps): SessionEffects {
   const { helper, marker, logger } = deps;
   let mutedByUs = false;
+  let pausedByUs = false;
 
   function sound(name: SoundName): void {
     if (!deps.settings().sounds[name]) return;
@@ -64,6 +65,14 @@ export function createSessionEffects(deps: SessionEffectsDeps): SessionEffects {
         deps.playSound("start");
         await deps.sleep(START_SOUND_WAIT_MS);
       }
+      if (settings.experimental.pauseMedia && !pausedByUs) {
+        try {
+          pausedByUs = await helper.pauseMedia();
+          if (pausedByUs) logger.info("paused media for the dictation");
+        } catch (error) {
+          logger.warn(`could not pause media: ${message(error)}`);
+        }
+      }
       if (!settings.muteWhileDictating || mutedByUs) return;
       try {
         const muted = await helper.getOutputMuted();
@@ -79,6 +88,14 @@ export function createSessionEffects(deps: SessionEffectsDeps): SessionEffects {
       }
     },
     async afterEnd() {
+      if (pausedByUs) {
+        pausedByUs = false;
+        // Only what Murmur paused is resumed; media the user had paused stays paused.
+        await helper.resumeMedia().then(
+          () => logger.info("resumed media"),
+          (error: unknown) => logger.warn(`could not resume media: ${message(error)}`),
+        );
+      }
       if (!mutedByUs) return;
       mutedByUs = false;
       await unmute("dictation ended");

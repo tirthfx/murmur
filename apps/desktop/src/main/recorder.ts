@@ -12,6 +12,7 @@ import type {
 import type { CleanupResult } from "./cleanup/cleanup-service";
 import { DictationGesture, type GestureCommand } from "./gesture";
 import { contextTerms, describeContext, speechPrompt } from "./context/context";
+import { splitMessages } from "./experimental/split-messages";
 import { splitPressEnter } from "./insertion/press-enter";
 import { systemClock } from "./helper/node-runtime";
 import type { Clock, Logger } from "./helper/types";
@@ -55,6 +56,8 @@ export interface RecorderDeps {
   logTranscripts?: boolean;
   /** Puts the text into the focused field. Without it, text is only logged. */
   insert?: (text: string, options: { pressEnter: boolean }) => Promise<InsertTextResult>;
+  /** Split long dictations into messages at pauses (experimental, DC-37). */
+  splitMessages?: () => boolean;
   /** Whether "press enter" at the end of a dictation presses Return. Off when missing. */
   pressEnterCommand?: () => boolean;
   /** Clipboard fallback when inserting is not allowed. */
@@ -453,6 +456,20 @@ export function createRecorder(deps: RecorderDeps): Recorder {
       ? splitPressEnter(heard.trim())
       : { text: heard, pressEnter: false };
     const terms = contextTerms(await take.context);
+    // Split into messages (experimental, DC-37): each part goes in and is sent with Return.
+    const parts = deps.splitMessages?.()
+      ? splitMessages({
+          text: spoken.text,
+          segments: transcript.segments.map((segment) => ({
+            ...segment,
+            text: deps.rewriteText ? deps.rewriteText(segment.text) : segment.text,
+          })),
+        })
+      : [];
+    if (parts.length > 1) {
+      await sendMessages(take, transcript, parts, spoken.pressEnter, terms);
+      return;
+    }
     const cleanup = spoken.text.trim() === "" ? null : await cleanUp(spoken.text, terms);
     const final = cleanup?.text ?? spoken.text.trim();
     const finalWords = final.split(/\s+/).filter(Boolean).length;
@@ -472,6 +489,43 @@ export function createRecorder(deps: RecorderDeps): Recorder {
       finalText: final,
       wordCount: finalWords,
       cleanup,
+    });
+  }
+
+  /** Inserts each part, pressing Return after all but the last (unless asked for by voice). */
+  async function sendMessages(
+    take: Take,
+    transcript: Transcript,
+    parts: string[],
+    pressEnterAtEnd: boolean,
+    terms: string[],
+  ): Promise<void> {
+    logger.info(`split into ${parts.length} messages`);
+    // The spoken command, if any, was on the last part's segments; take it off there too.
+    const last = splitPressEnter(parts.at(-1)!);
+    const texts = [...parts.slice(0, -1), pressEnterAtEnd ? last.text : parts.at(-1)!];
+    emit({ type: "transcribed", words: texts.join(" ").split(/\s+/).filter(Boolean).length });
+    const finals: string[] = [];
+    let outcome: InsertOutcome = { insertStatus: "inserted" };
+    for (const [index, text] of texts.entries()) {
+      const cleanup = text.trim() === "" ? null : await cleanUp(text, terms);
+      const final = cleanup?.text ?? text.trim();
+      finals.push(final);
+      const isLast = index === texts.length - 1;
+      const result = await insert(final, isLast ? pressEnterAtEnd : true);
+      outcome = result;
+      // A part that did not go in stops the rest, so messages never arrive out of order.
+      if (result.insertStatus !== "inserted") break;
+    }
+    const finalText = finals.join("\n");
+    const finalWords = finalText.split(/\s+/).filter(Boolean).length;
+    record(take, {
+      ...outcome,
+      language: transcript.language || null,
+      rawText: transcript.text,
+      finalText,
+      wordCount: finalWords,
+      cleanup: null,
     });
   }
 

@@ -16,6 +16,12 @@ export const SAMPLE_SETTINGS: SettingsView = {
     mouseButtons: { hold: null, handsFree: null },
     typingReminder: { enabled: true, snoozedUntil: null },
     whisperMode: false,
+    experimental: {
+      splitMessages: false,
+      pauseMedia: false,
+      headsetWear: false,
+      ringMicrophone: false,
+    },
   },
   shortcutLabels: { hold: "Right Option", handsFree: "Double-tap Right Option" },
   devices: [
@@ -70,6 +76,7 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
     micCheckStart: vi.fn().mockResolvedValue({ ok: true, deviceName: "Desk Mic" }),
     micCheckStop: vi.fn().mockResolvedValue(null),
     onMicCheckLevel: vi.fn().mockReturnValue(() => {}),
+    getMediaPlayback: vi.fn().mockResolvedValue({ available: true, playing: false }),
     ...overrides,
   };
 }
