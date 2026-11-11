@@ -41,6 +41,7 @@ import { BarWindow, barPositionFile } from "./bar/bar-window";
 import { createCleanupService } from "./cleanup/cleanup-service";
 import { databasePath, openDatabase } from "./db/database";
 import { createHistoryStore, type HistoryStore } from "./history/history-store";
+import { createDictionaryStore } from "./dictionary/dictionary-store";
 import { createLlmClient, type LlmReply } from "./cleanup/llm-client";
 import { createConsoleLogger, systemClock } from "./helper/node-runtime";
 import { HelperError } from "./helper/types";
@@ -138,6 +139,8 @@ function openMurmurDatabase(): DatabaseSync | null {
   }
 }
 const database = openMurmurDatabase();
+// The personal dictionary (PZ-01). Without a database the pipeline simply has none.
+const dictionary = database ? createDictionaryStore(database) : null;
 const history: HistoryStore | null = database
   ? createHistoryStore(database, path.join(profile.appData, "Murmur", "audio"))
   : null;
@@ -395,6 +398,7 @@ const recorder = createRecorder({
   lastRetryable: () => history?.lastRetryable(Date.now()) ?? null,
   isResolved: (historyId) => history?.isResolved(historyId) ?? false,
   waitForSpeech: () => speech.whenReady(),
+  ...(dictionary ? { dictionary } : {}),
   rewriteText: (text) => (wantsLatinHindi(settingsStore.get()) ? toLatinHindi(text) : text),
 });
 const micCheck = createMicCheck({
@@ -595,6 +599,13 @@ function fullSmokeChecks(
     },
     canRetry: () => recorder.canRetry(),
     feedTypedWords: (words) => typingReminder.record(words),
+    addDictionary: (entries) => {
+      const ids = entries.flatMap((entry) => {
+        const saved = dictionary?.save({ ...entry, caseSensitive: false, starred: false });
+        return saved?.ok ? [saved.entry.id] : [];
+      });
+      return () => ids.forEach((id) => dictionary?.remove(id));
+    },
   });
   smokeChecks = checks;
   return checks;
@@ -687,6 +698,14 @@ function registerIpc(): void {
     micCheckStart: () => micCheck.start(),
     micCheckStop: () => micCheck.stop(),
     getMediaPlayback: () => helper.getPlayback().catch(() => null),
+    dictionaryList: () => dictionary?.list() ?? [],
+    dictionarySave: (input) =>
+      dictionary?.save(input) ?? {
+        ok: false,
+        reason: "not-found",
+        message: "The dictionary could not be opened.",
+      },
+    dictionaryDelete: (id) => dictionary?.remove(id),
     downloadSpeechModel: async () => {
       modelDownload.start();
       return { model: modelDownload.status(), blockers: blockersNow() };

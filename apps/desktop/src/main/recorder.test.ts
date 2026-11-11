@@ -319,6 +319,53 @@ describe("recorder", () => {
     expect(recorder.retryLast()).toBe(false);
   });
 
+  it("runs the dictionary: prompt terms, replacements, spellings after cleanup, uses counted", async () => {
+    const transcribe = vi.fn().mockResolvedValue({
+      text: "ship k8s to priya",
+      language: "en",
+      segments: [],
+      decodeMs: 1,
+      audioMs: 1,
+    });
+    const clean = vi.fn(async (text: string, _options: { terms: string[]; budgetMs: number }) => ({
+      // The model lower-cases the name again; the spelling pass puts it back.
+      text: `${text[0]!.toUpperCase()}${text.slice(1).replace("Priya", "priya")}.`,
+      source: "model" as const,
+      fallback: false,
+      modelMs: 5,
+      reason: null,
+    }));
+    const insert = vi.fn(async () => ({
+      method: "paste_cmd_v" as const,
+      delivered: true,
+      clipboardRestored: true,
+    }));
+    const recordUses = vi.fn();
+    const { recorder } = setup({
+      transcribe,
+      clean,
+      insert,
+      dictionary: {
+        rules: () => ({
+          promptTerms: ["Priya"],
+          spellings: [{ id: "p", term: "Priya" }],
+          replacements: [{ id: "k", term: "k8s", replacement: "Kubernetes", caseSensitive: false }],
+        }),
+        recordUses,
+      },
+    });
+    recorder.handleHotkey(key("down"));
+    recorder.handleHotkey(key("up"));
+    await recorder.idle();
+    expect(transcribe).toHaveBeenCalledWith("/tmp/a.pcm", { prompt: "Priya." });
+    expect(clean).toHaveBeenCalledWith("ship Kubernetes to Priya", {
+      terms: ["Priya", "Kubernetes"],
+      budgetMs: expect.any(Number),
+    });
+    expect(insert).toHaveBeenCalledWith("Ship Kubernetes to Priya.", { pressEnter: false });
+    expect(recordUses.mock.calls[0]![0]).toEqual(expect.arrayContaining(["k", "p"]));
+  });
+
   it("retries a failure from the folder history moved its audio to", async () => {
     const transcribe = vi
       .fn()

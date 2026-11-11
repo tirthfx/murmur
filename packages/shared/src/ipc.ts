@@ -27,6 +27,14 @@ import {
   type MicCheckResult,
   type MicCheckStartResult,
 } from "./mic-check";
+import {
+  dictionaryEntrySchema,
+  dictionaryInputSchema,
+  dictionarySaveResultSchema,
+  type DictionaryEntry,
+  type DictionaryInput,
+  type DictionarySaveResult,
+} from "./dictionary";
 
 /**
  * Renderer-to-main IPC contract. Channel names, payload schemas and the API the
@@ -48,6 +56,9 @@ export const IPC_CHANNELS = {
   micCheckStart: "mic-check:start",
   micCheckStop: "mic-check:stop",
   getMediaPlayback: "experimental:media-playback",
+  dictionaryList: "dictionary:list",
+  dictionarySave: "dictionary:save",
+  dictionaryDelete: "dictionary:delete",
 } as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
@@ -125,6 +136,19 @@ export const IPC_CONTRACT = {
     args: z.tuple([]),
     result: micCheckResultSchema.nullable(),
   },
+  [IPC_CHANNELS.dictionaryList]: {
+    args: z.tuple([]),
+    result: z.array(dictionaryEntrySchema),
+  },
+  // Adds an entry (no id) or changes one; refusals say why.
+  [IPC_CHANNELS.dictionarySave]: {
+    args: z.tuple([dictionaryInputSchema]),
+    result: dictionarySaveResultSchema,
+  },
+  [IPC_CHANNELS.dictionaryDelete]: {
+    args: z.tuple([z.string().min(1)]),
+    result: z.void(),
+  },
 } as const satisfies Record<IpcChannel, { args: z.ZodType; result: z.ZodType }>;
 
 export function isIpcChannel(value: unknown): value is IpcChannel {
@@ -174,6 +198,10 @@ export interface MurmurApi {
   micCheckStop(): Promise<MicCheckResult | null>;
   /** Whether Murmur can see what is playing, for "Pause media while dictating". */
   getMediaPlayback(): Promise<MediaPlayback | null>;
+  /** Every dictionary entry, starred first. */
+  dictionaryList(): Promise<DictionaryEntry[]>;
+  dictionarySave(input: DictionaryInput): Promise<DictionarySaveResult>;
+  dictionaryDelete(id: string): Promise<void>;
   /** Input levels during a microphone check, about 20 a second. Returns an unsubscribe. */
   onMicCheckLevel(handler: (rmsDb: number) => void): () => void;
 }

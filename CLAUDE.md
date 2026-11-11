@@ -116,6 +116,8 @@ The Bar (states, the non-focusable window, drag and saved position, manual test)
 
 Context awareness (what is read around the caret, secure fields, nothing kept): see `docs/context.md`.
 
+Dictionary (terms, replacements, starred words, where they act in a dictation): see `docs/dictionary.md`.
+
 Transcript cleanup (rules, the local model and its guard, the 1.5 s budget, benchmark): see `docs/cleanup.md`.
 
 Dictation history (database, tables, migrations): see `docs/history.md`.

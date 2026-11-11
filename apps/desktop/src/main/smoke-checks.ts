@@ -54,6 +54,8 @@ export interface SmokeChecksDeps {
   canRetry(): boolean;
   /** Hands the typing reminder this many typed words, as the helper's counter would. */
   feedTypedWords(words: number): void;
+  /** Adds dictionary entries for one check; returns a function that removes them. */
+  addDictionary(entries: { term: string; replacement: string | null }[]): () => void;
 }
 
 export interface SmokeChecks {
@@ -470,6 +472,25 @@ export function createSmokeChecks(deps: SmokeChecksDeps): SmokeChecks {
     );
   }
 
+  async function dictionary(): Promise<CheckResult> {
+    const remove = deps.addDictionary([
+      { term: "FOX", replacement: null },
+      { term: "lazy dog", replacement: "sleepy cat" },
+    ]);
+    try {
+      const result = await dictate(deps.keyDown, deps.keyUp);
+      const text = result.text.trim();
+      return check(
+        "Dictionary: a spelling and a replacement apply",
+        /\bFOX\b/.test(text) && /sleepy cat/i.test(text) && !/lazy dog/i.test(text),
+        JSON.stringify(text),
+        `got ${JSON.stringify(text)}`,
+      );
+    } finally {
+      remove();
+    }
+  }
+
   async function typingReminder(): Promise<CheckResult> {
     const name = "Typing reminder: snooze holds it, then it suggests dictating";
     const message = () => deps.barView().message ?? "";
@@ -520,6 +541,7 @@ export function createSmokeChecks(deps: SmokeChecksDeps): SmokeChecks {
         async () => void results.push(await micCheck()),
         () => retry(results),
         async () => void results.push(await typingReminder()),
+        async () => void results.push(await dictionary()),
       ];
       for (const step of steps) {
         try {

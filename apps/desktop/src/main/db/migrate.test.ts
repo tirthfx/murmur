@@ -17,28 +17,35 @@ function tables(db: DatabaseSync): string[] {
 describe("migrations", () => {
   it("runs up, records the version, and runs down cleanly", () => {
     const db = new DatabaseSync(":memory:");
-    expect(migrateUp(db, MIGRATIONS, 1000)).toEqual([1, 2]);
-    expect(schemaVersion(db)).toBe(2);
+    const versions = MIGRATIONS.map((_, index) => index + 1);
+    const latest = versions.length;
+    expect(migrateUp(db, MIGRATIONS, 1000)).toEqual(versions);
+    expect(schemaVersion(db)).toBe(latest);
     expect(tables(db)).toEqual([
       "audio_chunks",
+      "dictionary",
       "history",
       "pending_sessions",
       "schema_migrations",
       "settings",
     ]);
     const rows = db.prepare("SELECT version, name, applied_at FROM schema_migrations").all();
-    expect(rows).toEqual([
-      { version: 1, name: "0001_core_settings_dictation", applied_at: 1000 },
-      { version: 2, name: "0002_pending_sessions", applied_at: 1000 },
-    ]);
+    expect(rows).toEqual(
+      MIGRATIONS.map((migration, index) => ({
+        version: index + 1,
+        name: migration.name,
+        applied_at: 1000,
+      })),
+    );
 
-    expect(migrateDown(db, MIGRATIONS, 1)).toEqual([2]);
+    expect(migrateDown(db, MIGRATIONS, 1)).toEqual(versions.slice(1).reverse());
     expect(tables(db)).not.toContain("pending_sessions");
+    expect(tables(db)).not.toContain("dictionary");
     expect(migrateDown(db, MIGRATIONS, 0)).toEqual([1]);
     expect(schemaVersion(db)).toBe(0);
     expect(tables(db)).toEqual(["schema_migrations"]);
 
-    expect(migrateUp(db, MIGRATIONS)).toEqual([1, 2]);
+    expect(migrateUp(db, MIGRATIONS)).toEqual(versions);
     expect(migrateUp(db, MIGRATIONS)).toEqual([]);
   });
 
@@ -52,7 +59,7 @@ describe("migrations", () => {
   it("refuses a database from a newer app", () => {
     const db = new DatabaseSync(":memory:");
     const extra = parseMigration(
-      "0003_extra.sql",
+      `${String(MIGRATIONS.length + 1).padStart(4, "0")}_extra.sql`,
       "-- migrate:up\nCREATE TABLE x (a);\n-- migrate:down\nDROP TABLE x;",
     );
     migrateUp(db, [...MIGRATIONS, extra]);
@@ -63,11 +70,11 @@ describe("migrations", () => {
     const db = new DatabaseSync(":memory:");
     migrateUp(db, MIGRATIONS);
     const broken = parseMigration(
-      "0003_broken.sql",
+      `${String(MIGRATIONS.length + 1).padStart(4, "0")}_broken.sql`,
       "-- migrate:up\nCREATE TABLE half (a);\nCREATE TABLE settings (a);\n-- migrate:down\nDROP TABLE half;",
     );
     expect(() => migrateUp(db, [...MIGRATIONS, broken])).toThrow();
-    expect(schemaVersion(db)).toBe(2);
+    expect(schemaVersion(db)).toBe(MIGRATIONS.length);
     expect(tables(db)).not.toContain("half");
   });
 
