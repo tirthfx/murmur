@@ -40,6 +40,36 @@ describe("dictation gesture", () => {
     expect(gesture.recording).toBe(false);
   });
 
+  it("a double tap to stop hands-free stops once and starts nothing", () => {
+    const { gesture, commands } = setup();
+    gesture.holdDown(0);
+    gesture.holdUp(80);
+    gesture.holdDown(170);
+    gesture.holdUp(260);
+    // Locked; now the user double-taps to stop, as seen in the owner's test.
+    gesture.holdDown(5_000);
+    gesture.holdUp(5_040);
+    gesture.holdDown(5_120);
+    gesture.holdUp(5_210);
+    expect(commands).toEqual(["start", "lock", "stop"]);
+    expect(gesture.recording).toBe(false);
+    // A press after the window is a new dictation again.
+    gesture.holdDown(6_000);
+    expect(commands.at(-1)).toBe("start");
+  });
+
+  it("a press well after stopping hands-free starts a new dictation", () => {
+    const { gesture, commands } = setup();
+    gesture.holdDown(0);
+    gesture.holdUp(80);
+    gesture.holdDown(170);
+    gesture.holdUp(260);
+    gesture.holdDown(5_000);
+    gesture.holdUp(5_040);
+    gesture.holdDown(5_000 + DOUBLE_TAP_MS + 1);
+    expect(commands).toEqual(["start", "lock", "stop", "start"]);
+  });
+
   it("a single short tap ends after the double-tap window", async () => {
     const { gesture, commands, clock } = setup();
     gesture.holdDown(0);

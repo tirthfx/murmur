@@ -508,6 +508,27 @@ describe("recorder", () => {
     expect(budgets).toEqual([RESPONSE_TARGET_MS - 1200]);
   });
 
+  it("drops noise labels, and inserts nothing when that is all there was", async () => {
+    const events: string[] = [];
+    const insert = vi.fn(async () => ({
+      method: "paste_cmd_v" as const,
+      delivered: true,
+      clipboardRestored: true,
+    }));
+    const { recorder } = setup({
+      clock: new FakeClock(),
+      insert,
+      transcribe: async () => ({ ...transcript, text: "*thud*" }),
+      onEvent: (event) => events.push(event.type),
+    });
+    recorder.toggle();
+    await recorder.idle();
+    recorder.toggle();
+    await recorder.idle();
+    expect(insert).not.toHaveBeenCalled();
+    expect(events).toContain("no-speech");
+  });
+
   it("reports a silent recording as no speech", async () => {
     const events: { type: string }[] = [];
     const { recorder, helper } = setup({ onEvent: (event) => events.push(event) });

@@ -17,7 +17,11 @@ type State =
   /** Hands-free: recording without holding the key. */
   | { kind: "locked"; ignoreNextUp: boolean }
   /** Stopped by a key press; its release must not start anything. */
-  | { kind: "stopping" };
+  | { kind: "stopping"; stoppedAt: number }
+  /** Just stopped hands-free: a second tap right away is part of the same stop. */
+  | { kind: "afterStop"; stoppedAt: number }
+  /** A press being ignored, until its release. */
+  | { kind: "ignoring" };
 
 /**
  * Push-to-talk and hands-free from one key (DC-02, DC-03, DC-05). Hold to dictate; a quick
@@ -46,8 +50,18 @@ export class DictationGesture {
   holdDown(at: number): void {
     const state = this.state;
     switch (state.kind) {
+      case "afterStop":
+        // People often double-tap to stop as they double-tapped to start.
+        if (at - state.stoppedAt <= DOUBLE_TAP_MS) {
+          this.state = { kind: "ignoring" };
+          return;
+        }
+        this.state = { kind: "held", downAt: at };
+        this.run("start");
+        return;
       case "idle":
       case "stopping":
+      case "ignoring":
         this.state = { kind: "held", downAt: at };
         this.run("start");
         return;
@@ -64,7 +78,7 @@ export class DictationGesture {
         }
         return;
       case "locked":
-        this.state = { kind: "stopping" };
+        this.state = { kind: "stopping", stoppedAt: at };
         this.run("stop");
         return;
       case "held":
@@ -94,6 +108,9 @@ export class DictationGesture {
         if (state.ignoreNextUp) this.state = { kind: "locked", ignoreNextUp: false };
         return;
       case "stopping":
+        this.state = { kind: "afterStop", stoppedAt: state.stoppedAt };
+        return;
+      case "ignoring":
         this.state = { kind: "idle" };
         return;
       default:
@@ -110,7 +127,14 @@ export class DictationGesture {
       this.run("stop");
       return;
     }
-    if (state.kind === "idle" || state.kind === "stopping") this.run("start");
+    if (
+      state.kind === "idle" ||
+      state.kind === "stopping" ||
+      state.kind === "afterStop" ||
+      state.kind === "ignoring"
+    ) {
+      this.run("start");
+    }
     this.state = { kind: "locked", ignoreNextUp: state.kind === "held" };
     this.run("lock");
   }
