@@ -60,6 +60,7 @@ import { createModelDownload } from "./setup/model-download";
 import { dictationBlockers, hasPermissionBlocker } from "./setup/readiness";
 import { cleanupModelRoot, speechModelRoot } from "./speech/paths";
 import { profilePaths } from "./profile";
+import { createSmokeRun, SMOKE_PAGE, type SmokeRun } from "./smoke";
 import { permissionSettingsUrl } from "./platform/mac-settings-links";
 import { createTrayController, type TrayController } from "./tray/tray-controller";
 import { createElectronTray } from "./tray/tray-electron";
@@ -287,12 +288,16 @@ const recorder = createRecorder({
   newSessionId: randomUUID,
   transcribe: (file) => speech.transcribe(file),
   logTranscripts: process.env.MURMUR_LOG_TRANSCRIPTS === "1",
-  insert: (text) =>
-    helper.insertText({ text, method: "auto", restoreClipboard: true, restoreDelayMs: 350 }),
+  insert: (text) => {
+    // During a smoke run text may only go into the test box.
+    smoke?.assertFieldFocused();
+    return helper.insertText({ text, method: "auto", restoreClipboard: true, restoreDelayMs: 350 });
+  },
   copy: (text) => helper.copyText(text),
   onEvent: (event) => {
     bar.dispatch(barEventFor(event));
     tray?.handleRecorderEvent(event);
+    smoke?.handleRecorderEvent(event);
     const sound = SOUND_FOR[event.type];
     if (sound) effects.sound(sound);
   },
@@ -334,6 +339,55 @@ function createTray(): void {
   });
   host.onHover(() => void controller.refreshDevices());
   void controller.refreshDevices();
+}
+
+// The end-to-end smoke run (MURMUR_SMOKE=1, started by `npm run smoke`): a test window takes
+// the place of the Hub, the app presses its own dictation key, and the result is printed.
+const isSmokeRun = process.env.MURMUR_SMOKE === "1";
+let smoke: SmokeRun | null = null;
+function startSmokeRun(): void {
+  const window = new BrowserWindow({
+    width: 520,
+    height: 260,
+    title: "Murmur smoke test",
+    webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false },
+  });
+  const field = (script: string) => window.webContents.executeJavaScript(script) as Promise<string>;
+  const key = (state: "down" | "up") =>
+    recorder.handleHotkey({
+      bindingId: "dictate-hold",
+      action: "dictate.hold",
+      state,
+      at: Date.now(),
+    });
+  const run = createSmokeRun({
+    sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    blockers: blockersNow,
+    focusField: async () => {
+      app.focus({ steal: true });
+      window.show();
+      window.focus();
+      window.webContents.focus();
+      await field("document.getElementById('field').focus(); ''");
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    },
+    isFieldFocused: () => !window.isDestroyed() && window.isFocused(),
+    readField: () => field("document.getElementById('field').value"),
+    keyDown: () => key("down"),
+    keyUp: () => key("up"),
+    settled: () => recorder.idle(),
+    holdMs: Number(process.env.MURMUR_SMOKE_HOLD_MS) || 5000,
+    log: (message) => console.log(`[smoke] ${message}`),
+  });
+  smoke = run;
+  void window
+    .loadURL(SMOKE_PAGE)
+    .then(() => run.run())
+    .then((result) => {
+      console.log(`[smoke] result ${JSON.stringify(result)}`);
+      process.exitCode = result.ok ? 0 : 1;
+      app.quit();
+    });
 }
 
 async function openPermissionSettings(kind: PermissionKind): Promise<void> {
@@ -449,7 +503,8 @@ void app.whenReady().then(() => {
       void permissions.check("launch");
     },
   );
-  createHubWindow();
+  if (isSmokeRun) startSmokeRun();
+  else createHubWindow();
   createTray();
   // The Bar never takes focus; it shows itself on the first state push.
   void barWindow.open().then(
@@ -459,7 +514,7 @@ void app.whenReady().then(() => {
 
   app.on("activate", () => {
     // The Bar is always open, so check for the Hub itself.
-    if (!hubWindow) createHubWindow();
+    if (!hubWindow && !isSmokeRun) createHubWindow();
   });
 });
 

@@ -33,7 +33,17 @@ terminationSource.resume()
 
 // Every stdout line goes through one writer, so tap events and replies never interleave.
 let output = OutputWriter(write: writeStdout)
-let permissions = SystemPermissionProvider()
+/// `MURMUR_AUDIO_FIXTURE` names an audio file to use in place of the microphone (tests only).
+let fixtureClip: URL? = {
+    guard let path = ProcessInfo.processInfo.environment["MURMUR_AUDIO_FIXTURE"], !path.isEmpty else { return nil }
+    return URL(fileURLWithPath: path)
+}()
+let permissions: any PermissionProvider = fixtureClip == nil
+    ? SystemPermissionProvider()
+    : FixturePermissionProvider(base: SystemPermissionProvider())
+if let fixtureClip {
+    Log.info("FIXTURE MODE: reading \(fixtureClip.path) instead of the microphone")
+}
 let hotkeys = HotkeyController(source: EventTapSource(), permissions: permissions, emit: output.send)
 
 /// Temporary capture files. `MURMUR_AUDIO_DIR` overrides it for development and tests.
@@ -46,7 +56,8 @@ let audioDirectory: URL = {
     return support.appendingPathComponent("Murmur/audio/tmp", isDirectory: true)
 }()
 let audio = AudioCaptureController(
-    source: EngineAudioSource(), permissions: permissions, directory: audioDirectory, emit: output.send)
+    source: fixtureClip.map { FileAudioSource(url: $0) as any AudioInputSource } ?? EngineAudioSource(),
+    permissions: permissions, directory: audioDirectory, emit: output.send)
 let speech = TranscriptionController(recognizer: WhisperKitRecognizer(), reply: output.send)
 let pasteboard = SystemPasteboard()
 let insertion = InsertionController(

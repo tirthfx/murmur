@@ -99,6 +99,7 @@ Run all commands from the repo root.
 - Typecheck: `npm run typecheck`
 - Build desktop: `npm run package` (Electron Forge package; output in `apps/desktop/out/`). Run `npm run build:helper` first to include the helper at `Contents/Resources/helper/murmur-helper`.
 - Build helper (Swift): `npm run build:helper` (runs `swift build -c release`; output in `native/helper-mac/.build/release/murmur-helper`). Needs macOS with Xcode or the Swift toolchain. In development the app finds the binary there, or at `MURMUR_HELPER_PATH`. If it is missing the app still starts and the Hub shows the helper as unavailable.
+- Smoke test: `npm run smoke` (owner's Mac only; see `docs/smoke-test.md`).
 - Helper tests: `npm run test:helper` (runs `swift test`). Not part of CI yet; run it locally when `native/helper-mac` changes.
 
 Permissions (what each is for, granting in development vs a packaged build, `tccutil reset`): see `docs/permissions.md`.
@@ -124,6 +125,8 @@ Sounds and output mute (the tones, mute while dictating, crash recovery): see `d
 Tray menu (items, the status dot, when it is rebuilt, manual test): see `docs/tray.md`.
 
 First-run setup (steps, what blocks dictation, a clean profile with `MURMUR_PROFILE_DIR`): see `docs/onboarding.md`.
+
+End-to-end smoke test (`npm run smoke`, what it checks and needs): see `docs/smoke-test.md`.
 
 ## Definition of done for a PR
 
