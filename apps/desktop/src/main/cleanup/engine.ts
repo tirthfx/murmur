@@ -35,10 +35,14 @@ export class CleanupEngine {
   }
 
   /** Loads the model and runs one short warm-up so the first real request is fast. */
-  async load(modelPath: string): Promise<{ loadMs: number }> {
-    const started = Date.now();
+  async load(
+    modelPath: string,
     // node-llama-cpp is an ES module with native parts; it is loaded at run time, not bundled.
-    const { getLlama, LlamaChatSession } = await import("node-llama-cpp");
+    // The packaged app passes its own copy (see `llm-worker.ts`).
+    importLlama: () => Promise<typeof import("node-llama-cpp")> = () => import("node-llama-cpp"),
+  ): Promise<{ loadMs: number }> {
+    const started = Date.now();
+    const { getLlama, LlamaChatSession } = await importLlama();
     const llama = await getLlama({ gpu: "auto" });
     const model = await llama.loadModel({ modelPath });
     const context = await model.createContext({ contextSize: 2048 });

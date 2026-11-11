@@ -17,6 +17,12 @@ const PHRASE = "The quick brown fox jumps over the lazy dog";
 const TIMEOUT_MS = 5 * 60_000;
 const repo = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const keep = process.argv.includes("--keep");
+// `--packaged` runs the app built by `npm run package` instead of the development build.
+const packaged = process.argv.includes("--packaged");
+const packagedBinary = path.join(
+  repo,
+  "apps/desktop/out/Murmur-darwin-arm64/Murmur.app/Contents/MacOS/Murmur",
+);
 
 function fail(message) {
   console.error(`FAIL: ${message}`);
@@ -35,7 +41,11 @@ if (process.platform !== "darwin") {
   process.exit(1);
 }
 const helperBinary = path.join(repo, "native/helper-mac/.build/release/murmur-helper");
-if (!existsSync(helperBinary)) {
+if (packaged && !existsSync(packagedBinary)) {
+  console.error("The packaged app is not built. Run `npm run package` first.");
+  process.exit(1);
+}
+if (!packaged && !existsSync(helperBinary)) {
   console.error("The helper is not built. Run `npm run build:helper` first.");
   process.exit(1);
 }
@@ -59,7 +69,7 @@ const clipMs = Math.round(((statSync(clip).size - 44) / 32_000) * 1000);
 console.log(`profile: ${profile}`);
 console.log(`clip: "${PHRASE}" (${(clipMs / 1000).toFixed(1)} s)`);
 
-const child = spawn("npm", ["run", "dev"], {
+const child = spawn(packaged ? packagedBinary : "npm", packaged ? [] : ["run", "dev"], {
   cwd: repo,
   detached: true,
   stdio: ["ignore", "pipe", "pipe"],

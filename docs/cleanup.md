@@ -42,3 +42,34 @@ The packaged app does not include node-llama-cpp yet, so a packaged build cleans
 1. `npm run model:download`, `npm run build:helper`, `MURMUR_LOG_TRANSCRIPTS=1 npm run dev`.
 2. In TextEdit dictate "Um, so I think, uh, we should go." The terminal shows `cleanup: model in … ms` (or `rules only` on the very first try while the model loads) and TextEdit gets "So I think we should go."
 3. Dictate "Let's meet at two, actually three." and get "Let's meet at three."
+
+## In the packaged app
+
+Forge's Vite plugin bundles JavaScript and leaves `node_modules` out of the app, so
+`npm run package` copies node-llama-cpp and everything it needs at run time to
+`Murmur.app/Contents/Resources/llm-modules/node_modules` (about 43 MB, 117 packages). The
+folder is outside the asar archive so the native library can load. Only the macOS arm64
+Metal binaries are included, and the 35 MB llama.cpp source bundle is left out.
+
+The cleanup process looks for that folder first and falls back to the normal `node_modules`
+in development. The list of packages is worked out from the installed `package.json` files
+(`apps/desktop/packaging/runtime-modules.ts`), so a node-llama-cpp update needs no manual
+list.
+
+Check a packaged build:
+
+```bash
+npm run build:helper
+```
+
+```bash
+npm run package
+```
+
+```bash
+npm run smoke -- --packaged
+```
+
+The run's log shows `cleanup: model in ... ms` once the model has loaded (the very first
+dictation after a start may still say `rules only (timeout)` while the model loads). Without
+the model file the packaged app cleans with rules only, as in development.
