@@ -47,6 +47,9 @@ function setup() {
     micCheckStart,
     micCheckStop,
     getMediaPlayback,
+    dictionaryList: vi.fn(() => []),
+    dictionarySave: vi.fn(),
+    dictionaryDelete: vi.fn(),
   });
   return {
     getSetupStatus,

@@ -59,6 +59,7 @@ each (`ok`, `FAIL`, or `SKIP` when the Mac cannot run it):
 | Mic check                                       | Runs the Hub's check on the clip: speech and background levels and advice                                    |
 | Retry                                           | One transcription is made to fail on purpose; Retry last dictation from the tray types the text              |
 | Typing reminder                                 | 70 words are handed to the reminder: nothing while snoozed, the suggestion once on again                     |
+| Dictionary                                      | Saves "FOX" as a spelling and "lazy dog" → "sleepy cat", dictates the clip, removes them                     |
 | Quit                                            | The app exits by itself and the helper process is gone                                                       |
 
 The typing reminder is handed word counts instead of real key presses, which would type on the

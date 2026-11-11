@@ -10,6 +10,9 @@ import {
   type MicCheckResult,
   type MicCheckStartResult,
   type MediaPlayback,
+  type DictionaryEntry,
+  type DictionaryInput,
+  type DictionarySaveResult,
   type ShortcutResult,
   type ShortcutSlot,
   type PermissionKind,
@@ -37,6 +40,9 @@ export interface IpcDeps {
   micCheckStart: () => Promise<MicCheckStartResult>;
   micCheckStop: () => Promise<MicCheckResult | null>;
   getMediaPlayback: () => Promise<MediaPlayback | null>;
+  dictionaryList: () => DictionaryEntry[];
+  dictionarySave: (input: DictionaryInput) => DictionarySaveResult;
+  dictionaryDelete: (id: string) => void;
 }
 
 export interface IpcEventLike {
@@ -89,6 +95,12 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.micCheckStop();
       case IPC_CHANNELS.getMediaPlayback:
         return deps.getMediaPlayback();
+      case IPC_CHANNELS.dictionaryList:
+        return deps.dictionaryList();
+      case IPC_CHANNELS.dictionarySave:
+        return deps.dictionarySave(request.args[0] as DictionaryInput);
+      case IPC_CHANNELS.dictionaryDelete:
+        return deps.dictionaryDelete(request.args[0] as string);
       default:
         throw new Error("IPC rejected: unknown-channel");
     }

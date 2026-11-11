@@ -77,6 +77,9 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
     micCheckStop: vi.fn().mockResolvedValue(null),
     onMicCheckLevel: vi.fn().mockReturnValue(() => {}),
     getMediaPlayback: vi.fn().mockResolvedValue({ available: true, playing: false }),
+    dictionaryList: vi.fn().mockResolvedValue([]),
+    dictionarySave: vi.fn(),
+    dictionaryDelete: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 }

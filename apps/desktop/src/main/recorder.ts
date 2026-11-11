@@ -14,6 +14,8 @@ import { DictationGesture, type GestureCommand } from "./gesture";
 import { contextTerms, describeContext, speechPrompt } from "./context/context";
 import { splitMessages } from "./experimental/split-messages";
 import { splitPressEnter } from "./insertion/press-enter";
+import { applyReplacements, keepSpellings, speechPromptWithTerms } from "./dictionary/apply";
+import type { DictionaryRules } from "./dictionary/dictionary-store";
 import { dropSoundTags } from "./speech/sound-tags";
 import { systemClock } from "./helper/node-runtime";
 import type { Clock, Logger } from "./helper/types";
@@ -76,6 +78,14 @@ export interface RecorderDeps {
   clean?: (text: string, options: { terms: string[]; budgetMs: number }) => Promise<CleanupResult>;
   /** Warms the cleanup model when recording starts. */
   prepareCleanup?: () => void;
+  /**
+   * The personal dictionary (PZ-01, PZ-04): terms for the speech prompt and cleanup, exact
+   * spellings, and replacements applied before cleanup. Uses are counted per dictation.
+   */
+  dictionary?: {
+    rules(): DictionaryRules;
+    recordUses(ids: string[]): void;
+  };
   /** Rewrites the recognised text before anything else (Hindi in Latin letters, DC-18). */
   rewriteText?: (text: string) => string;
   /** Whisper mode for the next recording (DC-12). */
@@ -432,7 +442,10 @@ export function createRecorder(deps: RecorderDeps): Recorder {
     let transcript: Transcript;
     try {
       const context = await take.context;
-      transcript = await deps.transcribe!(take.audio!.path, { prompt: speechPrompt(context) });
+      const promptTerms = deps.dictionary?.rules().promptTerms ?? [];
+      transcript = await deps.transcribe!(take.audio!.path, {
+        prompt: speechPromptWithTerms(promptTerms, speechPrompt(context)),
+      });
     } catch (error) {
       logger.warn(`could not transcribe: ${errorMessage(error)}`);
       if (AUTO_RETRY_CODES.has(errorCode(error)) && !take.autoRetried) {
@@ -463,31 +476,55 @@ export function createRecorder(deps: RecorderDeps): Recorder {
     );
     if (deps.logTranscripts) logger.info(`text: ${transcript.text}`);
     lastFailed = null;
-    // Noise labels ("*thud*") were never said; then any script rewrite (Hindi in Latin letters).
-    const spokenOnly = dropSoundTags(transcript.text);
-    const heard = deps.rewriteText ? deps.rewriteText(spokenOnly) : spokenOnly;
+    // Noise labels ("*thud*") were never said; then any script rewrite (Hindi in Latin letters),
+    // then the dictionary's replacements and spellings.
+    const rules = deps.dictionary?.rules() ?? null;
+    const used = new Set<string>();
+    const byDictionary = (text: string): string => {
+      if (!rules) return text;
+      const replaced = applyReplacements(text, rules.replacements);
+      const spelled = keepSpellings(replaced.text, rules.spellings);
+      for (const id of [...replaced.used, ...spelled.used]) used.add(id);
+      return spelled.text;
+    };
+    /** After cleanup the model may have changed a case; uses were counted already. */
+    const respell = (text: string): string =>
+      rules ? keepSpellings(text, rules.spellings).text : text;
+    const toText = (raw: string): string => {
+      const spokenOnly = dropSoundTags(raw);
+      return byDictionary(deps.rewriteText ? deps.rewriteText(spokenOnly) : spokenOnly);
+    };
+    const heard = toText(transcript.text);
     // The command is taken off before cleanup, so the model never sees it.
     const spoken = deps.pressEnterCommand?.()
       ? splitPressEnter(heard.trim())
       : { text: heard, pressEnter: false };
-    const terms = contextTerms(await take.context);
+    const terms = [
+      ...contextTerms(await take.context),
+      ...(rules ? dictionaryTermsIn(heard, rules) : []),
+    ];
     // Split into messages (experimental, DC-37): each part goes in and is sent with Return.
     const parts = deps.splitMessages?.()
       ? splitMessages({
           text: spoken.text,
           segments: transcript.segments.map((segment) => ({
             ...segment,
-            text: deps.rewriteText ? deps.rewriteText(segment.text) : segment.text,
+            text: toText(segment.text),
           })),
         })
       : [];
+    const countUses = () => {
+      if (used.size > 0) deps.dictionary?.recordUses([...used]);
+    };
     if (parts.length > 1) {
-      await sendMessages(take, transcript, parts, spoken.pressEnter, terms);
+      await sendMessages(take, transcript, parts, spoken.pressEnter, terms, respell);
+      countUses();
       return;
     }
     const cleanup =
       spoken.text.trim() === "" ? null : await cleanUp(spoken.text, terms, take.releasedAt);
-    const final = cleanup?.text ?? spoken.text.trim();
+    const final = respell(cleanup?.text ?? spoken.text.trim());
+    countUses();
     const finalWords = final.split(/\s+/).filter(Boolean).length;
     emit(
       finalWords === 0 && !spoken.pressEnter
@@ -515,6 +552,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
     parts: string[],
     pressEnterAtEnd: boolean,
     terms: string[],
+    respell: (text: string) => string,
   ): Promise<void> {
     logger.info(`split into ${parts.length} messages`);
     // The spoken command, if any, was on the last part's segments; take it off there too.
@@ -525,7 +563,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
     let outcome: InsertOutcome = { insertStatus: "inserted" };
     for (const [index, text] of texts.entries()) {
       const cleanup = text.trim() === "" ? null : await cleanUp(text, terms, take.releasedAt);
-      const final = cleanup?.text ?? text.trim();
+      const final = respell(cleanup?.text ?? text.trim());
       finals.push(final);
       const isLast = index === texts.length - 1;
       const result = await insert(final, isLast ? pressEnterAtEnd : true);
@@ -755,4 +793,19 @@ export function createRecorder(deps: RecorderDeps): Recorder {
       await transcriptions;
     },
   };
+}
+
+/** Dictionary terms that occur in the text, for the cleanup model to keep as written. */
+export function dictionaryTermsIn(text: string, rules: DictionaryRules): string[] {
+  const lower = text.toLowerCase();
+  const found = rules.spellings
+    .map((rule) => rule.term)
+    .filter((term) => lower.includes(term.toLowerCase()));
+  // Replacement outputs that are single words are worth keeping too.
+  for (const rule of rules.replacements) {
+    if (/^[\p{L}\p{N}'’-]{2,40}$/u.test(rule.replacement) && text.includes(rule.replacement)) {
+      found.push(rule.replacement);
+    }
+  }
+  return found;
 }

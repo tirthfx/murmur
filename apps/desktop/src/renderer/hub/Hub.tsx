@@ -6,6 +6,7 @@ import { SideNav, SideNavHeading, SideNavItem, SideNavSection } from "@astryxdes
 import { Text } from "@astryxdesign/core/Text";
 import type { AppInfo } from "@murmur/shared";
 import { Button } from "@astryxdesign/core/Button";
+import { DictionaryPage } from "./DictionaryPage";
 import { HelperStatusLine } from "./HelperStatusLine";
 import { Onboarding } from "./Onboarding";
 import { MicCheckSection } from "./MicCheckSection";
@@ -123,6 +124,8 @@ function HubPages({ onRunSetup }: { onRunSetup: () => void }) {
                 </div>
               </section>
             </>
+          ) : page.id === "dictionary" ? (
+            <DictionaryPage />
           ) : (
             <div className="hub-empty">
               <EmptyState

@@ -17,3 +17,4 @@ export * from "./setup";
 export * from "./context";
 export * from "./typing";
 export * from "./mic-check";
+export * from "./dictionary";
