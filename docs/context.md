@@ -18,6 +18,12 @@ document is not copied.
   with `PERMISSION_DENIED` and dictation goes ahead without context. Nothing is requested.
 - Each Accessibility call waits at most 0.25 s, and main waits at most 1.5 s in total, so a
   slow app never delays the text.
+- **Electron and Chromium apps** (Slack, the Claude app, Chrome, Edge, Brave) build their
+  Accessibility tree only when asked. The first time context is read in such an app, the
+  helper sets `AXManualAccessibility` on it (once per process) and waits 0.3 s before
+  reading. Apps are recognised by the frameworks in their bundle; other apps are not
+  touched. This only happens while context awareness is on, and such an app may run a
+  little slower while its tree is on.
 
 ## How it is used
 

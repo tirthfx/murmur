@@ -11,6 +11,9 @@ public struct SystemFocusContextReader: FocusContextReader {
         let app = NSWorkspace.shared.frontmostApplication
         var context = FocusContext(appName: app?.localizedName, bundleId: app?.bundleIdentifier)
         if let pid = app?.processIdentifier {
+            if ChromiumAccessibility.shared.enableIfNeeded(pid: pid, bundleURL: app?.bundleURL) {
+                Thread.sleep(forTimeInterval: ChromiumAccessibility.settleSeconds)
+            }
             let appElement = AXUIElementCreateApplication(pid)
             AXUIElementSetMessagingTimeout(appElement, 0.25)
             if let window: AXUIElement = Self.attribute(appElement, kAXFocusedWindowAttribute) {
