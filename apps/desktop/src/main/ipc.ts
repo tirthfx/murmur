@@ -52,6 +52,7 @@ export interface IpcDeps {
   dictionaryList: () => DictionaryEntry[];
   dictionarySave: (input: DictionaryInput) => DictionarySaveResult;
   dictionaryDelete: (id: string) => void;
+  dictionaryKeep: (id: string) => void;
   snippetsList: () => Snippet[];
   snippetsSave: (input: SnippetInput) => SnippetSaveResult;
   snippetsDelete: (id: string) => void;
@@ -120,6 +121,8 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.dictionarySave(request.args[0] as DictionaryInput);
       case IPC_CHANNELS.dictionaryDelete:
         return deps.dictionaryDelete(request.args[0] as string);
+      case IPC_CHANNELS.dictionaryKeep:
+        return deps.dictionaryKeep(request.args[0] as string);
       case IPC_CHANNELS.snippetsList:
         return deps.snippetsList();
       case IPC_CHANNELS.snippetsSave:

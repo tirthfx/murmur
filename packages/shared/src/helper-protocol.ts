@@ -18,6 +18,12 @@ import {
   typingWatchResultSchema,
 } from "./typing";
 import {
+  editsCancelResultSchema,
+  editsChangedPayloadSchema,
+  editsWatchPayloadSchema,
+  editsWatchResultSchema,
+} from "./edits";
+import {
   mediaMutePayloadSchema,
   mediaMuteResultSchema,
   mediaPauseResultSchema,
@@ -222,6 +228,14 @@ export const HELPER_REQUESTS = {
     payload: typingWatchPayloadSchema,
     result: typingWatchResultSchema,
   },
+  "edits.watch": {
+    payload: editsWatchPayloadSchema,
+    result: editsWatchResultSchema,
+  },
+  "edits.cancel": {
+    payload: emptyObjectSchema,
+    result: editsCancelResultSchema,
+  },
 } as const;
 
 export type HelperRequestType = keyof typeof HELPER_REQUESTS;
@@ -251,6 +265,7 @@ export const HELPER_EVENTS = {
   "audio.devices.changed": audioDevicesChangedPayloadSchema,
   "audio.route.changed": audioRouteChangedPayloadSchema,
   "typing.activity": typingActivityPayloadSchema,
+  "edits.changed": editsChangedPayloadSchema,
 } as const;
 
 export type HelperEventType = keyof typeof HELPER_EVENTS;
@@ -364,6 +379,9 @@ export const typingActivityEventSchema = eventEnvelope(
   "typing.activity",
   typingActivityPayloadSchema,
 );
+export const editsWatchRequestSchema = requestEnvelope("edits.watch", editsWatchPayloadSchema);
+export const editsCancelRequestSchema = requestEnvelope("edits.cancel", emptyObjectSchema);
+export const editsChangedEventSchema = eventEnvelope("edits.changed", editsChangedPayloadSchema);
 export const contextSnapshotRequestSchema = requestEnvelope(
   "context.snapshot",
   contextSnapshotPayloadSchema,

@@ -17,6 +17,7 @@ import {
 import {
   BAR_IPC_CHANNELS,
   MEMORY_LIMITS,
+  EDIT_WATCH_MAX_MS,
   DEFAULT_CLEANUP_MODEL,
   DEFAULT_SOUNDS,
   DEFAULT_SPEECH_MODEL,
@@ -43,6 +44,7 @@ import { createCleanupService } from "./cleanup/cleanup-service";
 import { databasePath, openDatabase } from "./db/database";
 import { createHistoryStore, type HistoryStore } from "./history/history-store";
 import { createDictionaryStore } from "./dictionary/dictionary-store";
+import { createCorrectionLearner } from "./dictionary/learn";
 import { createSnippetStore } from "./snippets/snippet-store";
 import { createStyleStore } from "./styles/style-store";
 import { createMemoryStore } from "./memory/memory-store";
@@ -145,6 +147,9 @@ function openMurmurDatabase(): DatabaseSync | null {
 const database = openMurmurDatabase();
 // The personal dictionary (PZ-01). Without a database the pipeline simply has none.
 const dictionary = database ? createDictionaryStore(database) : null;
+// Learning from corrections (PZ-02): the last inserted text, and what the helper reports.
+const learner = database && dictionary ? createCorrectionLearner(database, dictionary) : null;
+let lastInserted: string | null = null;
 // Snippets (PZ-08).
 const snippets = database ? createSnippetStore(database) : null;
 // Styles per context and the owner's app categories (PZ-11, PZ-13).
@@ -208,6 +213,7 @@ const settingsStore = createSettingsStore(database, {
   typingReminder: { enabled: true, snoozedUntil: null },
   whisperMode: false,
   memory: { enabled: true, fromDictation: true },
+  learnCorrections: true,
   experimental: {
     splitMessages: false,
     pauseMedia: false,
@@ -398,6 +404,8 @@ const recorder = createRecorder({
   copy: (text) => helper.copyText(text),
   onEvent: (event) => {
     bar.dispatch(barEventFor(event));
+    // A new recording ends the watch for corrections to the last one.
+    if (event.type === "started") void helper.cancelEdits().catch(() => {});
     smokeChecks?.handleBarView(bar.getView());
     smokeChecks?.handleRecorderEvent(event);
     tray?.handleRecorderEvent(event);
@@ -428,6 +436,13 @@ const recorder = createRecorder({
   waitForSpeech: () => speech.whenReady(),
   ...(dictionary ? { dictionary } : {}),
   ...(snippets ? { snippets } : {}),
+  afterInsert: (text: string) => {
+    if (!learner || !settingsStore.get().learnCorrections) return;
+    lastInserted = text;
+    void helper
+      .watchEdits({ text: text.slice(0, 20_000), durationMs: EDIT_WATCH_MAX_MS })
+      .catch(() => {});
+  },
   ...(styles ? { styles } : {}),
   ...(memory
     ? {
@@ -457,6 +472,11 @@ const micCheck = createMicCheck({
 });
 hotkeys.onEvent((event) => recorder.handleHotkey(event));
 helper.onAudioLevel((level) => bar.level(level.rmsDb));
+helper.onEditsChanged((change) => {
+  if (!learner || !lastInserted || !settingsStore.get().learnCorrections) return;
+  const learned = learner.learn(change, lastInserted);
+  if (learned) console.log(`[dictionary] learned a ${learned.kind} from a correction`);
+});
 
 // The menu bar item. Created once the app is ready; it works with the Hub closed.
 let tray: TrayController | null = null;
@@ -652,6 +672,11 @@ function fullSmokeChecks(
       return () => ids.forEach((id) => dictionary?.remove(id));
     },
     answerBar: (choice) => answerBar(choice),
+    learnedEntries: () =>
+      (dictionary?.list() ?? [])
+        .filter((entry) => entry.source === "auto")
+        .map((entry) => ({ id: entry.id, term: entry.term, replacement: entry.replacement })),
+    removeDictionary: (id) => dictionary?.remove(id),
     memoryTexts: () => memory?.list().map((item) => item.text) ?? [],
     forgetMemory: (text) => {
       const found = memory?.list().find((item) => item.text === text);
@@ -776,6 +801,7 @@ function registerIpc(): void {
         message: "The dictionary could not be opened.",
       },
     dictionaryDelete: (id) => dictionary?.remove(id),
+    dictionaryKeep: (id) => dictionary?.keep(id),
     snippetsList: () => snippets?.list() ?? [],
     snippetsSave: (input) =>
       snippets?.save(input) ?? {

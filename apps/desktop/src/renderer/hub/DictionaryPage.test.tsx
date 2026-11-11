@@ -89,6 +89,22 @@ describe("Dictionary page", () => {
     expect(dictionaryDelete).toHaveBeenCalledWith("id-GitHub");
   });
 
+  it("keeps a learned entry and filters to learned ones", async () => {
+    const learned = entry("Kube net is", { replacement: "Kubernetes", source: "auto" });
+    const dictionaryKeep = vi.fn().mockResolvedValue(undefined);
+    window.murmur = createMockApi({
+      dictionaryList: vi.fn().mockResolvedValue([learned, entry("Priya")]),
+      dictionaryKeep,
+    });
+    render(<DictionaryPage />);
+    await waitFor(() => expect(screen.getByText("Learned")).toBeTruthy());
+    await act(async () => screen.getByRole("switch", { name: "Learned only" }).click());
+    expect(screen.queryByText("Priya")).toBeNull();
+    await act(async () => screen.getByRole("button", { name: "Keep Kube net is" }).click());
+    expect(dictionaryKeep).toHaveBeenCalledWith("id-Kube net is");
+    expect(screen.getByRole("switch", { name: /Learn from my corrections/ })).toBeTruthy();
+  });
+
   it("stars an entry by saving it with the star on", async () => {
     const plain = entry("Priya");
     const dictionarySave = vi.fn().mockResolvedValue({ ok: true, entry: plain });

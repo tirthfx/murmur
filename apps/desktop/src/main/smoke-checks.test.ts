@@ -18,6 +18,7 @@ const settings: Settings = {
   typingReminder: { enabled: true, snoozedUntil: null },
   whisperMode: false,
   memory: { enabled: true, fromDictation: true },
+  learnCorrections: true,
   experimental: {
     splitMessages: false,
     pauseMedia: false,
@@ -27,7 +28,8 @@ const settings: Settings = {
 };
 
 /** A small stand-in for the app: dictation, the Bar, the tray, the output and the clipboard. */
-type Broken = "mute" | "silent" | "bar" | "enter" | "context" | "whisper" | "retry" | "reminder";
+type Broken =
+  "mute" | "silent" | "bar" | "enter" | "context" | "whisper" | "retry" | "reminder" | "learn";
 
 function fakeApp(options: { muted?: boolean | null; broken?: Broken } = {}) {
   let current = { ...settings };
@@ -45,6 +47,7 @@ function fakeApp(options: { muted?: boolean | null; broken?: Broken } = {}) {
   let personal = false;
   let facts: string[] = [];
   let barDetail: string | null = null;
+  let learned = 0;
   let recording = false;
   let last: string | null = null;
   let position: [number, number] = [500, 800];
@@ -121,7 +124,7 @@ function fakeApp(options: { muted?: boolean | null; broken?: Broken } = {}) {
               ? "Snippet line one\nSnippet line two"
               : withDictionary
                 ? "The FOX and the sleepy cat."
-                : "Hello there.";
+                : "The quick brown fox jumps over the lazy dog.";
     last = said;
     field += said + (clip === "enter" && options.broken !== "enter" ? "\n" : "");
   }
@@ -133,6 +136,7 @@ function fakeApp(options: { muted?: boolean | null; broken?: Broken } = {}) {
     focusField: async () => {},
     isFieldFocused: () => true,
     setField: async (text) => {
+      if (/lazy cat/.test(text) && options.broken !== "learn") learned += 1;
       field = text;
     },
     readField: async () => field,
@@ -218,6 +222,10 @@ function fakeApp(options: { muted?: boolean | null; broken?: Broken } = {}) {
         personal = false;
       };
     },
+    learnedEntries: () => (learned >= 2 ? [{ id: "d1", term: "dog", replacement: "cat" }] : []),
+    removeDictionary: () => {
+      learned = 0;
+    },
     answerBar: (choice) => {
       if (choice === "yes" && barMessage === "Save to Memory?") facts.push(barDetail ?? "");
       barMessage = null;
@@ -280,6 +288,7 @@ describe("full smoke checks", () => {
       "Snippets: a trigger said on its own inserts the body",
       "Styles: a Personal app gets no capitals and no final full stop",
       'Memory: "remember that" asks on the Bar and saves on Save',
+      "Learning: a correction made twice becomes a dictionary entry",
     ]);
     expect(app.muted()).toBe(false);
     expect(app.clipboard()).toBe("owner's text");
@@ -288,6 +297,7 @@ describe("full smoke checks", () => {
       languages: [],
       whisperMode: false,
       memory: { enabled: true, fromDictation: true },
+      learnCorrections: true,
       typingReminder: { enabled: true, snoozedUntil: null },
     });
   });
@@ -308,6 +318,7 @@ describe("full smoke checks", () => {
       ["whisper", "Whisper mode: a very quiet voice gives text"],
       ["retry", "Retry: Retry last dictation types the text"],
       ["reminder", "Typing reminder: snooze holds it, then it suggests dictating"],
+      ["learn", "Learning: a correction made twice becomes a dictionary entry"],
     ] as const) {
       expect(failed(await fakeApp({ broken }).checks.run())).toEqual([name]);
     }

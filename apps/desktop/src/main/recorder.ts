@@ -92,6 +92,8 @@ export interface RecorderDeps {
     facts(text: string): string[];
     offer(fact: string): boolean;
   };
+  /** Called with the text after it went in, for learning from corrections (PZ-02). */
+  afterInsert?: (text: string) => void;
   /** Snippets (PZ-08): a trigger said on its own inserts the saved body, unchanged. */
   snippets?: {
     list(): Snippet[];
@@ -779,6 +781,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
             ? ", clipboard restored"
             : ", clipboard kept (it changed meanwhile)";
       logger.info(`inserted by ${result.method} in ${Date.now() - started} ms${restored}`);
+      if (text !== "") deps.afterInsert?.(text);
       if (pressEnter && result.enterPressed !== true) {
         logger.warn("Return was not pressed: another app had come to the front");
         emit({ type: "enter-skipped" });

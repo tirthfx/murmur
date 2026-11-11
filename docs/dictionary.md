@@ -30,6 +30,26 @@ entry used more than 20 times asks first.
 Each entry used in a dictation gets one use, which orders the prompt terms and the
 "Most used" sort.
 
+## Learning from corrections
+
+With "Learn from my corrections" on (the default), every insertion is followed by a watch of
+the same field for 60 seconds (`edits.watch`). The helper finds the inserted text in the field
+and reads the field every half second while it keeps the focus. Once an edit has rested for
+1.5 seconds it sends `edits.changed` with only the changed words inside the inserted text,
+never the rest of the field. The watch ends when the field loses focus, the minute is up, or
+a new recording starts (`edits.cancel`). Secure and read-only fields are never watched.
+
+Main decides what to learn (`dictionary/learn.ts`):
+
+- one to three changed words on each side; punctuation at the ends does not count;
+- deletions, and changes that take out more than half of what was inserted, are ignored;
+- a change of capitals only ("github" → "GitHub") becomes a term at once;
+- any other change becomes a replacement the second time it is seen (counts in
+  `learn_candidates`, migration `0007`).
+
+Learned entries have source `auto` and show "Learned" on the Dictionary page, with a Keep
+button and a "Learned only" filter.
+
 ## Storage
 
 Table `dictionary` (migration `0003_dictionary.sql`), as in the vault's data model.

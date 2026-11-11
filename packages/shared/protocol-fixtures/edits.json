@@ -1,0 +1,73 @@
+{
+  "description": "Learning from corrections (PZ-02): only the changed words inside the inserted text are reported.",
+  "messages": [
+    {
+      "id": "m-000090",
+      "type": "edits.watch",
+      "payload": {
+        "text": "Deploy it to Kube net is today.",
+        "durationMs": 60000
+      }
+    },
+    {
+      "id": "m-000090",
+      "type": "response",
+      "payload": {
+        "requestType": "edits.watch",
+        "ok": true,
+        "result": {
+          "watching": true
+        }
+      }
+    },
+    {
+      "id": null,
+      "type": "edits.changed",
+      "payload": {
+        "before": "Kube net is",
+        "after": "Kubernetes"
+      }
+    },
+    {
+      "id": "m-000091",
+      "type": "edits.cancel",
+      "payload": {}
+    },
+    {
+      "id": "m-000091",
+      "type": "response",
+      "payload": {
+        "requestType": "edits.cancel",
+        "ok": true,
+        "result": {
+          "cancelled": true
+        }
+      }
+    }
+  ],
+  "invalidMessages": [
+    {
+      "id": "m-000092",
+      "type": "edits.watch",
+      "payload": {
+        "text": "",
+        "durationMs": 60000
+      }
+    },
+    {
+      "id": "m-000093",
+      "type": "edits.watch",
+      "payload": {
+        "text": "hello",
+        "durationMs": 600000
+      }
+    },
+    {
+      "id": null,
+      "type": "edits.changed",
+      "payload": {
+        "before": "x"
+      }
+    }
+  ]
+}

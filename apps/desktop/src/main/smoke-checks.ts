@@ -56,6 +56,9 @@ export interface SmokeChecksDeps {
   feedTypedWords(words: number): void;
   /** Adds dictionary entries for one check; returns a function that removes them. */
   addDictionary(entries: { term: string; replacement: string | null }[]): () => void;
+  /** Learned dictionary entries, and removing one. */
+  learnedEntries(): { id: string; term: string; replacement: string | null }[];
+  removeDictionary(id: string): void;
   /** Answers the Bar's question, as a click on Save or Dismiss would. */
   answerBar(choice: "yes" | "no"): void;
   /** The saved facts' texts. */
@@ -556,6 +559,32 @@ export function createSmokeChecks(deps: SmokeChecksDeps): SmokeChecks {
     );
   }
 
+  async function learnCorrection(): Promise<CheckResult> {
+    const name = "Learning: a correction made twice becomes a dictionary entry";
+    for (let round = 0; round < 2; round++) {
+      const result = await dictate(deps.keyDown, deps.keyUp);
+      if (!/lazy dog/i.test(result.field)) return fail(name, `got ${JSON.stringify(result.field)}`);
+      // The owner fixes one word in the box; the helper reads the field again within seconds.
+      await deps.setField(result.field.replace(/lazy dog/i, "lazy cat"));
+      const learned = () =>
+        deps
+          .learnedEntries()
+          .some((entry) => /^dog$/i.test(entry.term) && entry.replacement === "cat");
+      await waitFor(() => round === 0 || learned(), 6_000);
+      if (round === 0) await deps.sleep(2_500);
+    }
+    const entry = deps
+      .learnedEntries()
+      .find((item) => /^dog$/i.test(item.term) && item.replacement === "cat");
+    if (entry) deps.removeDictionary(entry.id);
+    return check(
+      name,
+      entry !== undefined,
+      `learned "${entry?.term}" → "${entry?.replacement}" (then removed)`,
+      `learned entries: ${JSON.stringify(deps.learnedEntries())}`,
+    );
+  }
+
   async function typingReminder(): Promise<CheckResult> {
     const name = "Typing reminder: snooze holds it, then it suggests dictating";
     const message = () => deps.barView().message ?? "";
@@ -611,6 +640,7 @@ export function createSmokeChecks(deps: SmokeChecksDeps): SmokeChecks {
         async () => void results.push(await snippet()),
         async () => void results.push(await personalStyle()),
         async () => void results.push(await rememberThat()),
+        async () => void results.push(await learnCorrection()),
       ];
       for (const step of steps) {
         try {

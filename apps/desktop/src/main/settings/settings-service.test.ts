@@ -25,6 +25,7 @@ const defaults: Settings = {
   typingReminder: { enabled: true, snoozedUntil: null },
   whisperMode: false,
   memory: { enabled: true, fromDictation: true },
+  learnCorrections: true,
   experimental: {
     splitMessages: false,
     pauseMedia: false,

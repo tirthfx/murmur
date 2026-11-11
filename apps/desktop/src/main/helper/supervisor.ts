@@ -20,6 +20,8 @@ import {
   type ContextSnapshotInput,
   type FocusContext,
   type TypingActivity,
+  type EditsChanged,
+  type EditsWatchInput,
   type MediaPlayback,
   type InsertTextInput,
   type InsertTextResult,
@@ -100,6 +102,7 @@ export class HelperSupervisor implements PlatformHelper {
   private readonly devicesChangedHandlers = new Set<(change: AudioDevicesChanged) => void>();
   private readonly routeChangedHandlers = new Set<(change: AudioRouteChanged) => void>();
   private readonly typingHandlers = new Set<(activity: TypingActivity) => void>();
+  private readonly editsHandlers = new Set<(change: EditsChanged) => void>();
 
   private connection: HelperConnection | null = null;
   private restartTimes: number[] = [];
@@ -334,6 +337,22 @@ export class HelperSupervisor implements PlatformHelper {
     return (await this.connection.request("media.resume", {})).resumed;
   }
 
+  async watchEdits(input: EditsWatchInput): Promise<boolean> {
+    if (!this.connection || this.status.state !== "ready") {
+      throw new HelperError("HELPER_UNAVAILABLE", "The helper is not running");
+    }
+    return (await this.connection.request("edits.watch", input)).watching;
+  }
+
+  async cancelEdits(): Promise<void> {
+    if (!this.connection || this.status.state !== "ready") return;
+    await this.connection.request("edits.cancel", {});
+  }
+
+  onEditsChanged(handler: (change: EditsChanged) => void): Unsubscribe {
+    return subscribe(this.editsHandlers, handler);
+  }
+
   async watchTyping(enabled: boolean): Promise<void> {
     if (!this.connection || this.status.state !== "ready") {
       throw new HelperError("HELPER_UNAVAILABLE", "The helper is not running");
@@ -558,6 +577,9 @@ export class HelperSupervisor implements PlatformHelper {
         break;
       case "typing.activity":
         for (const handler of this.typingHandlers) handler(event.payload);
+        break;
+      case "edits.changed":
+        for (const handler of this.editsHandlers) handler(event.payload);
         break;
     }
   }
