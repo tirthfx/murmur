@@ -25,12 +25,14 @@ function setup() {
     pressEnterCommand: true,
     contextAwareness: true,
     mouseButtons: { hold: null, handsFree: null },
+    typingReminder: { enabled: true, snoozedUntil: null },
   };
   const views: TrayView[] = [];
   const clock = new FakeClock();
   const state = { devices: [desk] as AudioDevice[] | Error, last: null as string | null };
   const deps = {
     toggleDictation: vi.fn(),
+    snoozeReminder: vi.fn(),
     copy: vi.fn(),
     quit: vi.fn(),
   };
@@ -132,6 +134,8 @@ describe("tray controller", () => {
     state.last = "Hello there.";
     controller.perform({ type: "copy-last" });
     expect(deps.copy).toHaveBeenCalledWith("Hello there.");
+    controller.perform({ type: "reminder", choice: "hour" });
+    expect(deps.snoozeReminder).toHaveBeenCalledWith("hour");
     controller.perform({ type: "quit" });
     expect(deps.quit).toHaveBeenCalledOnce();
   });

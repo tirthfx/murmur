@@ -12,6 +12,7 @@ export interface TrayState {
   inputDevice: string;
   language: SpeechLanguage;
   hasLastTranscript: boolean;
+  typingReminder: "on" | "snoozed" | "off";
 }
 
 export type TrayAction =
@@ -19,6 +20,7 @@ export type TrayAction =
   | { type: "device"; id: string }
   | { type: "language"; code: SpeechLanguage }
   | { type: "copy-last" }
+  | { type: "reminder"; choice: "hour" | "tomorrow" | "off" | "on" }
   | { type: "quit" };
 
 /** One menu row, independent of the toolkit that draws it. */
@@ -64,6 +66,32 @@ function microphoneItems(state: TrayState): TrayItem[] {
   return items;
 }
 
+function reminderItems(status: TrayState["typingReminder"]): TrayItem[] {
+  if (status === "off") {
+    return [{ kind: "item", label: "Turn on", action: { type: "reminder", choice: "on" } }];
+  }
+  return [
+    ...(status === "snoozed"
+      ? [
+          { kind: "item" as const, label: "Snoozed", enabled: false },
+          {
+            kind: "item" as const,
+            label: "Resume now",
+            action: { type: "reminder" as const, choice: "on" as const },
+          },
+        ]
+      : []),
+    { kind: "item", label: "Snooze for 1 hour", action: { type: "reminder", choice: "hour" } },
+    {
+      kind: "item",
+      label: "Snooze until tomorrow",
+      action: { type: "reminder", choice: "tomorrow" },
+    },
+    { kind: "separator" },
+    { kind: "item", label: "Turn off", action: { type: "reminder", choice: "off" } },
+  ];
+}
+
 /**
  * The tray menu (DC-45, minimal M1 set), in order: start or stop, microphone, languages,
  * copy last transcript, quit. Quit is always present and always enabled.
@@ -94,6 +122,7 @@ export function trayMenu(state: TrayState): TrayItem[] {
       enabled: state.hasLastTranscript,
       action: { type: "copy-last" },
     },
+    { kind: "item", label: "Typing reminder", submenu: reminderItems(state.typingReminder) },
     { kind: "separator" },
     { kind: "item", label: "Quit Murmur", action: { type: "quit" } },
   ];

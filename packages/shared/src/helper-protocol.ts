@@ -12,6 +12,11 @@ import {
   audioStopResultSchema,
 } from "./audio";
 import { contextSnapshotPayloadSchema, focusContextSchema } from "./context";
+import {
+  typingActivityPayloadSchema,
+  typingWatchPayloadSchema,
+  typingWatchResultSchema,
+} from "./typing";
 import { mediaMutePayloadSchema, mediaMuteResultSchema, mediaStatusResultSchema } from "./media";
 import { insertCopyPayloadSchema, insertTextPayloadSchema, insertTextResultSchema } from "./insert";
 import {
@@ -194,6 +199,10 @@ export const HELPER_REQUESTS = {
     payload: contextSnapshotPayloadSchema,
     result: focusContextSchema,
   },
+  "typing.watch": {
+    payload: typingWatchPayloadSchema,
+    result: typingWatchResultSchema,
+  },
 } as const;
 
 export type HelperRequestType = keyof typeof HELPER_REQUESTS;
@@ -222,6 +231,7 @@ export const HELPER_EVENTS = {
   "audio.silent": audioSilentPayloadSchema,
   "audio.devices.changed": audioDevicesChangedPayloadSchema,
   "audio.route.changed": audioRouteChangedPayloadSchema,
+  "typing.activity": typingActivityPayloadSchema,
 } as const;
 
 export type HelperEventType = keyof typeof HELPER_EVENTS;
@@ -327,6 +337,11 @@ export const insertCopyRequestSchema = requestEnvelope("insert.copy", insertCopy
 
 export const mediaStatusRequestSchema = requestEnvelope("media.status", emptyObjectSchema);
 export const mediaMuteRequestSchema = requestEnvelope("media.mute", mediaMutePayloadSchema);
+export const typingWatchRequestSchema = requestEnvelope("typing.watch", typingWatchPayloadSchema);
+export const typingActivityEventSchema = eventEnvelope(
+  "typing.activity",
+  typingActivityPayloadSchema,
+);
 export const contextSnapshotRequestSchema = requestEnvelope(
   "context.snapshot",
   contextSnapshotPayloadSchema,

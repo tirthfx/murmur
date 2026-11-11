@@ -60,6 +60,7 @@ import { createModelDownload } from "./setup/model-download";
 import { dictationBlockers, hasPermissionBlocker } from "./setup/readiness";
 import { cleanupModelRoot, speechModelRoot } from "./speech/paths";
 import { insertionRules } from "./insertion/app-rules";
+import { createTypingReminder } from "./reminder/typing-reminder";
 import { profilePaths } from "./profile";
 import { createSmokeRun, SMOKE_PAGE, type SmokeRun } from "./smoke";
 import { permissionSettingsUrl } from "./platform/mac-settings-links";
@@ -150,6 +151,7 @@ const settingsStore = createSettingsStore(database, {
   pressEnterCommand: true,
   contextAwareness: true,
   mouseButtons: { hold: null, handsFree: null },
+  typingReminder: { enabled: true, snoozedUntil: null },
 });
 const keys = keyPlatform(process.platform);
 const settingsService = createSettingsService({
@@ -345,6 +347,7 @@ function createTray(): void {
     listDevices: () => helper.listAudioDevices(),
     lastTranscript: () => history?.lastText() ?? null,
     toggleDictation: () => recorder.toggle(),
+    snoozeReminder: (choice) => typingReminder.snooze(choice),
     copy: (text) => clipboard.writeText(text),
     quit: () => app.quit(),
   });
@@ -411,6 +414,37 @@ function startSmokeRun(): void {
       app.quit();
     });
 }
+
+// Typing reminder (DC-08): the helper counts words only while it is on and not snoozed.
+const typingReminder = createTypingReminder({
+  settings: () => settingsStore.get(),
+  update: (reminder) => settingsStore.update({ typingReminder: reminder }),
+  isDictating: () => recorder.isBusy(),
+  now: () => Date.now(),
+  nudge: (message) => {
+    console.log("[reminder] suggested dictating after a lot of typing");
+    bar.dispatch({ type: "warn", message });
+  },
+  holdLabel: () => keys.label(settingsStore.get().holdShortcut),
+});
+let typingWatched: boolean | null = null;
+function syncTypingWatch(force = false): void {
+  if (helper.getStatus().state !== "ready") return;
+  const want = typingReminder.isActive();
+  if (!force && want === typingWatched) return;
+  typingWatched = want;
+  helper.watchTyping(want).catch(() => {
+    typingWatched = null;
+  });
+}
+helper.onStatusChange((status) => {
+  if (status.state === "ready") syncTypingWatch(true);
+  else typingWatched = null;
+});
+settingsStore.onChange(() => syncTypingWatch());
+helper.onTypingActivity((activity) => typingReminder.record(activity.words));
+// A snooze ends by itself; check now and then so counting starts again.
+setInterval(() => syncTypingWatch(), 60_000).unref();
 
 async function openPermissionSettings(kind: PermissionKind): Promise<void> {
   const url = process.platform === "darwin" ? permissionSettingsUrl(kind) : null;

@@ -1,0 +1,54 @@
+{
+  "description": "Typing reminder (DC-08): word counts only, never characters.",
+  "messages": [
+    {
+      "id": "m-000080",
+      "type": "typing.watch",
+      "payload": {
+        "enabled": true
+      }
+    },
+    {
+      "id": "m-000080",
+      "type": "response",
+      "payload": {
+        "requestType": "typing.watch",
+        "ok": true,
+        "result": {
+          "watching": true
+        }
+      }
+    },
+    {
+      "id": null,
+      "type": "typing.activity",
+      "payload": {
+        "words": 42,
+        "periodMs": 30000
+      }
+    }
+  ],
+  "invalidMessages": [
+    {
+      "id": "m-000081",
+      "type": "typing.watch",
+      "payload": {}
+    },
+    {
+      "id": null,
+      "type": "typing.activity",
+      "payload": {
+        "words": 0,
+        "periodMs": 30000
+      }
+    },
+    {
+      "id": null,
+      "type": "typing.activity",
+      "payload": {
+        "words": "hello",
+        "periodMs": 30000
+      }
+    }
+  ]
+}
