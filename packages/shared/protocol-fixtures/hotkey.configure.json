@@ -9,7 +9,11 @@
           {
             "id": "dictate-hold",
             "action": "dictate.hold",
-            "trigger": { "type": "key", "keyCode": 61, "modifiers": [] },
+            "trigger": {
+              "type": "key",
+              "keyCode": 61,
+              "modifiers": []
+            },
             "mode": "hold"
           }
         ]
@@ -21,7 +25,10 @@
       "payload": {
         "requestType": "hotkey.configure",
         "ok": true,
-        "result": { "registered": ["dictate-hold"], "rejected": [] }
+        "result": {
+          "registered": ["dictate-hold"],
+          "rejected": []
+        }
       }
     },
     {
@@ -32,19 +39,31 @@
           {
             "id": "dictate-hold",
             "action": "dictate.hold",
-            "trigger": { "type": "key", "keyCode": 61, "modifiers": [] },
+            "trigger": {
+              "type": "key",
+              "keyCode": 61,
+              "modifiers": []
+            },
             "mode": "hold"
           },
           {
             "id": "same-key",
             "action": "dictate.toggle",
-            "trigger": { "type": "key", "keyCode": 61, "modifiers": [] },
+            "trigger": {
+              "type": "key",
+              "keyCode": 61,
+              "modifiers": []
+            },
             "mode": "press"
           },
           {
             "id": "plain-letter",
             "action": "paste.last",
-            "trigger": { "type": "key", "keyCode": 0, "modifiers": [] },
+            "trigger": {
+              "type": "key",
+              "keyCode": 0,
+              "modifiers": []
+            },
             "mode": "press"
           }
         ]
@@ -81,7 +100,11 @@
           {
             "id": "dictate-hold",
             "action": "dictate.hold",
-            "trigger": { "type": "key", "keyCode": 61, "modifiers": [] },
+            "trigger": {
+              "type": "key",
+              "keyCode": 61,
+              "modifiers": []
+            },
             "mode": "hold"
           }
         ]
@@ -99,10 +122,33 @@
           "retryable": false
         }
       }
+    },
+    {
+      "id": "m-000070",
+      "type": "hotkey.configure",
+      "payload": {
+        "bindings": [
+          {
+            "id": "dictate-hold-mouse",
+            "action": "dictate.hold",
+            "trigger": {
+              "type": "mouse",
+              "button": 3
+            },
+            "mode": "hold"
+          }
+        ]
+      }
     }
   ],
   "invalidMessages": [
-    { "id": "m-000010", "type": "hotkey.configure", "payload": { "bindings": {} } },
+    {
+      "id": "m-000010",
+      "type": "hotkey.configure",
+      "payload": {
+        "bindings": {}
+      }
+    },
     {
       "id": "m-000010",
       "type": "hotkey.configure",
@@ -111,7 +157,11 @@
           {
             "id": "dictate-hold",
             "action": "dictate.hold",
-            "trigger": { "type": "key", "keyCode": 61, "modifiers": [] },
+            "trigger": {
+              "type": "key",
+              "keyCode": 61,
+              "modifiers": []
+            },
             "mode": "hold-forever"
           }
         ]
@@ -125,7 +175,11 @@
           {
             "id": "dictate-hold",
             "action": "dictate.hold",
-            "trigger": { "type": "key", "keyCode": 61, "modifiers": ["hyper"] },
+            "trigger": {
+              "type": "key",
+              "keyCode": 61,
+              "modifiers": ["hyper"]
+            },
             "mode": "hold"
           }
         ]
@@ -137,7 +191,26 @@
       "payload": {
         "requestType": "hotkey.configure",
         "ok": true,
-        "result": { "registered": ["dictate-hold"] }
+        "result": {
+          "registered": ["dictate-hold"]
+        }
+      }
+    },
+    {
+      "id": "m-000071",
+      "type": "hotkey.configure",
+      "payload": {
+        "bindings": [
+          {
+            "id": "left",
+            "action": "dictate.hold",
+            "trigger": {
+              "type": "mouse",
+              "button": 0
+            },
+            "mode": "hold"
+          }
+        ]
       }
     }
   ]

@@ -11,6 +11,7 @@ import {
   type SettingsPatch,
   type SettingsView,
 } from "@murmur/shared";
+import { MouseButtonField } from "./MouseButtonField";
 import { ShortcutField } from "./ShortcutField";
 
 const SOUND_LABELS: Record<(typeof SOUND_NAMES)[number], string> = {
@@ -82,6 +83,25 @@ export function SettingsSection() {
         label={view.shortcutLabels.handsFree}
         canClear={settings.handsFreeShortcut !== null}
         onSaved={setView}
+      />
+      <MouseButtonField
+        title="Push to talk (mouse)"
+        description="Hold an extra mouse button to dictate. The button also keeps doing what it did before."
+        button={settings.mouseButtons.hold}
+        onChange={(hold) => {
+          const handsFree =
+            settings.mouseButtons.handsFree === hold ? null : settings.mouseButtons.handsFree;
+          update({ mouseButtons: { hold, handsFree } });
+        }}
+      />
+      <MouseButtonField
+        title="Hands-free (mouse)"
+        description="Press an extra mouse button to start, and again to stop."
+        button={settings.mouseButtons.handsFree}
+        onChange={(handsFree) => {
+          const hold = settings.mouseButtons.hold === handsFree ? null : settings.mouseButtons.hold;
+          update({ mouseButtons: { hold, handsFree } });
+        }}
       />
       <Selector
         label="Microphone"

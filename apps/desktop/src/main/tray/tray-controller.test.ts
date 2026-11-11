@@ -24,6 +24,7 @@ function setup() {
     setupComplete: true,
     pressEnterCommand: true,
     contextAwareness: true,
+    mouseButtons: { hold: null, handsFree: null },
   };
   const views: TrayView[] = [];
   const clock = new FakeClock();

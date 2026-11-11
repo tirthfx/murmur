@@ -15,6 +15,7 @@ const defaults: Settings = {
   setupComplete: true,
   pressEnterCommand: true,
   contextAwareness: true,
+  mouseButtons: { hold: null, handsFree: null },
 };
 
 function setup() {
@@ -96,6 +97,21 @@ describe("settings service", () => {
       action: "dictate.toggle",
       mode: "press",
     });
+    const withMouse = { ...defaults, mouseButtons: { hold: 3, handsFree: 4 } };
+    expect(bindingsFor(withMouse).slice(1)).toEqual([
+      {
+        id: "dictate-hold-mouse",
+        action: "dictate.hold",
+        trigger: { type: "mouse", button: 3 },
+        mode: "hold",
+      },
+      {
+        id: "dictate-toggle-mouse",
+        action: "dictate.toggle",
+        trigger: { type: "mouse", button: 4 },
+        mode: "press",
+      },
+    ]);
     expect(bindingsFor(defaults, 53).at(-1)).toEqual({
       id: "dictate-cancel",
       action: "dictate.cancel",

@@ -30,7 +30,8 @@ public final class EventTapSource: KeyEventSource, @unchecked Sendable {
         if state != nil { return true }
 
         let handler = Unmanaged.passRetained(TapHandler(onInput: onInput, onStatus: onStatus))
-        let types: [CGEventType] = [.flagsChanged, .keyDown, .keyUp]
+        // Extra mouse buttons only; left and right clicks are not even observed.
+        let types: [CGEventType] = [.flagsChanged, .keyDown, .keyUp, .otherMouseDown, .otherMouseUp]
         let mask = types.reduce(CGEventMask(0)) { $0 | (CGEventMask(1) << CGEventMask($1.rawValue)) }
         guard
             let tap = CGEvent.tapCreate(
@@ -110,6 +111,10 @@ final class TapHandler: @unchecked Sendable {
                 CGEvent.tapEnable(tap: tap, enable: true)
                 onStatus(.reenabled)
             }
+        case .otherMouseDown, .otherMouseUp:
+            let button = Int(event.getIntegerValueField(.mouseEventButtonNumber))
+            guard let input = Self.mouseInput(type: type, button: button) else { return }
+            onInput(input, EventClock.epochMs(eventTimestamp: event.timestamp))
         case .flagsChanged, .keyDown, .keyUp:
             let keyCode = Int(event.getIntegerValueField(.keyboardEventKeycode))
             let flags = event.flags.rawValue
@@ -118,6 +123,15 @@ final class TapHandler: @unchecked Sendable {
             onInput(input, EventClock.epochMs(eventTimestamp: event.timestamp))
         default:
             return
+        }
+    }
+
+    static func mouseInput(type: CGEventType, button: Int) -> RawKeyInput? {
+        guard MouseButtons.allowed.contains(button) else { return nil }
+        switch type {
+        case .otherMouseDown: return .mouseDown(button: button)
+        case .otherMouseUp: return .mouseUp(button: button)
+        default: return nil
         }
     }
 

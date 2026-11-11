@@ -45,10 +45,29 @@ export const hotkeyTriggerSchema = z.object({
 });
 export type HotkeyTrigger = z.infer<typeof hotkeyTriggerSchema>;
 
+/** Extra mouse buttons, in CoreGraphics numbering: 2 is the middle button, 3 and 4 are
+ * usually back and forward. Left (0) and right (1) can never be bound (DC-04). */
+export const MOUSE_BUTTON_MIN = 2;
+export const MOUSE_BUTTON_MAX = 31;
+export const mouseButtonSchema = z.number().int().min(MOUSE_BUTTON_MIN).max(MOUSE_BUTTON_MAX);
+
+export const mouseTriggerSchema = z.object({
+  type: z.literal("mouse"),
+  button: mouseButtonSchema,
+});
+export type MouseTrigger = z.infer<typeof mouseTriggerSchema>;
+
+/** What a binding listens for: a key (with modifiers) or an extra mouse button. */
+export const bindingTriggerSchema = z.discriminatedUnion("type", [
+  hotkeyTriggerSchema,
+  mouseTriggerSchema,
+]);
+export type BindingTrigger = z.infer<typeof bindingTriggerSchema>;
+
 export const hotkeyBindingSchema = z.object({
   id: z.string().min(1).max(64),
   action: z.enum(HOTKEY_ACTIONS),
-  trigger: hotkeyTriggerSchema,
+  trigger: bindingTriggerSchema,
   mode: z.enum(HOTKEY_MODES),
   /** Required by the helper when the action is `rewrite`. */
   rewriteId: z.string().min(1).optional(),

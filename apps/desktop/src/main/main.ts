@@ -136,7 +136,10 @@ const history: HistoryStore | null = database
 
 const platformDefaults = defaultHotkeyBindings(process.platform);
 const settingsStore = createSettingsStore(database, {
-  holdShortcut: platformDefaults[0]?.trigger ?? { type: "key", keyCode: 61, modifiers: [] },
+  holdShortcut:
+    platformDefaults[0]?.trigger.type === "key"
+      ? platformDefaults[0].trigger
+      : { type: "key", keyCode: 61, modifiers: [] },
   handsFreeShortcut: null,
   inputDevice: "auto",
   language: "auto",
@@ -146,6 +149,7 @@ const settingsStore = createSettingsStore(database, {
   setupComplete: false,
   pressEnterCommand: true,
   contextAwareness: true,
+  mouseButtons: { hold: null, handsFree: null },
 });
 const keys = keyPlatform(process.platform);
 const settingsService = createSettingsService({

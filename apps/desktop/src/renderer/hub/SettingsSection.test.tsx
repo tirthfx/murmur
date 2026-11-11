@@ -69,6 +69,22 @@ describe("Settings section", () => {
     expect(api.setShortcut).toHaveBeenCalledWith("handsFree", null);
   });
 
+  it("records an extra mouse button, ignores left and right, and pauses dictation meanwhile", async () => {
+    const user = userEvent.setup();
+    const api = mount();
+    await screen.findByTestId("hold-label");
+    expect(screen.getByTestId("Push to talk (mouse)-mouse").textContent).toBe("Not set");
+    await user.click(
+      screen.getByRole("button", { name: "Set the Push to talk (mouse) mouse button" }),
+    );
+    expect(api.captureShortcut).toHaveBeenCalledWith(true);
+    fireEvent.mouseDown(window, { button: 2 });
+    expect(api.updateSettings).not.toHaveBeenCalled();
+    fireEvent.mouseDown(window, { button: 3 });
+    expect(api.updateSettings).toHaveBeenCalledWith({ mouseButtons: { hold: 3, handsFree: null } });
+    expect(api.captureShortcut).toHaveBeenLastCalledWith(false);
+  });
+
   it("explains when settings cannot be read", async () => {
     mount({ getSettings: vi.fn().mockRejectedValue(new Error("x")) });
     expect(await screen.findByText("Settings could not be read.")).toBeTruthy();
