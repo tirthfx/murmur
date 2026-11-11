@@ -7,7 +7,15 @@
 // the expected words reached a test text box and that exactly one history row was written.
 
 import { execFileSync, spawn } from "node:child_process";
-import { copyFileSync, existsSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -55,12 +63,11 @@ function sameSentence(expected, actual) {
 }
 
 /** Lower case, letters and digits only, single spaces. */
-/** A 16 kHz mono 16-bit WAV file of silence. */
-function silentWav(seconds) {
-  const data = seconds * 16_000 * 2;
+/** A 16 kHz mono 16-bit WAV file holding these samples. */
+function wav(samples) {
   const header = Buffer.alloc(44);
   header.write("RIFF", 0);
-  header.writeUInt32LE(36 + data, 4);
+  header.writeUInt32LE(36 + samples.length, 4);
   header.write("WAVEfmt ", 8);
   header.writeUInt32LE(16, 16);
   header.writeUInt16LE(1, 20);
@@ -70,9 +77,53 @@ function silentWav(seconds) {
   header.writeUInt16LE(2, 32);
   header.writeUInt16LE(16, 34);
   header.write("data", 36);
-  header.writeUInt32LE(data, 40);
-  return Buffer.concat([header, Buffer.alloc(data)]);
+  header.writeUInt32LE(samples.length, 40);
+  return Buffer.concat([header, samples]);
 }
+
+/** The 16-bit samples of a WAV file, found by its "data" chunk. */
+function samplesOf(file) {
+  const bytes = readFileSync(file);
+  for (let offset = 12; offset + 8 <= bytes.length;) {
+    const size = bytes.readUInt32LE(offset + 4);
+    if (bytes.toString("ascii", offset, offset + 4) === "data") {
+      return bytes.subarray(offset + 8, offset + 8 + size);
+    }
+    offset += 8 + size + (size % 2);
+  }
+  throw new Error(`no audio data in ${file}`);
+}
+
+/** Speech from the system voice as a 16 kHz mono WAV file; returns its samples. */
+function speak(text, file, voice) {
+  const aiff = `${file}.aiff`;
+  execFileSync("say", [...(voice ? ["-v", voice] : []), "-o", aiff, text]);
+  execFileSync("afconvert", [
+    "-f",
+    "WAVE",
+    "-d",
+    "LEI16@16000",
+    "-c",
+    "1",
+    aiff,
+    `${file}.raw.wav`,
+  ]);
+  const samples = samplesOf(`${file}.raw.wav`);
+  writeFileSync(file, wav(samples));
+  return samples;
+}
+
+/** The same samples, quieter by this many decibels. */
+function quieter(samples, db) {
+  const out = Buffer.alloc(samples.length);
+  const gain = 10 ** (-db / 20);
+  for (let i = 0; i + 1 < samples.length; i += 2) {
+    out.writeInt16LE(Math.round(samples.readInt16LE(i) * gain), i);
+  }
+  return out;
+}
+
+const msOf = (samples) => Math.round((samples.length / 32_000) * 1000);
 
 const normalise = (text) =>
   text
@@ -111,11 +162,27 @@ execFileSync("afconvert", [
 ]);
 const clipMs = Math.round(((statSync(clip).size - 44) / 32_000) * 1000);
 // In full mode the app copies one of these over the clip to switch between them.
-const speechClip = path.join(profile, "clip-speech.wav");
-const silentClip = path.join(profile, "clip-silent.wav");
+const clipsDir = path.join(profile, "clips");
 if (full) {
-  copyFileSync(clip, speechClip);
-  writeFileSync(silentClip, silentWav(8));
+  mkdirSync(clipsDir);
+  const speech = samplesOf(clip);
+  const lengths = { speech: msOf(speech), silent: 8000 };
+  writeFileSync(path.join(clipsDir, "speech.wav"), wav(speech));
+  writeFileSync(path.join(clipsDir, "silent.wav"), wav(Buffer.alloc(8 * 32_000)));
+  lengths.enter = msOf(
+    speak("Send the report to the team, press enter", path.join(clipsDir, "enter.wav")),
+  );
+  lengths.hindi = msOf(
+    speak(
+      "नमस्ते, आज मौसम बहुत अच्छा है और मैं बाज़ार जा रहा हूँ।",
+      path.join(clipsDir, "hindi.wav"),
+      "Lekha",
+    ),
+  );
+  // About as loud as a whisper at a normal distance: 40 dB below the spoken clip.
+  writeFileSync(path.join(clipsDir, "quiet.wav"), wav(quieter(speech, 40)));
+  lengths.quiet = lengths.speech;
+  writeFileSync(path.join(clipsDir, "clips.json"), JSON.stringify(lengths));
 }
 console.log(`profile: ${profile}`);
 console.log(`clip: "${PHRASE}" (${(clipMs / 1000).toFixed(1)} s)`);
@@ -135,8 +202,7 @@ const child = spawn(packaged ? packagedBinary : "npm", packaged ? [] : ["run", "
     ...(full
       ? {
           MURMUR_SMOKE_FULL: "1",
-          MURMUR_SMOKE_SPEECH_CLIP: speechClip,
-          MURMUR_SMOKE_SILENT_CLIP: silentClip,
+          MURMUR_SMOKE_CLIPS_DIR: clipsDir,
         }
       : {}),
   },

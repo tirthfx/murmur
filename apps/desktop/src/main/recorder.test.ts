@@ -319,6 +319,30 @@ describe("recorder", () => {
     expect(recorder.retryLast()).toBe(false);
   });
 
+  it("retries a failure from the folder history moved its audio to", async () => {
+    const transcribe = vi
+      .fn()
+      .mockRejectedValueOnce(new HelperError("TRANSCRIPTION_FAILED", "bad audio"))
+      .mockResolvedValueOnce({ text: "ok", language: "en", segments: [], decodeMs: 1, audioMs: 1 });
+    const { recorder } = setup({
+      transcribe,
+      record: () => "h-1",
+      lastRetryable: () => ({
+        historyId: "h-1",
+        sessionId: "s-1",
+        createdAt: 1,
+        durationMs: 1000,
+        audioPath: "/kept/s-1.pcm",
+      }),
+    });
+    recorder.handleHotkey(key("down"));
+    recorder.handleHotkey(key("up"));
+    await recorder.idle();
+    expect(recorder.retryLast()).toBe(true);
+    await recorder.idle();
+    expect(transcribe).toHaveBeenLastCalledWith("/kept/s-1.pcm", { prompt: "" });
+  });
+
   it("retries once by itself after a timeout, and records only the outcome", async () => {
     const records: DictationRecord[] = [];
     const sleeps: number[] = [];

@@ -1,10 +1,14 @@
-import type { BarView, Settings, SoundName } from "@murmur/shared";
+import type { BarView, FocusContext, MicCheckResult, Settings, SoundName } from "@murmur/shared";
 import type { RecorderEvent } from "./recorder";
 import type { TrayAction } from "./tray/tray-menu";
 
 // The extra checks of `npm run smoke -- --full` (see docs/smoke-test.md). They run after the
-// main smoke dictation, on the same fixture clip, and cover what the owner would otherwise
-// test by hand: the Bar, sounds and output mute, the tray menu and a silent microphone.
+// main smoke dictation, on fixture clips, and cover what the owner would otherwise test by
+// hand: the Bar, sounds and output mute, the tray menu, a silent microphone, press enter,
+// context, languages, whisper mode, the mic check, retry and the typing reminder.
+
+/** The clips the script makes; each one is copied over the fixture before it is used. */
+export type ClipName = "speech" | "silent" | "enter" | "hindi" | "quiet";
 
 export interface CheckResult {
   name: string;
@@ -16,11 +20,12 @@ export interface CheckResult {
 export interface SmokeChecksDeps {
   sleep(ms: number): Promise<void>;
   log(message: string): void;
-  /** How long to hold the key: the length of the clip plus a margin. */
-  holdMs: number;
+  /** How long to hold the key for a clip: its length plus a margin. */
+  clipMs(name: ClipName): number;
   focusField(): Promise<void>;
   isFieldFocused(): boolean;
-  clearField(): Promise<void>;
+  /** Replaces the test box's text and puts the caret at its end. */
+  setField(text: string): Promise<void>;
   readField(): Promise<string>;
   keyDown(): void;
   keyUp(): void;
@@ -40,14 +45,22 @@ export interface SmokeChecksDeps {
   /** Saves everything on the clipboard and returns a function that puts it back. */
   saveClipboard(): Promise<() => Promise<void>>;
   readClipboardText(): Promise<string>;
-  /** Makes the helper read a silent clip (true) or the speech clip (false) from now on. */
-  useSilentClip(silent: boolean): void;
+  /** Makes the helper read this clip from the next recording on. */
+  useClip(name: ClipName): void;
+  /** Runs the Hub's microphone check for about the length of the speech clip. */
+  micCheck(): Promise<MicCheckResult | null>;
+  /** Makes the next transcription fail, as a broken model would (smoke runs only). */
+  failNextTranscription(): void;
+  canRetry(): boolean;
+  /** Hands the typing reminder this many typed words, as the helper's counter would. */
+  feedTypedWords(words: number): void;
 }
 
 export interface SmokeChecks {
   handleRecorderEvent(event: RecorderEvent): void;
   handleBarView(view: BarView): void;
   handleSound(name: SoundName): void;
+  handleContext(context: FocusContext | null): void;
   run(): Promise<CheckResult[]>;
 }
 
@@ -58,7 +71,10 @@ const TEXT_TIMEOUT_MS = 30_000;
 const SILENT_TIMEOUT_MS = 8_000;
 
 interface Dictation {
+  /** What the box holds after the dictation, without the text put there before. */
   text: string;
+  /** Everything the box holds. */
+  field: string;
   events: string[];
   states: string[];
   sounds: string[];
@@ -79,6 +95,8 @@ export function createSmokeChecks(deps: SmokeChecksDeps): SmokeChecks {
   let states: string[] = [];
   let sounds: string[] = [];
   let lastMessage: string | null = null;
+  /** The text before the caret in the context read for the current dictation. */
+  let lastContextBefore: string | null = null;
 
   async function waitFor(done: () => boolean, timeoutMs: number): Promise<boolean> {
     for (let waited = 0; waited <= timeoutMs; waited += POLL_MS) {
@@ -93,46 +111,74 @@ export function createSmokeChecks(deps: SmokeChecksDeps): SmokeChecks {
     states = [];
     sounds = [];
     lastMessage = null;
+    lastContextBefore = null;
   }
 
-  async function readText(timeoutMs: number): Promise<string> {
-    let text = "";
+  /** Waits until the box holds more than `before`. */
+  async function readText(before: string, timeoutMs: number): Promise<string> {
+    let text = before;
     for (let waited = 0; waited <= timeoutMs; waited += POLL_MS) {
       text = await deps.readField();
-      if (text.trim() !== "") break;
+      if (text.trim() !== before.trim()) break;
       await deps.sleep(POLL_MS);
     }
     return text;
   }
 
-  /** One dictation into the cleared test box, started and stopped by the given calls. */
-  async function dictate(start: () => void, stop: () => void): Promise<Dictation> {
+  interface DictateOptions {
+    clip?: ClipName;
+    /** Text in the box before the dictation, with the caret after it. */
+    prefill?: string;
+    /** False when the dictation is meant to give no text. */
+    expectText?: boolean;
+  }
+
+  /** One dictation into the test box, started and stopped by the given calls. */
+  async function dictate(
+    start: () => void,
+    stop: () => void,
+    options: DictateOptions = {},
+  ): Promise<Dictation> {
+    const clip = options.clip ?? "speech";
+    const prefill = options.prefill ?? "";
+    const holdMs = deps.clipMs(clip);
     reset();
-    await deps.clearField();
-    await deps.focusField();
-    start();
-    await waitFor(
-      () => events.includes("started") || events.includes("start-failed"),
-      START_TIMEOUT_MS,
-    );
-    let mutedDuring: boolean | null = null;
-    if (events.includes("started")) {
-      // Muting comes after the start sound; ask once it has had time to happen.
-      await deps.sleep(Math.min(1000, deps.holdMs));
-      mutedDuring = await deps.outputMuted();
-      await deps.sleep(Math.max(0, deps.holdMs - 1000));
+    deps.useClip(clip);
+    try {
+      await deps.setField(prefill);
+      await deps.focusField();
+      start();
+      await waitFor(
+        () => events.includes("started") || events.includes("start-failed"),
+        START_TIMEOUT_MS,
+      );
+      let mutedDuring: boolean | null = null;
+      if (events.includes("started")) {
+        // Muting comes after the start sound; ask once it has had time to happen.
+        await deps.sleep(Math.min(1000, holdMs));
+        mutedDuring = await deps.outputMuted();
+        await deps.sleep(Math.max(0, holdMs - 1000));
+      }
+      stop();
+      if (events.includes("started") && options.expectText !== false) {
+        await readText(prefill, TEXT_TIMEOUT_MS);
+      }
+      await deps.settled();
+      // Return is pressed a moment after the text.
+      await deps.sleep(300);
+      const field = await deps.readField();
+      return {
+        text: field.startsWith(prefill) ? field.slice(prefill.length) : field,
+        field,
+        events: [...events],
+        states: [...states],
+        sounds: [...sounds],
+        mutedDuring,
+        stillFocused: deps.isFieldFocused(),
+      };
+    } finally {
+      deps.useClip("speech");
     }
-    stop();
-    const text = events.includes("started") ? await readText(TEXT_TIMEOUT_MS) : "";
-    await deps.settled();
-    return {
-      text,
-      events: [...events],
-      states: [...states],
-      sounds: [...sounds],
-      mutedDuring,
-      stillFocused: deps.isFieldFocused(),
-    };
   }
 
   const pass = (name: string, detail: string): CheckResult => ({ name, ok: true, detail });
@@ -283,9 +329,9 @@ export function createSmokeChecks(deps: SmokeChecksDeps): SmokeChecks {
   async function silentMic(): Promise<CheckResult> {
     const name = "Silent microphone warns";
     reset();
-    deps.useSilentClip(true);
+    deps.useClip("silent");
     try {
-      await deps.clearField();
+      await deps.setField("");
       await deps.focusField();
       deps.keyDown();
       await waitFor(() => events.includes("silent-mic"), SILENT_TIMEOUT_MS);
@@ -300,7 +346,150 @@ export function createSmokeChecks(deps: SmokeChecksDeps): SmokeChecks {
         `steps: ${events.join(", ")}; Bar message: ${String(message)}; box: ${JSON.stringify(text)}`,
       );
     } finally {
-      deps.useSilentClip(false);
+      deps.useClip("speech");
+    }
+  }
+
+  async function pressEnterAndContext(results: CheckResult[]): Promise<void> {
+    const prefill = "Hello Priya, about the meeting. ";
+    const withContext = await dictate(deps.keyDown, deps.keyUp, { prefill });
+    const before = lastContextBefore;
+    results.push(
+      check(
+        "Context: the text before the caret is read",
+        (before ?? "").includes("Priya"),
+        `read ${JSON.stringify(before)}`,
+        `read ${JSON.stringify(before)} (box: ${JSON.stringify(withContext.field)})`,
+      ),
+    );
+
+    const enter = await dictate(deps.keyDown, deps.keyUp, { clip: "enter" });
+    const typed = enter.text.replace(/\n+$/, "");
+    results.push(
+      check(
+        "Press enter: the command is taken off and Return is pressed",
+        /\n$/.test(enter.field) && typed.trim() !== "" && !/press enter/i.test(typed),
+        `${JSON.stringify(enter.field)}`,
+        `box: ${JSON.stringify(enter.field)}`,
+      ),
+    );
+  }
+
+  async function languages(results: CheckResult[]): Promise<void> {
+    const devanagari = /[\u0900-\u097F]/;
+    try {
+      deps.updateSettings({ languages: ["hi"] });
+      const hindi = await dictate(deps.keyDown, deps.keyUp, { clip: "hindi" });
+      results.push(
+        check(
+          "Languages: Hindi is written in Devanagari",
+          devanagari.test(hindi.text),
+          JSON.stringify(hindi.text.trim()),
+          `got ${JSON.stringify(hindi.text.trim())}`,
+        ),
+      );
+      deps.updateSettings({ languages: ["hi-Latn"] });
+      const latin = await dictate(deps.keyDown, deps.keyUp, { clip: "hindi" });
+      results.push(
+        check(
+          "Languages: Hindi in Latin script",
+          /[a-z]/i.test(latin.text) && !devanagari.test(latin.text),
+          JSON.stringify(latin.text.trim()),
+          `got ${JSON.stringify(latin.text.trim())}`,
+        ),
+      );
+    } finally {
+      deps.updateSettings({ languages: [] });
+    }
+  }
+
+  async function whisper(results: CheckResult[]): Promise<void> {
+    try {
+      deps.updateSettings({ whisperMode: false });
+      const normal = await dictate(deps.keyDown, deps.keyUp, { clip: "quiet", expectText: false });
+      deps.updateSettings({ whisperMode: true });
+      const whispered = await dictate(deps.keyDown, deps.keyUp, { clip: "quiet" });
+      const off =
+        normal.text.trim() === ""
+          ? "nothing without it"
+          : `without it: ${JSON.stringify(normal.text.trim())}`;
+      results.push(
+        check(
+          "Whisper mode: a very quiet voice gives text",
+          whispered.text.trim() !== "",
+          `${JSON.stringify(whispered.text.trim())}; ${off}`,
+          `no text with whisper mode on (steps: ${whispered.events.join(", ")}); ${off}`,
+        ),
+      );
+    } finally {
+      deps.updateSettings({ whisperMode: false });
+    }
+  }
+
+  async function micCheck(): Promise<CheckResult> {
+    const result = await deps.micCheck();
+    return check(
+      "Mic check: measures speech and background, gives advice",
+      result !== null &&
+        result.speechDb !== null &&
+        result.noiseDb !== null &&
+        result.adviceText !== "",
+      result
+        ? `speech ${result.speechDb} dB, background ${result.noiseDb} dB: ${result.adviceText}`
+        : "",
+      `result: ${JSON.stringify(result)}`,
+    );
+  }
+
+  async function retry(results: CheckResult[]): Promise<void> {
+    deps.failNextTranscription();
+    const failed = await dictate(deps.keyDown, deps.keyUp, { expectText: false });
+    const offered = deps.canRetry();
+    results.push(
+      check(
+        "Retry: a failed dictation is offered for retry",
+        failed.events.includes("transcription-failed") && failed.text.trim() === "" && offered,
+        "failed on purpose, nothing typed, Retry offered",
+        `steps: ${failed.events.join(", ")}; box: ${JSON.stringify(failed.text)}; retry offered: ${offered}`,
+      ),
+    );
+    if (!offered) return;
+    reset();
+    await deps.setField("");
+    await deps.focusField();
+    deps.tray({ type: "retry-last" });
+    const text = await readText("", TEXT_TIMEOUT_MS);
+    await deps.settled();
+    results.push(
+      check(
+        "Retry: Retry last dictation types the text",
+        text.trim() !== "" && !deps.canRetry(),
+        `${JSON.stringify(text.trim())}; nothing left to retry`,
+        `box: ${JSON.stringify(text)}; still offered: ${deps.canRetry()}`,
+      ),
+    );
+  }
+
+  async function typingReminder(): Promise<CheckResult> {
+    const name = "Typing reminder: snooze holds it, then it suggests dictating";
+    const message = () => deps.barView().message ?? "";
+    try {
+      deps.tray({ type: "reminder", choice: "hour" });
+      deps.feedTypedWords(70);
+      await deps.sleep(300);
+      const whileSnoozed = message();
+      deps.tray({ type: "reminder", choice: "on" });
+      deps.feedTypedWords(70);
+      await deps.sleep(300);
+      const after = message();
+      return check(
+        name,
+        !whileSnoozed.startsWith("Dictate instead") && after.startsWith("Dictate instead"),
+        `snoozed: no suggestion; on: "${after}"`,
+        `snoozed: "${whileSnoozed}"; on: "${after}"`,
+      );
+    } finally {
+      deps.tray({ type: "reminder", choice: "on" });
     }
   }
 
@@ -315,6 +504,9 @@ export function createSmokeChecks(deps: SmokeChecksDeps): SmokeChecks {
     handleSound(name) {
       sounds.push(name);
     },
+    handleContext(value) {
+      lastContextBefore = value ? value.textBefore : null;
+    },
     async run() {
       const results: CheckResult[] = [];
       const steps: Array<() => Promise<void>> = [
@@ -322,6 +514,12 @@ export function createSmokeChecks(deps: SmokeChecksDeps): SmokeChecks {
         async () => void results.push(...traySettings()),
         () => dictations(results),
         async () => void results.push(await silentMic()),
+        () => pressEnterAndContext(results),
+        () => languages(results),
+        () => whisper(results),
+        async () => void results.push(await micCheck()),
+        () => retry(results),
+        async () => void results.push(await typingReminder()),
       ];
       for (const step of steps) {
         try {

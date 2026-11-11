@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { copyFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { pathToFileURL } from "node:url";
@@ -43,6 +43,7 @@ import { databasePath, openDatabase } from "./db/database";
 import { createHistoryStore, type HistoryStore } from "./history/history-store";
 import { createLlmClient, type LlmReply } from "./cleanup/llm-client";
 import { createConsoleLogger, systemClock } from "./helper/node-runtime";
+import { HelperError } from "./helper/types";
 import { createHotkeyService } from "./hotkeys";
 import { createIpcHandler } from "./ipc";
 import { createPermissionsService } from "./permissions";
@@ -333,11 +334,21 @@ const recorder = createRecorder({
   helper,
   logger: createConsoleLogger("[audio]"),
   newSessionId: randomUUID,
-  transcribe: (file, { prompt }) => speech.transcribe(file, prompt),
+  transcribe: (file, { prompt }) => {
+    if (smokeFailNextTranscription) {
+      smokeFailNextTranscription = false;
+      return Promise.reject(
+        new HelperError("TRANSCRIPTION_FAILED", "failed on purpose by the smoke test"),
+      );
+    }
+    return speech.transcribe(file, prompt);
+  },
   readContext: async () => {
     if (!settingsStore.get().contextAwareness) return null;
     // Without Accessibility there is no context, and nothing is asked for.
-    return helper.focusContext().catch(() => null);
+    const context = await helper.focusContext().catch(() => null);
+    smokeChecks?.handleContext(context);
+    return context;
   },
   logTranscripts: process.env.MURMUR_LOG_TRANSCRIPTS === "1",
   insert: (text, { pressEnter }) => {
@@ -438,6 +449,8 @@ const isSmokeRun = process.env.MURMUR_SMOKE === "1";
 let smoke: SmokeRun | null = null;
 // `npm run smoke -- --full` (MURMUR_SMOKE_FULL=1): more checks after the main dictation.
 let smokeChecks: SmokeChecks | null = null;
+/** Set by a full smoke run to make one transcription fail, as a broken model would. */
+let smokeFailNextTranscription = false;
 function startSmokeRun(): void {
   const window = new BrowserWindow({
     width: 520,
@@ -493,12 +506,17 @@ function fullSmokeChecks(
   key: (state: "down" | "up") => void,
 ): SmokeChecks {
   const fixture = process.env.MURMUR_AUDIO_FIXTURE ?? "";
-  const speechClip = process.env.MURMUR_SMOKE_SPEECH_CLIP ?? "";
-  const silentClip = process.env.MURMUR_SMOKE_SILENT_CLIP ?? "";
+  // The script writes each clip as <name>.wav in this folder, and clips.json with their
+  // lengths in milliseconds.
+  const clipsDir = process.env.MURMUR_SMOKE_CLIPS_DIR ?? "";
+  const clipLengths = JSON.parse(readFileSync(path.join(clipsDir, "clips.json"), "utf8")) as Record<
+    string,
+    number
+  >;
   const checks = createSmokeChecks({
     sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
     log: (message) => console.log(`[smoke] ${message}`),
-    holdMs: Number(process.env.MURMUR_SMOKE_HOLD_MS) || 5000,
+    clipMs: (name) => (clipLengths[name] ?? 5000) + 800,
     focusField: async () => {
       app.focus({ steal: true });
       window.show();
@@ -508,8 +526,10 @@ function fullSmokeChecks(
       await new Promise((resolve) => setTimeout(resolve, 300));
     },
     isFieldFocused: () => !window.isDestroyed() && window.isFocused(),
-    clearField: async () => {
-      await field("document.getElementById('field').value = ''; ''");
+    setField: async (text) => {
+      await field(
+        `(() => { const box = document.getElementById('field'); box.value = ${JSON.stringify(text)}; box.setSelectionRange(box.value.length, box.value.length); return ''; })()`,
+      );
     },
     readField: () => field("document.getElementById('field').value"),
     keyDown: () => key("down"),
@@ -560,10 +580,21 @@ function fullSmokeChecks(
       };
     },
     readClipboardText: () => clipboard.readText(),
-    useSilentClip: (silent) => {
-      if (!fixture || !speechClip || !silentClip) throw new Error("the smoke clips are not set");
-      copyFileSync(silent ? silentClip : speechClip, fixture);
+    useClip: (name) => {
+      if (!fixture || !clipsDir) throw new Error("the smoke clips are not set");
+      copyFileSync(path.join(clipsDir, `${name}.wav`), fixture);
     },
+    micCheck: async () => {
+      const started = await micCheck.start();
+      if (!started.ok) return null;
+      await new Promise((resolve) => setTimeout(resolve, (clipLengths.speech ?? 4000) + 800));
+      return micCheck.stop();
+    },
+    failNextTranscription: () => {
+      smokeFailNextTranscription = true;
+    },
+    canRetry: () => recorder.canRetry(),
+    feedTypedWords: (words) => typingReminder.record(words),
   });
   smokeChecks = checks;
   return checks;

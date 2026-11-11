@@ -697,8 +697,15 @@ export function createRecorder(deps: RecorderDeps): Recorder {
       const failed = lastFailed;
       lastFailed = null;
       if (failed) {
+        // History moves a failed dictation's audio to the kept folder; read it from there.
+        const stored = failed.historyId !== null ? (deps.lastRetryable?.() ?? null) : null;
+        const audio =
+          stored && stored.historyId === failed.historyId && failed.take.audio
+            ? { ...failed.take.audio, path: stored.audioPath }
+            : failed.take.audio;
         take = {
           ...failed.take,
+          audio,
           source: "retry",
           createdAt: now(),
           retryOf: failed.historyId,
