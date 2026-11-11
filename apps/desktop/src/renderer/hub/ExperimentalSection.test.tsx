@@ -45,6 +45,14 @@ describe("Experimental section", () => {
     expect(screen.getByText(/does not support any yet/)).toBeTruthy();
   });
 
+  it("keeps learning from sent mail disabled, explaining the mail connector", () => {
+    window.murmur = createMockApi();
+    render(<ExperimentalSection experimental={off} onChange={vi.fn()} />);
+    const mail = screen.getByRole("switch", { name: /Learn from sent mail/ });
+    expect(mail.getAttribute("aria-disabled")).toBe("true");
+    expect(screen.getByText(/needs a mail connector/)).toBeTruthy();
+  });
+
   it("hides the ring search until the ring is turned on, then searches for 30 seconds", () => {
     vi.useFakeTimers();
     window.murmur = createMockApi();

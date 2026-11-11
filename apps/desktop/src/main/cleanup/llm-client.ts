@@ -12,6 +12,14 @@ export type LlmRequest =
       /** The style's instructions (PZ-11), and later Memory. */
       instructions?: string[];
     }
+  | {
+      id: number;
+      type: "translate";
+      text: string;
+      /** The target language's English name (PZ-22). */
+      language: string;
+      keep?: string[];
+    }
   | { id: number; type: "unload" }
   | { type: "abort"; target: number };
 
@@ -58,6 +66,8 @@ export interface LlmClient {
     terms?: string[],
     instructions?: string[],
   ): Promise<string>;
+  /** Translates text within `timeoutMs` (PZ-22). Rejects with LlmTimeoutError when it runs out. */
+  translate(text: string, language: string, timeoutMs: number, keep?: string[]): Promise<string>;
   stop(): void;
 }
 
@@ -91,10 +101,9 @@ export function createLlmClient(deps: LlmClientDeps): LlmClient {
     return new Promise((resolve, reject) => {
       const timer = clock.setTimeout(() => {
         pending.delete(request.id);
-        if (request.type === "clean") target.post({ type: "abort", target: request.id });
-        reject(
-          request.type === "clean" ? new LlmTimeoutError() : new Error(`${request.type} timed out`),
-        );
+        const work = request.type === "clean" || request.type === "translate";
+        if (work) target.post({ type: "abort", target: request.id });
+        reject(work ? new LlmTimeoutError() : new Error(`${request.type} timed out`));
       }, timeoutMs);
       pending.set(request.id, { resolve, reject, timer });
       target.post(request);
@@ -154,25 +163,32 @@ export function createLlmClient(deps: LlmClientDeps): LlmClient {
     }, idleMs);
   }
 
+  /**
+   * Loads the model if needed, counting the load against the budget: a dictation never waits
+   * for a slow first load. Returns the time left.
+   */
+  async function loadWithin(budgetMs: number): Promise<number> {
+    touch();
+    const started = clock.now();
+    const loading = start();
+    const loadTimer = new Promise<never>((_, reject) => {
+      const timer = clock.setTimeout(() => reject(new LlmTimeoutError()), budgetMs);
+      void loading.then(
+        () => clock.clearTimeout(timer),
+        () => clock.clearTimeout(timer),
+      );
+    });
+    await Promise.race([loading, loadTimer]);
+    return Math.max(1, budgetMs - (clock.now() - started));
+  }
+
   return {
     prepare() {
       touch();
       void start().catch(() => {});
     },
     async clean(text, level, budgetMs, terms = [], instructions = []) {
-      touch();
-      const started = clock.now();
-      const loading = start();
-      // Loading counts against the budget: a dictation never waits for a slow first load.
-      const loadTimer = new Promise<never>((_, reject) => {
-        const timer = clock.setTimeout(() => reject(new LlmTimeoutError()), budgetMs);
-        void loading.then(
-          () => clock.clearTimeout(timer),
-          () => clock.clearTimeout(timer),
-        );
-      });
-      await Promise.race([loading, loadTimer]);
-      const left = Math.max(1, budgetMs - (clock.now() - started));
+      const left = await loadWithin(budgetMs);
       return send(
         {
           id: nextId++,
@@ -181,6 +197,19 @@ export function createLlmClient(deps: LlmClientDeps): LlmClient {
           level,
           ...(terms.length > 0 ? { terms } : {}),
           ...(instructions.length > 0 ? { instructions } : {}),
+        },
+        left,
+      );
+    },
+    async translate(text, language, timeoutMs, keep = []) {
+      const left = await loadWithin(timeoutMs);
+      return send(
+        {
+          id: nextId++,
+          type: "translate",
+          text,
+          language,
+          ...(keep.length > 0 ? { keep } : {}),
         },
         left,
       );

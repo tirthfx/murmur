@@ -20,6 +20,7 @@ const settings: Settings = {
   memory: { enabled: true, fromDictation: true },
   learnCorrections: true,
   voiceProfile: { enabled: true, useInCleanup: true, prompts: true },
+  email: { signature: "", addToNew: true, addToReplies: false, language: null },
   experimental: {
     splitMessages: false,
     pauseMedia: false,
@@ -301,6 +302,7 @@ describe("full smoke checks", () => {
       memory: { enabled: true, fromDictation: true },
       learnCorrections: true,
       voiceProfile: { enabled: true, useInCleanup: true, prompts: true },
+      email: { signature: "", addToNew: true, addToReplies: false, language: null },
       typingReminder: { enabled: true, snoozedUntil: null },
     });
   });

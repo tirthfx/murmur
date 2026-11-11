@@ -68,6 +68,14 @@ import {
   type ImportResult,
 } from "./imports";
 import { voiceProfileViewSchema, type VoiceProfileView } from "./voice-profile";
+import {
+  writingSampleInputSchema,
+  writingSampleSaveResultSchema,
+  writingSampleSchema,
+  type WritingSample,
+  type WritingSampleInput,
+  type WritingSampleSaveResult,
+} from "./email";
 
 /**
  * Renderer-to-main IPC contract. Channel names, payload schemas and the API the
@@ -107,6 +115,9 @@ export const IPC_CHANNELS = {
   importApply: "import:apply",
   voiceProfileView: "voice-profile:view",
   voiceProfileReset: "voice-profile:reset",
+  writingSamplesList: "writing-samples:list",
+  writingSamplesSave: "writing-samples:save",
+  writingSamplesDelete: "writing-samples:delete",
 } as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
@@ -238,6 +249,18 @@ export const IPC_CONTRACT = {
     args: z.tuple([memoryInputSchema]),
     result: memorySaveResultSchema,
   },
+  [IPC_CHANNELS.writingSamplesList]: {
+    args: z.tuple([]),
+    result: z.array(writingSampleSchema),
+  },
+  [IPC_CHANNELS.writingSamplesSave]: {
+    args: z.tuple([writingSampleInputSchema]),
+    result: writingSampleSaveResultSchema,
+  },
+  [IPC_CHANNELS.writingSamplesDelete]: {
+    args: z.tuple([z.string().min(1)]),
+    result: z.void(),
+  },
   [IPC_CHANNELS.memoryDelete]: {
     args: z.tuple([z.string().min(1)]),
     result: z.void(),
@@ -331,6 +354,10 @@ export interface MurmurApi {
   importApply(request: ImportRequest): Promise<ImportResult>;
   voiceProfileView(): Promise<VoiceProfileView>;
   voiceProfileReset(): Promise<VoiceProfileView>;
+  /** Writing samples for Rewrites (PZ-20), oldest first. */
+  writingSamplesList(): Promise<WritingSample[]>;
+  writingSamplesSave(input: WritingSampleInput): Promise<WritingSampleSaveResult>;
+  writingSamplesDelete(id: string): Promise<void>;
   /** Main asks the Hub to show a page (for example after a Bar prompt). */
   onOpenPage(handler: (pageId: string) => void): () => void;
   /** Input levels during a microphone check, about 20 a second. Returns an unsubscribe. */

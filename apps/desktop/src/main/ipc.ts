@@ -26,6 +26,9 @@ import {
   type ImportRequest,
   type ImportResult,
   type VoiceProfileView,
+  type WritingSample,
+  type WritingSampleInput,
+  type WritingSampleSaveResult,
   type ShortcutResult,
   type ShortcutSlot,
   type PermissionKind,
@@ -71,6 +74,9 @@ export interface IpcDeps {
   importApply: (request: ImportRequest) => ImportResult;
   voiceProfileView: () => VoiceProfileView;
   voiceProfileReset: () => VoiceProfileView;
+  writingSamplesList: () => WritingSample[];
+  writingSamplesSave: (input: WritingSampleInput) => WritingSampleSaveResult;
+  writingSamplesDelete: (id: string) => void;
 }
 
 export interface IpcEventLike {
@@ -151,6 +157,12 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.memorySave(request.args[0] as MemoryInput);
       case IPC_CHANNELS.memoryDelete:
         return deps.memoryDelete(request.args[0] as string);
+      case IPC_CHANNELS.writingSamplesList:
+        return deps.writingSamplesList();
+      case IPC_CHANNELS.writingSamplesSave:
+        return deps.writingSamplesSave(request.args[0] as WritingSampleInput);
+      case IPC_CHANNELS.writingSamplesDelete:
+        return deps.writingSamplesDelete(request.args[0] as string);
       case IPC_CHANNELS.importPreview:
         return deps.importPreview(request.args[0] as ImportRequest);
       case IPC_CHANNELS.importApply:

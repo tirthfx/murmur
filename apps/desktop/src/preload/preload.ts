@@ -35,6 +35,9 @@ const api: MurmurApi = {
   importApply: (request) => ipcRenderer.invoke(IPC_CHANNELS.importApply, request),
   voiceProfileView: () => ipcRenderer.invoke(IPC_CHANNELS.voiceProfileView),
   voiceProfileReset: () => ipcRenderer.invoke(IPC_CHANNELS.voiceProfileReset),
+  writingSamplesList: () => ipcRenderer.invoke(IPC_CHANNELS.writingSamplesList),
+  writingSamplesSave: (input) => ipcRenderer.invoke(IPC_CHANNELS.writingSamplesSave, input),
+  writingSamplesDelete: (id) => ipcRenderer.invoke(IPC_CHANNELS.writingSamplesDelete, id),
   onOpenPage: (handler) => {
     const listener = (_event: unknown, pageId: unknown) => {
       if (typeof pageId === "string" && /^[a-z-]{1,40}$/.test(pageId)) handler(pageId);

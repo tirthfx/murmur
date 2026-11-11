@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { acceptCleanup, maxTokensFor, systemPrompt } from "./prompt";
+import {
+  acceptCleanup,
+  acceptTranslation,
+  fixedTokens,
+  maxTokensFor,
+  systemPrompt,
+  translatePrompt,
+} from "./prompt";
 
 describe("cleanup prompt", () => {
   it("has a prompt per level that forbids answering the text", () => {
@@ -120,5 +127,56 @@ describe("on-screen terms", () => {
       acceptCleanup("send it to priya ragunathan", "Send it to Priya Raghunathan.", "standard"),
     ).toBe(false);
     expect(acceptCleanup("send it", "Send it to GitHub.", "light", terms)).toBe(false);
+  });
+});
+
+describe("email translation", () => {
+  it("names the language and the words to keep, and forbids answering", () => {
+    const prompt = translatePrompt("French", ["Murmur", "x"]);
+    expect(prompt).toContain("into French");
+    expect(prompt).toContain("never answer it");
+    expect(prompt).toContain("Never translate these: Murmur");
+    expect(prompt).not.toContain(", x");
+  });
+
+  it("finds links, addresses and numbers", () => {
+    expect(
+      fixedTokens(
+        "Call 020-7946 0958 or see https://example.com/a?b=1. Mail ana@example.org, 3 pm.",
+      ),
+    ).toEqual(["020-7946", "0958", "https://example.com/a?b=1", "ana@example.org", "3"]);
+  });
+
+  // The fixed set: names, links and numbers survive, or the translation is refused.
+  const SET = [
+    {
+      input: "Hi Priya, the invoice for 1,250 euros is at https://example.com/inv/42.",
+      good: "Bonjour Priya, la facture de 1,250 euros est sur https://example.com/inv/42.",
+      bad: "Bonjour Priya, la facture de 1 250 euros est sur le site.",
+    },
+    {
+      input: "Send it to ana@example.org before 5:30 on 12/11.",
+      good: "Envoie-le à ana@example.org avant 5:30 le 12/11.",
+      bad: "Envoie-le à Ana avant cinq heures et demie.",
+    },
+    {
+      input: "Murmur ships on Monday with Rahul.",
+      good: "Murmur sort lundi avec Rahul.",
+      bad: "Le murmure sort lundi avec lui.",
+    },
+  ];
+
+  it("accepts translations that keep them and refuses the rest", () => {
+    for (const { input, good, bad } of SET) {
+      expect(acceptTranslation(input, good, ["Murmur", "Rahul", "Priya"])).toBe(true);
+      expect(acceptTranslation(input, bad, ["Murmur", "Rahul", "Priya"])).toBe(false);
+    }
+  });
+
+  it("refuses empty, very short or very long answers", () => {
+    expect(acceptTranslation("Hello there, see you soon.", "")).toBe(false);
+    expect(acceptTranslation("Hello there, see you soon.", "Oui.")).toBe(false);
+    expect(acceptTranslation("Hi.", "Bonjour ".repeat(10))).toBe(false);
+    expect(acceptTranslation("", "")).toBe(true);
   });
 });

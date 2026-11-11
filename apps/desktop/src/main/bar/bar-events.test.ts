@@ -33,6 +33,21 @@ describe("dictation steps on the Bar", () => {
     ).toEqual(["listening", "warning", "processing", "warning"]);
   });
 
+  it("an email that could not be translated ends as a warning, not done", () => {
+    expect(
+      play([
+        { type: "started", at: 1 },
+        { type: "stopped" },
+        { type: "translation-failed" },
+        { type: "transcribed", words: 9 },
+      ]),
+    ).toEqual(["listening", "processing", "warning", "warning"]);
+    expect(barEventFor({ type: "translation-failed" })).toEqual({
+      type: "warn",
+      message: "Not translated: inserted as dictated",
+    });
+  });
+
   it("a failed transcription shows the retry error", () => {
     expect(
       play([{ type: "started", at: 1 }, { type: "stopped" }, { type: "transcription-failed" }]),

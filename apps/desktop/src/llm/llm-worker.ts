@@ -61,6 +61,22 @@ async function handle(request: LlmRequest): Promise<void> {
         }
         return;
       }
+      case "translate": {
+        const controller = new AbortController();
+        running.set(request.id, controller);
+        try {
+          const text = await engine.translate(
+            request.text,
+            request.language,
+            controller.signal,
+            request.keep ?? [],
+          );
+          reply({ id: request.id, ok: true, value: text });
+        } finally {
+          running.delete(request.id);
+        }
+        return;
+      }
       case "abort":
         running.get(request.target)?.abort();
         return;

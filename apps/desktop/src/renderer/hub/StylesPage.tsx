@@ -8,6 +8,7 @@ import { Text } from "@astryxdesign/core/Text";
 import { TextArea } from "@astryxdesign/core/TextArea";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { VStack } from "@astryxdesign/core/VStack";
+import { EmailSection } from "./EmailSection";
 import {
   APP_CATEGORIES,
   applyStyleRules,
@@ -152,6 +153,8 @@ export function StylesPage() {
           />
         ))}
       </div>
+
+      <EmailSection />
 
       <section aria-labelledby="app-categories-heading">
         <VStack gap={2}>

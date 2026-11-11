@@ -26,6 +26,7 @@ export const SAMPLE_SETTINGS: SettingsView = {
     memory: { enabled: true, fromDictation: true },
     learnCorrections: true,
     voiceProfile: { enabled: true, useInCleanup: true, prompts: true },
+    email: { signature: "", addToNew: true, addToReplies: false, language: null },
     experimental: {
       splitMessages: false,
       pauseMedia: false,
@@ -134,6 +135,13 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
     importApply: vi.fn(),
     voiceProfileView: vi.fn().mockResolvedValue(SAMPLE_PROFILE),
     voiceProfileReset: vi.fn().mockResolvedValue(SAMPLE_PROFILE),
+    writingSamplesList: vi.fn().mockResolvedValue([]),
+    writingSamplesSave: vi.fn().mockResolvedValue({
+      ok: false,
+      reason: "full",
+      message: "Full",
+    }),
+    writingSamplesDelete: vi.fn().mockResolvedValue(undefined),
     onOpenPage: vi.fn().mockReturnValue(() => {}),
     ...overrides,
   };

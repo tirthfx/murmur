@@ -9,6 +9,7 @@ import m0005 from "./migrations/0005_styles.sql?raw";
 import m0006 from "./migrations/0006_memory.sql?raw";
 import m0007 from "./migrations/0007_learn_candidates.sql?raw";
 import m0008 from "./migrations/0008_voice_profile.sql?raw";
+import m0009 from "./migrations/0009_writing_samples.sql?raw";
 import { migrateUp, parseMigration, type Migration } from "./migrate";
 
 /** Every migration, in the order the files are numbered. */
@@ -21,6 +22,7 @@ export const MIGRATIONS: Migration[] = [
   parseMigration("0006_memory.sql", m0006),
   parseMigration("0007_learn_candidates.sql", m0007),
   parseMigration("0008_voice_profile.sql", m0008),
+  parseMigration("0009_writing_samples.sql", m0009),
 ];
 
 /** `<appData>/Murmur/murmur.db`, shared by the dev build and the packaged app. */
