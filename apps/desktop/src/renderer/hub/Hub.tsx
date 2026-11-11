@@ -9,6 +9,7 @@ import { Button } from "@astryxdesign/core/Button";
 import { DictionaryPage } from "./DictionaryPage";
 import { SnippetsPage } from "./SnippetsPage";
 import { StylesPage } from "./StylesPage";
+import { MemoryPage } from "./MemoryPage";
 import { HelperStatusLine } from "./HelperStatusLine";
 import { Onboarding } from "./Onboarding";
 import { MicCheckSection } from "./MicCheckSection";
@@ -132,6 +133,8 @@ function HubPages({ onRunSetup }: { onRunSetup: () => void }) {
             <SnippetsPage />
           ) : page.id === "styles" ? (
             <StylesPage />
+          ) : page.id === "memory" ? (
+            <MemoryPage />
           ) : (
             <div className="hub-empty">
               <EmptyState

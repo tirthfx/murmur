@@ -9,6 +9,8 @@ export interface BarIpcDeps {
   drag: (dx: number, dy: number) => void;
   dragEnd: () => void;
   click: () => void;
+  /** The answer to the Bar's question. */
+  answer: (choice: "yes" | "no") => void;
 }
 
 /**
@@ -33,6 +35,8 @@ export function createBarIpcHandler(deps: BarIpcDeps) {
         return deps.dragEnd();
       case BAR_IPC_CHANNELS.click:
         return deps.click();
+      case BAR_IPC_CHANNELS.answer:
+        return deps.answer(parsed[0] as "yes" | "no");
       default:
         throw new Error("Bar IPC rejected: invalid call");
     }

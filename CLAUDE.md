@@ -122,6 +122,8 @@ Snippets (triggers, rich-text bodies, HTML on the pasteboard): see `docs/snippet
 
 Styles and app categories (presets, the default app table, what is read): see `docs/styles.md`.
 
+Memory (facts, keywords, "remember that" on the Bar): see `docs/memory.md`.
+
 Transcript cleanup (rules, the local model and its guard, the 1.5 s budget, benchmark): see `docs/cleanup.md`.
 
 Dictation history (database, tables, migrations): see `docs/history.md`.

@@ -68,6 +68,7 @@ export function BarApp({ api }: { api: MurmurBarApi }) {
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
+      onAnswer={(choice) => api.answer(choice)}
     />
   );
 }

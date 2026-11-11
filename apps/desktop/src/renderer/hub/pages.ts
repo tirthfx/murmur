@@ -24,6 +24,12 @@ export const PAGES = [
     emptyDescription: "Writing styles for different apps and moods will be managed here.",
   },
   {
+    id: "memory",
+    title: "Memory",
+    emptyTitle: "Nothing remembered",
+    emptyDescription: "Facts you want Murmur to know will be listed here.",
+  },
+  {
     id: "rewrites",
     title: "Rewrites",
     emptyTitle: "No rewrites available",

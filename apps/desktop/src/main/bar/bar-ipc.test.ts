@@ -14,6 +14,7 @@ function setup() {
     drag: vi.fn(),
     dragEnd: vi.fn(),
     click: vi.fn(),
+    answer: vi.fn(),
   };
   return { deps, handle: createBarIpcHandler(deps) };
 }
@@ -51,5 +52,12 @@ describe("bar IPC", () => {
     expect(() => handle("bar:nope", barUrl, [])).toThrow("invalid call");
     expect(() => handle("toString", barUrl, [])).toThrow("invalid call");
     expect(deps.drag).not.toHaveBeenCalled();
+  });
+
+  it("passes a valid answer on and refuses anything else", () => {
+    const { deps, handle } = setup();
+    handle(BAR_IPC_CHANNELS.answer, barUrl, ["yes"]);
+    expect(deps.answer).toHaveBeenCalledWith("yes");
+    expect(() => handle(BAR_IPC_CHANNELS.answer, barUrl, ["maybe"])).toThrow();
   });
 });

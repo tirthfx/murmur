@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { BAR_ERROR_TEXT, BAR_STATES, type BarState, type BarView } from "@murmur/shared";
-import { CANCELLED_MS, DONE_MS, WARNING_MS, transition, type BarEvent } from "./bar-machine";
+import {
+  ASK_MS,
+  CANCELLED_MS,
+  DONE_MS,
+  WARNING_MS,
+  transition,
+  type BarEvent,
+} from "./bar-machine";
 
 function at(state: BarState, fields: Partial<BarView> = {}): BarView {
   return { state, startedAt: null, words: null, message: null, ...fields };
@@ -8,6 +15,7 @@ function at(state: BarState, fields: Partial<BarView> = {}): BarView {
 
 const recordingWarning = at("warning", { startedAt: 1000, message: "No sound from Mic" });
 const plainWarning = at("warning", { message: "Copied to clipboard" });
+const asking = at("ask", { message: "Save to Memory?", detail: "I prefer metric units." });
 
 /** Every state, with both kinds of warning. */
 const views: Record<string, BarView> = {
@@ -21,6 +29,7 @@ const views: Record<string, BarView> = {
   "warning (after)": plainWarning,
   error: at("error", { message: BAR_ERROR_TEXT }),
   cancelled: at("cancelled"),
+  ask: asking,
 };
 
 const events: Record<string, BarEvent> = {
@@ -35,6 +44,8 @@ const events: Record<string, BarEvent> = {
   retry: { type: "retry" },
   warn: { type: "warn", message: "No sound from Mic" },
   timeout: { type: "timeout" },
+  ask: { type: "ask", message: "Save to Memory?", detail: "I prefer metric units." },
+  answered: { type: "answered" },
 };
 
 /** Expected result for every state and event: the next view and timer, or "same". */
@@ -51,6 +62,8 @@ const expected: Record<string, Record<string, [BarView, number | null] | "same">
     retry: "same",
     warn: "same",
     timeout: "same",
+    ask: "same",
+    answered: "same",
   },
   idle: {
     show: "same",
@@ -64,6 +77,8 @@ const expected: Record<string, Record<string, [BarView, number | null] | "same">
     retry: [at("processing"), null],
     warn: [at("warning", { message: "No sound from Mic" }), WARNING_MS],
     timeout: "same",
+    ask: [asking, ASK_MS],
+    answered: "same",
   },
   listening: {
     show: "same",
@@ -77,6 +92,8 @@ const expected: Record<string, Record<string, [BarView, number | null] | "same">
     retry: "same",
     warn: [recordingWarning, null],
     timeout: "same",
+    ask: "same",
+    answered: "same",
   },
   locked: {
     show: "same",
@@ -90,6 +107,8 @@ const expected: Record<string, Record<string, [BarView, number | null] | "same">
     retry: "same",
     warn: [recordingWarning, null],
     timeout: "same",
+    ask: "same",
+    answered: "same",
   },
   processing: {
     show: "same",
@@ -103,6 +122,8 @@ const expected: Record<string, Record<string, [BarView, number | null] | "same">
     retry: "same",
     warn: [at("warning", { message: "No sound from Mic" }), WARNING_MS],
     timeout: "same",
+    ask: [asking, ASK_MS],
+    answered: "same",
   },
   done: {
     show: "same",
@@ -116,6 +137,8 @@ const expected: Record<string, Record<string, [BarView, number | null] | "same">
     retry: [at("processing"), null],
     warn: [at("warning", { message: "No sound from Mic" }), WARNING_MS],
     timeout: [at("idle"), null],
+    ask: [asking, ASK_MS],
+    answered: "same",
   },
   "warning (recording)": {
     show: "same",
@@ -129,6 +152,8 @@ const expected: Record<string, Record<string, [BarView, number | null] | "same">
     retry: "same",
     warn: [recordingWarning, null],
     timeout: "same",
+    ask: "same",
+    answered: "same",
   },
   "warning (after)": {
     show: "same",
@@ -142,6 +167,8 @@ const expected: Record<string, Record<string, [BarView, number | null] | "same">
     retry: [at("processing"), null],
     warn: [at("warning", { message: "No sound from Mic" }), WARNING_MS],
     timeout: [at("idle"), null],
+    ask: [asking, ASK_MS],
+    answered: "same",
   },
   error: {
     show: "same",
@@ -155,6 +182,8 @@ const expected: Record<string, Record<string, [BarView, number | null] | "same">
     retry: [at("processing"), null],
     warn: [at("warning", { message: "No sound from Mic" }), WARNING_MS],
     timeout: "same",
+    ask: [asking, ASK_MS],
+    answered: "same",
   },
   cancelled: {
     show: "same",
@@ -168,6 +197,23 @@ const expected: Record<string, Record<string, [BarView, number | null] | "same">
     retry: "same",
     warn: [at("warning", { message: "No sound from Mic" }), WARNING_MS],
     timeout: [at("idle"), null],
+    ask: [asking, ASK_MS],
+    answered: "same",
+  },
+  ask: {
+    show: "same",
+    hide: [at("hidden"), null],
+    start: [at("listening", { startedAt: 5000 }), null],
+    lock: "same",
+    stop: "same",
+    cancel: [at("cancelled"), CANCELLED_MS],
+    transcribed: "same",
+    failed: "same",
+    retry: "same",
+    warn: [at("warning", { message: "No sound from Mic" }), WARNING_MS],
+    timeout: [at("idle"), null],
+    ask: [asking, ASK_MS],
+    answered: [at("idle"), null],
   },
 };
 

@@ -16,6 +16,7 @@ import {
 } from "electron";
 import {
   BAR_IPC_CHANNELS,
+  MEMORY_LIMITS,
   DEFAULT_CLEANUP_MODEL,
   DEFAULT_SOUNDS,
   DEFAULT_SPEECH_MODEL,
@@ -44,6 +45,7 @@ import { createHistoryStore, type HistoryStore } from "./history/history-store";
 import { createDictionaryStore } from "./dictionary/dictionary-store";
 import { createSnippetStore } from "./snippets/snippet-store";
 import { createStyleStore } from "./styles/style-store";
+import { createMemoryStore } from "./memory/memory-store";
 import { createLlmClient, type LlmReply } from "./cleanup/llm-client";
 import { createConsoleLogger, systemClock } from "./helper/node-runtime";
 import { HelperError } from "./helper/types";
@@ -147,6 +149,20 @@ const dictionary = database ? createDictionaryStore(database) : null;
 const snippets = database ? createSnippetStore(database) : null;
 // Styles per context and the owner's app categories (PZ-11, PZ-13).
 const styles = database ? createStyleStore(database) : null;
+// Memory (PZ-18, PZ-19), and the one "remember that" fact waiting on the Bar.
+const memory = database ? createMemoryStore(database) : null;
+let offeredFact: { text: string; until: number } | null = null;
+/** Save or Dismiss on the Bar's "Save to Memory?" question. */
+function answerBar(choice: "yes" | "no"): void {
+  const fact = offeredFact;
+  offeredFact = null;
+  const saved =
+    choice === "yes" && fact && fact.until > Date.now()
+      ? memory?.save({ text: fact.text, keywords: null, enabled: true }, "dictation")
+      : null;
+  bar.dispatch({ type: "answered" });
+  if (saved?.ok) bar.dispatch({ type: "warn", message: "Saved to Memory" });
+}
 const history: HistoryStore | null = database
   ? createHistoryStore(database, path.join(profile.appData, "Murmur", "audio"))
   : null;
@@ -191,6 +207,7 @@ const settingsStore = createSettingsStore(database, {
   mouseButtons: { hold: null, handsFree: null },
   typingReminder: { enabled: true, snoozedUntil: null },
   whisperMode: false,
+  memory: { enabled: true, fromDictation: true },
   experimental: {
     splitMessages: false,
     pauseMedia: false,
@@ -412,6 +429,21 @@ const recorder = createRecorder({
   ...(dictionary ? { dictionary } : {}),
   ...(snippets ? { snippets } : {}),
   ...(styles ? { styles } : {}),
+  ...(memory
+    ? {
+        memory: {
+          facts: (text: string) =>
+            settingsStore.get().memory.enabled
+              ? memory.relevant(text).map((item) => item.text)
+              : [],
+          offer: (fact: string) => {
+            if (!settingsStore.get().memory.fromDictation) return false;
+            offeredFact = { text: fact, until: Date.now() + MEMORY_LIMITS.offerMs };
+            return true;
+          },
+        },
+      }
+    : {}),
   rewriteText: (text) => (wantsLatinHindi(settingsStore.get()) ? toLatinHindi(text) : text),
 });
 const micCheck = createMicCheck({
@@ -619,6 +651,12 @@ function fullSmokeChecks(
       });
       return () => ids.forEach((id) => dictionary?.remove(id));
     },
+    answerBar: (choice) => answerBar(choice),
+    memoryTexts: () => memory?.list().map((item) => item.text) ?? [],
+    forgetMemory: (text) => {
+      const found = memory?.list().find((item) => item.text === text);
+      if (found) memory?.remove(found.id);
+    },
     setAppCategory: (bundleId, category) => {
       styles?.setOverride({ bundleId, appName: "Smoke test", category });
       return () => styles?.clearOverride(bundleId);
@@ -755,6 +793,14 @@ function registerIpc(): void {
       styles?.setOverride(override);
       return styles?.view() ?? { styles: [], overrides: [], recentApps: [] };
     },
+    memoryList: () => memory?.list() ?? [],
+    memorySave: (input) =>
+      memory?.save(input) ?? {
+        ok: false,
+        reason: "not-found",
+        message: "Memory could not be opened.",
+      },
+    memoryDelete: (id) => memory?.remove(id),
     stylesClearOverride: (bundleId) => {
       styles?.clearOverride(bundleId);
       return styles?.view() ?? { styles: [], overrides: [], recentApps: [] };
@@ -778,6 +824,7 @@ function registerIpc(): void {
       // The recorder reports "retrying", which moves the Bar to processing.
       if (bar.click() === "retry") recorder.retryLast();
     },
+    answer: (choice) => answerBar(choice),
   });
   ipcMain.handle(BAR_IPC_CHANNELS.ready, (event) =>
     handleBar(BAR_IPC_CHANNELS.ready, event.senderFrame?.url, []),
@@ -787,6 +834,7 @@ function registerIpc(): void {
     BAR_IPC_CHANNELS.drag,
     BAR_IPC_CHANNELS.dragEnd,
     BAR_IPC_CHANNELS.click,
+    BAR_IPC_CHANNELS.answer,
   ]) {
     ipcMain.on(channel, (event, ...args: unknown[]) => {
       try {

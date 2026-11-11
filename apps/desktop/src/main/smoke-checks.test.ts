@@ -17,6 +17,7 @@ const settings: Settings = {
   mouseButtons: { hold: null, handsFree: null },
   typingReminder: { enabled: true, snoozedUntil: null },
   whisperMode: false,
+  memory: { enabled: true, fromDictation: true },
   experimental: {
     splitMessages: false,
     pauseMedia: false,
@@ -42,6 +43,8 @@ function fakeApp(options: { muted?: boolean | null; broken?: Broken } = {}) {
   let withDictionary = false;
   let withSnippet = false;
   let personal = false;
+  let facts: string[] = [];
+  let barDetail: string | null = null;
   let recording = false;
   let last: string | null = null;
   let position: [number, number] = [500, 800];
@@ -83,6 +86,11 @@ function fakeApp(options: { muted?: boolean | null; broken?: Broken } = {}) {
     if (mutedByUs) muted = false;
     mutedByUs = false;
     if (clip === "silent") return;
+    if (clip === "remember") {
+      barMessage = "Save to Memory?";
+      barDetail = "I prefer metric units.";
+      return;
+    }
     if (clip === "quiet" && (!current.whisperMode || options.broken === "whisper")) return;
     bar("processing");
     if (failNext) {
@@ -131,7 +139,13 @@ function fakeApp(options: { muted?: boolean | null; broken?: Broken } = {}) {
     keyDown: start,
     keyUp: stop,
     settled: async () => {},
-    barView: () => ({ state: "idle", startedAt: null, words: null, message: barMessage }),
+    barView: () => ({
+      state: barMessage === "Save to Memory?" ? "ask" : "idle",
+      startedAt: null,
+      words: null,
+      message: barMessage,
+      detail: barDetail,
+    }),
     barPosition: () => position,
     dragBar: async (dx, dy) => {
       position = [position[0] + dx, position[1] + dy];
@@ -204,6 +218,14 @@ function fakeApp(options: { muted?: boolean | null; broken?: Broken } = {}) {
         personal = false;
       };
     },
+    answerBar: (choice) => {
+      if (choice === "yes" && barMessage === "Save to Memory?") facts.push(barDetail ?? "");
+      barMessage = null;
+    },
+    memoryTexts: () => facts,
+    forgetMemory: (text) => {
+      facts = facts.filter((fact) => fact !== text);
+    },
     addSnippet: () => {
       withSnippet = true;
       return () => {
@@ -257,6 +279,7 @@ describe("full smoke checks", () => {
       "Dictionary: a spelling and a replacement apply",
       "Snippets: a trigger said on its own inserts the body",
       "Styles: a Personal app gets no capitals and no final full stop",
+      'Memory: "remember that" asks on the Bar and saves on Save',
     ]);
     expect(app.muted()).toBe(false);
     expect(app.clipboard()).toBe("owner's text");
@@ -264,6 +287,7 @@ describe("full smoke checks", () => {
       inputDevice: "auto",
       languages: [],
       whisperMode: false,
+      memory: { enabled: true, fromDictation: true },
       typingReminder: { enabled: true, snoozedUntil: null },
     });
   });

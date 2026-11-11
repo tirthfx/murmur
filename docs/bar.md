@@ -30,6 +30,13 @@ The state machine is `apps/desktop/src/main/bar/bar-machine.ts`, a pure function
 
 `npx vite --config apps/desktop/vite.renderer.config.ts apps/desktop`, then open `/bar.html` in a browser: outside the app the page shows every state side by side.
 
+## Questions
+
+The `ask` state shows a question with a second line and Save and Dismiss buttons (used by
+"remember that", see `memory.md`). The answer comes back on `bar:answer`. A question stays
+five minutes, never covers a recording, and a new dictation replaces it. The buttons stop the
+pointer from starting a drag.
+
 ## Manual test
 
 1. `npm run dev`. The mic dot appears near the bottom centre of the screen.

@@ -485,9 +485,67 @@ describe("recorder", () => {
       windowTitle: "Chat with Sam",
     });
     expect(transcribe).toHaveBeenCalledWith("/tmp/a.pcm", { prompt: "" });
-    expect(clean.mock.calls[0]![1]).toMatchObject({ terms: [], instructions: ["Keep it short."] });
+    expect(clean.mock.calls[0]![1]).toMatchObject({
+      terms: [],
+      instructions: [expect.stringContaining("Keep it short.")],
+    });
     expect(insert).toHaveBeenCalledWith("sounds good. see you at five", { pressEnter: false });
     expect(records[0]).toMatchObject({ styleId: "style-personal", appName: "WhatsApp" });
+  });
+
+  it("offers a 'remember that' fact instead of typing it, and gives facts to the model", async () => {
+    const transcribe = vi
+      .fn()
+      .mockResolvedValueOnce({
+        text: "Remember that I prefer metric units",
+        language: "en",
+        segments: [],
+        decodeMs: 1,
+        audioMs: 1,
+      })
+      .mockResolvedValueOnce({
+        text: "please sign off for me",
+        language: "en",
+        segments: [],
+        decodeMs: 1,
+        audioMs: 1,
+      });
+    const clean = vi.fn(async (text: string, _options: { terms: string[]; budgetMs: number }) => ({
+      text,
+      source: "model" as const,
+      fallback: false,
+      modelMs: 5,
+      reason: null,
+    }));
+    const insert = vi.fn(async () => ({
+      method: "paste_cmd_v" as const,
+      delivered: true,
+      clipboardRestored: true,
+    }));
+    const events: string[] = [];
+    const offer = vi.fn(() => true);
+    const { recorder } = setup({
+      transcribe,
+      clean,
+      insert,
+      onEvent: (event) => events.push(event.type),
+      memory: {
+        offer,
+        facts: (text) => (text.includes("sign off") ? ["Sign emails as Tirth."] : []),
+      },
+    });
+    recorder.handleHotkey(key("down"));
+    recorder.handleHotkey(key("up"));
+    await recorder.idle();
+    expect(offer).toHaveBeenCalledWith("I prefer metric units.");
+    expect(insert).not.toHaveBeenCalled();
+    expect(events).toContain("memory-offered");
+    recorder.handleHotkey(key("down"));
+    recorder.handleHotkey(key("up"));
+    await recorder.idle();
+    expect(clean.mock.calls[0]![1]).toMatchObject({
+      instructions: [expect.stringContaining("Sign emails as Tirth.")],
+    });
   });
 
   it("retries a failure from the folder history moved its audio to", async () => {

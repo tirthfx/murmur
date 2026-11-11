@@ -10,12 +10,53 @@ export interface BarPillProps {
   onPointerDown?: (event: PointerEvent<HTMLDivElement>) => void;
   onPointerMove?: (event: PointerEvent<HTMLDivElement>) => void;
   onPointerUp?: (event: PointerEvent<HTMLDivElement>) => void;
+  /** Yes or No for a question (`ask`). */
+  onAnswer?: (choice: "yes" | "no") => void;
 }
 
 const METER_BARS = 5;
 
-export function BarPill({ view, level, now, ...handlers }: BarPillProps) {
+/** Buttons must not start a drag of the pill. */
+const keepFromDrag = (event: PointerEvent<HTMLButtonElement>) => event.stopPropagation();
+
+export function BarPill({ view, level, now, onAnswer, ...handlers }: BarPillProps) {
   if (view.state === "hidden") return null;
+  if (view.state === "ask") {
+    return (
+      <div
+        className="bar-pill bar-ask"
+        data-state="ask"
+        role="alertdialog"
+        aria-label={view.message ?? ""}
+        {...handlers}
+      >
+        <span className="bar-ask-text">
+          <span className="bar-text">{view.message}</span>
+          {view.detail ? (
+            <span className="bar-detail" title={view.detail}>
+              {view.detail}
+            </span>
+          ) : null}
+        </span>
+        <button
+          type="button"
+          className="bar-button bar-button-primary"
+          onPointerDown={keepFromDrag}
+          onClick={() => onAnswer?.("yes")}
+        >
+          Save
+        </button>
+        <button
+          type="button"
+          className="bar-button"
+          onPointerDown={keepFromDrag}
+          onClick={() => onAnswer?.("no")}
+        >
+          Dismiss
+        </button>
+      </div>
+    );
+  }
   const { text, icon } = describeView(view);
   const recording = view.state === "listening" || view.state === "locked";
   const fill = meterFill(level);

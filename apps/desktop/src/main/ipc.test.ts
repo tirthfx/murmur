@@ -57,6 +57,9 @@ function setup() {
     stylesUpdate: vi.fn(() => ({ styles: [], overrides: [], recentApps: [] })),
     stylesSetOverride: vi.fn(() => ({ styles: [], overrides: [], recentApps: [] })),
     stylesClearOverride: vi.fn(() => ({ styles: [], overrides: [], recentApps: [] })),
+    memoryList: vi.fn(() => []),
+    memorySave: vi.fn(),
+    memoryDelete: vi.fn(),
   });
   return {
     getSetupStatus,

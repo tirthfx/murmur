@@ -22,6 +22,7 @@ const api: MurmurBarApi = {
   drag: (dx, dy) => ipcRenderer.send(BAR_IPC_CHANNELS.drag, Math.round(dx), Math.round(dy)),
   dragEnd: () => ipcRenderer.send(BAR_IPC_CHANNELS.dragEnd),
   click: () => ipcRenderer.send(BAR_IPC_CHANNELS.click),
+  answer: (choice) => ipcRenderer.send(BAR_IPC_CHANNELS.answer, choice),
 };
 
 contextBridge.exposeInMainWorld("murmurBar", api);
