@@ -16,6 +16,12 @@ function contentSecurityPolicy(development: boolean): Plugin {
 
 export default defineConfig(({ command }) => ({
   plugins: [react(), contentSecurityPolicy(command === "serve")],
+  // `@murmur/shared` is our own source, not a library: pre-building it would cache an old copy,
+  // and the Hub would crash on the next new export. Its own dependency, zod, is pre-built.
+  optimizeDeps: {
+    exclude: ["@murmur/shared"],
+    include: ["zod"],
+  },
   build: {
     rollupOptions: {
       // The Hub and the Bar are two pages of one build, each with its own preload.
