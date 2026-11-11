@@ -46,7 +46,16 @@ export function createSettingsStore(
         const raw = byKey.get(SETTING_KEYS[field]);
         if (raw === undefined) continue;
         try {
-          const value = JSON.parse(raw) as unknown;
+          let value = JSON.parse(raw) as unknown;
+          // A group of flags stored before a new flag was added keeps its values; the new
+          // flag takes its default.
+          const fallback = current[field] as unknown;
+          if (isPlainObject(value) && isPlainObject(fallback)) {
+            const known = Object.fromEntries(
+              Object.entries(value).filter(([key]) => key in fallback),
+            );
+            value = { ...fallback, ...known };
+          }
           if (settingsSchema.shape[field].safeParse(value).success) current[field] = value;
         } catch {
           // Unreadable value: keep the default.
@@ -104,4 +113,8 @@ export function createSettingsStore(
       };
     },
   };
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

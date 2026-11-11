@@ -29,6 +29,7 @@ export const SAMPLE_SETTINGS: SettingsView = {
       pauseMedia: false,
       headsetWear: false,
       ringMicrophone: false,
+      bulkImport: false,
     },
   },
   shortcutLabels: { hold: "Right Option", handsFree: "Double-tap Right Option" },
@@ -116,6 +117,8 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
     memoryList: vi.fn().mockResolvedValue([]),
     memorySave: vi.fn(),
     memoryDelete: vi.fn().mockResolvedValue(undefined),
+    importPreview: vi.fn(),
+    importApply: vi.fn(),
     ...overrides,
   };
 }

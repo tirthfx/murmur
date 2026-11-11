@@ -158,3 +158,10 @@ body {
   border: 1px solid var(--color-border);
   border-radius: 8px;
 }
+
+.hub-import-list {
+  margin: 0;
+  padding-left: var(--spacing-5);
+  max-height: 12rem;
+  overflow: auto;
+}

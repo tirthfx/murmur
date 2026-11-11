@@ -48,6 +48,7 @@ import { createCorrectionLearner } from "./dictionary/learn";
 import { createSnippetStore } from "./snippets/snippet-store";
 import { createStyleStore } from "./styles/style-store";
 import { createMemoryStore } from "./memory/memory-store";
+import { createImporter } from "./imports/importer";
 import { createLlmClient, type LlmReply } from "./cleanup/llm-client";
 import { createConsoleLogger, systemClock } from "./helper/node-runtime";
 import { HelperError } from "./helper/types";
@@ -156,6 +157,8 @@ const snippets = database ? createSnippetStore(database) : null;
 const styles = database ? createStyleStore(database) : null;
 // Memory (PZ-18, PZ-19), and the one "remember that" fact waiting on the Bar.
 const memory = database ? createMemoryStore(database) : null;
+// Bulk import of dictionary entries and snippets (PZ-07, PZ-10).
+const importer = createImporter({ dictionary, snippets });
 let offeredFact: { text: string; until: number } | null = null;
 /** Save or Dismiss on the Bar's "Save to Memory?" question. */
 function answerBar(choice: "yes" | "no"): void {
@@ -219,6 +222,7 @@ const settingsStore = createSettingsStore(database, {
     pauseMedia: false,
     headsetWear: false,
     ringMicrophone: false,
+    bulkImport: false,
   },
 });
 const keys = keyPlatform(process.platform);
@@ -819,6 +823,8 @@ function registerIpc(): void {
       styles?.setOverride(override);
       return styles?.view() ?? { styles: [], overrides: [], recentApps: [] };
     },
+    importPreview: (request) => importer.preview(request),
+    importApply: (request) => importer.apply(request),
     memoryList: () => memory?.list() ?? [],
     memorySave: (input) =>
       memory?.save(input) ?? {

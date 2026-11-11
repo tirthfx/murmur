@@ -23,6 +23,13 @@ export interface DictionaryStore {
   list(): DictionaryEntry[];
   save(input: DictionaryInput, source?: DictionarySource): DictionarySaveResult;
   remove(id: string): void;
+  /**
+   * Adds many entries in one transaction, all or nothing (bulk import). Duplicates must
+   * already be removed by the caller.
+   */
+  importMany(
+    rows: readonly { term: string; replacement: string | null }[],
+  ): { ok: true; added: number } | { ok: false; message: string };
   /** Keeps a learned entry: it is no longer marked for review. */
   keep(id: string): void;
   rules(): DictionaryRules;
@@ -210,6 +217,36 @@ export function createDictionaryStore(
     remove(id) {
       remove.run(id);
       changed();
+    },
+
+    importMany(rows) {
+      const count = counts.get() as { entries: number; replacements: number | null };
+      const newReplacements = rows.filter((row) => row.replacement !== null).length;
+      if (count.entries + rows.length > DICTIONARY_LIMITS.entries) {
+        return {
+          ok: false,
+          message: `This would make more than ${DICTIONARY_LIMITS.entries.toLocaleString("en")} entries.`,
+        };
+      }
+      if ((count.replacements ?? 0) + newReplacements > DICTIONARY_LIMITS.replacements) {
+        return {
+          ok: false,
+          message: `This would make more than ${DICTIONARY_LIMITS.replacements.toLocaleString("en")} replacements.`,
+        };
+      }
+      const at = now();
+      db.exec("BEGIN IMMEDIATE");
+      try {
+        for (const row of rows) {
+          insert.run(newId(), tidy(row.term), row.replacement, 0, "import", 0, at, at);
+        }
+        db.exec("COMMIT");
+      } catch (error) {
+        db.exec("ROLLBACK");
+        return { ok: false, message: `Nothing was imported: ${String(error)}` };
+      }
+      changed();
+      return { ok: true, added: rows.length };
     },
 
     keep(id) {

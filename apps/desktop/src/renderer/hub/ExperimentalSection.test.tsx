@@ -4,7 +4,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ExperimentalSection, RING_SEARCH_SECONDS } from "./ExperimentalSection";
 import { createMockApi } from "./test-api";
 
-const off = { splitMessages: false, pauseMedia: false, headsetWear: false, ringMicrophone: false };
+const off = {
+  splitMessages: false,
+  pauseMedia: false,
+  headsetWear: false,
+  ringMicrophone: false,
+  bulkImport: false,
+};
 
 afterEach(() => {
   cleanup();

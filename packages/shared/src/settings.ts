@@ -96,6 +96,8 @@ export const settingsSchema = z.strictObject({
     headsetWear: z.boolean(),
     /** A Bluetooth ring microphone (DC-15). */
     ringMicrophone: z.boolean(),
+    /** Import dictionary entries and snippets from a file (PZ-07, PZ-10). */
+    bulkImport: z.boolean(),
   }),
   /** Whisper mode (DC-12): more gain for very quiet speech. */
   whisperMode: z.boolean(),
@@ -161,6 +163,7 @@ export const DEFAULT_EXPERIMENTAL: Settings["experimental"] = {
   pauseMedia: false,
   headsetWear: false,
   ringMicrophone: false,
+  bulkImport: false,
 };
 
 export const SOUND_NAMES = ["start", "lock", "success", "error", "cancel"] as const;

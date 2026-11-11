@@ -6,6 +6,7 @@ import { HStack } from "@astryxdesign/core/HStack";
 import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { VStack } from "@astryxdesign/core/VStack";
+import { ImportSection } from "./ImportSection";
 import { plainToRich, richToHtml, type Snippet } from "@murmur/shared";
 import { domToRich } from "./rich-text";
 
@@ -125,6 +126,13 @@ export function SnippetsPage() {
   const [problem, setProblem] = useState<string | null>(null);
   const [query, setQuery] = useState("");
 
+  const [importing, setImporting] = useState(false);
+  useEffect(() => {
+    window.murmur.getSettings().then(
+      (view) => setImporting(view.settings.experimental.bulkImport),
+      () => setImporting(false),
+    );
+  }, []);
   const reload = useCallback(async () => {
     try {
       setSnippets(await window.murmur.snippetsList());
@@ -219,6 +227,8 @@ export function SnippetsPage() {
           {problem ? <Banner status="error" title={problem} /> : null}
         </VStack>
       </section>
+
+      {importing ? <ImportSection kind="snippets" onImported={() => void reload()} /> : null}
 
       <section aria-labelledby="snippet-list-heading">
         <VStack gap={2}>

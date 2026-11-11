@@ -24,6 +24,7 @@ const settings: Settings = {
     pauseMedia: false,
     headsetWear: false,
     ringMicrophone: false,
+    bulkImport: false,
   },
 };
 

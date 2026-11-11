@@ -8,6 +8,7 @@ import { Switch } from "@astryxdesign/core/Switch";
 import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { VStack } from "@astryxdesign/core/VStack";
+import { ImportSection } from "./ImportSection";
 import { DICTIONARY_LIMITS, type DictionaryEntry } from "@murmur/shared";
 
 export type DictionarySort = "az" | "recent" | "used";
@@ -73,6 +74,13 @@ export function DictionaryPage() {
   const [learning, setLearning] = useState<boolean | null>(null);
   const [confirming, setConfirming] = useState<string | null>(null);
 
+  const [importing, setImporting] = useState(false);
+  useEffect(() => {
+    window.murmur.getSettings().then(
+      (view) => setImporting(view.settings.experimental.bulkImport),
+      () => setImporting(false),
+    );
+  }, []);
   const reload = useCallback(async () => {
     try {
       setEntries(await window.murmur.dictionaryList());
@@ -219,6 +227,8 @@ export function DictionaryPage() {
           {problem ? <Banner status="error" title={problem} /> : null}
         </VStack>
       </section>
+
+      {importing ? <ImportSection kind="dictionary" onImported={() => void reload()} /> : null}
 
       <section aria-labelledby="dictionary-list-heading">
         <VStack gap={2}>

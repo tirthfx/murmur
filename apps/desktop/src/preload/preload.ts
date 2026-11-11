@@ -31,6 +31,8 @@ const api: MurmurApi = {
   memoryList: () => ipcRenderer.invoke(IPC_CHANNELS.memoryList),
   memorySave: (input) => ipcRenderer.invoke(IPC_CHANNELS.memorySave, input),
   memoryDelete: (id) => ipcRenderer.invoke(IPC_CHANNELS.memoryDelete, id),
+  importPreview: (request) => ipcRenderer.invoke(IPC_CHANNELS.importPreview, request),
+  importApply: (request) => ipcRenderer.invoke(IPC_CHANNELS.importApply, request),
   onMicCheckLevel: (handler) => {
     // Only a number crosses over; the event object stays in the preload.
     const listener = (_event: unknown, rmsDb: unknown) => {

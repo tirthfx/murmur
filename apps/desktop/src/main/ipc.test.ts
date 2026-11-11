@@ -61,6 +61,8 @@ function setup() {
     memoryList: vi.fn(() => []),
     memorySave: vi.fn(),
     memoryDelete: vi.fn(),
+    importPreview: vi.fn(),
+    importApply: vi.fn(),
   });
   return {
     getSetupStatus,

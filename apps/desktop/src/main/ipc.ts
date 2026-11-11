@@ -22,6 +22,9 @@ import {
   type MemoryInput,
   type MemoryItem,
   type MemorySaveResult,
+  type ImportPreview,
+  type ImportRequest,
+  type ImportResult,
   type ShortcutResult,
   type ShortcutSlot,
   type PermissionKind,
@@ -63,6 +66,8 @@ export interface IpcDeps {
   memoryList: () => MemoryItem[];
   memorySave: (input: MemoryInput) => MemorySaveResult;
   memoryDelete: (id: string) => void;
+  importPreview: (request: ImportRequest) => ImportPreview;
+  importApply: (request: ImportRequest) => ImportResult;
 }
 
 export interface IpcEventLike {
@@ -143,6 +148,10 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.memorySave(request.args[0] as MemoryInput);
       case IPC_CHANNELS.memoryDelete:
         return deps.memoryDelete(request.args[0] as string);
+      case IPC_CHANNELS.importPreview:
+        return deps.importPreview(request.args[0] as ImportRequest);
+      case IPC_CHANNELS.importApply:
+        return deps.importApply(request.args[0] as ImportRequest);
       default:
         throw new Error("IPC rejected: unknown-channel");
     }

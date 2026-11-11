@@ -34,6 +34,7 @@ function setup() {
       pauseMedia: false,
       headsetWear: false,
       ringMicrophone: false,
+      bulkImport: false,
     },
   };
   const views: TrayView[] = [];
