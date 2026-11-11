@@ -63,6 +63,26 @@ function setup() {
     memoryDelete: vi.fn(),
     importPreview: vi.fn(),
     importApply: vi.fn(),
+    voiceProfileView: vi.fn(() => ({
+      sessions: 0,
+      totalWords: 0,
+      measures: [],
+      topPhrases: [],
+      summary: null,
+      milestones: [],
+      examples: { personal: [], work: [], email: [], other: [] },
+      passage: "",
+    })),
+    voiceProfileReset: vi.fn(() => ({
+      sessions: 0,
+      totalWords: 0,
+      measures: [],
+      topPhrases: [],
+      summary: null,
+      milestones: [],
+      examples: { personal: [], work: [], email: [], other: [] },
+      passage: "",
+    })),
   });
   return {
     getSetupStatus,

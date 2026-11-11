@@ -26,6 +26,7 @@ const defaults: Settings = {
   whisperMode: false,
   memory: { enabled: true, fromDictation: true },
   learnCorrections: true,
+  voiceProfile: { enabled: true, useInCleanup: true, prompts: true },
   experimental: {
     splitMessages: false,
     pauseMedia: false,

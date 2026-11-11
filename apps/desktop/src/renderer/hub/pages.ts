@@ -30,6 +30,12 @@ export const PAGES = [
     emptyDescription: "Facts you want Murmur to know will be listed here.",
   },
   {
+    id: "my-voice",
+    title: "My Voice",
+    emptyTitle: "Nothing learned yet",
+    emptyDescription: "How you write will be summarised here.",
+  },
+  {
     id: "rewrites",
     title: "Rewrites",
     emptyTitle: "No rewrites available",

@@ -10,6 +10,7 @@ import { DictionaryPage } from "./DictionaryPage";
 import { SnippetsPage } from "./SnippetsPage";
 import { StylesPage } from "./StylesPage";
 import { MemoryPage } from "./MemoryPage";
+import { MyVoicePage } from "./MyVoicePage";
 import { HelperStatusLine } from "./HelperStatusLine";
 import { Onboarding } from "./Onboarding";
 import { MicCheckSection } from "./MicCheckSection";
@@ -69,6 +70,14 @@ export function Hub() {
 function HubPages({ onRunSetup }: { onRunSetup: () => void }) {
   const [pageId, setPageId] = useState<PageId>("home");
   const info = useAppInfo();
+  // Main can ask for a page, for example after the Bar's voice profile prompt.
+  useEffect(
+    () =>
+      window.murmur.onOpenPage((id) => {
+        if (PAGES.some((candidate) => candidate.id === id)) setPageId(id as PageId);
+      }),
+    [],
+  );
   const page = PAGES.find((candidate) => candidate.id === pageId) ?? PAGES[0];
 
   const sideNav = (
@@ -135,6 +144,8 @@ function HubPages({ onRunSetup }: { onRunSetup: () => void }) {
             <StylesPage />
           ) : page.id === "memory" ? (
             <MemoryPage />
+          ) : page.id === "my-voice" ? (
+            <MyVoicePage />
           ) : (
             <div className="hub-empty">
               <EmptyState

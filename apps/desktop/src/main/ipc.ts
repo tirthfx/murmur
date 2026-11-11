@@ -25,6 +25,7 @@ import {
   type ImportPreview,
   type ImportRequest,
   type ImportResult,
+  type VoiceProfileView,
   type ShortcutResult,
   type ShortcutSlot,
   type PermissionKind,
@@ -68,6 +69,8 @@ export interface IpcDeps {
   memoryDelete: (id: string) => void;
   importPreview: (request: ImportRequest) => ImportPreview;
   importApply: (request: ImportRequest) => ImportResult;
+  voiceProfileView: () => VoiceProfileView;
+  voiceProfileReset: () => VoiceProfileView;
 }
 
 export interface IpcEventLike {
@@ -152,6 +155,10 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.importPreview(request.args[0] as ImportRequest);
       case IPC_CHANNELS.importApply:
         return deps.importApply(request.args[0] as ImportRequest);
+      case IPC_CHANNELS.voiceProfileView:
+        return deps.voiceProfileView();
+      case IPC_CHANNELS.voiceProfileReset:
+        return deps.voiceProfileReset();
       default:
         throw new Error("IPC rejected: unknown-channel");
     }

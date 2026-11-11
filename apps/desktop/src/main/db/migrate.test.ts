@@ -33,6 +33,8 @@ describe("migrations", () => {
       "settings",
       "snippets",
       "styles",
+      "voice_profiles",
+      "voice_samples",
     ]);
     const rows = db.prepare("SELECT version, name, applied_at FROM schema_migrations").all();
     expect(rows).toEqual(

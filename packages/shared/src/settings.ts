@@ -105,6 +105,12 @@ export const settingsSchema = z.strictObject({
   memory: z.strictObject({ enabled: z.boolean(), fromDictation: z.boolean() }),
   /** Learn dictionary entries from corrections made after a dictation (PZ-02). */
   learnCorrections: z.boolean(),
+  /** Voice Profile (PZ-15, PZ-16): learn, tell the cleanup model, and the weekly prompt. */
+  voiceProfile: z.strictObject({
+    enabled: z.boolean(),
+    useInCleanup: z.boolean(),
+    prompts: z.boolean(),
+  }),
   /** Mute the system output while recording (DC-41). */
   muteWhileDictating: z.boolean(),
   /** Read the focused field to help spell names and terms (DC-30). */
@@ -132,6 +138,7 @@ export const settingsPatchSchema = settingsSchema
     whisperMode: true,
     memory: true,
     learnCorrections: true,
+    voiceProfile: true,
     experimental: true,
   })
   .partial()
@@ -155,6 +162,7 @@ export const SETTING_KEYS: Record<keyof Settings, string> = {
   whisperMode: "audio.whisper_mode",
   memory: "memory.flags",
   learnCorrections: "dictionary.learn_corrections",
+  voiceProfile: "voice_profile.flags",
   experimental: "experimental.flags",
 };
 
