@@ -50,6 +50,9 @@ function setup() {
     dictionaryList: vi.fn(() => []),
     dictionarySave: vi.fn(),
     dictionaryDelete: vi.fn(),
+    snippetsList: vi.fn(() => []),
+    snippetsSave: vi.fn(),
+    snippetsDelete: vi.fn(),
   });
   return {
     getSetupStatus,

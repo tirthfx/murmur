@@ -20,6 +20,9 @@ const api: MurmurApi = {
   dictionaryList: () => ipcRenderer.invoke(IPC_CHANNELS.dictionaryList),
   dictionarySave: (input) => ipcRenderer.invoke(IPC_CHANNELS.dictionarySave, input),
   dictionaryDelete: (id) => ipcRenderer.invoke(IPC_CHANNELS.dictionaryDelete, id),
+  snippetsList: () => ipcRenderer.invoke(IPC_CHANNELS.snippetsList),
+  snippetsSave: (input) => ipcRenderer.invoke(IPC_CHANNELS.snippetsSave, input),
+  snippetsDelete: (id) => ipcRenderer.invoke(IPC_CHANNELS.snippetsDelete, id),
   onMicCheckLevel: (handler) => {
     // Only a number crosses over; the event object stays in the preload.
     const listener = (_event: unknown, rmsDb: unknown) => {

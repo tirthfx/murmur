@@ -15,6 +15,12 @@ If Command+V cannot be posted, the clipboard is put back at once and the text is
 
 Empty text does nothing. One insertion runs at a time.
 
+## Rich text
+
+`insert.text` takes an optional `html` (rich snippets, see `snippets.md`). The helper writes it
+beside the plain text in the same pasteboard item, still marked transient. Typed insertion and
+apps whose trailing newlines are trimmed get the plain text only.
+
 ## Press enter
 
 When a dictation ends with the words "press enter", they are left out of the text and Return

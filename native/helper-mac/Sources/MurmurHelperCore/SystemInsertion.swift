@@ -27,10 +27,11 @@ public final class SystemPasteboard: PasteboardAccess, @unchecked Sendable {
         return PasteboardSnapshot(items: items)
     }
 
-    public func writeTransientText(_ text: String) -> Int {
+    public func writeTransientText(_ text: String, html: String?) -> Int {
         board.clearContents()
         let item = NSPasteboardItem()
         item.setString(text, forType: .string)
+        if let html { item.setString(html, forType: .html) }
         item.setData(Data(), forType: Self.transient)
         item.setData(Data(), forType: Self.concealed)
         board.writeObjects([item])

@@ -35,6 +35,14 @@ import {
   type DictionaryInput,
   type DictionarySaveResult,
 } from "./dictionary";
+import {
+  snippetInputSchema,
+  snippetSaveResultSchema,
+  snippetSchema,
+  type Snippet,
+  type SnippetInput,
+  type SnippetSaveResult,
+} from "./snippets";
 
 /**
  * Renderer-to-main IPC contract. Channel names, payload schemas and the API the
@@ -59,6 +67,9 @@ export const IPC_CHANNELS = {
   dictionaryList: "dictionary:list",
   dictionarySave: "dictionary:save",
   dictionaryDelete: "dictionary:delete",
+  snippetsList: "snippets:list",
+  snippetsSave: "snippets:save",
+  snippetsDelete: "snippets:delete",
 } as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
@@ -149,6 +160,18 @@ export const IPC_CONTRACT = {
     args: z.tuple([z.string().min(1)]),
     result: z.void(),
   },
+  [IPC_CHANNELS.snippetsList]: {
+    args: z.tuple([]),
+    result: z.array(snippetSchema),
+  },
+  [IPC_CHANNELS.snippetsSave]: {
+    args: z.tuple([snippetInputSchema]),
+    result: snippetSaveResultSchema,
+  },
+  [IPC_CHANNELS.snippetsDelete]: {
+    args: z.tuple([z.string().min(1)]),
+    result: z.void(),
+  },
 } as const satisfies Record<IpcChannel, { args: z.ZodType; result: z.ZodType }>;
 
 export function isIpcChannel(value: unknown): value is IpcChannel {
@@ -202,6 +225,10 @@ export interface MurmurApi {
   dictionaryList(): Promise<DictionaryEntry[]>;
   dictionarySave(input: DictionaryInput): Promise<DictionarySaveResult>;
   dictionaryDelete(id: string): Promise<void>;
+  /** Every snippet, by trigger. */
+  snippetsList(): Promise<Snippet[]>;
+  snippetsSave(input: SnippetInput): Promise<SnippetSaveResult>;
+  snippetsDelete(id: string): Promise<void>;
   /** Input levels during a microphone check, about 20 a second. Returns an unsubscribe. */
   onMicCheckLevel(handler: (rmsDb: number) => void): () => void;
 }

@@ -9,6 +9,7 @@ final class FakePasteboard: PasteboardAccess, @unchecked Sendable {
     private var count = 0
     private var contents: [[String: Data]]
     private(set) var transientWrites: [String] = []
+    private(set) var htmlWrites: [String?] = []
 
     init(_ contents: [[String: Data]] = []) { self.contents = contents }
 
@@ -17,10 +18,13 @@ final class FakePasteboard: PasteboardAccess, @unchecked Sendable {
 
     func snapshot() -> PasteboardSnapshot { lock.withLock { PasteboardSnapshot(items: contents) } }
 
-    func writeTransientText(_ text: String) -> Int {
+    func writeTransientText(_ text: String, html: String?) -> Int {
         lock.withLock {
             transientWrites.append(text)
-            contents = [["public.utf8-plain-text": Data(text.utf8), "org.nspasteboard.TransientType": Data()]]
+            htmlWrites.append(html)
+            var item = ["public.utf8-plain-text": Data(text.utf8), "org.nspasteboard.TransientType": Data()]
+            if let html { item["public.html"] = Data(html.utf8) }
+            contents = [item]
             count += 1
             return count
         }
@@ -198,6 +202,26 @@ final class InsertionControllerTests: XCTestCase {
                 "appBundleId": .string("com.apple.TextEdit"), "enterPressed": .null,
             ])
         XCTAssertEqual(board.items, [note])
+    }
+
+    func testPastesRichTextBesideThePlainText() {
+        let (controller, board, _, events) = make()
+        var payload = insert("Bold")
+        payload["html"] = .string("<p><b>Bold</b></p>")
+        XCTAssertNil(controller.handle(id: "m-1", type: "insert.text", payload: payload))
+        waitForReplies(events, count: 1)
+        XCTAssertEqual(board.transientWrites, ["Bold"])
+        XCTAssertEqual(board.htmlWrites, ["<p><b>Bold</b></p>"])
+    }
+
+    func testTerminalsGetPlainTextOnlyWhenTheTextWasTrimmed() {
+        var payload = insert("ls\n")
+        payload["html"] = .string("<p>ls</p>")
+        payload["trimTrailingNewlinesInApps"] = .array([.string("com.apple.Terminal")])
+        let (controller, board, _, events) = make(frontmost: "com.apple.Terminal")
+        XCTAssertNil(controller.handle(id: "m-1", type: "insert.text", payload: payload))
+        waitForReplies(events, count: 1)
+        XCTAssertEqual(board.htmlWrites, [nil])
     }
 
     func testFallsBackToTypingWhenPasteFails() throws {

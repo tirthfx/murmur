@@ -4,6 +4,7 @@ import { DatabaseSync } from "node:sqlite";
 import m0001 from "./migrations/0001_core_settings_dictation.sql?raw";
 import m0002 from "./migrations/0002_pending_sessions.sql?raw";
 import m0003 from "./migrations/0003_dictionary.sql?raw";
+import m0004 from "./migrations/0004_snippets.sql?raw";
 import { migrateUp, parseMigration, type Migration } from "./migrate";
 
 /** Every migration, in the order the files are numbered. */
@@ -11,6 +12,7 @@ export const MIGRATIONS: Migration[] = [
   parseMigration("0001_core_settings_dictation.sql", m0001),
   parseMigration("0002_pending_sessions.sql", m0002),
   parseMigration("0003_dictionary.sql", m0003),
+  parseMigration("0004_snippets.sql", m0004),
 ];
 
 /** `<appData>/Murmur/murmur.db`, shared by the dev build and the packaged app. */

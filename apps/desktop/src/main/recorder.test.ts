@@ -366,6 +366,62 @@ describe("recorder", () => {
     expect(recordUses.mock.calls[0]![0]).toEqual(expect.arrayContaining(["k", "p"]));
   });
 
+  it("expands a snippet said on its own; the model never sees the body", async () => {
+    const transcribe = vi.fn().mockResolvedValue({
+      text: "please send it here. my address.",
+      language: "en",
+      segments: [],
+      decodeMs: 1,
+      audioMs: 1,
+    });
+    const clean = vi.fn(async (_text: string, _options: { terms: string[]; budgetMs: number }) => ({
+      text: "Please send it here.",
+      source: "model" as const,
+      fallback: false,
+      modelMs: 5,
+      reason: null,
+    }));
+    const insert = vi.fn(async () => ({
+      method: "paste_cmd_v" as const,
+      delivered: true,
+      clipboardRestored: true,
+    }));
+    const recordUse = vi.fn();
+    const rich = {
+      blocks: [{ type: "paragraph" as const, inlines: [{ text: "12 Hill Road", bold: true }] }],
+    };
+    const { recorder } = setup({
+      transcribe,
+      clean,
+      insert,
+      snippets: {
+        list: () => [
+          {
+            id: "s1",
+            trigger: "my address",
+            format: "rich_json",
+            plain: "12 Hill Road",
+            rich,
+            useCount: 0,
+            createdAt: 1,
+            updatedAt: 1,
+          },
+        ],
+        recordUse,
+      },
+    });
+    recorder.handleHotkey(key("down"));
+    recorder.handleHotkey(key("up"));
+    await recorder.idle();
+    expect(clean).toHaveBeenCalledOnce();
+    expect(clean.mock.calls[0]![0]).toBe("please send it here.");
+    expect(insert).toHaveBeenCalledWith("Please send it here.\n12 Hill Road", {
+      pressEnter: false,
+      html: "<p>Please send it here.</p><p><b>12 Hill Road</b></p>",
+    });
+    expect(recordUse).toHaveBeenCalledWith("s1");
+  });
+
   it("retries a failure from the folder history moved its audio to", async () => {
     const transcribe = vi
       .fn()

@@ -80,6 +80,9 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
     dictionaryList: vi.fn().mockResolvedValue([]),
     dictionarySave: vi.fn(),
     dictionaryDelete: vi.fn().mockResolvedValue(undefined),
+    snippetsList: vi.fn().mockResolvedValue([]),
+    snippetsSave: vi.fn(),
+    snippetsDelete: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 }

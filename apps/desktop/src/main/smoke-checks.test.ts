@@ -40,6 +40,7 @@ function fakeApp(options: { muted?: boolean | null; broken?: Broken } = {}) {
   let barMessage: string | null = null;
   let typed = 0;
   let withDictionary = false;
+  let withSnippet = false;
   let recording = false;
   let last: string | null = null;
   let position: [number, number] = [500, 800];
@@ -105,9 +106,11 @@ function fakeApp(options: { muted?: boolean | null; broken?: Broken } = {}) {
           ? options.broken === "enter"
             ? "Send the report, press enter."
             : "Send the report."
-          : withDictionary
-            ? "The FOX and the sleepy cat."
-            : "Hello there.";
+          : withSnippet
+            ? "Snippet line one\nSnippet line two"
+            : withDictionary
+              ? "The FOX and the sleepy cat."
+              : "Hello there.";
     last = said;
     field += said + (clip === "enter" && options.broken !== "enter" ? "\n" : "");
   }
@@ -192,6 +195,12 @@ function fakeApp(options: { muted?: boolean | null; broken?: Broken } = {}) {
         barMessage = "Dictate instead? Hold Right Option.";
       }
     },
+    addSnippet: () => {
+      withSnippet = true;
+      return () => {
+        withSnippet = false;
+      };
+    },
     addDictionary: () => {
       withDictionary = true;
       return () => {
@@ -237,6 +246,7 @@ describe("full smoke checks", () => {
       "Retry: Retry last dictation types the text",
       "Typing reminder: snooze holds it, then it suggests dictating",
       "Dictionary: a spelling and a replacement apply",
+      "Snippets: a trigger said on its own inserts the body",
     ]);
     expect(app.muted()).toBe(false);
     expect(app.clipboard()).toBe("owner's text");
