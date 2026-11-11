@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 import CoreGraphics
 import Foundation
 
@@ -104,9 +105,51 @@ public struct SystemKeyPoster: KeyPoster {
     }
 }
 
+/// The app in front. `NSWorkspace.frontmostApplication` is refreshed only through the main
+/// run loop, which the helper never runs (its main thread reads stdin), so it would keep the
+/// app that was in front at launch. These lookups ask the system each time instead.
 public enum Frontmost {
-    /// Bundle id of the app in front. Needs no permission.
     public static func bundleId() -> String? {
-        NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+        application()?.bundleIdentifier
+    }
+
+    public static func application() -> NSRunningApplication? {
+        guard let pid = firstPid([accessibilityPid, windowOwnerPid, { NSWorkspace.shared.frontmostApplication?.processIdentifier }])
+        else { return nil }
+        return NSRunningApplication(processIdentifier: pid)
+    }
+
+    /// The first lookup that finds an app wins.
+    static func firstPid(_ lookups: [() -> pid_t?]) -> pid_t? {
+        for lookup in lookups {
+            if let pid = lookup(), pid > 0 { return pid }
+        }
+        return nil
+    }
+
+    /// The focused application, through Accessibility (nil without the permission).
+    static func accessibilityPid() -> pid_t? {
+        let system = AXUIElementCreateSystemWide()
+        AXUIElementSetMessagingTimeout(system, 0.25)
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(system, kAXFocusedApplicationAttribute as CFString, &value) == .success,
+            let value, CFGetTypeID(value) == AXUIElementGetTypeID()
+        else { return nil }
+        var pid: pid_t = 0
+        guard AXUIElementGetPid(value as! AXUIElement, &pid) == .success else { return nil }
+        return pid
+    }
+
+    /// The owner of the top normal window on screen. Reads owner ids only, no titles, so it
+    /// needs no permission.
+    static func windowOwnerPid() -> pid_t? {
+        guard
+            let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
+                as? [[String: Any]]
+        else { return nil }
+        for window in windows where (window[kCGWindowLayer as String] as? Int) == 0 {
+            if let pid = window[kCGWindowOwnerPID as String] as? Int { return pid_t(pid) }
+        }
+        return nil
     }
 }

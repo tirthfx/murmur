@@ -8,7 +8,7 @@ public struct SystemFocusContextReader: FocusContextReader {
     public init() {}
 
     public func read(maxBefore: Int, maxAfter: Int) -> FocusContext? {
-        let app = NSWorkspace.shared.frontmostApplication
+        let app = Frontmost.application()
         var context = FocusContext(appName: app?.localizedName, bundleId: app?.bundleIdentifier)
         if let pid = app?.processIdentifier {
             if ChromiumAccessibility.shared.enableIfNeeded(pid: pid, bundleURL: app?.bundleURL) {
