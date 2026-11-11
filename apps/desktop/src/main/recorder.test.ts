@@ -808,6 +808,7 @@ describe("recorder", () => {
       files?: string[] | null;
       variables?: boolean;
       cli?: boolean;
+      styleDetection?: boolean;
     }) {
       const insert = vi.fn(async (_text: string, _options: { pressEnter: boolean }) => ({
         method: "paste_cmd_v" as const,
@@ -851,6 +852,7 @@ describe("recorder", () => {
           textAfter: "",
         }),
         styles: { resolve },
+        styleDetection: () => options.styleDetection ?? false,
         developer: {
           vocabulary: () => developerVocabulary(DEFAULT_JARGON_PACKS),
           variables: () => options.variables ?? false,
@@ -899,6 +901,23 @@ describe("recorder", () => {
       await run.dictate();
       expect(run.insert).toHaveBeenLastCalledWith("call fetch user profile", { pressEnter: false });
       expect(run.events.filter((type) => type === "variables-unavailable")).toHaveLength(1);
+    });
+
+    it("uses Email for 'Hi Sam,' in an empty field only with style detection on", async () => {
+      const on = toolSetup({
+        said: "Hi Sam, the report is attached.",
+        bundleId: "com.apple.Terminal",
+        styleDetection: true,
+      });
+      await on.dictate();
+      expect(on.resolve).toHaveBeenLastCalledWith(expect.anything(), "email");
+      const off = toolSetup({
+        said: "Hi Sam, the report is attached.",
+        bundleId: "com.apple.Terminal",
+      });
+      await off.dictate();
+      expect(off.resolve).toHaveBeenCalledTimes(1);
+      expect(off.resolve).toHaveBeenCalledWith(expect.anything());
     });
 
     it("makes the terminal a Developer app when a coding CLI runs, and records nothing of it", async () => {

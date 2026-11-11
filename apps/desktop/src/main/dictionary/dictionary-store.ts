@@ -32,6 +32,13 @@ export interface DictionaryStore {
   importMany(
     rows: readonly { term: string; replacement: string | null }[],
   ): { ok: true; added: number } | { ok: false; message: string };
+  /** A learned phrase (PZ-05): added for review like other learned entries. */
+  addPhrase(phrase: string): DictionarySaveResult;
+  /** How many learned phrases there are, kept or not. */
+  phraseCount(): number;
+  /** The pronunciation clip's file, or null (PZ-06). */
+  clipPath(id: string): string | null;
+  setClip(id: string, path: string | null): void;
   /** Keeps a learned entry: it is no longer marked for review. */
   keep(id: string): void;
   rules(): DictionaryRules;
@@ -48,6 +55,8 @@ interface Row {
   source: DictionarySource;
   starred: number;
   use_count: number;
+  kind: "term" | "phrase";
+  sample_path: string | null;
   created_at: number;
   updated_at: number;
 }
@@ -60,6 +69,8 @@ const toEntry = (row: Row): DictionaryEntry => ({
   source: row.source,
   starred: row.starred === 1,
   useCount: row.use_count,
+  kind: row.kind,
+  hasClip: row.sample_path !== null,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
 });
@@ -98,6 +109,9 @@ export function createDictionaryStore(
     "UPDATE dictionary SET source = 'manual' WHERE id = ? AND source = 'auto'",
   );
   const use = db.prepare("UPDATE dictionary SET use_count = use_count + 1 WHERE id = ?");
+  const markPhrase = db.prepare("UPDATE dictionary SET kind = 'phrase' WHERE id = ?");
+  const phrases = db.prepare("SELECT count(*) AS n FROM dictionary WHERE kind = 'phrase'");
+  const setClip = db.prepare("UPDATE dictionary SET sample_path = ? WHERE id = ?");
 
   let cached: DictionaryRules | null = null;
   const handlers = new Set<() => void>();
@@ -219,6 +233,29 @@ export function createDictionaryStore(
 
     remove(id) {
       remove.run(id);
+      changed();
+    },
+
+    addPhrase(phrase) {
+      const saved = this.save(
+        { term: phrase, replacement: null, caseSensitive: false, starred: false },
+        "auto",
+      );
+      if (saved.ok) {
+        markPhrase.run(saved.entry.id);
+        return { ok: true, entry: { ...saved.entry, kind: "phrase" } };
+      }
+      return saved;
+    },
+
+    phraseCount: () => (phrases.get() as { n: number }).n,
+
+    clipPath(id) {
+      return (byId.get(id) as Row | undefined)?.sample_path ?? null;
+    },
+
+    setClip(id, path) {
+      setClip.run(path, id);
       changed();
     },
 

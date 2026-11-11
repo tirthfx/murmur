@@ -27,6 +27,10 @@ export const dictionaryEntrySchema = z.strictObject({
   source: z.enum(DICTIONARY_SOURCES),
   starred: z.boolean(),
   useCount: z.number().int().min(0),
+  /** A phrase was learned from final text (PZ-05); a term is everything else. */
+  kind: z.enum(["term", "phrase"]),
+  /** A pronunciation clip is saved for it (PZ-06). */
+  hasClip: z.boolean(),
   createdAt: z.number().int(),
   updatedAt: z.number().int(),
 });
@@ -67,3 +71,10 @@ export const dictionarySaveResultSchema = z.discriminatedUnion("ok", [
   }),
 ]);
 export type DictionarySaveResult = z.infer<typeof dictionarySaveResultSchema>;
+
+/** Pronunciation clips (PZ-06): starting, stopping or saving a clip. */
+export const dictionaryClipResultSchema = z.discriminatedUnion("ok", [
+  z.strictObject({ ok: z.literal(true), durationMs: z.number().int().min(0) }),
+  z.strictObject({ ok: z.literal(false), message: z.string() }),
+]);
+export type DictionaryClipResult = z.infer<typeof dictionaryClipResultSchema>;

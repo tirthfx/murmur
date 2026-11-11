@@ -36,6 +36,9 @@ const base: Settings = {
     headsetWear: false,
     ringMicrophone: false,
     bulkImport: false,
+    phraseLearning: false,
+    styleDetection: false,
+    pronunciationClips: false,
   },
 };
 
@@ -103,6 +106,9 @@ describe("session effects", () => {
       headsetWear: false,
       ringMicrophone: false,
       bulkImport: false,
+      phraseLearning: false,
+      styleDetection: false,
+      pronunciationClips: false,
     };
     const on = setup({
       playing: true,
@@ -201,6 +207,9 @@ describe("session effects", () => {
           headsetWear: false,
           ringMicrophone: false,
           bulkImport: false,
+          phraseLearning: false,
+          styleDetection: false,
+          pronunciationClips: false,
         },
         sounds: { start: false, lock: true, success: true, error: false, cancel: false },
       },

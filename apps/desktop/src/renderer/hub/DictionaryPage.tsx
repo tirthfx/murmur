@@ -10,6 +10,7 @@ import { TextInput } from "@astryxdesign/core/TextInput";
 import { VStack } from "@astryxdesign/core/VStack";
 import { ImportSection } from "./ImportSection";
 import { JargonPacksSection } from "./JargonPacksSection";
+import { ClipControls } from "./ClipControls";
 import { DICTIONARY_LIMITS, type DictionaryEntry } from "@murmur/shared";
 
 export type DictionarySort = "az" | "recent" | "used";
@@ -76,9 +77,13 @@ export function DictionaryPage() {
   const [confirming, setConfirming] = useState<string | null>(null);
 
   const [importing, setImporting] = useState(false);
+  const [clipsOn, setClipsOn] = useState(false);
   useEffect(() => {
     window.murmur.getSettings().then(
-      (view) => setImporting(view.settings.experimental.bulkImport),
+      (view) => {
+        setImporting(view.settings.experimental.bulkImport);
+        setClipsOn(view.settings.experimental.pronunciationClips);
+      },
       () => setImporting(false),
     );
   }, []);
@@ -276,6 +281,7 @@ export function DictionaryPage() {
                       <Text color="secondary">→ {entry.replacement}</Text>
                     ) : null}
                     {entry.starred ? <Badge variant="info" label="Starred" /> : null}
+                    {entry.kind === "phrase" ? <Badge variant="neutral" label="Phrase" /> : null}
                     {SOURCE_LABEL[entry.source] ? (
                       <Badge variant="neutral" label={SOURCE_LABEL[entry.source]!} />
                     ) : null}
@@ -285,6 +291,9 @@ export function DictionaryPage() {
                     </Text>
                   </HStack>
                   <HStack gap={1}>
+                    {clipsOn ? (
+                      <ClipControls entry={entry} onChanged={() => void reload()} />
+                    ) : null}
                     {entry.source === "auto" ? (
                       <Button
                         size="sm"

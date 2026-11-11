@@ -140,7 +140,7 @@ Sounds and output mute (the tones, mute while dictating, crash recovery): see `d
 
 Typing reminder (what is counted, snooze): see `docs/typing-reminder.md`.
 
-Experimental options (split into messages, pause media, headset, ring): see `docs/experimental.md`.
+Experimental options (split into messages, pause media, headset, ring, phrases, style detection, pronunciation clips): see `docs/experimental.md`.
 
 Tray menu (items, the status dot, when it is rebuilt, manual test): see `docs/tray.md`.
 

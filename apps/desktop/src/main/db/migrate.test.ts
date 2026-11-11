@@ -29,6 +29,7 @@ describe("migrations", () => {
       "learn_candidates",
       "memory_items",
       "pending_sessions",
+      "phrase_counts",
       "schema_migrations",
       "settings",
       "snippets",

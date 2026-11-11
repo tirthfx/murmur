@@ -13,6 +13,8 @@ const entry = (term: string, extra: Partial<DictionaryEntry> = {}): DictionaryEn
   source: "manual",
   starred: false,
   useCount: 0,
+  kind: "term",
+  hasClip: false,
   createdAt: 1,
   updatedAt: 1,
   ...extra,

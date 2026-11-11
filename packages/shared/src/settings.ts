@@ -100,6 +100,12 @@ export const settingsSchema = z.strictObject({
     ringMicrophone: z.boolean(),
     /** Import dictionary entries and snippets from a file (PZ-07, PZ-10). */
     bulkImport: z.boolean(),
+    /** Learn names of two to four words said often (PZ-05). */
+    phraseLearning: z.boolean(),
+    /** Set the category from the field's content (PZ-14). */
+    styleDetection: z.boolean(),
+    /** Record a pronunciation clip for a dictionary entry (PZ-06). */
+    pronunciationClips: z.boolean(),
   }),
   /** Whisper mode (DC-12): more gain for very quiet speech. */
   whisperMode: z.boolean(),
@@ -186,6 +192,9 @@ export const DEFAULT_EXPERIMENTAL: Settings["experimental"] = {
   headsetWear: false,
   ringMicrophone: false,
   bulkImport: false,
+  phraseLearning: false,
+  styleDetection: false,
+  pronunciationClips: false,
 };
 
 export const SOUND_NAMES = ["start", "lock", "success", "error", "cancel"] as const;

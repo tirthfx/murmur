@@ -53,6 +53,8 @@ import { createCorrectionLearner } from "./dictionary/learn";
 import { createSnippetStore } from "./snippets/snippet-store";
 import { createStyleStore } from "./styles/style-store";
 import { createMemoryStore } from "./memory/memory-store";
+import { createPhraseLearner } from "./dictionary/phrases";
+import { createClipRecorder } from "./dictionary/clips";
 import { createWritingSampleStore } from "./email/writing-samples";
 import { createTranslator } from "./email/translator";
 import { developerVocabulary, type DeveloperVocabulary } from "./developer/packs";
@@ -159,6 +161,7 @@ function openMurmurDatabase(): DatabaseSync | null {
 const database = openMurmurDatabase();
 // The personal dictionary (PZ-01). Without a database the pipeline simply has none.
 const dictionary = database ? createDictionaryStore(database) : null;
+const phraseLearner = database && dictionary ? createPhraseLearner(database, dictionary) : null;
 // Learning from corrections (PZ-02): the last inserted text, and what the helper reports.
 const learner = database && dictionary ? createCorrectionLearner(database, dictionary) : null;
 let lastInserted: string | null = null;
@@ -248,6 +251,9 @@ const settingsStore = createSettingsStore(database, {
     headsetWear: false,
     ringMicrophone: false,
     bulkImport: false,
+    phraseLearning: false,
+    styleDetection: false,
+    pronunciationClips: false,
   },
 });
 const keys = keyPlatform(process.platform);
@@ -506,9 +512,20 @@ const recorder = createRecorder({
     },
   },
   prepareCleanup: () => cleanup.prepare(),
+  styleDetection: () => settingsStore.get().experimental.styleDetection,
   record: (dictation) => {
     const id = history?.add(dictation) ?? null;
     learnVoice(dictation, id);
+    // Phrase learning (PZ-05, experimental): from text that went in only.
+    if (
+      phraseLearner &&
+      settingsStore.get().experimental.phraseLearning &&
+      dictation.insertStatus === "inserted" &&
+      dictation.finalText
+    ) {
+      const learned = phraseLearner.learn(dictation.finalText);
+      if (learned.length > 0) console.log(`[dictionary] learned ${learned.length} phrase(s)`);
+    }
     return id;
   },
   voiceSummary: () => {
@@ -566,6 +583,19 @@ const micCheck = createMicCheck({
   isDictating: () => recorder.isBusy(),
   sendLevel: (rmsDb) => hubWindow?.webContents.send(IPC_EVENTS.micCheckLevel, rmsDb),
 });
+// Pronunciation clips (PZ-06, experimental), kept next to the database.
+const clips = dictionary
+  ? createClipRecorder({
+      helper,
+      dictionary,
+      dir: path.join(profile.appData, "Murmur", "clips"),
+      isDictating: () => recorder.isBusy() || micCheck.isRunning(),
+      deviceId: () => deviceFor(settingsStore.get()),
+      newSessionId: () => `clip-${randomUUID()}`,
+      clock: systemClock,
+      logger: createConsoleLogger("[clips]"),
+    })
+  : null;
 hotkeys.onEvent((event) => recorder.handleHotkey(event));
 helper.onAudioLevel((level) => bar.level(level.rmsDb));
 helper.onEditsChanged((change) => {
@@ -954,7 +984,19 @@ function registerIpc(): void {
         reason: "not-found",
         message: "The dictionary could not be opened.",
       },
-    dictionaryDelete: (id) => dictionary?.remove(id),
+    dictionaryDelete: async (id) => {
+      // A pronunciation clip goes with its entry.
+      await clips?.remove(id);
+      dictionary?.remove(id);
+    },
+    dictionaryClipStart: (id) =>
+      settingsStore.get().experimental.pronunciationClips && clips
+        ? clips.start(id)
+        : Promise.resolve({ ok: false, message: "Pronunciation clips are off." }),
+    dictionaryClipStop: () =>
+      clips?.stop() ?? Promise.resolve({ ok: false, message: "Nothing is being recorded." }),
+    dictionaryClipPlay: (id) => clips?.play(id) ?? Promise.resolve(null),
+    dictionaryClipDelete: (id) => clips?.remove(id) ?? Promise.resolve(),
     dictionaryKeep: (id) => dictionary?.keep(id),
     snippetsList: () => snippets?.list() ?? [],
     snippetsSave: (input) =>

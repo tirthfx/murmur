@@ -10,6 +10,9 @@ const off = {
   headsetWear: false,
   ringMicrophone: false,
   bulkImport: false,
+  phraseLearning: false,
+  styleDetection: false,
+  pronunciationClips: false,
 };
 
 afterEach(() => {
@@ -43,6 +46,17 @@ describe("Experimental section", () => {
     const headset = screen.getByRole("switch", { name: /headset is put on/ });
     expect(headset.getAttribute("aria-disabled")).toBe("true");
     expect(screen.getByText(/does not support any yet/)).toBeTruthy();
+  });
+
+  it("shows the three experimental dictionary and style options, all off", () => {
+    window.murmur = createMockApi();
+    const onChange = vi.fn();
+    render(<ExperimentalSection experimental={off} onChange={onChange} />);
+    for (const name of [/Learn phrases/, /Detect the style/, /Pronunciation clips/]) {
+      expect((screen.getByRole("switch", { name }) as HTMLInputElement).checked).toBe(false);
+    }
+    act(() => screen.getByRole("switch", { name: /Pronunciation clips/ }).click());
+    expect(onChange).toHaveBeenCalledWith({ ...off, pronunciationClips: true });
   });
 
   it("keeps learning from sent mail disabled, explaining the mail connector", () => {
