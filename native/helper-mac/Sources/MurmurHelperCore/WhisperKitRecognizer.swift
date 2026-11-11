@@ -51,7 +51,15 @@ public actor WhisperKitRecognizer: SpeechRecognizer {
         decode.verbose = false
         decode.task = .transcribe
         if options.languages.count == 1, let language = options.languages.first {
-            decode.language = String(language.prefix(while: { $0 != "-" })).lowercased()
+            decode.language = LanguageChoice.base(language)
+            decode.detectLanguage = false
+        } else if options.languages.count > 1 {
+            // Detect, but only among the chosen languages: score them, then force the best.
+            var chosen = LanguageChoice.base(options.languages[0])
+            if let detected = try? await pipe.detectLangauge(audioArray: samples) {
+                chosen = LanguageChoice.pick(probabilities: detected.langProbs, allowed: options.languages) ?? chosen
+            }
+            decode.language = chosen
             decode.detectLanguage = false
         } else {
             decode.language = nil

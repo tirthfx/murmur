@@ -253,3 +253,17 @@ final class TranscriptionControllerTests: XCTestCase {
         XCTAssertEqual(PCMReader.floats(from: data), [0, 0.5, -1])
     }
 }
+
+final class LanguageChoiceTests: XCTestCase {
+    func testPicksTheMostLikelyChosenLanguage() {
+        let scores: [String: Float] = ["en": -0.4, "hi": -1.2, "fr": -0.1]
+        XCTAssertEqual(LanguageChoice.pick(probabilities: scores, allowed: ["hi", "en"]), "en")
+        XCTAssertEqual(LanguageChoice.pick(probabilities: scores, allowed: ["hi", "en-GB", "fr"]), "fr")
+    }
+
+    func testTiesAndUnscoredListsGoToTheEarlierLanguage() {
+        XCTAssertEqual(LanguageChoice.pick(probabilities: ["en": -0.5, "hi": -0.5], allowed: ["hi", "en"]), "hi")
+        XCTAssertEqual(LanguageChoice.pick(probabilities: [:], allowed: ["mr", "en"]), "mr")
+        XCTAssertNil(LanguageChoice.pick(probabilities: [:], allowed: []))
+    }
+}

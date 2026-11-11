@@ -7,10 +7,10 @@ import { VStack } from "@astryxdesign/core/VStack";
 import {
   SETTINGS_CLEANUP_LEVELS,
   SOUND_NAMES,
-  SPEECH_LANGUAGES,
   type SettingsPatch,
   type SettingsView,
 } from "@murmur/shared";
+import { LanguagesField } from "./LanguagesField";
 import { MouseButtonField } from "./MouseButtonField";
 import { ShortcutField } from "./ShortcutField";
 
@@ -114,17 +114,9 @@ export function SettingsSection() {
         value={settings.inputDevice}
         onChange={(inputDevice) => update({ inputDevice })}
       />
-      <Selector
-        label="Language"
-        description="Fixed: only this language is sent to the speech model."
-        options={SPEECH_LANGUAGES.map((language) => ({
-          value: language.code,
-          label: language.label,
-        }))}
-        value={settings.language}
-        onChange={(language) =>
-          update({ language: language as SettingsView["settings"]["language"] })
-        }
+      <LanguagesField
+        languages={settings.languages}
+        onChange={(languages) => update({ languages })}
       />
       <Selector
         label="Cleanup"

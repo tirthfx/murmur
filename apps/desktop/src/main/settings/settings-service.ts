@@ -75,8 +75,18 @@ export function deviceFor(settings: Settings): string | null {
 }
 
 /** Languages sent to the speech model: fixed mode sends exactly one. */
+/**
+ * Codes for the speech model, in order; empty means detect. The Hindi-in-Latin profile is
+ * recognised as Hindi or English and written in Latin letters afterwards.
+ */
 export function languagesFor(settings: Settings): string[] {
-  return settings.language === "auto" ? [] : [settings.language];
+  const codes = settings.languages.flatMap((code) => (code === "hi-Latn" ? ["hi", "en"] : [code]));
+  return [...new Set(codes)];
+}
+
+/** Whether Devanagari in the text should be written in Latin letters. */
+export function wantsLatinHindi(settings: Settings): boolean {
+  return settings.languages.includes("hi-Latn");
 }
 
 export function createSettingsService(deps: SettingsServiceDeps): SettingsService {

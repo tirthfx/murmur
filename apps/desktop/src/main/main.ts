@@ -51,6 +51,7 @@ import {
   createSettingsService,
   deviceFor,
   languagesFor,
+  wantsLatinHindi,
 } from "./settings/settings-service";
 import { createSettingsStore } from "./settings/settings-store";
 import { createRecorder, type RecorderEvent } from "./recorder";
@@ -63,6 +64,7 @@ import { cleanupModelRoot, speechModelRoot } from "./speech/paths";
 import { insertionRules } from "./insertion/app-rules";
 import { createTypingReminder } from "./reminder/typing-reminder";
 import { createMicCheck } from "./mic-check/mic-check";
+import { toLatinHindi } from "./speech/latin-hindi";
 import { profilePaths } from "./profile";
 import { createSmokeRun, SMOKE_PAGE, type SmokeRun } from "./smoke";
 import { permissionSettingsUrl } from "./platform/mac-settings-links";
@@ -145,7 +147,7 @@ const settingsStore = createSettingsStore(database, {
       : { type: "key", keyCode: 61, modifiers: [] },
   handsFreeShortcut: null,
   inputDevice: "auto",
-  language: "auto",
+  languages: [],
   cleanupLevel: "standard",
   sounds: DEFAULT_SOUNDS,
   muteWhileDictating: false,
@@ -334,6 +336,7 @@ const recorder = createRecorder({
   record: (dictation) => history?.add(dictation) ?? null,
   deviceId: () => deviceFor(settingsStore.get()),
   whisperMode: () => settingsStore.get().whisperMode,
+  rewriteText: (text) => (wantsLatinHindi(settingsStore.get()) ? toLatinHindi(text) : text),
 });
 const micCheck = createMicCheck({
   helper,

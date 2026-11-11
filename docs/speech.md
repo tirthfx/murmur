@@ -36,3 +36,28 @@ Downloads over HTTPS from huggingface.co only, hashes every file while writing, 
 2. Hold Right Option, say a sentence, release. The terminal shows `[speech]`-ready timings and `[audio] transcribed … words` followed by `text: …`.
 3. Turn off Wi-Fi and repeat: it still works.
 4. Change one byte of a model file (for example `model/config.json`) and restart: the log says the model failed its checksum check and it is not loaded. `npm run model:download` repairs it.
+
+## Languages
+
+Settings, **Languages** (`speech.languages`): choose up to five, in order; the first is the
+primary. A sixth is refused. With none chosen, the speech model detects the language on its
+own.
+
+- **One language:** the model is told that language.
+- **Two to five:** the helper runs the model's language detection on the first 30 seconds,
+  takes the chosen language it finds most likely (on a tie, the earlier one in the list),
+  and then transcribes in that language. A language that was not chosen is never used.
+- The tray's Languages menu makes a language the primary one, or switches to detection.
+- A single language stored by an older build (`speech.language`) is carried over once.
+
+### Hindi in Latin script
+
+The profile **Mixed: Hindi in Latin script** (`hi-Latn`) is a choice in the same list, not a
+separate model. It is recognised as Hindi or English; afterwards any Devanagari in the text
+is written in Latin letters the way people type Hinglish ("ठीक है" becomes "theek hai"),
+before cleanup. English words stay as they are. History keeps the text as heard (raw) and
+as inserted (final). Removing the profile from the list switches it off; nothing else is
+kept.
+
+When the model writes an English word in Devanagari, it comes out spelled by sound. A cleanup
+prompt for this profile can improve that later.

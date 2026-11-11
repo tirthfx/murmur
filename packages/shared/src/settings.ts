@@ -9,9 +9,11 @@ import { hotkeyTriggerSchema, mouseButtonSchema } from "./hotkeys";
 
 export const SETTINGS_CLEANUP_LEVELS = ["off", "light", "standard", "full"] as const;
 
-/** Languages offered for fixed-language mode. "auto" detects the language. */
+/**
+ * Languages the user can choose (DC-17, DC-19). No choice means the language is detected.
+ * `hi-Latn` is a profile, not a separate model: Hindi or English, written in Latin letters.
+ */
 export const SPEECH_LANGUAGES = [
-  { code: "auto", label: "Detect automatically" },
   { code: "en", label: "English" },
   { code: "hi", label: "Hindi" },
   { code: "mr", label: "Marathi" },
@@ -31,12 +33,25 @@ export const SPEECH_LANGUAGES = [
   { code: "ja", label: "Japanese" },
   { code: "ko", label: "Korean" },
   { code: "zh", label: "Chinese" },
+  { code: "hi-Latn", label: "Mixed: Hindi in Latin script" },
 ] as const;
 export type SpeechLanguage = (typeof SPEECH_LANGUAGES)[number]["code"];
 const languageCodes = SPEECH_LANGUAGES.map((language) => language.code) as [
   SpeechLanguage,
   ...SpeechLanguage[],
 ];
+
+/** At most this many languages; the first is the primary (DC-19). */
+export const MAX_LANGUAGES = 5;
+
+/** Makes `code` the primary language, keeping the others in order and at most five. */
+export function makePrimary<T extends string>(list: readonly T[], code: T): T[] {
+  return [code, ...list.filter((item) => item !== code)].slice(0, MAX_LANGUAGES);
+}
+
+export function languageLabel(code: string): string {
+  return SPEECH_LANGUAGES.find((language) => language.code === code)?.label ?? code;
+}
 
 export const settingsSchema = z.strictObject({
   /** Hold to dictate. */
@@ -57,7 +72,11 @@ export const settingsSchema = z.strictObject({
   }),
   /** "auto" or a device id from the device list. */
   inputDevice: z.string().min(1).max(512),
-  language: z.enum(languageCodes),
+  /** In order, primary first; empty means detect the language. */
+  languages: z
+    .array(z.enum(languageCodes))
+    .max(MAX_LANGUAGES)
+    .refine((list) => new Set(list).size === list.length, "Each language only once"),
   cleanupLevel: z.enum(SETTINGS_CLEANUP_LEVELS),
   /** Which feedback sounds play (DC-40). */
   sounds: z.strictObject({
@@ -84,7 +103,7 @@ export type Settings = z.infer<typeof settingsSchema>;
 export const settingsPatchSchema = settingsSchema
   .pick({
     inputDevice: true,
-    language: true,
+    languages: true,
     cleanupLevel: true,
     sounds: true,
     muteWhileDictating: true,
@@ -104,7 +123,7 @@ export const SETTING_KEYS: Record<keyof Settings, string> = {
   holdShortcut: "hotkey.dictate_hold",
   handsFreeShortcut: "hotkey.hands_free",
   inputDevice: "audio.input_device",
-  language: "speech.language",
+  languages: "speech.languages",
   cleanupLevel: "cleanup.level",
   sounds: "sounds.events",
   muteWhileDictating: "media.mute_while_dictating",

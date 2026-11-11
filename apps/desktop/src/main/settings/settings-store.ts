@@ -52,6 +52,17 @@ export function createSettingsStore(
           // Unreadable value: keep the default.
         }
       }
+      // Before #55 a single language was stored; carry it over once.
+      const legacy = byKey.get("speech.language");
+      if (!byKey.has(SETTING_KEYS.languages) && legacy !== undefined) {
+        try {
+          const code = JSON.parse(legacy) as unknown;
+          const list = code === "auto" ? [] : [code];
+          if (settingsSchema.shape.languages.safeParse(list).success) current.languages = list;
+        } catch {
+          // Unreadable: keep the default.
+        }
+      }
     }
     return settingsSchema.parse(current);
   }

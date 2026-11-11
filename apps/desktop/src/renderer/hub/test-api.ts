@@ -6,7 +6,7 @@ export const SAMPLE_SETTINGS: SettingsView = {
     holdShortcut: { type: "key", keyCode: 61, modifiers: [] },
     handsFreeShortcut: null,
     inputDevice: "auto",
-    language: "auto",
+    languages: [],
     cleanupLevel: "standard",
     sounds: { start: true, lock: true, success: true, error: true, cancel: false },
     muteWhileDictating: false,
