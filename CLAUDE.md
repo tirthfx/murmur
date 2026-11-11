@@ -126,6 +126,8 @@ Memory (facts, keywords, "remember that" on the Bar): see `docs/memory.md`.
 
 Email (signature, email language and translation, writing samples): see `docs/email.md`.
 
+Developer apps (spoken syntax, jargon packs): see `docs/developer.md`.
+
 Voice Profile (what is learned and kept, summary, milestones, My Voice): see `docs/voice-profile.md`.
 
 Transcript cleanup (rules, the local model and its guard, the 1.5 s budget, benchmark): see `docs/cleanup.md`.
