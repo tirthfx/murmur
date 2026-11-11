@@ -63,6 +63,7 @@ each (`ok`, `FAIL`, or `SKIP` when the Mac cannot run it):
 | Snippets                                        | Makes the clip's sentence a trigger for a two-line rich body, dictates it, removes it                         |
 | Styles                                          | Puts the test window's app in Personal, dictates, expects no capital and no final full stop                   |
 | Memory                                          | Dictates "Remember that I prefer metric units": the Bar asks, nothing is typed, Save stores it (then removed) |
+| Learning                                        | Dictates twice, changes "dog" to "cat" in the box each time; the dictionary learns it (then removed)          |
 | Quit                                            | The app exits by itself and the helper process is gone                                                        |
 
 The typing reminder is handed word counts instead of real key presses, which would type on the

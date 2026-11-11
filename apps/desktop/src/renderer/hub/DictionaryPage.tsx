@@ -29,11 +29,13 @@ export function filterEntries(
   entries: readonly DictionaryEntry[],
   query: string,
   starredOnly: boolean,
+  learnedOnly = false,
 ) {
   const needle = query.trim().toLowerCase();
   return entries.filter(
     (entry) =>
       (!starredOnly || entry.starred) &&
+      (!learnedOnly || entry.source === "auto") &&
       (needle === "" ||
         entry.term.toLowerCase().includes(needle) ||
         (entry.replacement ?? "").toLowerCase().includes(needle)),
@@ -67,6 +69,8 @@ export function DictionaryPage() {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<DictionarySort>("az");
   const [starredOnly, setStarredOnly] = useState(false);
+  const [learnedOnly, setLearnedOnly] = useState(false);
+  const [learning, setLearning] = useState<boolean | null>(null);
   const [confirming, setConfirming] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
@@ -80,11 +84,15 @@ export function DictionaryPage() {
 
   useEffect(() => {
     void reload();
+    window.murmur.getSettings().then(
+      (view) => setLearning(view.settings.learnCorrections),
+      () => setLearning(null),
+    );
   }, [reload]);
 
   const shown = useMemo(
-    () => sortEntries(filterEntries(entries ?? [], query, starredOnly), sort),
-    [entries, query, starredOnly, sort],
+    () => sortEntries(filterEntries(entries ?? [], query, starredOnly, learnedOnly), sort),
+    [entries, query, starredOnly, learnedOnly, sort],
   );
 
   async function save(next: Draft) {
@@ -138,6 +146,18 @@ export function DictionaryPage() {
         Names and terms here are passed to the speech model and kept exactly as written. Add a
         replacement to turn what you say into something else, for example “k8s” into “Kubernetes”.
       </Text>
+
+      {learning !== null ? (
+        <Switch
+          label="Learn from my corrections"
+          description="When you fix a word or two of a dictation within a minute, Murmur notices. A change of capitals is learned at once, any other change after the second time. Learned entries are marked so you can keep or delete them. Only the changed words are kept."
+          value={learning}
+          onChange={async (learnCorrections) => {
+            const view = await window.murmur.updateSettings({ learnCorrections });
+            setLearning(view.settings.learnCorrections);
+          }}
+        />
+      ) : null}
 
       <section aria-labelledby="dictionary-form-heading">
         <VStack gap={2}>
@@ -221,6 +241,7 @@ export function DictionaryPage() {
               onChange={(value) => setSort(value as DictionarySort)}
             />
             <Switch label="Starred only" value={starredOnly} onChange={setStarredOnly} />
+            <Switch label="Learned only" value={learnedOnly} onChange={setLearnedOnly} />
           </HStack>
           <Text weight="semibold" id="dictionary-list-heading">
             {entries === null
@@ -251,6 +272,19 @@ export function DictionaryPage() {
                     </Text>
                   </HStack>
                   <HStack gap={1}>
+                    {entry.source === "auto" ? (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        label={`Keep ${entry.term}`}
+                        onClick={async () => {
+                          await window.murmur.dictionaryKeep(entry.id);
+                          await reload();
+                        }}
+                      >
+                        Keep
+                      </Button>
+                    ) : null}
                     <Button
                       size="sm"
                       variant="ghost"

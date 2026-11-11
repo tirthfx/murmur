@@ -23,6 +23,7 @@ export const SAMPLE_SETTINGS: SettingsView = {
     typingReminder: { enabled: true, snoozedUntil: null },
     whisperMode: false,
     memory: { enabled: true, fromDictation: true },
+    learnCorrections: true,
     experimental: {
       splitMessages: false,
       pauseMedia: false,
@@ -104,6 +105,7 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
     dictionaryList: vi.fn().mockResolvedValue([]),
     dictionarySave: vi.fn(),
     dictionaryDelete: vi.fn().mockResolvedValue(undefined),
+    dictionaryKeep: vi.fn().mockResolvedValue(undefined),
     snippetsList: vi.fn().mockResolvedValue([]),
     snippetsSave: vi.fn(),
     snippetsDelete: vi.fn().mockResolvedValue(undefined),

@@ -26,6 +26,7 @@ describe("migrations", () => {
       "audio_chunks",
       "dictionary",
       "history",
+      "learn_candidates",
       "memory_items",
       "pending_sessions",
       "schema_migrations",

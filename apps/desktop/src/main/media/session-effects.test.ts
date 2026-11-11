@@ -19,6 +19,7 @@ const base: Settings = {
   typingReminder: { enabled: true, snoozedUntil: null },
   whisperMode: false,
   memory: { enabled: true, fromDictation: true },
+  learnCorrections: true,
   experimental: {
     splitMessages: false,
     pauseMedia: false,
@@ -171,6 +172,7 @@ describe("session effects", () => {
         typingReminder: { enabled: true, snoozedUntil: null },
         whisperMode: false,
         memory: { enabled: true, fromDictation: true },
+        learnCorrections: true,
         experimental: {
           splitMessages: false,
           pauseMedia: false,

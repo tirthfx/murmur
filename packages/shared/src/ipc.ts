@@ -83,6 +83,7 @@ export const IPC_CHANNELS = {
   dictionaryList: "dictionary:list",
   dictionarySave: "dictionary:save",
   dictionaryDelete: "dictionary:delete",
+  dictionaryKeep: "dictionary:keep",
   snippetsList: "snippets:list",
   snippetsSave: "snippets:save",
   snippetsDelete: "snippets:delete",
@@ -183,6 +184,11 @@ export const IPC_CONTRACT = {
     args: z.tuple([z.string().min(1)]),
     result: z.void(),
   },
+  // Keeps a learned entry: it is no longer marked for review.
+  [IPC_CHANNELS.dictionaryKeep]: {
+    args: z.tuple([z.string().min(1)]),
+    result: z.void(),
+  },
   [IPC_CHANNELS.snippetsList]: {
     args: z.tuple([]),
     result: z.array(snippetSchema),
@@ -276,6 +282,7 @@ export interface MurmurApi {
   dictionaryList(): Promise<DictionaryEntry[]>;
   dictionarySave(input: DictionaryInput): Promise<DictionarySaveResult>;
   dictionaryDelete(id: string): Promise<void>;
+  dictionaryKeep(id: string): Promise<void>;
   /** Every snippet, by trigger. */
   snippetsList(): Promise<Snippet[]>;
   snippetsSave(input: SnippetInput): Promise<SnippetSaveResult>;

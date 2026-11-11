@@ -23,6 +23,8 @@ export interface DictionaryStore {
   list(): DictionaryEntry[];
   save(input: DictionaryInput, source?: DictionarySource): DictionarySaveResult;
   remove(id: string): void;
+  /** Keeps a learned entry: it is no longer marked for review. */
+  keep(id: string): void;
   rules(): DictionaryRules;
   /** Adds one use to each entry. */
   recordUses(ids: readonly string[]): void;
@@ -83,6 +85,9 @@ export function createDictionaryStore(
        updated_at = ? WHERE id = ?`,
   );
   const remove = db.prepare("DELETE FROM dictionary WHERE id = ?");
+  const keep = db.prepare(
+    "UPDATE dictionary SET source = 'manual' WHERE id = ? AND source = 'auto'",
+  );
   const use = db.prepare("UPDATE dictionary SET use_count = use_count + 1 WHERE id = ?");
 
   let cached: DictionaryRules | null = null;
@@ -204,6 +209,11 @@ export function createDictionaryStore(
 
     remove(id) {
       remove.run(id);
+      changed();
+    },
+
+    keep(id) {
+      keep.run(id);
       changed();
     },
 

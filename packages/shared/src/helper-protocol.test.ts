@@ -21,6 +21,9 @@ import {
   insertCopyRequestSchema,
   mediaMuteRequestSchema,
   contextSnapshotRequestSchema,
+  editsCancelRequestSchema,
+  editsChangedEventSchema,
+  editsWatchRequestSchema,
   typingWatchRequestSchema,
   mediaPlaybackRequestSchema,
   mediaPauseRequestSchema,
@@ -131,6 +134,12 @@ function validateMessage(message: unknown): boolean {
       return typingActivityEventSchema.safeParse(message).success;
     case "context.snapshot":
       return contextSnapshotRequestSchema.safeParse(message).success;
+    case "edits.watch":
+      return editsWatchRequestSchema.safeParse(message).success;
+    case "edits.cancel":
+      return editsCancelRequestSchema.safeParse(message).success;
+    case "edits.changed":
+      return editsChangedEventSchema.safeParse(message).success;
     case "response": {
       const response = responseSchema.safeParse(message);
       if (!response.success) return false;

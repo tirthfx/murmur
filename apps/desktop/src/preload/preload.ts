@@ -20,6 +20,7 @@ const api: MurmurApi = {
   dictionaryList: () => ipcRenderer.invoke(IPC_CHANNELS.dictionaryList),
   dictionarySave: (input) => ipcRenderer.invoke(IPC_CHANNELS.dictionarySave, input),
   dictionaryDelete: (id) => ipcRenderer.invoke(IPC_CHANNELS.dictionaryDelete, id),
+  dictionaryKeep: (id) => ipcRenderer.invoke(IPC_CHANNELS.dictionaryKeep, id),
   snippetsList: () => ipcRenderer.invoke(IPC_CHANNELS.snippetsList),
   snippetsSave: (input) => ipcRenderer.invoke(IPC_CHANNELS.snippetsSave, input),
   snippetsDelete: (id) => ipcRenderer.invoke(IPC_CHANNELS.snippetsDelete, id),
