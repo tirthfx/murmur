@@ -26,6 +26,8 @@ export function barEventFor(event: RecorderEvent): BarEvent {
       return { type: "failed" };
     case "copied-instead":
       return { type: "warn", message: "Copied. Grant Accessibility to paste." };
+    case "enter-skipped":
+      return { type: "warn", message: "Return was not pressed: another app is in front" };
     case "insert-failed":
       return { type: "warn", message: "The text could not be pasted" };
   }

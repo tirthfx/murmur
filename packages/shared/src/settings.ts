@@ -57,6 +57,8 @@ export const settingsSchema = z.strictObject({
   }),
   /** Mute the system output while recording (DC-41). */
   muteWhileDictating: z.boolean(),
+  /** Saying "press enter" at the end of a dictation presses Return (DC-36). */
+  pressEnterCommand: z.boolean(),
   /** True once first-run setup was finished (DC-44). */
   setupComplete: z.boolean(),
 });
@@ -71,6 +73,7 @@ export const settingsPatchSchema = settingsSchema
     sounds: true,
     muteWhileDictating: true,
     setupComplete: true,
+    pressEnterCommand: true,
   })
   .partial()
   .strict();
@@ -86,6 +89,7 @@ export const SETTING_KEYS: Record<keyof Settings, string> = {
   sounds: "sounds.events",
   muteWhileDictating: "media.mute_while_dictating",
   setupComplete: "onboarding.complete",
+  pressEnterCommand: "press_enter.enabled",
 };
 
 export const SOUND_NAMES = ["start", "lock", "success", "error", "cancel"] as const;

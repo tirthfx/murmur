@@ -92,6 +92,8 @@ function setup(options: Partial<Parameters<typeof createRecorder>[0]> = {}) {
   };
 }
 
+const transcript = { text: "", language: "en", segments: [], decodeMs: 1, audioMs: 1000 };
+
 describe("recorder", () => {
   it("starts on key down and stops on key up, then logs a summary", async () => {
     const { recorder, helper, logger, level } = setup();
@@ -237,7 +239,7 @@ describe("recorder", () => {
     recorder.handleHotkey(key("down"));
     recorder.handleHotkey(key("up"));
     await recorder.idle();
-    expect(insert).toHaveBeenCalledWith("Hello there.");
+    expect(insert).toHaveBeenCalledWith("Hello there.", { pressEnter: false });
     expect(
       logger.lines.some((line) =>
         /inserted by paste_cmd_v in \d+ ms, clipboard restored/.test(line),
@@ -353,7 +355,7 @@ describe("recorder", () => {
     recorder.handleHotkey(key("up"));
     await recorder.idle();
     expect(clean).toHaveBeenCalledWith("Um, so we go.");
-    expect(insert).toHaveBeenCalledWith("So we go.");
+    expect(insert).toHaveBeenCalledWith("So we go.", { pressEnter: false });
     expect(events.at(-1)).toEqual({ type: "transcribed", words: 3 });
     expect(logger.lines).toContain("info: cleanup: model in 420 ms");
   });
@@ -525,6 +527,69 @@ describe("recorder", () => {
     recorder.toggle();
     await recorder.idle();
     expect(calls).toEqual(["start s1"]);
+  });
+
+  it("takes press enter off the end, before cleanup, and asks for Return", async () => {
+    const insert = vi.fn(async () => ({
+      method: "paste_cmd_v" as const,
+      delivered: true,
+      clipboardRestored: true,
+      appBundleId: "com.tinyspeck.slackmacgap",
+      enterPressed: true,
+    }));
+    const clean = vi.fn(async (text: string) => ({ text, source: "rules" as const }));
+    const records: DictationRecord[] = [];
+    const { recorder } = setup({
+      clock: new FakeClock(),
+      transcribe: async () => ({ ...transcript, text: "Send the file, press enter." }),
+      insert,
+      clean: clean as never,
+      pressEnterCommand: () => true,
+      record: (record) => {
+        records.push(record);
+        return "h1";
+      },
+    });
+    recorder.toggle();
+    await recorder.idle();
+    recorder.toggle();
+    await recorder.idle();
+    expect(clean).toHaveBeenCalledWith("Send the file.");
+    expect(insert).toHaveBeenCalledWith("Send the file.", { pressEnter: true });
+    expect(records[0]).toMatchObject({
+      finalText: "Send the file.",
+      pressEnter: true,
+      appBundleId: "com.tinyspeck.slackmacgap",
+    });
+  });
+
+  it("warns when Return was skipped, and leaves the phrase alone when the command is off", async () => {
+    const events: string[] = [];
+    const insert = vi.fn(async () => ({
+      method: "paste_cmd_v" as const,
+      delivered: true,
+      clipboardRestored: true,
+      enterPressed: false,
+    }));
+    let enabled = true;
+    const { recorder } = setup({
+      clock: new FakeClock(),
+      transcribe: async () => ({ ...transcript, text: "Done. Press enter." }),
+      insert,
+      pressEnterCommand: () => enabled,
+      onEvent: (event) => events.push(event.type),
+    });
+    recorder.toggle();
+    await recorder.idle();
+    recorder.toggle();
+    await recorder.idle();
+    expect(events).toContain("enter-skipped");
+    enabled = false;
+    recorder.toggle();
+    await recorder.idle();
+    recorder.toggle();
+    await recorder.idle();
+    expect(insert).toHaveBeenLastCalledWith("Done. Press enter.", { pressEnter: false });
   });
 
   it("Escape discards the recording and inserts nothing", async () => {

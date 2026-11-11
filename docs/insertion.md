@@ -15,6 +15,32 @@ If Command+V cannot be posted, the clipboard is put back at once and the text is
 
 Empty text does nothing. One insertion runs at a time.
 
+## Press enter
+
+When a dictation ends with the words "press enter", they are left out of the text and Return
+is pressed after it: "Send the file, press enter." inserts "Send the file." and presses
+Return. The phrase anywhere else in the sentence is ordinary text. The command is removed
+before cleanup, so the cleanup model never sees it. Said on its own, it only presses Return.
+
+Return is pressed 150 ms after the text, and only if the same app is still in front.
+Otherwise it is skipped and the Bar says so. The setting "Say press enter to press Return"
+turns the command off. History records whether Return was pressed.
+
+## Rules per app
+
+Main sends two lists with every insertion (`apps/desktop/src/main/insertion/app-rules.ts`),
+and the helper applies them to the app in front:
+
+- **Terminals** (Terminal, iTerm2, Ghostty, Warp, Alacritty, kitty, WezTerm): newlines at
+  the end of the text are dropped, so nothing runs by itself. Return is sent only by the
+  "press enter" command. Multi-line text is pasted in one piece; the terminal's own
+  bracketed paste keeps the shell from running it line by line.
+- **Remote desktop clients** (Microsoft Remote Desktop, Horizon, Citrix, Parallels and
+  others): the text is typed and the clipboard is not touched.
+
+Browser address bars and notification reply fields use the normal paste; Return is never
+sent there unless asked for by voice.
+
 ## Permission
 
 Posting key events needs Accessibility. The helper only reads the status; without it `insert.text` fails with `PERMISSION_DENIED` before touching the clipboard. Main then puts the text on the clipboard with `insert.copy` (no permission needed) and logs that you can paste it yourself. Grant Accessibility from the Hub's Settings (see [permissions.md](permissions.md)).

@@ -59,6 +59,17 @@ final class FakeKeys: KeyPoster, @unchecked Sendable {
         }
     }
 
+    private(set) var returns = 0
+    /// Runs just before a paste or a Return is posted (for example, to move the focus).
+    var beforePost: (@Sendable () -> Void)?
+
+    func postReturn() -> Bool {
+        lock.withLock {
+            returns += 1
+            return true
+        }
+    }
+
     func postText(_ chunk: String) -> Bool {
         lock.withLock {
             let fail = failures.isEmpty ? false : failures.removeFirst()
@@ -180,7 +191,12 @@ final class InsertionControllerTests: XCTestCase {
         XCTAssertNil(controller.handle(id: "m-1", type: "insert.text", payload: insert("Hello there.")))
         waitForReplies(events, count: 1)
         let result = try XCTUnwrap(events.all.first?.payload["result"]?.objectValue)
-        XCTAssertEqual(result, ["method": .string("paste_cmd_v"), "delivered": .bool(true), "clipboardRestored": .bool(true)])
+        XCTAssertEqual(
+            result,
+            [
+                "method": .string("paste_cmd_v"), "delivered": .bool(true), "clipboardRestored": .bool(true),
+                "appBundleId": .string("com.apple.TextEdit"), "enterPressed": .null,
+            ])
         XCTAssertEqual(board.items, [note])
     }
 
@@ -201,6 +217,71 @@ final class InsertionControllerTests: XCTestCase {
         XCTAssertEqual(keys.pastes, 0)
         XCTAssertEqual(keys.typed, ["hi"])
         XCTAssertEqual(board.transientWrites, [])
+    }
+
+    func testAppsNamedByMainAreTyped() {
+        let (controller, _, keys, events) = make(frontmost: "com.example.remote")
+        var payload = insert("hi")
+        payload["typeInApps"] = .array([.string("com.example.remote")])
+        XCTAssertNil(controller.handle(id: "m-1", type: "insert.text", payload: payload))
+        waitForReplies(events, count: 1)
+        XCTAssertEqual(keys.pastes, 0)
+        XCTAssertEqual(keys.typed, ["hi"])
+    }
+
+    func testTrailingNewlinesAreRemovedOnlyInTheNamedApps() {
+        var payload = insert("ls -la\n\n", method: "keystrokes")
+        payload["trimTrailingNewlinesInApps"] = .array([.string("com.apple.Terminal")])
+        let (terminal, _, terminalKeys, terminalEvents) = make(frontmost: "com.apple.Terminal")
+        XCTAssertNil(terminal.handle(id: "m-1", type: "insert.text", payload: payload))
+        waitForReplies(terminalEvents, count: 1)
+        XCTAssertEqual(terminalKeys.typed.joined(), "ls -la")
+        let (other, _, otherKeys, otherEvents) = make()
+        XCTAssertNil(other.handle(id: "m-2", type: "insert.text", payload: payload))
+        waitForReplies(otherEvents, count: 1)
+        XCTAssertEqual(otherKeys.typed.joined(), "ls -la\n\n")
+    }
+
+    func testPressEnterSendsReturnAfterTheText() throws {
+        let (controller, _, keys, events) = make()
+        var payload = insert("Send the file.")
+        payload["pressEnter"] = .bool(true)
+        XCTAssertNil(controller.handle(id: "m-1", type: "insert.text", payload: payload))
+        waitForReplies(events, count: 1)
+        XCTAssertEqual(keys.pastes, 1)
+        XCTAssertEqual(keys.returns, 1)
+        XCTAssertEqual(events.all.first?.payload["result"]?.objectValue?["enterPressed"], .bool(true))
+    }
+
+    func testReturnIsNotSentWhenAnotherAppCameToTheFront() throws {
+        let front = FrontApp("com.apple.TextEdit")
+        let keys = FakeKeys()
+        let board = FakePasteboard([note])
+        let events = EmittedEvents()
+        let controller = InsertionController(
+            inserter: Inserter(pasteboard: board, keys: keys, sleep: { _ in front.set("com.apple.Safari") }),
+            pasteboard: board, permissions: FakePermissionProvider([.accessibility: .granted]),
+            frontmostBundleId: { front.value }, reply: { events.append($0) })
+        var payload = insert("Send the file.")
+        payload["pressEnter"] = .bool(true)
+        XCTAssertNil(controller.handle(id: "m-1", type: "insert.text", payload: payload))
+        waitForReplies(events, count: 1)
+        XCTAssertEqual(keys.returns, 0)
+        let result = try XCTUnwrap(events.all.first?.payload["result"]?.objectValue)
+        XCTAssertEqual(result["enterPressed"], .bool(false))
+        XCTAssertEqual(result["appBundleId"], .string("com.apple.TextEdit"))
+    }
+
+    func testPressEnterAloneSendsOnlyReturn() throws {
+        let (controller, board, keys, events) = make()
+        var payload = insert("")
+        payload["pressEnter"] = .bool(true)
+        XCTAssertNil(controller.handle(id: "m-1", type: "insert.text", payload: payload))
+        waitForReplies(events, count: 1)
+        XCTAssertEqual(keys.pastes, 0)
+        XCTAssertEqual(keys.typed, [])
+        XCTAssertEqual(keys.returns, 1)
+        XCTAssertEqual(board.changeCount, 0)
     }
 
     func testMissingAccessibilityTouchesNothing() {
@@ -290,4 +371,13 @@ final class SystemPasteboardTests: XCTestCase {
         access.restore(saved)
         XCTAssertEqual(board.pasteboardItems?.count ?? 0, 0)
     }
+}
+
+/// The app in front, changeable from another thread.
+final class FrontApp: @unchecked Sendable {
+    private let lock = NSLock()
+    private var bundle: String?
+    init(_ bundle: String?) { self.bundle = bundle }
+    var value: String? { lock.withLock { bundle } }
+    func set(_ next: String?) { lock.withLock { bundle = next } }
 }

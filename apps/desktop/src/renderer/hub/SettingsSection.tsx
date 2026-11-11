@@ -117,6 +117,12 @@ export function SettingsSection() {
           update({ cleanupLevel: cleanupLevel as SettingsView["settings"]["cleanupLevel"] })
         }
       />
+      <Switch
+        label="Say “press enter” to press Return"
+        description="Only at the end of a dictation. The words are left out of the text."
+        value={settings.pressEnterCommand}
+        onChange={(pressEnterCommand) => update({ pressEnterCommand })}
+      />
       <Heading level={2}>Sounds and audio</Heading>
       {SOUND_NAMES.map((name) => (
         <Switch

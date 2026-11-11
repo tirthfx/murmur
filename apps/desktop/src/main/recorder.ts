@@ -9,6 +9,7 @@ import type {
 } from "@murmur/shared";
 import type { CleanupResult } from "./cleanup/cleanup-service";
 import { DictationGesture, type GestureCommand } from "./gesture";
+import { splitPressEnter } from "./insertion/press-enter";
 import { systemClock } from "./helper/node-runtime";
 import type { Clock, Logger } from "./helper/types";
 
@@ -25,7 +26,9 @@ export interface RecorderDeps {
   /** Also log the recognised text. Off by default: logs never hold what was said. */
   logTranscripts?: boolean;
   /** Puts the text into the focused field. Without it, text is only logged. */
-  insert?: (text: string) => Promise<InsertTextResult>;
+  insert?: (text: string, options: { pressEnter: boolean }) => Promise<InsertTextResult>;
+  /** Whether "press enter" at the end of a dictation presses Return. Off when missing. */
+  pressEnterCommand?: () => boolean;
   /** Clipboard fallback when inserting is not allowed. */
   copy?: (text: string) => Promise<void>;
   /** What happened, for the Bar. */
@@ -69,6 +72,10 @@ export interface DictationRecord {
   audio: { path: string; codec: "pcm_s16le" | "opus"; durationMs: number } | null;
   /** History id of the failed dictation this one retries. */
   retryOf: string | null;
+  /** Return was pressed after the text. */
+  pressEnter?: boolean;
+  /** The app the text went into. */
+  appBundleId?: string | null;
 }
 
 /** A recording on its way through transcription, cleanup and insertion. */
@@ -82,7 +89,7 @@ interface Take {
 }
 
 type InsertOutcome = Pick<DictationRecord, "insertStatus"> &
-  Partial<Pick<DictationRecord, "insertMethod" | "errorCode">>;
+  Partial<Pick<DictationRecord, "insertMethod" | "errorCode" | "pressEnter" | "appBundleId">>;
 
 /** A dictation's steps, as the Bar needs them. Never carries what was said. */
 export type RecorderEvent =
@@ -97,7 +104,9 @@ export type RecorderEvent =
   | { type: "transcribed"; words: number }
   | { type: "transcription-failed" }
   | { type: "copied-instead" }
-  | { type: "insert-failed" };
+  | { type: "insert-failed" }
+  /** Return was asked for but another app had come to the front. */
+  | { type: "enter-skipped" };
 
 export interface Recorder {
   start(): void;
@@ -301,11 +310,22 @@ export function createRecorder(deps: RecorderDeps): Recorder {
     );
     if (deps.logTranscripts) logger.info(`text: ${transcript.text}`);
     lastFailed = null;
-    const cleanup = await cleanUp(transcript.text);
-    const final = cleanup?.text ?? transcript.text.trim();
+    // The command is taken off before cleanup, so the model never sees it.
+    const spoken = deps.pressEnterCommand?.()
+      ? splitPressEnter(transcript.text.trim())
+      : { text: transcript.text, pressEnter: false };
+    const cleanup = spoken.text.trim() === "" ? null : await cleanUp(spoken.text);
+    const final = cleanup?.text ?? spoken.text.trim();
     const finalWords = final.split(/\s+/).filter(Boolean).length;
-    emit(finalWords === 0 ? { type: "no-speech" } : { type: "transcribed", words: finalWords });
-    const outcome = final === "" ? { insertStatus: "empty" as const } : await insert(final);
+    emit(
+      finalWords === 0 && !spoken.pressEnter
+        ? { type: "no-speech" }
+        : { type: "transcribed", words: finalWords },
+    );
+    const outcome =
+      final === "" && !spoken.pressEnter
+        ? { insertStatus: "empty" as const }
+        : await insert(final, spoken.pressEnter);
     record(take, {
       ...outcome,
       language: transcript.language || null,
@@ -328,11 +348,11 @@ export function createRecorder(deps: RecorderDeps): Recorder {
     return result;
   }
 
-  async function insert(text: string): Promise<InsertOutcome> {
+  async function insert(text: string, pressEnter: boolean): Promise<InsertOutcome> {
     if (!deps.insert) return { insertStatus: "failed", errorCode: "NO_INSERTER" };
     const started = Date.now();
     try {
-      const result = await deps.insert(text);
+      const result = await deps.insert(text, { pressEnter });
       const restored =
         result.clipboardRestored === null
           ? ""
@@ -340,9 +360,15 @@ export function createRecorder(deps: RecorderDeps): Recorder {
             ? ", clipboard restored"
             : ", clipboard kept (it changed meanwhile)";
       logger.info(`inserted by ${result.method} in ${Date.now() - started} ms${restored}`);
+      if (pressEnter && result.enterPressed !== true) {
+        logger.warn("Return was not pressed: another app had come to the front");
+        emit({ type: "enter-skipped" });
+      }
       return {
         insertStatus: "inserted",
         insertMethod: result.method === "auto" ? null : result.method,
+        pressEnter: result.enterPressed === true,
+        appBundleId: result.appBundleId ?? null,
       };
     } catch (error) {
       if (errorCode(error) === "PERMISSION_DENIED" && deps.copy) {

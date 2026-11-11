@@ -12,6 +12,12 @@ export const insertTextPayloadSchema = z.object({
   method: z.enum(INSERT_METHODS),
   restoreClipboard: z.boolean(),
   restoreDelayMs: z.number().int().min(0).max(2000),
+  /** Press Return after the text, if the same app is still in front (DC-36). */
+  pressEnter: z.boolean().optional(),
+  /** Bundle ids where `auto` types and leaves the clipboard alone (remote desktops). */
+  typeInApps: z.array(z.string()).max(200).optional(),
+  /** Bundle ids where newlines at the end of the text are dropped (terminals). */
+  trimTrailingNewlinesInApps: z.array(z.string()).max(200).optional(),
 });
 export type InsertTextInput = z.infer<typeof insertTextPayloadSchema>;
 
@@ -21,6 +27,10 @@ export const insertTextResultSchema = z.object({
   delivered: z.boolean(),
   /** Null when restoring was not asked for or the text was typed. */
   clipboardRestored: z.boolean().nullable(),
+  /** The app that was in front when the text went in. */
+  appBundleId: z.string().nullable().optional(),
+  /** Null when Return was not asked for; false when another app had come to the front. */
+  enterPressed: z.boolean().nullable().optional(),
 });
 export type InsertTextResult = z.infer<typeof insertTextResultSchema>;
 
