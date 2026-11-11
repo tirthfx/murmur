@@ -154,6 +154,12 @@ export class BarWindow implements BarPort {
     }
   }
 
+  /** Where the Bar is, or null when it is not open. */
+  position(): [number, number] | null {
+    const position = this.window?.getPosition();
+    return position ? [position[0]!, position[1]!] : null;
+  }
+
   close(): void {
     if (this.window && !this.window.isDestroyed()) this.window.destroy();
     this.window = null;

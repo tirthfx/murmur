@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { pathToFileURL } from "node:url";
@@ -7,6 +7,7 @@ import {
   app,
   BrowserWindow,
   clipboard,
+  ClipboardItem,
   ipcMain,
   screen,
   session,
@@ -67,6 +68,7 @@ import { createMicCheck } from "./mic-check/mic-check";
 import { toLatinHindi } from "./speech/latin-hindi";
 import { profilePaths } from "./profile";
 import { createSmokeRun, SMOKE_PAGE, type SmokeRun } from "./smoke";
+import { createSmokeChecks, type SmokeChecks } from "./smoke-checks";
 import { permissionSettingsUrl } from "./platform/mac-settings-links";
 import { createTrayController, type TrayController } from "./tray/tray-controller";
 import { createElectronTray } from "./tray/tray-electron";
@@ -259,7 +261,10 @@ const bar = createBarController(barWindow, systemClock);
 const muteMarker = path.join(profile.userData, "output-muted-by-murmur.json");
 const effects = createSessionEffects({
   settings: () => settingsStore.get(),
-  playSound: (name) => barWindow.sound(name),
+  playSound: (name) => {
+    smokeChecks?.handleSound(name);
+    barWindow.sound(name);
+  },
   helper,
   marker: {
     exists: () => existsSync(muteMarker),
@@ -351,6 +356,8 @@ const recorder = createRecorder({
   copy: (text) => helper.copyText(text),
   onEvent: (event) => {
     bar.dispatch(barEventFor(event));
+    smokeChecks?.handleBarView(bar.getView());
+    smokeChecks?.handleRecorderEvent(event);
     tray?.handleRecorderEvent(event);
     smoke?.handleRecorderEvent(event);
     const sound = SOUND_FOR[event.type];
@@ -429,6 +436,8 @@ function createTray(): void {
 // the place of the Hub, the app presses its own dictation key, and the result is printed.
 const isSmokeRun = process.env.MURMUR_SMOKE === "1";
 let smoke: SmokeRun | null = null;
+// `npm run smoke -- --full` (MURMUR_SMOKE_FULL=1): more checks after the main dictation.
+let smokeChecks: SmokeChecks | null = null;
 function startSmokeRun(): void {
   const window = new BrowserWindow({
     width: 520,
@@ -467,11 +476,97 @@ function startSmokeRun(): void {
   void window
     .loadURL(SMOKE_PAGE)
     .then(() => run.run())
-    .then((result) => {
-      console.log(`[smoke] result ${JSON.stringify(result)}`);
-      process.exitCode = result.ok ? 0 : 1;
+    .then(async (result) => {
+      const checks =
+        result.ok && process.env.MURMUR_SMOKE_FULL === "1"
+          ? await fullSmokeChecks(window, field, key).run()
+          : [];
+      console.log(`[smoke] result ${JSON.stringify({ ...result, checks })}`);
+      process.exitCode = result.ok && checks.every((check) => check.ok !== false) ? 0 : 1;
       app.quit();
     });
+}
+
+function fullSmokeChecks(
+  window: BrowserWindow,
+  field: (script: string) => Promise<string>,
+  key: (state: "down" | "up") => void,
+): SmokeChecks {
+  const fixture = process.env.MURMUR_AUDIO_FIXTURE ?? "";
+  const speechClip = process.env.MURMUR_SMOKE_SPEECH_CLIP ?? "";
+  const silentClip = process.env.MURMUR_SMOKE_SILENT_CLIP ?? "";
+  const checks = createSmokeChecks({
+    sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    log: (message) => console.log(`[smoke] ${message}`),
+    holdMs: Number(process.env.MURMUR_SMOKE_HOLD_MS) || 5000,
+    focusField: async () => {
+      app.focus({ steal: true });
+      window.show();
+      window.focus();
+      window.webContents.focus();
+      await field("document.getElementById('field').focus(); ''");
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    },
+    isFieldFocused: () => !window.isDestroyed() && window.isFocused(),
+    clearField: async () => {
+      await field("document.getElementById('field').value = ''; ''");
+    },
+    readField: () => field("document.getElementById('field').value"),
+    keyDown: () => key("down"),
+    keyUp: () => key("up"),
+    settled: () => recorder.idle(),
+    barView: () => bar.getView(),
+    barPosition: () => barWindow.position(),
+    dragBar: async (dx, dy) => {
+      barWindow.dragStart();
+      barWindow.drag(dx, dy);
+      await barWindow.dragEnd();
+    },
+    reopenBar: async () => {
+      barWindow.close();
+      await barWindow.open();
+      barWindow.render(bar.getView());
+    },
+    settings: () => settingsStore.get(),
+    updateSettings: (patch) => void settingsStore.update(patch),
+    outputMuted: () => helper.getOutputMuted(),
+    setOutputMuted: async (muted) => {
+      await helper.setOutputMuted(muted);
+    },
+    tray: (action) => tray?.perform(action),
+    lastTranscript: () => history?.lastText() ?? null,
+    saveClipboard: async () => {
+      // Every type's data is read now, before anything is written over it; items from
+      // read() cannot be written back as they are.
+      const saved = await Promise.all(
+        (await clipboard.read()).map(async (item) => {
+          const record: Record<string, Blob | string | Electron.ClipboardBookmark> = {};
+          for (const type of item.types) record[type] = await item.getType(type);
+          return record;
+        }),
+      );
+      return async () => {
+        if (saved.length === 0) clipboard.clear();
+        else {
+          try {
+            await clipboard.write(saved.map((record) => new ClipboardItem(record)));
+          } catch (error) {
+            // At least the text goes back.
+            const text = saved.find((record) => typeof record["text/plain"] === "string");
+            if (text) await clipboard.writeText(text["text/plain"] as string);
+            throw error;
+          }
+        }
+      };
+    },
+    readClipboardText: () => clipboard.readText(),
+    useSilentClip: (silent) => {
+      if (!fixture || !speechClip || !silentClip) throw new Error("the smoke clips are not set");
+      copyFileSync(silent ? silentClip : speechClip, fixture);
+    },
+  });
+  smokeChecks = checks;
+  return checks;
 }
 
 // Typing reminder (DC-08): the helper counts words only while it is on and not snoozed.
