@@ -10,12 +10,16 @@ public struct PasteboardSnapshot: Sendable, Equatable {
 public protocol PasteboardAccess: Sendable {
     var changeCount: Int { get }
     func snapshot() -> PasteboardSnapshot
-    /// Replaces the contents with plain text, marked so clipboard managers skip it.
-    /// Returns the change count after writing.
-    func writeTransientText(_ text: String) -> Int
+    /// Replaces the contents with plain text, and HTML when given, marked so clipboard
+    /// managers skip it. Returns the change count after writing.
+    func writeTransientText(_ text: String, html: String?) -> Int
     /// Replaces the contents with plain text the user keeps (copy last, copy fallback).
     func writeText(_ text: String)
     func restore(_ snapshot: PasteboardSnapshot)
+}
+
+extension PasteboardAccess {
+    public func writeTransientText(_ text: String) -> Int { writeTransientText(text, html: nil) }
 }
 
 /// Synthetic key events. Tests use a fake.
@@ -58,9 +62,9 @@ public struct Inserter: Sendable {
 
     /// Saves the pasteboard, puts the text on it, pastes, waits, then restores the saved
     /// contents only if nothing else changed the pasteboard in the meantime.
-    public func paste(_ text: String, restore: Bool, restoreDelay: Double) async -> InsertOutcome? {
+    public func paste(_ text: String, html: String? = nil, restore: Bool, restoreDelay: Double) async -> InsertOutcome? {
         let saved = restore ? pasteboard.snapshot() : nil
-        let written = pasteboard.writeTransientText(text)
+        let written = pasteboard.writeTransientText(text, html: html)
         guard keys.postPaste() else {
             if let saved, pasteboard.changeCount == written { pasteboard.restore(saved) }
             return nil
@@ -190,6 +194,8 @@ public final class InsertionController: @unchecked Sendable {
             while trimmed.last?.isNewline == true { trimmed.removeLast() }
         }
         let text = trimmed
+        // Rich text only where the plain text is pasted unchanged; a terminal gets plain text.
+        let html = trimmed == given ? payload["html"]?.stringValue : nil
         let bundleValue: JSONValue = bundle.map { .string($0) } ?? .null
         if text.isEmpty && !pressEnter {
             return MessageRouter.success(
@@ -226,7 +232,8 @@ public final class InsertionController: @unchecked Sendable {
                 // Only "press enter" was said: nothing to insert.
                 outcome = InsertOutcome(method: .keystrokes, delivered: true, clipboardRestored: nil)
             } else if chosen == .pasteCommandV {
-                outcome = await inserter.paste(text, restore: restore, restoreDelay: Double(delayMs) / 1000)
+                outcome = await inserter.paste(
+                    text, html: html, restore: restore, restoreDelay: Double(delayMs) / 1000)
             }
             // Typed fallback when paste was not handled, or when typing was chosen.
             if outcome == nil {

@@ -18,6 +18,11 @@ export const insertTextPayloadSchema = z.object({
   typeInApps: z.array(z.string()).max(200).optional(),
   /** Bundle ids where newlines at the end of the text are dropped (terminals). */
   trimTrailingNewlinesInApps: z.array(z.string()).max(200).optional(),
+  /**
+   * The same text as HTML (rich snippets, PZ-09). Pasted beside the plain text, so apps that
+   * take rich text get it; typing and the trimmed-newline apps get the plain text only.
+   */
+  html: z.string().max(400_000).optional(),
 });
 export type InsertTextInput = z.infer<typeof insertTextPayloadSchema>;
 

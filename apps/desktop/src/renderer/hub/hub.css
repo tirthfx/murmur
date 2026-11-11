@@ -127,3 +127,21 @@ body {
   padding: var(--spacing-1) 0;
   border-bottom: 1px solid var(--color-border);
 }
+
+.hub-rich-editor {
+  min-height: 6rem;
+  max-width: 48rem;
+  padding: var(--spacing-2);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  outline: none;
+  white-space: pre-wrap;
+}
+
+.hub-rich-editor:focus {
+  border-color: var(--color-accent, var(--color-border));
+}
+
+.hub-rich-editor p {
+  margin: 0;
+}

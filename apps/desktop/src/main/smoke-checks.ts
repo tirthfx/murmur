@@ -56,6 +56,8 @@ export interface SmokeChecksDeps {
   feedTypedWords(words: number): void;
   /** Adds dictionary entries for one check; returns a function that removes them. */
   addDictionary(entries: { term: string; replacement: string | null }[]): () => void;
+  /** Adds a rich snippet for one check; returns a function that removes it. */
+  addSnippet(trigger: string, lines: string[]): () => void;
 }
 
 export interface SmokeChecks {
@@ -491,6 +493,25 @@ export function createSmokeChecks(deps: SmokeChecksDeps): SmokeChecks {
     }
   }
 
+  async function snippet(): Promise<CheckResult> {
+    // The speech clip's whole sentence is the trigger.
+    const remove = deps.addSnippet("the quick brown fox jumps over the lazy dog", [
+      "Snippet line one",
+      "Snippet line two",
+    ]);
+    try {
+      const result = await dictate(deps.keyDown, deps.keyUp);
+      return check(
+        "Snippets: a trigger said on its own inserts the body",
+        result.text.trim() === "Snippet line one\nSnippet line two",
+        JSON.stringify(result.text.trim()),
+        `got ${JSON.stringify(result.text.trim())}`,
+      );
+    } finally {
+      remove();
+    }
+  }
+
   async function typingReminder(): Promise<CheckResult> {
     const name = "Typing reminder: snooze holds it, then it suggests dictating";
     const message = () => deps.barView().message ?? "";
@@ -542,6 +563,7 @@ export function createSmokeChecks(deps: SmokeChecksDeps): SmokeChecks {
         () => retry(results),
         async () => void results.push(await typingReminder()),
         async () => void results.push(await dictionary()),
+        async () => void results.push(await snippet()),
       ];
       for (const step of steps) {
         try {

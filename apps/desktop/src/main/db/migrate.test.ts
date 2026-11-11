@@ -28,6 +28,7 @@ describe("migrations", () => {
       "pending_sessions",
       "schema_migrations",
       "settings",
+      "snippets",
     ]);
     const rows = db.prepare("SELECT version, name, applied_at FROM schema_migrations").all();
     expect(rows).toEqual(

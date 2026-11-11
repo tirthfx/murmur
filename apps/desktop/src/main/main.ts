@@ -42,6 +42,7 @@ import { createCleanupService } from "./cleanup/cleanup-service";
 import { databasePath, openDatabase } from "./db/database";
 import { createHistoryStore, type HistoryStore } from "./history/history-store";
 import { createDictionaryStore } from "./dictionary/dictionary-store";
+import { createSnippetStore } from "./snippets/snippet-store";
 import { createLlmClient, type LlmReply } from "./cleanup/llm-client";
 import { createConsoleLogger, systemClock } from "./helper/node-runtime";
 import { HelperError } from "./helper/types";
@@ -141,6 +142,8 @@ function openMurmurDatabase(): DatabaseSync | null {
 const database = openMurmurDatabase();
 // The personal dictionary (PZ-01). Without a database the pipeline simply has none.
 const dictionary = database ? createDictionaryStore(database) : null;
+// Snippets (PZ-08).
+const snippets = database ? createSnippetStore(database) : null;
 const history: HistoryStore | null = database
   ? createHistoryStore(database, path.join(profile.appData, "Murmur", "audio"))
   : null;
@@ -354,7 +357,7 @@ const recorder = createRecorder({
     return context;
   },
   logTranscripts: process.env.MURMUR_LOG_TRANSCRIPTS === "1",
-  insert: (text, { pressEnter }) => {
+  insert: (text, { pressEnter, html }) => {
     // During a smoke run text may only go into the test box.
     smoke?.assertFieldFocused();
     return helper.insertText({
@@ -363,6 +366,7 @@ const recorder = createRecorder({
       restoreClipboard: true,
       restoreDelayMs: 350,
       pressEnter,
+      ...(html ? { html } : {}),
       ...insertionRules(),
     });
   },
@@ -399,6 +403,7 @@ const recorder = createRecorder({
   isResolved: (historyId) => history?.isResolved(historyId) ?? false,
   waitForSpeech: () => speech.whenReady(),
   ...(dictionary ? { dictionary } : {}),
+  ...(snippets ? { snippets } : {}),
   rewriteText: (text) => (wantsLatinHindi(settingsStore.get()) ? toLatinHindi(text) : text),
 });
 const micCheck = createMicCheck({
@@ -606,6 +611,21 @@ function fullSmokeChecks(
       });
       return () => ids.forEach((id) => dictionary?.remove(id));
     },
+    addSnippet: (trigger, lines) => {
+      const saved = snippets?.save({
+        trigger,
+        plain: "",
+        rich: {
+          blocks: lines.map((line, index) => ({
+            type: "paragraph" as const,
+            inlines: [{ text: line, ...(index === 0 ? { bold: true } : {}) }],
+          })),
+        },
+      });
+      return () => {
+        if (saved?.ok) snippets?.remove(saved.snippet.id);
+      };
+    },
   });
   smokeChecks = checks;
   return checks;
@@ -706,6 +726,14 @@ function registerIpc(): void {
         message: "The dictionary could not be opened.",
       },
     dictionaryDelete: (id) => dictionary?.remove(id),
+    snippetsList: () => snippets?.list() ?? [],
+    snippetsSave: (input) =>
+      snippets?.save(input) ?? {
+        ok: false,
+        reason: "not-found",
+        message: "Snippets could not be opened.",
+      },
+    snippetsDelete: (id) => snippets?.remove(id),
     downloadSpeechModel: async () => {
       modelDownload.start();
       return { model: modelDownload.status(), blockers: blockersNow() };

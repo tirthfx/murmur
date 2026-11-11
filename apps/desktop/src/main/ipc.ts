@@ -13,6 +13,9 @@ import {
   type DictionaryEntry,
   type DictionaryInput,
   type DictionarySaveResult,
+  type Snippet,
+  type SnippetInput,
+  type SnippetSaveResult,
   type ShortcutResult,
   type ShortcutSlot,
   type PermissionKind,
@@ -43,6 +46,9 @@ export interface IpcDeps {
   dictionaryList: () => DictionaryEntry[];
   dictionarySave: (input: DictionaryInput) => DictionarySaveResult;
   dictionaryDelete: (id: string) => void;
+  snippetsList: () => Snippet[];
+  snippetsSave: (input: SnippetInput) => SnippetSaveResult;
+  snippetsDelete: (id: string) => void;
 }
 
 export interface IpcEventLike {
@@ -101,6 +107,12 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.dictionarySave(request.args[0] as DictionaryInput);
       case IPC_CHANNELS.dictionaryDelete:
         return deps.dictionaryDelete(request.args[0] as string);
+      case IPC_CHANNELS.snippetsList:
+        return deps.snippetsList();
+      case IPC_CHANNELS.snippetsSave:
+        return deps.snippetsSave(request.args[0] as SnippetInput);
+      case IPC_CHANNELS.snippetsDelete:
+        return deps.snippetsDelete(request.args[0] as string);
       default:
         throw new Error("IPC rejected: unknown-channel");
     }

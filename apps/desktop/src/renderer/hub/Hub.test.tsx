@@ -69,10 +69,10 @@ describe("Hub", () => {
 
     expect(screen.getByRole("heading", { level: 1, name: "Home" })).toBeTruthy();
 
-    await user.click(screen.getByText("Snippets"));
+    await user.click(screen.getByText("Rewrites"));
 
-    expect(screen.getByRole("heading", { level: 1, name: "Snippets" })).toBeTruthy();
-    expect(screen.getByText("No snippets yet")).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 1, name: "Rewrites" })).toBeTruthy();
+    expect(screen.getByText("No rewrites available")).toBeTruthy();
     expect(screen.queryByRole("heading", { level: 1, name: "Home" })).toBeNull();
   });
 

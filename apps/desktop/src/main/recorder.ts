@@ -5,6 +5,7 @@ import type {
   HotkeyEvent,
   FocusContext,
   InsertTextResult,
+  Snippet,
   PlatformHelper,
   Transcript,
   Unsubscribe,
@@ -16,6 +17,7 @@ import { splitMessages } from "./experimental/split-messages";
 import { splitPressEnter } from "./insertion/press-enter";
 import { applyReplacements, keepSpellings, speechPromptWithTerms } from "./dictionary/apply";
 import type { DictionaryRules } from "./dictionary/dictionary-store";
+import { assemble, findSnippets, type Piece } from "./snippets/match";
 import { dropSoundTags } from "./speech/sound-tags";
 import { systemClock } from "./helper/node-runtime";
 import type { Clock, Logger } from "./helper/types";
@@ -65,7 +67,15 @@ export interface RecorderDeps {
   /** Also log the recognised text. Off by default: logs never hold what was said. */
   logTranscripts?: boolean;
   /** Puts the text into the focused field. Without it, text is only logged. */
-  insert?: (text: string, options: { pressEnter: boolean }) => Promise<InsertTextResult>;
+  insert?: (
+    text: string,
+    options: { pressEnter: boolean; html?: string },
+  ) => Promise<InsertTextResult>;
+  /** Snippets (PZ-08): a trigger said on its own inserts the saved body, unchanged. */
+  snippets?: {
+    list(): Snippet[];
+    recordUse(id: string): void;
+  };
   /** Split long dictations into messages at pauses (experimental, DC-37). */
   splitMessages?: () => boolean;
   /** Whether "press enter" at the end of a dictation presses Return. Off when missing. */
@@ -521,6 +531,12 @@ export function createRecorder(deps: RecorderDeps): Recorder {
       countUses();
       return;
     }
+    const pieces = deps.snippets ? findSnippets(spoken.text, deps.snippets.list()) : null;
+    if (pieces) {
+      await insertWithSnippets(take, transcript, pieces, spoken.pressEnter, terms, respell);
+      countUses();
+      return;
+    }
     const cleanup =
       spoken.text.trim() === "" ? null : await cleanUp(spoken.text, terms, take.releasedAt);
     const final = respell(cleanup?.text ?? spoken.text.trim());
@@ -542,6 +558,46 @@ export function createRecorder(deps: RecorderDeps): Recorder {
       finalText: final,
       wordCount: finalWords,
       cleanup,
+    });
+  }
+
+  /**
+   * A dictation with snippets: the text around each trigger is cleaned on its own, so the
+   * model never sees a body, then the bodies go back in unchanged.
+   */
+  async function insertWithSnippets(
+    take: Take,
+    transcript: Transcript,
+    pieces: Piece[],
+    pressEnter: boolean,
+    terms: string[],
+    respell: (text: string) => string,
+  ): Promise<void> {
+    const cleaned: Piece[] = [];
+    for (const piece of pieces) {
+      if (piece.kind === "snippet") {
+        cleaned.push(piece);
+        continue;
+      }
+      const cleanup = await cleanUp(piece.text, terms, take.releasedAt);
+      cleaned.push({ kind: "text", text: respell(cleanup?.text ?? piece.text) });
+    }
+    const expanded = cleaned.filter((piece) => piece.kind === "snippet");
+    logger.info(`expanded ${expanded.length} snippet${expanded.length === 1 ? "" : "s"}`);
+    for (const piece of expanded) {
+      if (piece.kind === "snippet") deps.snippets?.recordUse(piece.snippet.id);
+    }
+    const { text, html } = assemble(cleaned);
+    const words = text.split(/\s+/).filter(Boolean).length;
+    emit({ type: "transcribed", words });
+    const outcome = await insert(text, pressEnter, html);
+    record(take, {
+      ...outcome,
+      language: transcript.language || null,
+      rawText: transcript.text,
+      finalText: text,
+      wordCount: words,
+      cleanup: null,
     });
   }
 
@@ -600,11 +656,15 @@ export function createRecorder(deps: RecorderDeps): Recorder {
     return result;
   }
 
-  async function insert(text: string, pressEnter: boolean): Promise<InsertOutcome> {
+  async function insert(
+    text: string,
+    pressEnter: boolean,
+    html: string | null = null,
+  ): Promise<InsertOutcome> {
     if (!deps.insert) return { insertStatus: "failed", errorCode: "NO_INSERTER" };
     const started = Date.now();
     try {
-      const result = await deps.insert(text, { pressEnter });
+      const result = await deps.insert(text, { pressEnter, ...(html ? { html } : {}) });
       const restored =
         result.clipboardRestored === null
           ? ""
