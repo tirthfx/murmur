@@ -120,6 +120,8 @@ Dictionary (terms, replacements, starred words, where they act in a dictation): 
 
 Snippets (triggers, rich-text bodies, HTML on the pasteboard): see `docs/snippets.md`.
 
+Styles and app categories (presets, the default app table, what is read): see `docs/styles.md`.
+
 Transcript cleanup (rules, the local model and its guard, the 1.5 s budget, benchmark): see `docs/cleanup.md`.
 
 Dictation history (database, tables, migrations): see `docs/history.md`.

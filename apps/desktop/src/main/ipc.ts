@@ -16,6 +16,9 @@ import {
   type Snippet,
   type SnippetInput,
   type SnippetSaveResult,
+  type StylesView,
+  type StyleUpdate,
+  type AppCategoryOverride,
   type ShortcutResult,
   type ShortcutSlot,
   type PermissionKind,
@@ -49,6 +52,10 @@ export interface IpcDeps {
   snippetsList: () => Snippet[];
   snippetsSave: (input: SnippetInput) => SnippetSaveResult;
   snippetsDelete: (id: string) => void;
+  stylesView: () => StylesView;
+  stylesUpdate: (update: StyleUpdate) => StylesView;
+  stylesSetOverride: (override: AppCategoryOverride) => StylesView;
+  stylesClearOverride: (bundleId: string) => StylesView;
 }
 
 export interface IpcEventLike {
@@ -113,6 +120,14 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.snippetsSave(request.args[0] as SnippetInput);
       case IPC_CHANNELS.snippetsDelete:
         return deps.snippetsDelete(request.args[0] as string);
+      case IPC_CHANNELS.stylesView:
+        return deps.stylesView();
+      case IPC_CHANNELS.stylesUpdate:
+        return deps.stylesUpdate(request.args[0] as StyleUpdate);
+      case IPC_CHANNELS.stylesSetOverride:
+        return deps.stylesSetOverride(request.args[0] as AppCategoryOverride);
+      case IPC_CHANNELS.stylesClearOverride:
+        return deps.stylesClearOverride(request.args[0] as string);
       default:
         throw new Error("IPC rejected: unknown-channel");
     }

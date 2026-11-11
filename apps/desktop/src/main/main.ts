@@ -43,6 +43,7 @@ import { databasePath, openDatabase } from "./db/database";
 import { createHistoryStore, type HistoryStore } from "./history/history-store";
 import { createDictionaryStore } from "./dictionary/dictionary-store";
 import { createSnippetStore } from "./snippets/snippet-store";
+import { createStyleStore } from "./styles/style-store";
 import { createLlmClient, type LlmReply } from "./cleanup/llm-client";
 import { createConsoleLogger, systemClock } from "./helper/node-runtime";
 import { HelperError } from "./helper/types";
@@ -144,6 +145,8 @@ const database = openMurmurDatabase();
 const dictionary = database ? createDictionaryStore(database) : null;
 // Snippets (PZ-08).
 const snippets = database ? createSnippetStore(database) : null;
+// Styles per context and the owner's app categories (PZ-11, PZ-13).
+const styles = database ? createStyleStore(database) : null;
 const history: HistoryStore | null = database
   ? createHistoryStore(database, path.join(profile.appData, "Murmur", "audio"))
   : null;
@@ -350,12 +353,16 @@ const recorder = createRecorder({
     return speech.transcribe(file, prompt);
   },
   readContext: async () => {
-    if (!settingsStore.get().contextAwareness) return null;
-    // Without Accessibility there is no context, and nothing is asked for.
-    const context = await helper.focusContext().catch(() => null);
+    // With context awareness off, only the app and its window are asked for (for the style);
+    // no text around the caret. Without Accessibility there is no context at all.
+    const on = settingsStore.get().contextAwareness;
+    const context = await helper
+      .focusContext(on ? {} : { maxBefore: 0, maxAfter: 0 })
+      .catch(() => null);
     smokeChecks?.handleContext(context);
     return context;
   },
+  useContextText: () => settingsStore.get().contextAwareness,
   logTranscripts: process.env.MURMUR_LOG_TRANSCRIPTS === "1",
   insert: (text, { pressEnter, html }) => {
     // During a smoke run text may only go into the test box.
@@ -404,6 +411,7 @@ const recorder = createRecorder({
   waitForSpeech: () => speech.whenReady(),
   ...(dictionary ? { dictionary } : {}),
   ...(snippets ? { snippets } : {}),
+  ...(styles ? { styles } : {}),
   rewriteText: (text) => (wantsLatinHindi(settingsStore.get()) ? toLatinHindi(text) : text),
 });
 const micCheck = createMicCheck({
@@ -611,6 +619,10 @@ function fullSmokeChecks(
       });
       return () => ids.forEach((id) => dictionary?.remove(id));
     },
+    setAppCategory: (bundleId, category) => {
+      styles?.setOverride({ bundleId, appName: "Smoke test", category });
+      return () => styles?.clearOverride(bundleId);
+    },
     addSnippet: (trigger, lines) => {
       const saved = snippets?.save({
         trigger,
@@ -734,6 +746,19 @@ function registerIpc(): void {
         message: "Snippets could not be opened.",
       },
     snippetsDelete: (id) => snippets?.remove(id),
+    stylesView: () => styles?.view() ?? { styles: [], overrides: [], recentApps: [] },
+    stylesUpdate: (update) => {
+      styles?.update(update);
+      return styles?.view() ?? { styles: [], overrides: [], recentApps: [] };
+    },
+    stylesSetOverride: (override) => {
+      styles?.setOverride(override);
+      return styles?.view() ?? { styles: [], overrides: [], recentApps: [] };
+    },
+    stylesClearOverride: (bundleId) => {
+      styles?.clearOverride(bundleId);
+      return styles?.view() ?? { styles: [], overrides: [], recentApps: [] };
+    },
     downloadSpeechModel: async () => {
       modelDownload.start();
       return { model: modelDownload.status(), blockers: blockersNow() };

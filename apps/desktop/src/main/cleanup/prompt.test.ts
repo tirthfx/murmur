@@ -11,6 +11,14 @@ describe("cleanup prompt", () => {
     expect(systemPrompt("light")).toContain("Do not add, remove, reorder or change any word");
   });
 
+  it("adds the style's instructions last, so the fixed part stays the same", () => {
+    const plain = systemPrompt("standard");
+    const styled = systemPrompt("standard", [], ["Write formally.", " "]);
+    expect(styled.startsWith(plain)).toBe(true);
+    expect(styled.split("\n").at(-1)).toContain("Write formally.");
+    expect(systemPrompt("standard", [], [])).toBe(plain);
+  });
+
   it("caps the answer length", () => {
     expect(maxTokensFor("x".repeat(100))).toBe(74);
   });

@@ -25,6 +25,12 @@ document is not copied.
   touched. This only happens while context awareness is on, and such an app may run a
   little slower while its tree is on.
 
+## With the setting off
+
+The app's bundle id, name and window title are still read at the start of a dictation, for its
+style (see `styles.md`). No text around the caret is asked for (the request asks for 0
+characters), and the title is not used for spelling.
+
 ## How it is used
 
 - **Speech model:** the last 600 characters before the caret become the decoder prompt

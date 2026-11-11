@@ -46,6 +46,7 @@ describe("cleanup service", () => {
       "standard",
       1500,
       [],
+      [],
     );
   });
 
@@ -55,7 +56,7 @@ describe("cleanup service", () => {
     expect(result).toMatchObject({ source: "rules", fallback: true, reason: "timeout" });
     expect(llm.clean).not.toHaveBeenCalled();
     await service.clean("um so I think we should go", { budgetMs: 900 });
-    expect(llm.clean).toHaveBeenLastCalledWith(expect.any(String), "standard", 900, []);
+    expect(llm.clean).toHaveBeenLastCalledWith(expect.any(String), "standard", 900, [], []);
   });
 
   it("falls back to the rules' text on timeout and records why", async () => {

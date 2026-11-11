@@ -145,3 +145,16 @@ body {
 .hub-rich-editor p {
   margin: 0;
 }
+
+.hub-style-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: var(--spacing-4);
+  max-width: 64rem;
+}
+
+.hub-style-card {
+  padding: var(--spacing-3);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}

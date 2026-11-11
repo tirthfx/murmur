@@ -56,6 +56,8 @@ export interface SmokeChecksDeps {
   feedTypedWords(words: number): void;
   /** Adds dictionary entries for one check; returns a function that removes them. */
   addDictionary(entries: { term: string; replacement: string | null }[]): () => void;
+  /** Puts an app in a category for one check; returns a function that undoes it. */
+  setAppCategory(bundleId: string, category: "personal" | "work" | "email" | "other"): () => void;
   /** Adds a rich snippet for one check; returns a function that removes it. */
   addSnippet(trigger: string, lines: string[]): () => void;
 }
@@ -101,6 +103,8 @@ export function createSmokeChecks(deps: SmokeChecksDeps): SmokeChecks {
   let lastMessage: string | null = null;
   /** The text before the caret in the context read for the current dictation. */
   let lastContextBefore: string | null = null;
+  /** The test window's app, as the context names it. */
+  let testAppBundleId: string | null = null;
 
   async function waitFor(done: () => boolean, timeoutMs: number): Promise<boolean> {
     for (let waited = 0; waited <= timeoutMs; waited += POLL_MS) {
@@ -512,6 +516,24 @@ export function createSmokeChecks(deps: SmokeChecksDeps): SmokeChecks {
     }
   }
 
+  async function personalStyle(): Promise<CheckResult> {
+    const name = "Styles: a Personal app gets no capitals and no final full stop";
+    if (!testAppBundleId) return skip(name, "the test window's app was not named by the context");
+    const undo = deps.setAppCategory(testAppBundleId, "personal");
+    try {
+      const result = await dictate(deps.keyDown, deps.keyUp);
+      const text = result.text.trim();
+      return check(
+        name,
+        /^the quick brown fox/.test(text) && !/\.$/.test(text),
+        JSON.stringify(text),
+        `got ${JSON.stringify(text)}`,
+      );
+    } finally {
+      undo();
+    }
+  }
+
   async function typingReminder(): Promise<CheckResult> {
     const name = "Typing reminder: snooze holds it, then it suggests dictating";
     const message = () => deps.barView().message ?? "";
@@ -548,6 +570,7 @@ export function createSmokeChecks(deps: SmokeChecksDeps): SmokeChecks {
     },
     handleContext(value) {
       lastContextBefore = value ? value.textBefore : null;
+      if (value?.bundleId) testAppBundleId = value.bundleId;
     },
     async run() {
       const results: CheckResult[] = [];
@@ -564,6 +587,7 @@ export function createSmokeChecks(deps: SmokeChecksDeps): SmokeChecks {
         async () => void results.push(await typingReminder()),
         async () => void results.push(await dictionary()),
         async () => void results.push(await snippet()),
+        async () => void results.push(await personalStyle()),
       ];
       for (const step of steps) {
         try {

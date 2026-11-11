@@ -22,6 +22,7 @@ describe("migrations", () => {
     expect(migrateUp(db, MIGRATIONS, 1000)).toEqual(versions);
     expect(schemaVersion(db)).toBe(latest);
     expect(tables(db)).toEqual([
+      "app_categories",
       "audio_chunks",
       "dictionary",
       "history",
@@ -29,6 +30,7 @@ describe("migrations", () => {
       "schema_migrations",
       "settings",
       "snippets",
+      "styles",
     ]);
     const rows = db.prepare("SELECT version, name, applied_at FROM schema_migrations").all();
     expect(rows).toEqual(
