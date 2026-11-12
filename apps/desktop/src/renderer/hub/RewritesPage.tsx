@@ -9,6 +9,7 @@ import { TextArea } from "@astryxdesign/core/TextArea";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { VStack } from "@astryxdesign/core/VStack";
 import { REWRITE_LIMITS, type Rewrite, type RewriteSaveResult } from "@murmur/shared";
+import { RewriteShortcutControl } from "./RewriteShortcutControl";
 
 interface Draft {
   id?: string;
@@ -69,10 +70,11 @@ export function RewritesPage() {
   return (
     <VStack gap={4}>
       <Text color="secondary">
-        Select text in any app and run a Rewrite on it. The five built-in ones can be switched off,
-        moved and copied; add your own for anything else, for example a warm customer reply. Each
-        runs on this Mac with the local model, after Murmur's rules: names, numbers and links stay
-        as they are, and nothing is invented.
+        Select text in any app and run a Rewrite on it with the Rewrite shortcut, or give a Rewrite
+        its own shortcut (up to {REWRITE_LIMITS.shortcuts}). The five built-in ones can be switched
+        off, moved and copied; add your own for anything else, for example a warm customer reply.
+        Each runs on this Mac with the local model, after Murmur's rules: names, numbers and links
+        stay as they are, and nothing is invented.
       </Text>
 
       <section aria-labelledby="rewrite-form-heading">
@@ -144,6 +146,9 @@ export function RewritesPage() {
                     <Text size="sm" color="secondary">
                       {item.builtinKey ? item.description : item.instruction}
                     </Text>
+                    {item.enabled ? (
+                      <RewriteShortcutControl rewrite={item} onChanged={() => void reload()} />
+                    ) : null}
                   </VStack>
                   <HStack gap={1} align="center">
                     <Switch

@@ -10,12 +10,14 @@ import {
   type ShortcutSlot,
 } from "@murmur/shared";
 import type { SettingsStore } from "./settings-store";
-import { checkShortcut, type KeyPlatform } from "./shortcuts";
+import { checkShortcut, type KeyPlatform, type UsedShortcut } from "./shortcuts";
 
 export interface SettingsServiceDeps {
   store: SettingsStore;
   platform: KeyPlatform;
   listDevices: () => Promise<AudioDevice[]>;
+  /** Other shortcuts Murmur binds (named Rewrite shortcuts), so a slot cannot take one. */
+  otherShortcuts?: () => UsedShortcut[];
 }
 
 export interface SettingsService {
@@ -146,6 +148,7 @@ export function createSettingsService(deps: SettingsServiceDeps): SettingsServic
           rewrite: settings.rewriteShortcut,
         },
         platform,
+        deps.otherShortcuts?.() ?? [],
       );
       if (!result.ok) return result;
       store.setShortcut(slot, result.trigger);

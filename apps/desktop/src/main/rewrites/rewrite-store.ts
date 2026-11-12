@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import {
   BUILTIN_REWRITES,
+  type HotkeyTrigger,
   REWRITE_CATEGORIES,
   REWRITE_LIMITS,
   type BuiltinRewriteKey,
@@ -27,6 +28,32 @@ export interface RewriteStore {
   remove(id: string): RewriteSaveResult | null;
   /** Counts a run (RW-01). */
   markUsed(id: string): void;
+  /** Its own shortcut (RW-04); null removes it. Refused past 20 or when another has it. */
+  setShortcut(
+    id: string,
+    trigger: HotkeyTrigger | null,
+  ): { ok: true } | { ok: false; message: string };
+  setApplyDirectly(id: string, applyDirectly: boolean): void;
+}
+
+/** Stored form of a shortcut: the same key and modifiers always give the same text. */
+export function encodeTrigger(trigger: HotkeyTrigger): string {
+  return JSON.stringify({ keyCode: trigger.keyCode, modifiers: [...trigger.modifiers].sort() });
+}
+
+export function decodeTrigger(stored: string | null): HotkeyTrigger | null {
+  if (!stored) return null;
+  try {
+    const value = JSON.parse(stored) as { keyCode?: unknown; modifiers?: unknown };
+    if (typeof value.keyCode !== "number" || !Array.isArray(value.modifiers)) return null;
+    return {
+      type: "key",
+      keyCode: value.keyCode,
+      modifiers: value.modifiers as HotkeyTrigger["modifiers"],
+    };
+  } catch {
+    return null;
+  }
 }
 
 interface Row {
@@ -71,6 +98,7 @@ const toRewrite = (row: Row): Rewrite => ({
   enabled: row.enabled === 1,
   sortOrder: row.sort_order,
   shortcut: row.shortcut,
+  shortcutLabel: null,
   applyDirectly: row.apply_directly === 1,
   autoApply: row.auto_apply === 1,
   autoApplyMinWords: row.auto_apply_min_words ?? 0,
@@ -107,6 +135,14 @@ export function createRewriteStore(
   const setOrder = db.prepare("UPDATE rewrites SET sort_order = ? WHERE id = ?");
   const remove = db.prepare("DELETE FROM rewrites WHERE id = ? AND builtin_key IS NULL");
   const used = db.prepare("UPDATE rewrites SET use_count = use_count + 1 WHERE id = ?");
+  const setShortcut = db.prepare("UPDATE rewrites SET shortcut = ?, updated_at = ? WHERE id = ?");
+  const byShortcut = db.prepare("SELECT id FROM rewrites WHERE shortcut = ?");
+  const shortcutCount = db.prepare(
+    "SELECT count(*) AS n FROM rewrites WHERE shortcut IS NOT NULL AND id != ?",
+  );
+  const setApply = db.prepare(
+    "UPDATE rewrites SET apply_directly = ?, updated_at = ? WHERE id = ?",
+  );
 
   // The built-ins follow this app version's wording; the owner's switches and order stay.
   // A built-in whose name clashes with a custom Rewrite keeps its old name until renamed.
@@ -270,6 +306,31 @@ export function createRewriteStore(
 
     markUsed(id) {
       used.run(id);
+    },
+
+    setShortcut(id, trigger) {
+      if (!byId.get(id)) return { ok: false, message: "This Rewrite no longer exists." };
+      if (trigger === null) {
+        setShortcut.run(null, now(), id);
+        return { ok: true };
+      }
+      const stored = encodeTrigger(trigger);
+      const holder = byShortcut.get(stored) as { id: string } | undefined;
+      if (holder && holder.id !== id) {
+        return { ok: false, message: "Another Rewrite already uses this shortcut." };
+      }
+      if ((shortcutCount.get(id) as { n: number }).n >= REWRITE_LIMITS.shortcuts) {
+        return {
+          ok: false,
+          message: `At most ${REWRITE_LIMITS.shortcuts} Rewrites can have their own shortcut.`,
+        };
+      }
+      setShortcut.run(stored, now(), id);
+      return { ok: true };
+    },
+
+    setApplyDirectly(id, applyDirectly) {
+      setApply.run(applyDirectly ? 1 : 0, now(), id);
     },
   };
 }

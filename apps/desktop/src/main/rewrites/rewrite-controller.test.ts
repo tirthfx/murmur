@@ -291,4 +291,75 @@ describe("rewrite controller", () => {
     await controller.choose("nope");
     expect(gen.runs).toHaveLength(0);
   });
+
+  describe("a Rewrite's own shortcut", () => {
+    it("replaces directly without the panel, after checking the selection", async () => {
+      const { controller, helper, view, gen, notify, activateApp, runs } = setup();
+      void controller.runDirect("builtin:concise");
+      await flush();
+      expect(view.states).toHaveLength(0);
+      gen.runs[0]!.handlers!.onLoading!();
+      expect(notify).toHaveBeenCalledWith("Loading model");
+      gen.runs[0]!.resolve("Short text.");
+      await flush();
+      await flush();
+      expect(helper.readSelection).toHaveBeenCalledTimes(2);
+      expect(activateApp).not.toHaveBeenCalled();
+      expect(helper.insertText).toHaveBeenCalledWith(
+        expect.objectContaining({ text: "Short text." }),
+      );
+      expect(notify).toHaveBeenLastCalledWith("Replaced");
+      expect(runs.recent(1)[0]).toMatchObject({ outcome: "replaced", rewriteName: "Tighten" });
+      expect(view.states).toHaveLength(0);
+    });
+
+    it("copies the result when the selection changed meanwhile", async () => {
+      const { controller, helper, gen, notify } = setup({
+        reads: [selected, { ...selected, hash: "c".repeat(64) }],
+      });
+      void controller.runDirect("builtin:concise");
+      await flush();
+      gen.runs[0]!.resolve("Short text.");
+      await flush();
+      await flush();
+      expect(helper.insertText).not.toHaveBeenCalled();
+      expect(helper.copyText).toHaveBeenCalledWith("Short text.");
+      expect(notify).toHaveBeenLastCalledWith("Selection changed. The result was copied instead.");
+    });
+
+    it("shows the result in the panel when Apply directly is off", async () => {
+      const { controller, view, gen, rewrites } = setup();
+      rewrites.setApplyDirectly("builtin:concise", false);
+      void controller.runDirect("builtin:concise");
+      await flush();
+      expect(view.states[0]).toMatchObject({ shown: true, state: { stage: "running" } });
+      gen.runs[0]!.resolve("Short text.");
+      await flush();
+      expect(view.last()).toMatchObject({ stage: "result", text: "Short text." });
+    });
+
+    it("says when nothing is selected, and reports a failure on the Bar", async () => {
+      const empty = setup({ reads: [{ ...selected, status: "empty", text: "" }] });
+      await empty.controller.runDirect("builtin:concise");
+      expect(empty.notify).toHaveBeenCalledWith("Select some text first");
+      expect(empty.gen.runs).toHaveLength(0);
+
+      const { controller, gen, notify, runs } = setup();
+      void controller.runDirect("builtin:concise");
+      await flush();
+      gen.runs[0]!.reject(new GenerationError("timeout"));
+      await flush();
+      expect(notify).toHaveBeenLastCalledWith(
+        "Taking too long. Try again or pick a smaller selection.",
+      );
+      expect(runs.recent(1)[0]!.outcome).toBe("failed");
+    });
+
+    it("ignores a switched-off Rewrite", async () => {
+      const { controller, helper, rewrites } = setup();
+      rewrites.setEnabled("builtin:concise", false);
+      await controller.runDirect("builtin:concise");
+      expect(helper.readSelection).not.toHaveBeenCalled();
+    });
+  });
 });

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { BUILTIN_REWRITES, REWRITE_LIMITS } from "@murmur/shared";
 import { openDatabase } from "../db/database";
-import { createRewriteStore } from "./rewrite-store";
+import { createRewriteStore, decodeTrigger, encodeTrigger } from "./rewrite-store";
 
 function setup(db = openDatabase(":memory:")) {
   let clock = 1;
@@ -155,5 +155,64 @@ describe("rewrites", () => {
     const { store } = setup();
     store.setEnabled("builtin:structure", false);
     expect(store.enabled().map((rewrite) => rewrite.name)).not.toContain("Structure");
+  });
+});
+
+describe("rewrite shortcuts", () => {
+  const trigger = (keyCode: number) => ({
+    type: "key" as const,
+    keyCode,
+    modifiers: ["option" as const, "control" as const],
+  });
+
+  it("stores a shortcut in one form whatever the modifier order, and reads it back", () => {
+    const { store } = setup();
+    expect(store.setShortcut("builtin:concise", trigger(17))).toEqual({ ok: true });
+    const stored = store.get("builtin:concise")!.shortcut;
+    expect(stored).toBe(encodeTrigger({ ...trigger(17), modifiers: ["control", "option"] }));
+    expect(decodeTrigger(stored)).toEqual({
+      type: "key",
+      keyCode: 17,
+      modifiers: ["control", "option"],
+    });
+    expect(decodeTrigger("not json")).toBeNull();
+  });
+
+  it("refuses a shortcut another Rewrite has, and allows keeping its own", () => {
+    const { store } = setup();
+    store.setShortcut("builtin:concise", trigger(17));
+    expect(store.setShortcut("builtin:clarify", trigger(17))).toEqual({
+      ok: false,
+      message: "Another Rewrite already uses this shortcut.",
+    });
+    expect(store.setShortcut("builtin:concise", trigger(17))).toEqual({ ok: true });
+    expect(store.setShortcut("nope", trigger(18))).toMatchObject({ ok: false });
+  });
+
+  it("allows at most 20, and removing one frees a place", () => {
+    const { store } = setup();
+    const ids: string[] = [];
+    for (let n = 0; n < 20; n++) {
+      const saved = store.save({ ...custom, name: `Mine ${n}` });
+      if (saved.ok) ids.push(saved.rewrite.id);
+      expect(store.setShortcut(ids[n]!, trigger(n))).toEqual({ ok: true });
+    }
+    expect(store.setShortcut("builtin:concise", trigger(40))).toEqual({
+      ok: false,
+      message: "At most 20 Rewrites can have their own shortcut.",
+    });
+    store.setShortcut(ids[0]!, null);
+    expect(store.setShortcut("builtin:concise", trigger(40))).toEqual({ ok: true });
+  });
+
+  it("deleting a Rewrite drops its shortcut, and Apply directly can be switched", () => {
+    const { store } = setup();
+    const saved = store.save(custom);
+    const id = saved.ok ? saved.rewrite.id : "";
+    store.setShortcut(id, trigger(17));
+    store.remove(id);
+    expect(store.setShortcut("builtin:clarify", trigger(17))).toEqual({ ok: true });
+    store.setApplyDirectly("builtin:clarify", false);
+    expect(store.get("builtin:clarify")!.applyDirectly).toBe(false);
   });
 });

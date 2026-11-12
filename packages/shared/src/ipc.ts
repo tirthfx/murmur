@@ -74,9 +74,11 @@ import {
   rewriteInputSchema,
   rewriteSaveResultSchema,
   rewriteSchema,
+  rewriteShortcutResultSchema,
   type Rewrite,
   type RewriteInput,
   type RewriteSaveResult,
+  type RewriteShortcutResult,
 } from "./rewrites";
 import {
   writingSampleInputSchema,
@@ -138,6 +140,8 @@ export const IPC_CHANNELS = {
   rewritesMove: "rewrites:move",
   rewritesDuplicate: "rewrites:duplicate",
   rewritesDelete: "rewrites:delete",
+  rewritesSetShortcut: "rewrites:set-shortcut",
+  rewritesSetApplyDirectly: "rewrites:set-apply-directly",
 } as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
@@ -345,6 +349,15 @@ export const IPC_CONTRACT = {
     args: z.tuple([z.string().min(1)]),
     result: rewriteSaveResultSchema.nullable(),
   },
+  // A captured key, or null to remove the shortcut (RW-04).
+  [IPC_CHANNELS.rewritesSetShortcut]: {
+    args: z.tuple([z.string().min(1), capturedKeySchema.nullable()]),
+    result: rewriteShortcutResultSchema,
+  },
+  [IPC_CHANNELS.rewritesSetApplyDirectly]: {
+    args: z.tuple([z.string().min(1), z.boolean()]),
+    result: z.void(),
+  },
 } as const satisfies Record<IpcChannel, { args: z.ZodType; result: z.ZodType }>;
 
 export function isIpcChannel(value: unknown): value is IpcChannel {
@@ -434,6 +447,9 @@ export interface MurmurApi {
   rewritesMove(id: string, step: -1 | 1): Promise<void>;
   rewritesDuplicate(id: string): Promise<RewriteSaveResult>;
   rewritesDelete(id: string): Promise<RewriteSaveResult | null>;
+  /** A Rewrite's own shortcut, checked against every other one; null removes it. */
+  rewritesSetShortcut(id: string, key: CapturedKey | null): Promise<RewriteShortcutResult>;
+  rewritesSetApplyDirectly(id: string, applyDirectly: boolean): Promise<void>;
   /** Main asks the Hub to show a page (for example after a Bar prompt). */
   onOpenPage(handler: (pageId: string) => void): () => void;
   /** Input levels during a microphone check, about 20 a second. Returns an unsubscribe. */
