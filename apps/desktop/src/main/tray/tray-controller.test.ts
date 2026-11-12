@@ -16,6 +16,7 @@ function setup() {
   let settings: Settings = {
     holdShortcut: { type: "key", keyCode: 61, modifiers: [] },
     handsFreeShortcut: null,
+    rewriteShortcut: null,
     inputDevice: "auto",
     languages: [],
     cleanupLevel: "standard",

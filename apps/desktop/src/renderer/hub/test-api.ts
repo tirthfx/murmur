@@ -12,6 +12,7 @@ export const SAMPLE_SETTINGS: SettingsView = {
   settings: {
     holdShortcut: { type: "key", keyCode: 61, modifiers: [] },
     handsFreeShortcut: null,
+    rewriteShortcut: null,
     inputDevice: "auto",
     languages: [],
     cleanupLevel: "standard",
@@ -46,7 +47,7 @@ export const SAMPLE_SETTINGS: SettingsView = {
       pronunciationClips: false,
     },
   },
-  shortcutLabels: { hold: "Right Option", handsFree: "Double-tap Right Option" },
+  shortcutLabels: { hold: "Right Option", handsFree: "Double-tap Right Option", rewrite: "Off" },
   devices: [
     {
       id: "BuiltIn",

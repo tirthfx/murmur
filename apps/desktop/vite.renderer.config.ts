@@ -24,10 +24,11 @@ export default defineConfig(({ command }) => ({
   },
   build: {
     rollupOptions: {
-      // The Hub and the Bar are two pages of one build, each with its own preload.
+      // The Hub, the Bar and the Rewrite panel are pages of one build, each with its own preload.
       input: {
         index: fileURLToPath(new URL("./index.html", import.meta.url)),
         bar: fileURLToPath(new URL("./bar.html", import.meta.url)),
+        rewrite: fileURLToPath(new URL("./rewrite.html", import.meta.url)),
       },
     },
   },

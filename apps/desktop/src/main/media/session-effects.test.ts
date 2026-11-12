@@ -7,6 +7,7 @@ import { createSessionEffects, START_SOUND_WAIT_MS, type MarkerFile } from "./se
 const base: Settings = {
   holdShortcut: { type: "key", keyCode: 61, modifiers: [] },
   handsFreeShortcut: null,
+  rewriteShortcut: null,
   inputDevice: "auto",
   languages: [],
   cleanupLevel: "standard",

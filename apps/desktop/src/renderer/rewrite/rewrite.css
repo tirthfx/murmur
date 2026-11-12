@@ -1,0 +1,78 @@
+/* The Rewrite panel: a card on a transparent, frameless window. */
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+  font-family: "Figtree", system-ui, sans-serif;
+}
+
+.rewrite-card {
+  box-sizing: border-box;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--color-background-surface, #ffffff);
+  color: var(--color-text-primary, #18181b);
+  border: 1px solid var(--color-border-default, rgba(0, 0, 0, 0.12));
+}
+
+.rewrite-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.rewrite-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.rewrite-item[aria-selected="true"],
+.rewrite-item:hover {
+  background: var(--color-background-hover, rgba(0, 0, 0, 0.06));
+}
+
+.rewrite-item-detail {
+  display: block;
+  font-size: 12px;
+  opacity: 0.7;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rewrite-output {
+  flex: 1;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  user-select: text;
+  -webkit-user-select: text;
+  line-height: 1.45;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--color-background-subtle, rgba(0, 0, 0, 0.04));
+}
+
+@media (prefers-color-scheme: dark) {
+  .rewrite-card {
+    background: var(--color-background-surface, #1c1c1f);
+    color: var(--color-text-primary, #f4f4f5);
+    border-color: var(--color-border-default, rgba(255, 255, 255, 0.14));
+  }
+}

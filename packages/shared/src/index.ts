@@ -30,3 +30,4 @@ export * from "./processes";
 export * from "./selection";
 export * from "./generation";
 export * from "./rewrites";
+export * from "./rewrite-panel";

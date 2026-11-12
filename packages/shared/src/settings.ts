@@ -60,6 +60,8 @@ export const settingsSchema = z.strictObject({
   holdShortcut: hotkeyTriggerSchema,
   /** Toggles hands-free. Null means a double tap of the hold key. */
   handsFreeShortcut: hotkeyTriggerSchema.nullable(),
+  /** Opens the Rewrite panel on the selection (RW-01). Null turns it off. */
+  rewriteShortcut: hotkeyTriggerSchema.nullable(),
   /** Extra mouse buttons for push to talk and hands-free; null when unbound (DC-04). */
   mouseButtons: z
     .strictObject({ hold: mouseButtonSchema.nullable(), handsFree: mouseButtonSchema.nullable() })
@@ -166,6 +168,7 @@ export type SettingsPatch = z.infer<typeof settingsPatchSchema>;
 export const SETTING_KEYS: Record<keyof Settings, string> = {
   holdShortcut: "hotkey.dictate_hold",
   handsFreeShortcut: "hotkey.hands_free",
+  rewriteShortcut: "hotkey.rewrite",
   inputDevice: "audio.input_device",
   languages: "speech.languages",
   cleanupLevel: "cleanup.level",
@@ -209,7 +212,7 @@ export const DEFAULT_SOUNDS: Settings["sounds"] = {
   cancel: false,
 };
 
-export const SHORTCUT_SLOTS = ["hold", "handsFree"] as const;
+export const SHORTCUT_SLOTS = ["hold", "handsFree", "rewrite"] as const;
 export type ShortcutSlot = (typeof SHORTCUT_SLOTS)[number];
 
 /** A key the Hub captured: the browser's key code and the modifiers held. */
@@ -223,7 +226,7 @@ export type CapturedKey = z.infer<typeof capturedKeySchema>;
 export const settingsViewSchema = z.strictObject({
   settings: settingsSchema,
   /** Readable names: "Right Option", "Control+Option+Space". */
-  shortcutLabels: z.strictObject({ hold: z.string(), handsFree: z.string() }),
+  shortcutLabels: z.strictObject({ hold: z.string(), handsFree: z.string(), rewrite: z.string() }),
   /** Null when the helper could not list devices. */
   devices: z.array(audioDeviceSchema).nullable(),
 });

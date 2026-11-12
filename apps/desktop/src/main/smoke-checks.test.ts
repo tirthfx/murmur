@@ -6,6 +6,7 @@ import { createSmokeChecks, inOrder, type ClipName, type SmokeChecks } from "./s
 const settings: Settings = {
   holdShortcut: { type: "key", keyCode: 61, modifiers: [] },
   handsFreeShortcut: null,
+  rewriteShortcut: null,
   inputDevice: "auto",
   languages: [],
   cleanupLevel: "standard",

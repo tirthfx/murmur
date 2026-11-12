@@ -13,6 +13,7 @@ import { createSettingsStore } from "./settings-store";
 const defaults: Settings = {
   holdShortcut: { type: "key", keyCode: 61, modifiers: [] },
   handsFreeShortcut: null,
+  rewriteShortcut: null,
   inputDevice: "auto",
   languages: [],
   cleanupLevel: "standard",
@@ -73,6 +74,7 @@ describe("settings service", () => {
     expect(view.shortcutLabels).toEqual({
       hold: "Right Option",
       handsFree: "Double-tap Right Option",
+      rewrite: "Off",
     });
     expect(view.devices?.[0]?.name).toBe("Desk Mic");
   });
@@ -101,6 +103,36 @@ describe("settings service", () => {
       message: "Command+Space is used by macOS for Spotlight.",
     });
     expect(store.get().holdShortcut.keyCode).toBe(61);
+  });
+
+  it("sets, checks and turns off the Rewrite shortcut", async () => {
+    const { service } = setup();
+    const saved = await service.setShortcut("rewrite", {
+      code: "KeyR",
+      modifiers: ["control", "option"],
+    });
+    expect(saved.ok && saved.view.shortcutLabels.rewrite).toBe("Control+Option+R");
+    expect(
+      await service.setShortcut("handsFree", { code: "KeyR", modifiers: ["control", "option"] }),
+    ).toEqual({ ok: false, message: "Control+Option+R is already used for Rewrite." });
+    const off = await service.setShortcut("rewrite", null);
+    expect(off.ok && off.view.shortcutLabels.rewrite).toBe("Off");
+  });
+
+  it("binds the Rewrite shortcut to open the panel", () => {
+    const trigger = {
+      type: "key" as const,
+      keyCode: 15,
+      modifiers: ["control" as const, "option" as const],
+    };
+    expect(bindingsFor({ ...defaults, rewriteShortcut: trigger }).at(-1)).toEqual({
+      id: "rewrite-panel",
+      action: "rewrite",
+      trigger,
+      mode: "press",
+      rewriteId: "panel",
+    });
+    expect(bindingsFor(defaults).some((binding) => binding.action === "rewrite")).toBe(false);
   });
 
   it("clears hands-free back to the double tap, but never the hold key", async () => {

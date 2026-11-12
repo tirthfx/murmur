@@ -16,9 +16,10 @@ export interface SettingsStore {
   onChange(handler: (settings: Settings, changed: (keyof Settings)[]) => void): Unsubscribe;
 }
 
-const SLOT_FIELD: Record<ShortcutSlot, "holdShortcut" | "handsFreeShortcut"> = {
+const SLOT_FIELD: Record<ShortcutSlot, "holdShortcut" | "handsFreeShortcut" | "rewriteShortcut"> = {
   hold: "holdShortcut",
   handsFree: "handsFreeShortcut",
+  rewrite: "rewriteShortcut",
 };
 
 /**

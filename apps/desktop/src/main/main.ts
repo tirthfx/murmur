@@ -17,6 +17,9 @@ import {
 import {
   BAR_IPC_CHANNELS,
   MEMORY_LIMITS,
+  PRESETS,
+  REWRITE_PANEL_BINDING_ID,
+  REWRITE_PANEL_CHANNELS,
   STYLE_CATEGORIES,
   type StyleCategory,
   EDIT_WATCH_MAX_MS,
@@ -54,6 +57,12 @@ import { createSnippetStore } from "./snippets/snippet-store";
 import { createStyleStore } from "./styles/style-store";
 import { createMemoryStore } from "./memory/memory-store";
 import { createRewriteStore } from "./rewrites/rewrite-store";
+import { createRewriteRunStore } from "./rewrites/run-store";
+import { createRewriteController } from "./rewrites/rewrite-controller";
+import { RewritePanelWindow } from "./rewrites/panel-window";
+import { createRewritePanelIpcHandler } from "./rewrites/panel-ipc";
+import { createGenerationService } from "./generation/service";
+import { BROWSERS } from "./styles/app-categories";
 import { createPhraseLearner } from "./dictionary/phrases";
 import { createClipRecorder } from "./dictionary/clips";
 import { createWritingSampleStore } from "./email/writing-samples";
@@ -70,7 +79,13 @@ import { HelperError } from "./helper/types";
 import { createHotkeyService } from "./hotkeys";
 import { createIpcHandler } from "./ipc";
 import { createPermissionsService } from "./permissions";
-import { createPlatformHelper, defaultHotkeyBindings, keyPlatform } from "./platform";
+import {
+  appActivator,
+  createPlatformHelper,
+  defaultHotkeyBindings,
+  defaultRewriteShortcut,
+  keyPlatform,
+} from "./platform";
 import {
   bindingsFor,
   createSettingsService,
@@ -121,6 +136,18 @@ function resolveHubEntryUrl(): string {
 }
 
 const hubEntryUrl = resolveHubEntryUrl();
+
+/** The Rewrite panel is another page of the same renderer build, with its own preload. */
+function resolveRewriteEntryUrl(): string {
+  if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
+    return new URL("rewrite.html", `${MAIN_WINDOW_VITE_DEV_SERVER_URL}/`).toString();
+  }
+  return pathToFileURL(
+    path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/rewrite.html`),
+  ).toString();
+}
+
+const rewriteEntryUrl = resolveRewriteEntryUrl();
 
 /** The Bar is a second page of the same renderer build, with its own preload. */
 function resolveBarEntryUrl(): string {
@@ -174,6 +201,7 @@ const styles = database ? createStyleStore(database) : null;
 // Memory (PZ-18, PZ-19), and the one "remember that" fact waiting on the Bar.
 const memory = database ? createMemoryStore(database) : null;
 const rewrites = database ? createRewriteStore(database) : null;
+const rewriteRuns = database ? createRewriteRunStore(database) : null;
 const writingSamples = database ? createWritingSampleStore(database) : null;
 // Bulk import of dictionary entries and snippets (PZ-07, PZ-10).
 const importer = createImporter({ dictionary, snippets });
@@ -231,6 +259,7 @@ const settingsStore = createSettingsStore(database, {
       ? platformDefaults[0].trigger
       : { type: "key", keyCode: 61, modifiers: [] },
   handsFreeShortcut: null,
+  rewriteShortcut: defaultRewriteShortcut(process.platform),
   inputDevice: "auto",
   languages: [],
   cleanupLevel: "standard",
@@ -326,6 +355,19 @@ const barWindow = new BarWindow({
   logger: createConsoleLogger("[bar]"),
 });
 const bar = createBarController(barWindow, systemClock);
+const rewritePanel = new RewritePanelWindow({
+  create: (options) => new BrowserWindow(options),
+  preloadPath: path.join(__dirname, "rewrite-preload.cjs"),
+  entryUrl: rewriteEntryUrl,
+  isDevelopment,
+  barPosition: () => barWindow.position(),
+  workArea: (point) =>
+    (point
+      ? screen.getDisplayNearestPoint({ x: point[0], y: point[1] })
+      : screen.getPrimaryDisplay()
+    ).workArea,
+  logger: createConsoleLogger("[rewrite]"),
+});
 
 // Sounds and output mute around each recording. The marker file exists only while Murmur
 // holds the output muted, so a crash leaves a note for the next launch to undo.
@@ -622,7 +664,64 @@ const clips = dictionary
       logger: createConsoleLogger("[clips]"),
     })
   : null;
-hotkeys.onEvent((event) => recorder.handleHotkey(event));
+// Rewrites (RW-01, RW-07): the generation engine on the cleanup model, and the panel.
+const generation = createGenerationService({
+  llm,
+  modelReady: cleanupModelReady,
+  logger: createConsoleLogger("[generate]"),
+});
+const activateApp = appActivator(process.platform);
+const rewriteController = createRewriteController({
+  helper,
+  rewrites: rewrites ?? { enabled: () => [], get: () => null, markUsed: () => {} },
+  runs: rewriteRuns,
+  generation,
+  panel: rewritePanel,
+  notify: (message) => bar.dispatch({ type: "warn", message }),
+  activateApp,
+  context: (appId, text) => {
+    const resolved = styles?.resolve({ bundleId: appId, windowTitle: null }) ?? null;
+    const preset = resolved ? PRESETS[resolved.style.preset].instruction : null;
+    const own = resolved?.style.instructions.trim() ?? "";
+    const settings = settingsStore.get();
+    return {
+      style: [preset, own].filter((note): note is string => Boolean(note)),
+      memory: settings.memory.enabled
+        ? (memory?.relevant(text).map((item) => item.text) ?? [])
+        : [],
+      // Writing samples were collected for email (PZ-20); elsewhere they would pull the tone.
+      samples:
+        resolved?.category === "email"
+          ? (writingSamples?.list() ?? []).map((sample) => sample.text)
+          : [],
+    };
+  },
+  // Web editors (Google Docs and the like) report the wrong selection through Accessibility.
+  clipboardFirstInApps: () => [...BROWSERS],
+  insertRules: () => insertionRules(),
+  logger: createConsoleLogger("[rewrite]"),
+});
+// Source text of old runs is cut to 200 characters after 7 days.
+const trimRewriteRuns = () => {
+  try {
+    const trimmed = rewriteRuns?.trimOld() ?? 0;
+    if (trimmed > 0) console.log(`[rewrite] trimmed ${trimmed} old runs`);
+  } catch (error) {
+    console.warn(`[rewrite] could not trim old runs: ${String(error)}`);
+  }
+};
+trimRewriteRuns();
+setInterval(trimRewriteRuns, 24 * 60 * 60_000).unref();
+
+hotkeys.onEvent((event) => {
+  if (event.action === "rewrite") {
+    if (event.rewriteId === REWRITE_PANEL_BINDING_ID && event.state !== "up") {
+      void rewriteController.open();
+    }
+    return;
+  }
+  recorder.handleHotkey(event);
+});
 helper.onAudioLevel((level) => bar.level(level.rmsDb));
 helper.onEditsChanged((change) => {
   if (!learner || !lastInserted || !settingsStore.get().learnCorrections) return;
@@ -1105,6 +1204,15 @@ function registerIpc(): void {
     },
     answer: (choice) => answerBar(choice),
   });
+  const handleRewritePanel = createRewritePanelIpcHandler({
+    entryUrl: rewriteEntryUrl,
+    controller: rewriteController,
+  });
+  for (const channel of Object.values(REWRITE_PANEL_CHANNELS)) {
+    ipcMain.handle(channel, (event, ...args: unknown[]) =>
+      handleRewritePanel(channel, event.senderFrame?.url, args),
+    );
+  }
   ipcMain.handle(BAR_IPC_CHANNELS.ready, (event) =>
     handleBar(BAR_IPC_CHANNELS.ready, event.senderFrame?.url, []),
   );

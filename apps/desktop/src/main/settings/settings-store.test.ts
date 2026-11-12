@@ -6,6 +6,7 @@ import { createSettingsStore } from "./settings-store";
 const defaults: Settings = {
   holdShortcut: { type: "key", keyCode: 61, modifiers: [] },
   handsFreeShortcut: null,
+  rewriteShortcut: null,
   inputDevice: "auto",
   languages: [],
   cleanupLevel: "standard",
