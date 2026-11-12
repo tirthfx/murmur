@@ -42,6 +42,9 @@ const api: MurmurApi = {
   rewritesMove: (id, step) => ipcRenderer.invoke(IPC_CHANNELS.rewritesMove, id, step),
   rewritesDuplicate: (id) => ipcRenderer.invoke(IPC_CHANNELS.rewritesDuplicate, id),
   rewritesDelete: (id) => ipcRenderer.invoke(IPC_CHANNELS.rewritesDelete, id),
+  rewritesSetShortcut: (id, key) => ipcRenderer.invoke(IPC_CHANNELS.rewritesSetShortcut, id, key),
+  rewritesSetApplyDirectly: (id, applyDirectly) =>
+    ipcRenderer.invoke(IPC_CHANNELS.rewritesSetApplyDirectly, id, applyDirectly),
   importPreview: (request) => ipcRenderer.invoke(IPC_CHANNELS.importPreview, request),
   importApply: (request) => ipcRenderer.invoke(IPC_CHANNELS.importApply, request),
   voiceProfileView: () => ipcRenderer.invoke(IPC_CHANNELS.voiceProfileView),

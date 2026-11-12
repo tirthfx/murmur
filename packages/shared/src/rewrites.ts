@@ -9,6 +9,8 @@ export const REWRITE_LIMITS = {
   example: 1000,
   /** Custom Rewrites (RW-03); built-ins do not count. */
   custom: 50,
+  /** Rewrites with their own shortcut (RW-04). */
+  shortcuts: 20,
 } as const;
 
 /** Keys as named in the data model. `concise` is shown as "Tighten". */
@@ -82,8 +84,10 @@ export const rewriteSchema = z.strictObject({
   example: z.string().nullable(),
   enabled: z.boolean(),
   sortOrder: z.number().int(),
-  /** Set in #114 (named shortcuts). */
+  /** Its own shortcut (RW-04), as stored; null when none. */
   shortcut: z.string().nullable(),
+  /** The shortcut as the Mac names it ("Control+Option+T"); filled in by main. */
+  shortcutLabel: z.string().nullable(),
   applyDirectly: z.boolean(),
   autoApply: z.boolean(),
   autoApplyMinWords: z.number().int().min(0),
@@ -128,3 +132,9 @@ export const rewriteSaveResultSchema = z.discriminatedUnion("ok", [
   }),
 ]);
 export type RewriteSaveResult = z.infer<typeof rewriteSaveResultSchema>;
+
+export const rewriteShortcutResultSchema = z.discriminatedUnion("ok", [
+  z.strictObject({ ok: z.literal(true) }),
+  z.strictObject({ ok: z.literal(false), message: z.string() }),
+]);
+export type RewriteShortcutResult = z.infer<typeof rewriteShortcutResultSchema>;

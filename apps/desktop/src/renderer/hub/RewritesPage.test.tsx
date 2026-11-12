@@ -11,6 +11,7 @@ const base = {
   example: null,
   enabled: true,
   shortcut: null,
+  shortcutLabel: null,
   applyDirectly: true,
   autoApply: false,
   autoApplyMinWords: 0,

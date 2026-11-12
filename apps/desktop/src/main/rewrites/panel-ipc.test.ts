@@ -8,6 +8,7 @@ const entryUrl = "file:///app/renderer/main_window/rewrite.html";
 function setup() {
   const controller: RewriteController = {
     open: vi.fn(),
+    runDirect: vi.fn(),
     choose: vi.fn(async () => {}),
     regenerate: vi.fn(async () => {}),
     back: vi.fn(),

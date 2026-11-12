@@ -1,4 +1,5 @@
 import {
+  GENERATION_MESSAGES,
   REWRITE_PANEL_MESSAGES,
   type InsertTextInput,
   type PlatformHelper,
@@ -50,6 +51,11 @@ export interface RewriteControllerDeps {
 export interface RewriteController {
   /** The Rewrite shortcut: reads the selection and opens the panel. */
   open(): Promise<void>;
+  /**
+   * A Rewrite's own shortcut (RW-04): runs it on the selection without the list. With Apply
+   * directly the result replaces the text and the Bar says so; otherwise the panel shows it.
+   */
+  runDirect(rewriteId: string): Promise<void>;
   choose(rewriteId: string): Promise<void>;
   regenerate(): Promise<void>;
   back(): void;
@@ -110,8 +116,7 @@ export function createRewriteController(deps: RewriteControllerDeps): RewriteCon
     return { clipboardFallback: true, clipboardFirstInApps: deps.clipboardFirstInApps() };
   }
 
-  function record(outcome: RewriteOutcome): void {
-    const current = session;
+  function record(outcome: RewriteOutcome, current: Session | null = session): void {
     if (!current?.rewrite || !deps.runs) return;
     try {
       deps.runs.record({
@@ -125,6 +130,90 @@ export function createRewriteController(deps: RewriteControllerDeps): RewriteCon
       });
     } catch (error) {
       deps.logger.warn(`rewrite run not saved: ${String(error)}`);
+    }
+  }
+
+  /** Reads the selection; anything but text gives a Bar message and null. */
+  async function readSelection(): Promise<SelectionResult | null> {
+    let selection: SelectionResult;
+    try {
+      selection = await deps.helper.readSelection(readOptions());
+    } catch (error) {
+      const code = (error as { code?: unknown } | null)?.code;
+      deps.notify(
+        code === "PERMISSION_DENIED"
+          ? "Rewrites need Accessibility. Turn it on in Settings."
+          : "The selection could not be read",
+      );
+      return null;
+    }
+    switch (selection.status) {
+      case "ok":
+        return selection;
+      case "too_long":
+        deps.notify(REWRITE_PANEL_MESSAGES.tooLong);
+        return null;
+      case "secure":
+        deps.notify(REWRITE_PANEL_MESSAGES.secure);
+        return null;
+      default:
+        deps.notify(REWRITE_PANEL_MESSAGES.noSelection);
+        return null;
+    }
+  }
+
+  function inputFor(rewrite: Rewrite, selection: SelectionResult) {
+    const context = deps.context(selection.appBundleId, selection.text);
+    return {
+      kind: "rewrite" as const,
+      instruction: rewrite.instruction,
+      ...(rewrite.example ? { example: rewrite.example } : {}),
+      text: selection.text,
+      style: context.style,
+      memory: context.memory,
+      samples: context.samples,
+    };
+  }
+
+  /** Drops any session in progress, as when the shortcut is pressed again. */
+  function dropSession(): void {
+    if (!session) return;
+    if (session.output !== null) record("discarded");
+    session.run?.cancel();
+    session = null;
+  }
+
+  /**
+   * Pastes the result over the selection, after checking it is the very same text in the same
+   * app. `changed` when it is not (nothing pasted); `copied` when the paste could not happen.
+   */
+  async function pasteChecked(
+    current: Session,
+    output: string,
+  ): Promise<"replaced" | "copied" | "changed"> {
+    let check: SelectionResult | null;
+    try {
+      check = await deps.helper.readSelection(readOptions());
+    } catch {
+      check = null;
+    }
+    if (!check || check.status !== "ok" || check.hash !== current.selection.hash) return "changed";
+    if (check.appBundleId !== current.selection.appBundleId) {
+      await deps.helper.copyText(output).catch(() => {});
+      return "copied";
+    }
+    try {
+      await deps.helper.insertText({
+        text: output,
+        method: "auto",
+        restoreClipboard: true,
+        restoreDelayMs: 350,
+        ...deps.insertRules(),
+      });
+      return "replaced";
+    } catch {
+      await deps.helper.copyText(output).catch(() => {});
+      return "copied";
     }
   }
 
@@ -149,33 +238,21 @@ export function createRewriteController(deps: RewriteControllerDeps): RewriteCon
     let loading = false;
     const running = () => setState({ stage: "running", rewriteName: rewrite.name, text, loading });
     running();
-    const context = deps.context(current.selection.appBundleId, current.selection.text);
-    const run = deps.generation.generate(
-      {
-        kind: "rewrite",
-        instruction: rewrite.instruction,
-        ...(rewrite.example ? { example: rewrite.example } : {}),
-        text: current.selection.text,
-        style: context.style,
-        memory: context.memory,
-        samples: context.samples,
+    const run = deps.generation.generate(inputFor(rewrite, current.selection), {
+      onChunk: (chunk) => {
+        text += chunk;
+        loading = false;
+        running();
       },
-      {
-        onChunk: (chunk) => {
-          text += chunk;
-          loading = false;
-          running();
-        },
-        onLoading: () => {
-          loading = true;
-          running();
-        },
-        onReset: () => {
-          text = "";
-          running();
-        },
+      onLoading: () => {
+        loading = true;
+        running();
       },
-    );
+      onReset: () => {
+        text = "";
+        running();
+      },
+    });
     current.run = run;
     try {
       const result = await run.result;
@@ -207,37 +284,9 @@ export function createRewriteController(deps: RewriteControllerDeps): RewriteCon
 
   return {
     async open() {
-      if (session) {
-        record("discarded");
-        session.run?.cancel();
-        session = null;
-      }
-      let selection: SelectionResult;
-      try {
-        selection = await deps.helper.readSelection(readOptions());
-      } catch (error) {
-        const code = (error as { code?: unknown } | null)?.code;
-        deps.notify(
-          code === "PERMISSION_DENIED"
-            ? "Rewrites need Accessibility. Turn it on in Settings."
-            : "The selection could not be read",
-        );
-        return;
-      }
-      switch (selection.status) {
-        case "too_long":
-          deps.notify(REWRITE_PANEL_MESSAGES.tooLong);
-          return;
-        case "secure":
-          deps.notify(REWRITE_PANEL_MESSAGES.secure);
-          return;
-        case "empty":
-        case "unavailable":
-          deps.notify(REWRITE_PANEL_MESSAGES.noSelection);
-          return;
-        case "ok":
-          break;
-      }
+      dropSession();
+      const selection = await readSelection();
+      if (!selection) return;
       const state = listState(selection);
       if (state.stage === "list" && state.items.length === 0) {
         deps.notify(REWRITE_PANEL_MESSAGES.noRewrites);
@@ -245,6 +294,66 @@ export function createRewriteController(deps: RewriteControllerDeps): RewriteCon
       }
       session = { selection, rewrite: null, output: null, durationMs: null, run: null, state };
       setState(state, true);
+    },
+
+    async runDirect(rewriteId) {
+      const rewrite = deps.rewrites.get(rewriteId);
+      if (!rewrite?.enabled) return;
+      if (session) {
+        dropSession();
+        deps.panel.hide();
+      }
+      const selection = await readSelection();
+      if (!selection) return;
+      const current: Session = {
+        selection,
+        rewrite,
+        output: null,
+        durationMs: null,
+        run: null,
+        state: { stage: "hidden" },
+      };
+      session = current;
+      if (!rewrite.applyDirectly) {
+        setState({ stage: "running", rewriteName: rewrite.name, text: "", loading: false }, true);
+        await start(rewrite);
+        return;
+      }
+      const run = deps.generation.generate(inputFor(rewrite, selection), {
+        onLoading: () => deps.notify(GENERATION_MESSAGES.loading),
+      });
+      current.run = run;
+      let output: string;
+      try {
+        const result = await run.result;
+        output = result.text;
+        current.output = output;
+        current.durationMs = result.ms;
+      } catch (error) {
+        if (session !== current) return;
+        session = null;
+        const code = error instanceof GenerationError ? error.code : "error";
+        if (code === "cancelled") return;
+        record("failed", current);
+        deps.notify(error instanceof Error ? error.message : String(error));
+        return;
+      }
+      if (session !== current) return;
+      current.run = null;
+      deps.rewrites.markUsed(rewrite.id);
+      const outcome = await pasteChecked(current, output);
+      if (session !== current) return;
+      if (outcome === "changed") {
+        await deps.helper.copyText(output).catch(() => {});
+        record("copied");
+        deps.notify(REWRITE_PANEL_MESSAGES.changedCopied);
+      } else {
+        record(outcome);
+        deps.notify(
+          outcome === "replaced" ? REWRITE_PANEL_MESSAGES.replaced : REWRITE_PANEL_MESSAGES.notBack,
+        );
+      }
+      session = null;
     },
 
     async choose(rewriteId) {
@@ -272,15 +381,10 @@ export function createRewriteController(deps: RewriteControllerDeps): RewriteCon
       deps.panel.hide();
       if (app) await deps.activateApp(app);
       await sleep(REFOCUS_MS);
-      let check: SelectionResult | null;
-      try {
-        check = await deps.helper.readSelection(readOptions());
-      } catch {
-        check = null;
-      }
-      if (session !== current) return;
       // Replace only over the very same text, in the same app.
-      if (!check || check.status !== "ok" || check.hash !== current.selection.hash) {
+      const outcome = await pasteChecked(current, output);
+      if (session !== current) return;
+      if (outcome === "changed") {
         setState(
           {
             stage: "message",
@@ -292,28 +396,10 @@ export function createRewriteController(deps: RewriteControllerDeps): RewriteCon
         );
         return;
       }
-      if (check.appBundleId !== app) {
-        await deps.helper.copyText(output).catch(() => {});
-        record("copied");
-        session = null;
-        deps.notify(REWRITE_PANEL_MESSAGES.notBack);
-        return;
-      }
-      try {
-        await deps.helper.insertText({
-          text: output,
-          method: "auto",
-          restoreClipboard: true,
-          restoreDelayMs: 350,
-          ...deps.insertRules(),
-        });
-        record("replaced");
-        deps.notify(REWRITE_PANEL_MESSAGES.replaced);
-      } catch {
-        await deps.helper.copyText(output).catch(() => {});
-        record("copied");
-        deps.notify(REWRITE_PANEL_MESSAGES.notBack);
-      }
+      record(outcome);
+      deps.notify(
+        outcome === "replaced" ? REWRITE_PANEL_MESSAGES.replaced : REWRITE_PANEL_MESSAGES.notBack,
+      );
       session = null;
     },
 

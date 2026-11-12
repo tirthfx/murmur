@@ -61,6 +61,12 @@ import { createRewriteRunStore } from "./rewrites/run-store";
 import { createRewriteController } from "./rewrites/rewrite-controller";
 import { RewritePanelWindow } from "./rewrites/panel-window";
 import { createRewritePanelIpcHandler } from "./rewrites/panel-ipc";
+import {
+  rewriteBindings,
+  rewriteShortcutsInUse,
+  setRewriteShortcut,
+  withShortcutLabels,
+} from "./rewrites/rewrite-shortcuts";
 import { createGenerationService } from "./generation/service";
 import { BROWSERS } from "./styles/app-categories";
 import { createPhraseLearner } from "./dictionary/phrases";
@@ -293,9 +299,15 @@ const settingsService = createSettingsService({
   store: settingsStore,
   platform: keys,
   listDevices: () => helper.listAudioDevices(),
+  otherShortcuts: () => rewriteShortcutsInUse(rewrites?.list() ?? []),
 });
 const bindingsNow = () =>
-  platformDefaults.length > 0 ? bindingsFor(settingsStore.get(), keys.cancelKeyCode) : [];
+  platformDefaults.length > 0
+    ? [
+        ...bindingsFor(settingsStore.get(), keys.cancelKeyCode),
+        ...rewriteBindings(rewrites?.list() ?? []),
+      ]
+    : [];
 
 const hotkeys = createHotkeyService({
   helper,
@@ -303,7 +315,8 @@ const hotkeys = createHotkeyService({
   logger: createConsoleLogger("[hotkeys]"),
 });
 // New shortcuts reach the helper at once; no restart.
-settingsStore.onChange(() => hotkeys.setBindings(bindingsNow()));
+const refreshBindings = () => hotkeys.setBindings(bindingsNow());
+settingsStore.onChange(refreshBindings);
 permissions.onChecked((statuses) => hotkeys.handlePermissions(statuses));
 
 const speech = createSpeechService({
@@ -715,9 +728,9 @@ setInterval(trimRewriteRuns, 24 * 60 * 60_000).unref();
 
 hotkeys.onEvent((event) => {
   if (event.action === "rewrite") {
-    if (event.rewriteId === REWRITE_PANEL_BINDING_ID && event.state !== "up") {
-      void rewriteController.open();
-    }
+    if (event.state === "up" || !event.rewriteId) return;
+    if (event.rewriteId === REWRITE_PANEL_BINDING_ID) void rewriteController.open();
+    else void rewriteController.runDirect(event.rewriteId);
     return;
   }
   recorder.handleHotkey(event);
@@ -1163,14 +1176,28 @@ function registerIpc(): void {
         message: "Memory could not be opened.",
       },
     memoryDelete: (id) => memory?.remove(id),
-    rewritesList: () => rewrites?.list() ?? [],
+    rewritesList: () => withShortcutLabels(rewrites?.list() ?? [], keys),
     rewritesSave: (input) =>
       rewrites?.save(input) ?? {
         ok: false,
         reason: "not-found",
         message: "Rewrites could not be opened.",
       },
-    rewritesSetEnabled: (id, enabled) => rewrites?.setEnabled(id, enabled),
+    rewritesSetEnabled: (id, enabled) => {
+      rewrites?.setEnabled(id, enabled);
+      refreshBindings();
+    },
+    rewritesSetShortcut: (id, key) => {
+      if (!rewrites) return { ok: false, message: "Rewrites could not be opened." };
+      const result = setRewriteShortcut(
+        { store: rewrites, settings: () => settingsStore.get(), platform: keys },
+        id,
+        key,
+      );
+      if (result.ok) refreshBindings();
+      return result;
+    },
+    rewritesSetApplyDirectly: (id, applyDirectly) => rewrites?.setApplyDirectly(id, applyDirectly),
     rewritesMove: (id, step) => rewrites?.move(id, step),
     rewritesDuplicate: (id) =>
       rewrites?.duplicate(id) ?? {
@@ -1178,7 +1205,11 @@ function registerIpc(): void {
         reason: "not-found",
         message: "Rewrites could not be opened.",
       },
-    rewritesDelete: (id) => rewrites?.remove(id) ?? null,
+    rewritesDelete: (id) => {
+      const result = rewrites?.remove(id) ?? null;
+      refreshBindings();
+      return result;
+    },
     stylesClearOverride: (bundleId) => {
       styles?.clearOverride(bundleId);
       return styles?.view() ?? { styles: [], overrides: [], recentApps: [] };

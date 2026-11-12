@@ -18,7 +18,7 @@ export const SLOT_NAMES: Record<ShortcutSlot, string> = {
   rewrite: "Rewrite",
 };
 
-function sameTrigger(a: HotkeyTrigger, b: HotkeyTrigger): boolean {
+export function sameTrigger(a: HotkeyTrigger, b: HotkeyTrigger): boolean {
   return (
     a.keyCode === b.keyCode &&
     a.modifiers.length === b.modifiers.length &&
@@ -26,15 +26,21 @@ function sameTrigger(a: HotkeyTrigger, b: HotkeyTrigger): boolean {
   );
 }
 
+/** A shortcut Murmur already uses, named the way the refusal message says it. */
+export interface UsedShortcut {
+  use: string;
+  trigger: HotkeyTrigger;
+}
+
 /**
- * Turns a captured key into a trigger, or explains why it cannot be one. `others` are the
- * shortcuts Murmur already uses in other slots.
+ * Turns a captured key into a trigger, or explains why it cannot be one. `used` are the
+ * shortcuts Murmur already has. `needsKey` refuses a modifier on its own (press shortcuts).
  */
-export function checkShortcut(
+export function checkTrigger(
   key: CapturedKey,
-  slot: ShortcutSlot,
-  others: Partial<Record<ShortcutSlot, HotkeyTrigger | null>>,
+  used: readonly UsedShortcut[],
   platform: KeyPlatform,
+  needsKey = false,
 ): { ok: true; trigger: HotkeyTrigger } | { ok: false; message: string } {
   const keyCode = platform.keyCode(key.code);
   if (keyCode === null) return { ok: false, message: "This key cannot be used as a shortcut." };
@@ -46,6 +52,12 @@ export function checkShortcut(
     keyCode,
     modifiers: isModifier ? [] : [...new Set(key.modifiers)],
   };
+  if (isModifier && needsKey) {
+    return {
+      ok: false,
+      message: `${platform.label(trigger)} on its own cannot be used here. Add a letter or number key.`,
+    };
+  }
   if (!isModifier && trigger.modifiers.length === 0 && !platform.functionKeys.has(keyCode)) {
     return {
       ok: false,
@@ -64,16 +76,33 @@ export function checkShortcut(
       message: `${platform.label(trigger)} is used by macOS for ${reserved.use}.`,
     };
   }
-  for (const [otherSlot, other] of Object.entries(others) as [
+  const clash = used.find((other) => sameTrigger(other.trigger, trigger));
+  if (clash) {
+    return {
+      ok: false,
+      message: `${platform.label(trigger)} is already used for ${clash.use}.`,
+    };
+  }
+  return { ok: true, trigger };
+}
+
+/**
+ * The check for a Settings slot. `others` are the slots' current shortcuts; `extra` are other
+ * shortcuts Murmur uses (named Rewrite shortcuts).
+ */
+export function checkShortcut(
+  key: CapturedKey,
+  slot: ShortcutSlot,
+  others: Partial<Record<ShortcutSlot, HotkeyTrigger | null>>,
+  platform: KeyPlatform,
+  extra: readonly UsedShortcut[] = [],
+): { ok: true; trigger: HotkeyTrigger } | { ok: false; message: string } {
+  const used: UsedShortcut[] = [];
+  for (const [otherSlot, trigger] of Object.entries(others) as [
     ShortcutSlot,
     HotkeyTrigger | null,
   ][]) {
-    if (otherSlot !== slot && other && sameTrigger(other, trigger)) {
-      return {
-        ok: false,
-        message: `${platform.label(trigger)} is already used for ${SLOT_NAMES[otherSlot]}.`,
-      };
-    }
+    if (otherSlot !== slot && trigger) used.push({ use: SLOT_NAMES[otherSlot], trigger });
   }
-  return { ok: true, trigger };
+  return checkTrigger(key, [...used, ...extra], platform, slot === "rewrite");
 }

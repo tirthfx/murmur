@@ -91,6 +91,7 @@ export const REWRITE_PANEL_MESSAGES = {
   tooLong: "Select less text to rewrite (8,000 characters max).",
   secure: "Rewrites do not read password fields",
   selectionChanged: "Selection changed. Copy instead?",
+  changedCopied: "Selection changed. The result was copied instead.",
   notBack: "Could not get back to the app. The result was copied instead.",
   noRewrites: "All Rewrites are switched off. Switch one on in the Hub.",
   replaced: "Replaced",

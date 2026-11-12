@@ -25,6 +25,7 @@ import {
   type Rewrite,
   type RewriteInput,
   type RewriteSaveResult,
+  type RewriteShortcutResult,
   type ImportPreview,
   type ImportRequest,
   type ImportResult,
@@ -84,6 +85,8 @@ export interface IpcDeps {
   rewritesMove: (id: string, step: -1 | 1) => void;
   rewritesDuplicate: (id: string) => RewriteSaveResult;
   rewritesDelete: (id: string) => RewriteSaveResult | null;
+  rewritesSetShortcut: (id: string, key: CapturedKey | null) => RewriteShortcutResult;
+  rewritesSetApplyDirectly: (id: string, applyDirectly: boolean) => void;
   importPreview: (request: ImportRequest) => ImportPreview;
   importApply: (request: ImportRequest) => ImportResult;
   voiceProfileView: () => VoiceProfileView;
@@ -191,6 +194,13 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.rewritesDuplicate(request.args[0] as string);
       case IPC_CHANNELS.rewritesDelete:
         return deps.rewritesDelete(request.args[0] as string);
+      case IPC_CHANNELS.rewritesSetShortcut:
+        return deps.rewritesSetShortcut(
+          request.args[0] as string,
+          request.args[1] as CapturedKey | null,
+        );
+      case IPC_CHANNELS.rewritesSetApplyDirectly:
+        return deps.rewritesSetApplyDirectly(request.args[0] as string, request.args[1] as boolean);
       case IPC_CHANNELS.writingSamplesList:
         return deps.writingSamplesList();
       case IPC_CHANNELS.writingSamplesSave:

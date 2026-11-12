@@ -66,6 +66,27 @@ Each closed session with a result is stored in `rewrite_runs` (migration 0012): 
 source text, result, outcome (`replaced`, `copied`, `discarded`, `failed`), app and time. The
 source text is cut to its first 200 characters after 7 days, at start and once a day.
 
+### A Rewrite's own shortcut
+
+Any enabled Rewrite can have its own shortcut (at most 20), set on the Rewrites page. It is
+checked against Push to talk, Hands-free, the Rewrite shortcut and every other Rewrite's, in
+both directions, and needs a letter or number key (a modifier on its own cannot run a
+Rewrite). It is a `rewrite` hotkey binding whose `rewriteId` is the Rewrite's id, sent to the
+helper with the others and refreshed when a Rewrite is switched, deleted or given a new
+shortcut. A switched-off Rewrite keeps its shortcut but is not bound.
+
+Pressing it runs that Rewrite on the selection without the list:
+
+- **Apply directly** (on by default): no panel. When the result is ready, the selection is
+  read again; if it is the same text in the same app, the result replaces it and the Bar says
+  "Replaced". If it changed meanwhile, the result is copied and the Bar says so.
+- Apply directly off: the panel opens on the streaming result, as if the Rewrite had been
+  chosen from the list.
+- Nothing selected, too long or a password field: the Bar says so, as for the panel.
+
+Shortcuts are stored in `rewrites.shortcut` in one form (key code and sorted modifiers), so
+the table's unique index also catches two Rewrites with the same keys.
+
 ### Manual test
 
 1. In Notes, select a sentence with a number and press Control+Option+R.
@@ -75,6 +96,11 @@ source text is cut to its first 200 characters after 7 days, at start and once a
    pressing Replace: the panel says the selection changed and offers Copy.
 5. In Google Docs in Chrome, select a paragraph and run Keep tone; Replace works there too.
 6. Press the shortcut with nothing selected: the Bar says "Select some text first".
+7. On the Rewrites page, give Tighten Control+Option+T. Select a sentence in Notes and press
+   it: the sentence is replaced and the Bar says "Replaced". Try Control+Option+R for another
+   Rewrite: it is refused, naming the Rewrite shortcut.
+8. Turn off Apply directly for Tighten and press Control+Option+T again: the panel opens on
+   the result.
 
 ## Benchmark
 
