@@ -14,6 +14,12 @@ import {
 import { contextSnapshotPayloadSchema, focusContextSchema } from "./context";
 import { procForegroundResultSchema } from "./processes";
 import {
+  keysPressPayloadSchema,
+  keysPressResultSchema,
+  selectionReadPayloadSchema,
+  selectionResultSchema,
+} from "./selection";
+import {
   typingActivityPayloadSchema,
   typingWatchPayloadSchema,
   typingWatchResultSchema,
@@ -241,6 +247,14 @@ export const HELPER_REQUESTS = {
     payload: emptyObjectSchema,
     result: procForegroundResultSchema,
   },
+  "selection.read": {
+    payload: selectionReadPayloadSchema,
+    result: selectionResultSchema,
+  },
+  "keys.press": {
+    payload: keysPressPayloadSchema,
+    result: keysPressResultSchema,
+  },
 } as const;
 
 export type HelperRequestType = keyof typeof HELPER_REQUESTS;
@@ -388,6 +402,11 @@ export const editsWatchRequestSchema = requestEnvelope("edits.watch", editsWatch
 export const editsCancelRequestSchema = requestEnvelope("edits.cancel", emptyObjectSchema);
 export const editsChangedEventSchema = eventEnvelope("edits.changed", editsChangedPayloadSchema);
 export const procForegroundRequestSchema = requestEnvelope("proc.foreground", emptyObjectSchema);
+export const selectionReadRequestSchema = requestEnvelope(
+  "selection.read",
+  selectionReadPayloadSchema,
+);
+export const keysPressRequestSchema = requestEnvelope("keys.press", keysPressPayloadSchema);
 export const contextSnapshotRequestSchema = requestEnvelope(
   "context.snapshot",
   contextSnapshotPayloadSchema,

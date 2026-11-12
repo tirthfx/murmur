@@ -12,6 +12,7 @@ import {
   isSupportedProtocolVersion,
   type HelloPayload,
   isRequestablePermissionKind,
+  keysPressPayloadSchema,
   type HelperEventMessage,
   type HelperStatus,
   type HotkeyBinding,
@@ -26,6 +27,10 @@ import {
   type MediaPlayback,
   type InsertTextInput,
   type InsertTextResult,
+  type KeysPressInput,
+  type KeysPressResult,
+  type SelectionReadInput,
+  type SelectionResult,
   type PermissionKind,
   type PermissionRequestResult,
   type PermissionSnapshot,
@@ -366,6 +371,27 @@ export class HelperSupervisor implements PlatformHelper {
       // An older helper does not know the request.
       return [];
     }
+  }
+
+  readSelection(input: SelectionReadInput = {}): Promise<SelectionResult> {
+    if (!this.connection || this.status.state !== "ready") {
+      return Promise.reject(new HelperError("HELPER_UNAVAILABLE", "The helper is not running"));
+    }
+    return this.connection.request("selection.read", input);
+  }
+
+  pressKey(input: KeysPressInput): Promise<KeysPressResult> {
+    if (!this.connection || this.status.state !== "ready") {
+      return Promise.reject(new HelperError("HELPER_UNAVAILABLE", "The helper is not running"));
+    }
+    // The helper refuses keys off its list too; checking here keeps them off the wire.
+    const parsed = keysPressPayloadSchema.safeParse(input);
+    if (!parsed.success) {
+      return Promise.reject(
+        new HelperError("INVALID_PAYLOAD", "This key combination is not allowed"),
+      );
+    }
+    return this.connection.request("keys.press", parsed.data);
   }
 
   onEditsChanged(handler: (change: EditsChanged) => void): Unsubscribe {

@@ -66,6 +66,12 @@ let insertion = InsertionController(
         sleep: { seconds in try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000)) }),
     pasteboard: pasteboard, permissions: permissions, frontmostBundleId: { Frontmost.bundleId() },
     reply: output.send)
+let keyPoster = SystemKeyPoster()
+let selection = SelectionController(
+    reading: SelectionReading(
+        reader: SystemSelectionReader(), pasteboard: pasteboard, keys: keyPoster,
+        sleep: { seconds in try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000)) }),
+    permissions: permissions, frontmostBundleId: { Frontmost.bundleId() }, reply: output.send)
 
 /// Stops the key listener and writes what is pending before the process ends.
 func finish(status: Int32, _ message: String) -> Never {
@@ -89,6 +95,8 @@ var host = HelperHost(
         playback: PlaybackController(control: SystemNowPlaying()),
         edits: EditWatchController(source: SystemWatchedFieldSource(), permissions: permissions, emit: output.send),
         processes: ProcessController(table: SystemProcessTable()),
+        selection: selection,
+        keys: KeysController(keys: keyPoster, permissions: permissions, frontmostBundleId: { Frontmost.bundleId() }),
         uptimeMs: HostInfo.uptimeProvider()))
 Log.info("started, helper \(ProtocolConstants.helperVersion), protocol \(ProtocolConstants.protocolVersion)")
 output.send(host.greeting())

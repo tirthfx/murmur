@@ -57,7 +57,7 @@ public struct SystemFocusContextReader: FocusContextReader {
         return context
     }
 
-    private static func attribute<T>(_ element: AXUIElement, _ name: String) -> T? {
+    static func attribute<T>(_ element: AXUIElement, _ name: String) -> T? {
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success, let value else {
             return nil
@@ -70,7 +70,7 @@ public struct SystemFocusContextReader: FocusContextReader {
     }
 
     /// The caret: the start of the selected range, as a UTF-16 offset.
-    private static func caret(_ element: AXUIElement) -> Int? {
+    static func caret(_ element: AXUIElement) -> Int? {
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, &value) == .success,
             let value, CFGetTypeID(value) == AXValueGetTypeID()
@@ -80,7 +80,7 @@ public struct SystemFocusContextReader: FocusContextReader {
         return range.location
     }
 
-    private static func string(_ element: AXUIElement, location: Int, length: Int) -> String? {
+    static func string(_ element: AXUIElement, location: Int, length: Int) -> String? {
         var range = CFRange(location: location, length: length)
         guard length >= 0, let axRange = AXValueCreate(.cfRange, &range) else { return nil }
         var value: CFTypeRef?

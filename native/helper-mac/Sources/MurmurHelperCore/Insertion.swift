@@ -16,6 +16,8 @@ public protocol PasteboardAccess: Sendable {
     /// Replaces the contents with plain text the user keeps (copy last, copy fallback).
     func writeText(_ text: String)
     func restore(_ snapshot: PasteboardSnapshot)
+    /// The plain text on the pasteboard, if any (reading a copied selection).
+    func readString() -> String?
 }
 
 extension PasteboardAccess {
@@ -30,6 +32,18 @@ public protocol KeyPoster: Sendable {
     func postText(_ chunk: String) -> Bool
     /// Posts one Return key press. Returns false on failure.
     func postReturn() -> Bool
+    /// Posts one key press with exactly these modifiers, whatever is physically held.
+    func postKey(_ keyCode: UInt16, modifiers: KeyModifiers) -> Bool
+}
+
+/// Modifier flags for a synthetic key press.
+public struct KeyModifiers: OptionSet, Sendable, Hashable {
+    public let rawValue: Int
+    public init(rawValue: Int) { self.rawValue = rawValue }
+    public static let command = KeyModifiers(rawValue: 1)
+    public static let shift = KeyModifiers(rawValue: 2)
+    public static let option = KeyModifiers(rawValue: 4)
+    public static let control = KeyModifiers(rawValue: 8)
 }
 
 public enum InsertMethod: String, Sendable {

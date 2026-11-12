@@ -112,6 +112,8 @@ Speech recognition (model download and SHA-256 check, offline loading, manual te
 
 Text insertion (paste with clipboard restore, typed fallback, manual test): see `docs/insertion.md`.
 
+Selected text and key presses (`selection.read` with the copy fallback, the `keys.press` allow-list): see `docs/selection.md`.
+
 The Bar (states, the non-focusable window, drag and saved position, manual test): see `docs/bar.md`.
 
 Context awareness (what is read around the caret, secure fields, nothing kept): see `docs/context.md`.

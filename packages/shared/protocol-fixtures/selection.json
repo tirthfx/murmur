@@ -1,0 +1,187 @@
+{
+  "description": "Selected text and key presses (RW-01, RW-09, RW-13). The selection comes from Accessibility, or a copy with the clipboard put back. Keys come from a fixed allow-list.",
+  "messages": [
+    {
+      "id": "m-000110",
+      "type": "selection.read",
+      "payload": {}
+    },
+    {
+      "id": "m-000110",
+      "type": "response",
+      "payload": {
+        "requestType": "selection.read",
+        "ok": true,
+        "result": {
+          "status": "ok",
+          "text": "the quarterly numbers",
+          "length": 21,
+          "range": {
+            "location": 12,
+            "length": 21
+          },
+          "hash": "ba707665a29cb343d92175fab29d22542b4a39f17df437f1788936507ee90378",
+          "source": "ax",
+          "appBundleId": "com.apple.Notes"
+        }
+      }
+    },
+    {
+      "id": "m-000111",
+      "type": "selection.read",
+      "payload": {
+        "clipboardFallback": true,
+        "clipboardFirstInApps": ["com.google.Chrome"],
+        "copyWaitMs": 300
+      }
+    },
+    {
+      "id": "m-000111",
+      "type": "response",
+      "payload": {
+        "requestType": "selection.read",
+        "ok": true,
+        "result": {
+          "status": "ok",
+          "text": "the quarterly numbers",
+          "length": 21,
+          "range": null,
+          "hash": "ba707665a29cb343d92175fab29d22542b4a39f17df437f1788936507ee90378",
+          "source": "clipboard",
+          "appBundleId": "com.google.Chrome"
+        }
+      }
+    },
+    {
+      "id": "m-000112",
+      "type": "selection.read",
+      "payload": {}
+    },
+    {
+      "id": "m-000112",
+      "type": "response",
+      "payload": {
+        "requestType": "selection.read",
+        "ok": true,
+        "result": {
+          "status": "too_long",
+          "text": "",
+          "length": 9000,
+          "range": {
+            "location": 0,
+            "length": 9000
+          },
+          "hash": "",
+          "source": null,
+          "appBundleId": "com.apple.TextEdit"
+        }
+      }
+    },
+    {
+      "id": "m-000113",
+      "type": "selection.read",
+      "payload": {}
+    },
+    {
+      "id": "m-000113",
+      "type": "response",
+      "payload": {
+        "requestType": "selection.read",
+        "ok": true,
+        "result": {
+          "status": "secure",
+          "text": "",
+          "length": 0,
+          "range": null,
+          "hash": "",
+          "source": null,
+          "appBundleId": "com.apple.Safari"
+        }
+      }
+    },
+    {
+      "id": "m-000114",
+      "type": "keys.press",
+      "payload": {
+        "key": "b",
+        "modifiers": ["command"],
+        "onlyInApp": "com.apple.Notes"
+      }
+    },
+    {
+      "id": "m-000114",
+      "type": "response",
+      "payload": {
+        "requestType": "keys.press",
+        "ok": true,
+        "result": {
+          "pressed": true,
+          "appBundleId": "com.apple.Notes"
+        }
+      }
+    },
+    {
+      "id": "m-000115",
+      "type": "keys.press",
+      "payload": {
+        "key": "left",
+        "modifiers": ["shift"],
+        "repeat": 12
+      }
+    },
+    {
+      "id": "m-000115",
+      "type": "response",
+      "payload": {
+        "requestType": "keys.press",
+        "ok": true,
+        "result": {
+          "pressed": false,
+          "appBundleId": "com.apple.Mail"
+        }
+      }
+    }
+  ],
+  "invalidMessages": [
+    {
+      "id": "m-000116",
+      "type": "selection.read",
+      "payload": {
+        "copyWaitMs": 5000
+      }
+    },
+    {
+      "id": "m-000117",
+      "type": "keys.press",
+      "payload": {
+        "key": "q",
+        "modifiers": ["command"]
+      }
+    },
+    {
+      "id": "m-000118",
+      "type": "keys.press",
+      "payload": {
+        "key": "a",
+        "modifiers": ["control"]
+      }
+    },
+    {
+      "id": "m-000119",
+      "type": "response",
+      "payload": {
+        "requestType": "selection.read",
+        "ok": true,
+        "result": {
+          "status": "ok",
+          "text": "x",
+          "length": 1,
+          "range": null,
+          "hash": "nothex",
+          "source": "ax",
+          "appBundleId": null
+        }
+      }
+    }
+  ]
+}

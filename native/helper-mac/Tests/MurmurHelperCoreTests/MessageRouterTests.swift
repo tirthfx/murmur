@@ -21,6 +21,7 @@ final class MessageRouterTests: XCTestCase {
             [
                 "permissions.check", "hotkey.hold", "audio.capture", "audio.silent-warning", "transcribe.whisperkit",
                 "transcribe.file", "insert.paste", "insert.keystrokes", "insert.press-enter", "media.mute", "context.snapshot", "transcribe.prompt", "audio.hotplug", "hotkey.mouse", "typing.watch", "media.playback", "edits.watch", "proc.foreground",
+                "selection.read", "keys.press",
             ])
         XCTAssertNotNil(hello.payload["pid"]?.intValue)
         XCTAssertNotNil(hello.payload["macos"]?.objectValue)
