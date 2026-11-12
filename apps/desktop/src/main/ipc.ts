@@ -26,6 +26,7 @@ import {
   type ImportRequest,
   type ImportResult,
   type VoiceProfileView,
+  type DictionaryClipResult,
   type WritingSample,
   type WritingSampleInput,
   type WritingSampleSaveResult,
@@ -58,7 +59,11 @@ export interface IpcDeps {
   getMediaPlayback: () => Promise<MediaPlayback | null>;
   dictionaryList: () => DictionaryEntry[];
   dictionarySave: (input: DictionaryInput) => DictionarySaveResult;
-  dictionaryDelete: (id: string) => void;
+  dictionaryDelete: (id: string) => void | Promise<void>;
+  dictionaryClipStart: (id: string) => Promise<DictionaryClipResult>;
+  dictionaryClipStop: () => Promise<DictionaryClipResult>;
+  dictionaryClipPlay: (id: string) => Promise<string | null>;
+  dictionaryClipDelete: (id: string) => Promise<void>;
   dictionaryKeep: (id: string) => void;
   snippetsList: () => Snippet[];
   snippetsSave: (input: SnippetInput) => SnippetSaveResult;
@@ -135,6 +140,14 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.dictionarySave(request.args[0] as DictionaryInput);
       case IPC_CHANNELS.dictionaryDelete:
         return deps.dictionaryDelete(request.args[0] as string);
+      case IPC_CHANNELS.dictionaryClipStart:
+        return deps.dictionaryClipStart(request.args[0] as string);
+      case IPC_CHANNELS.dictionaryClipStop:
+        return deps.dictionaryClipStop();
+      case IPC_CHANNELS.dictionaryClipPlay:
+        return deps.dictionaryClipPlay(request.args[0] as string);
+      case IPC_CHANNELS.dictionaryClipDelete:
+        return deps.dictionaryClipDelete(request.args[0] as string);
       case IPC_CHANNELS.dictionaryKeep:
         return deps.dictionaryKeep(request.args[0] as string);
       case IPC_CHANNELS.snippetsList:

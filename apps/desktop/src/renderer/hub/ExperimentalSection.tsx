@@ -96,6 +96,24 @@ export function ExperimentalSection({ experimental, onChange }: ExperimentalSect
           onChange={(bulkImport) => set({ bulkImport })}
         />
         <Switch
+          label="Learn phrases"
+          description="Names of two to four capitalised words you say three times in 14 days, such as a project name, are added to the dictionary for review."
+          value={experimental.phraseLearning}
+          onChange={(phraseLearning) => set({ phraseLearning })}
+        />
+        <Switch
+          label="Detect the style from the text"
+          description="A message starting “Hi Sam,” is written as an email, and short lines with emoji as a personal message, whatever the app. Needs context awareness."
+          value={experimental.styleDetection}
+          onChange={(styleDetection) => set({ styleDetection })}
+        />
+        <Switch
+          label="Pronunciation clips"
+          description="Record up to 3 seconds of how you say a dictionary word, to play back later. It does not change recognition."
+          value={experimental.pronunciationClips}
+          onChange={(pronunciationClips) => set({ pronunciationClips })}
+        />
+        <Switch
           label="Learn from sent mail"
           description="Learn how you write email from messages you have sent."
           value={false}

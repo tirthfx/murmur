@@ -33,6 +33,7 @@ import type { ResolvedStyle } from "./styles/style-store";
 import type { DeveloperVocabulary } from "./developer/packs";
 import { applySyntax, codeTokens, developerFormat } from "./developer/syntax";
 import { identifiersIn, variableReplacements } from "./developer/variables";
+import { detectCategory } from "./styles/detect";
 import { tagFiles } from "./developer/workspace";
 import { rememberedFact } from "./memory/memory-store";
 import { dropSoundTags } from "./speech/sound-tags";
@@ -132,6 +133,8 @@ export interface RecorderDeps {
     /** True when a listed coding CLI runs in the terminal in front (PZ-28). */
     codingCli?(app: AppRef): Promise<boolean>;
   };
+  /** Style detection (PZ-14, experimental): the field's content may set the category. */
+  styleDetection?: () => boolean;
   /** Called with the text after it went in, for learning from corrections (PZ-02). */
   afterInsert?: (text: string) => void;
   /** Snippets (PZ-08): a trigger said on its own inserts the saved body, unchanged. */
@@ -544,8 +547,10 @@ export function createRecorder(deps: RecorderDeps): Recorder {
     // A coding CLI in the terminal makes it a Developer app for this dictation (PZ-28).
     const cli = (await deps.developer?.codingCli?.(appRef).catch(() => false)) ?? false;
     if (cli) logger.info("a coding CLI runs in the terminal: Developer category");
-    const resolved =
+    let resolved =
       (cli ? deps.styles?.resolve(appRef, "developer") : deps.styles?.resolve(appRef)) ?? null;
+    /** The app's own category: email features follow it, not style detection (PZ-21). */
+    const appCategory = resolved?.category ?? null;
     const developer = resolved?.category === "developer";
     const vocabulary = developer ? (deps.developer?.vocabulary() ?? null) : null;
     // File tags (PZ-24): the index is read while the speech model works.
@@ -694,6 +699,16 @@ export function createRecorder(deps: RecorderDeps): Recorder {
     // The style for the app in front (resolved above): rules after cleanup, instructions for
     // the model.
     const shown = textContext(context);
+    // Style detection: the field's text (memory only) and what was said may set the category.
+    if (deps.styleDetection?.() && shown && resolved && !developer) {
+      const detected = detectCategory(`${shown.textBefore}${shown.textAfter}`, heard);
+      if (detected && detected.category !== resolved.category) {
+        logger.info(
+          `style detection: ${detected.category} (${detected.confidence.toFixed(2)}) instead of ${resolved.category}`,
+        );
+        resolved = deps.styles!.resolve(appRef, detected.category);
+      }
+    }
     const facts =
       deps.memory?.facts([heard, shown?.textBefore ?? "", shown?.textAfter ?? ""].join(" ")) ?? [];
     const voice = deps.voiceSummary?.() ?? null;
@@ -709,8 +724,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
           flags: PRESETS[resolved.style.preset].flags,
           instructions: notes,
           appName: context?.appName ?? null,
-          email:
-            resolved.category === "email" ? { windowTitle: context?.windowTitle ?? null } : null,
+          email: appCategory === "email" ? { windowTitle: context?.windowTitle ?? null } : null,
         }
       : {
           id: null,

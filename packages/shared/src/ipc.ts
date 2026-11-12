@@ -31,6 +31,8 @@ import {
   dictionaryEntrySchema,
   dictionaryInputSchema,
   dictionarySaveResultSchema,
+  dictionaryClipResultSchema,
+  type DictionaryClipResult,
   type DictionaryEntry,
   type DictionaryInput,
   type DictionarySaveResult,
@@ -101,6 +103,10 @@ export const IPC_CHANNELS = {
   dictionarySave: "dictionary:save",
   dictionaryDelete: "dictionary:delete",
   dictionaryKeep: "dictionary:keep",
+  dictionaryClipStart: "dictionary:clip-start",
+  dictionaryClipStop: "dictionary:clip-stop",
+  dictionaryClipPlay: "dictionary:clip-play",
+  dictionaryClipDelete: "dictionary:clip-delete",
   snippetsList: "snippets:list",
   snippetsSave: "snippets:save",
   snippetsDelete: "snippets:delete",
@@ -210,6 +216,23 @@ export const IPC_CONTRACT = {
   },
   // Keeps a learned entry: it is no longer marked for review.
   [IPC_CHANNELS.dictionaryKeep]: {
+    args: z.tuple([z.string().min(1)]),
+    result: z.void(),
+  },
+  // Pronunciation clips (PZ-06): recorded by main, played from a data URL in the Hub.
+  [IPC_CHANNELS.dictionaryClipStart]: {
+    args: z.tuple([z.string().min(1)]),
+    result: dictionaryClipResultSchema,
+  },
+  [IPC_CHANNELS.dictionaryClipStop]: {
+    args: z.tuple([]),
+    result: dictionaryClipResultSchema,
+  },
+  [IPC_CHANNELS.dictionaryClipPlay]: {
+    args: z.tuple([z.string().min(1)]),
+    result: z.string().nullable(),
+  },
+  [IPC_CHANNELS.dictionaryClipDelete]: {
     args: z.tuple([z.string().min(1)]),
     result: z.void(),
   },
@@ -337,6 +360,12 @@ export interface MurmurApi {
   dictionarySave(input: DictionaryInput): Promise<DictionarySaveResult>;
   dictionaryDelete(id: string): Promise<void>;
   dictionaryKeep(id: string): Promise<void>;
+  /** Pronunciation clips (PZ-06): recording stops by itself after 3 s. */
+  dictionaryClipStart(id: string): Promise<DictionaryClipResult>;
+  dictionaryClipStop(): Promise<DictionaryClipResult>;
+  /** A data URL of the clip, or null. */
+  dictionaryClipPlay(id: string): Promise<string | null>;
+  dictionaryClipDelete(id: string): Promise<void>;
   /** Every snippet, by trigger. */
   snippetsList(): Promise<Snippet[]>;
   snippetsSave(input: SnippetInput): Promise<SnippetSaveResult>;

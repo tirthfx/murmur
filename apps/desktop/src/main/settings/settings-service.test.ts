@@ -42,6 +42,9 @@ const defaults: Settings = {
     headsetWear: false,
     ringMicrophone: false,
     bulkImport: false,
+    phraseLearning: false,
+    styleDetection: false,
+    pronunciationClips: false,
   },
 };
 
