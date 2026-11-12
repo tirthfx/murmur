@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Banner } from "@astryxdesign/core/Banner";
 import { Button } from "@astryxdesign/core/Button";
 import { Heading } from "@astryxdesign/core/Heading";
@@ -52,7 +52,14 @@ function StyleCard({
   onSave: (preset: StylePreset, instructions: string) => Promise<void>;
 }) {
   const [instructions, setInstructions] = useState(style.instructions);
-  useEffect(() => setInstructions(style.instructions), [style.instructions]);
+  // Follow the saved text only when it changes (after a save), never just because the card
+  // mounted: the page loads late, and a mount-time reset could wipe what was just typed.
+  const saved = useRef(style.instructions);
+  useEffect(() => {
+    if (saved.current === style.instructions) return;
+    saved.current = style.instructions;
+    setInstructions(style.instructions);
+  }, [style.instructions]);
   const note = PRESETS[style.preset].instruction;
   const label = CATEGORY_LABELS[style.category];
   return (
