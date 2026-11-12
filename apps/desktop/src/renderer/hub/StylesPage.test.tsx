@@ -35,6 +35,39 @@ describe("Styles page", () => {
     });
   });
 
+  it("keeps an edit made right after the page opens, and follows a later save", async () => {
+    let finish: (view: typeof SAMPLE_STYLES) => void = () => {};
+    const stylesView = vi.fn(
+      () =>
+        new Promise<typeof SAMPLE_STYLES>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const saved = {
+      ...SAMPLE_STYLES,
+      styles: SAMPLE_STYLES.styles.map((style) =>
+        style.category === "work" ? { ...style, instructions: "Use British spelling." } : style,
+      ),
+    };
+    const stylesUpdate = vi.fn().mockResolvedValue(saved);
+    window.murmur = createMockApi({ stylesView, stylesUpdate });
+    render(<StylesPage />);
+    // The view arrives outside act, as it does in the app.
+    finish(SAMPLE_STYLES);
+    const field = await screen.findByLabelText(/Your own instructions for Work/);
+    fireEvent.change(field, { target: { value: "Use British spelling." } });
+    await act(async () => {
+      await new Promise((done) => setTimeout(done, 0));
+    });
+    expect((field as HTMLTextAreaElement).value).toBe("Use British spelling.");
+    await act(async () => screen.getByRole("button", { name: "Save Work instructions" }).click());
+    expect(stylesUpdate).toHaveBeenCalledOnce();
+    expect(
+      (screen.getByRole("button", { name: "Save Work instructions" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+  });
+
   it("adds an app by bundle id", async () => {
     const stylesSetOverride = vi.fn().mockResolvedValue(SAMPLE_STYLES);
     window.murmur = createMockApi({ stylesSetOverride });
