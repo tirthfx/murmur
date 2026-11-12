@@ -2,8 +2,8 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { CleanupEngine } from "../main/cleanup/engine";
-import type { LlmReply, LlmRequest } from "../main/cleanup/llm-client";
+import { CleanupEngine, GenerationTooLongError } from "../main/cleanup/engine";
+import type { LlmChunk, LlmReply, LlmRequest } from "../main/cleanup/llm-client";
 
 /**
  * The packaged app carries node-llama-cpp in `Resources/llm-modules` (outside the asar
@@ -27,7 +27,7 @@ function importLlama(): Promise<typeof import("node-llama-cpp")> {
 const engine = new CleanupEngine();
 const running = new Map<number, AbortController>();
 
-function reply(message: LlmReply): void {
+function reply(message: LlmReply | LlmChunk): void {
   process.parentPort.postMessage(message);
 }
 
@@ -72,6 +72,33 @@ async function handle(request: LlmRequest): Promise<void> {
             request.keep ?? [],
           );
           reply({ id: request.id, ok: true, value: text });
+        } finally {
+          running.delete(request.id);
+        }
+        return;
+      }
+      case "generate": {
+        const controller = new AbortController();
+        running.set(request.id, controller);
+        try {
+          const text = await engine.generate(
+            {
+              system: request.system,
+              prompt: request.prompt,
+              maxTokens: request.maxTokens,
+              ...(request.history ? { history: request.history } : {}),
+            },
+            (chunk) => reply({ id: request.id, chunk }),
+            controller.signal,
+          );
+          reply({ id: request.id, ok: true, value: text });
+        } catch (error) {
+          // The client tells a context overflow apart from other failures by this prefix.
+          if (error instanceof GenerationTooLongError) {
+            reply({ id: request.id, ok: false, value: `too-long: ${error.message}` });
+            return;
+          }
+          throw error;
         } finally {
           running.delete(request.id);
         }

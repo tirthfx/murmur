@@ -11,6 +11,7 @@ function setup(
     prepare: vi.fn(),
     clean: vi.fn(answer),
     translate: vi.fn(),
+    generate: vi.fn(),
     stop: vi.fn(),
   };
   let time = 0;
