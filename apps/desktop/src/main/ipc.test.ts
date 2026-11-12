@@ -65,6 +65,12 @@ function setup() {
     memoryList: vi.fn(() => []),
     memorySave: vi.fn(),
     memoryDelete: vi.fn(),
+    rewritesList: vi.fn(() => []),
+    rewritesSave: vi.fn(),
+    rewritesSetEnabled: vi.fn(),
+    rewritesMove: vi.fn(),
+    rewritesDuplicate: vi.fn(),
+    rewritesDelete: vi.fn(() => null),
     importPreview: vi.fn(),
     importApply: vi.fn(),
     voiceProfileView: vi.fn(() => ({

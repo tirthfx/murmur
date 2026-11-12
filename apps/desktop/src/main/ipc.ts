@@ -22,6 +22,9 @@ import {
   type MemoryInput,
   type MemoryItem,
   type MemorySaveResult,
+  type Rewrite,
+  type RewriteInput,
+  type RewriteSaveResult,
   type ImportPreview,
   type ImportRequest,
   type ImportResult,
@@ -75,6 +78,12 @@ export interface IpcDeps {
   memoryList: () => MemoryItem[];
   memorySave: (input: MemoryInput) => MemorySaveResult;
   memoryDelete: (id: string) => void;
+  rewritesList: () => Rewrite[];
+  rewritesSave: (input: RewriteInput) => RewriteSaveResult;
+  rewritesSetEnabled: (id: string, enabled: boolean) => void;
+  rewritesMove: (id: string, step: -1 | 1) => void;
+  rewritesDuplicate: (id: string) => RewriteSaveResult;
+  rewritesDelete: (id: string) => RewriteSaveResult | null;
   importPreview: (request: ImportRequest) => ImportPreview;
   importApply: (request: ImportRequest) => ImportResult;
   voiceProfileView: () => VoiceProfileView;
@@ -170,6 +179,18 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.memorySave(request.args[0] as MemoryInput);
       case IPC_CHANNELS.memoryDelete:
         return deps.memoryDelete(request.args[0] as string);
+      case IPC_CHANNELS.rewritesList:
+        return deps.rewritesList();
+      case IPC_CHANNELS.rewritesSave:
+        return deps.rewritesSave(request.args[0] as RewriteInput);
+      case IPC_CHANNELS.rewritesSetEnabled:
+        return deps.rewritesSetEnabled(request.args[0] as string, request.args[1] as boolean);
+      case IPC_CHANNELS.rewritesMove:
+        return deps.rewritesMove(request.args[0] as string, request.args[1] as -1 | 1);
+      case IPC_CHANNELS.rewritesDuplicate:
+        return deps.rewritesDuplicate(request.args[0] as string);
+      case IPC_CHANNELS.rewritesDelete:
+        return deps.rewritesDelete(request.args[0] as string);
       case IPC_CHANNELS.writingSamplesList:
         return deps.writingSamplesList();
       case IPC_CHANNELS.writingSamplesSave:
