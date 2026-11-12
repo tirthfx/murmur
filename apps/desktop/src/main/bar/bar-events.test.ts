@@ -43,6 +43,14 @@ describe("dictation steps on the Bar", () => {
       ]),
     ).toEqual(["listening", "processing", "warning", "warning"]);
     expect(barEventFor({ type: "variables-unavailable" })).toMatchObject({ type: "warn" });
+    expect(barEventFor({ type: "rewrite-skipped", slow: true })).toEqual({
+      type: "warn",
+      message: "Rewrite skipped (slow)",
+    });
+    expect(barEventFor({ type: "rewrite-skipped", slow: false })).toEqual({
+      type: "warn",
+      message: "Rewrite skipped",
+    });
     expect(barEventFor({ type: "translation-failed" })).toEqual({
       type: "warn",
       message: "Not translated: inserted as dictated",

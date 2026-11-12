@@ -68,6 +68,7 @@ import {
   withShortcutLabels,
 } from "./rewrites/rewrite-shortcuts";
 import { createGenerationService } from "./generation/service";
+import { createAutoRewriter } from "./rewrites/auto-apply";
 import { BROWSERS } from "./styles/app-categories";
 import { createPhraseLearner } from "./dictionary/phrases";
 import { createClipRecorder } from "./dictionary/clips";
@@ -594,6 +595,8 @@ const recorder = createRecorder({
   },
   prepareCleanup: () => cleanup.prepare(),
   styleDetection: () => settingsStore.get().experimental.styleDetection,
+  // Called only during a dictation, after the auto-rewriter below exists.
+  autoRewrite: (text, category, appBundleId) => autoRewrite(text, category, appBundleId),
   record: (dictation) => {
     const id = history?.add(dictation) ?? null;
     learnVoice(dictation, id);
@@ -692,26 +695,34 @@ const rewriteController = createRewriteController({
   panel: rewritePanel,
   notify: (message) => bar.dispatch({ type: "warn", message }),
   activateApp,
-  context: (appId, text) => {
-    const resolved = styles?.resolve({ bundleId: appId, windowTitle: null }) ?? null;
-    const preset = resolved ? PRESETS[resolved.style.preset].instruction : null;
-    const own = resolved?.style.instructions.trim() ?? "";
-    const settings = settingsStore.get();
-    return {
-      style: [preset, own].filter((note): note is string => Boolean(note)),
-      memory: settings.memory.enabled
-        ? (memory?.relevant(text).map((item) => item.text) ?? [])
-        : [],
-      // Writing samples were collected for email (PZ-20); elsewhere they would pull the tone.
-      samples:
-        resolved?.category === "email"
-          ? (writingSamples?.list() ?? []).map((sample) => sample.text)
-          : [],
-    };
-  },
+  context: (appId, text) => rewriteContext(appId, text),
   // Web editors (Google Docs and the like) report the wrong selection through Accessibility.
   clipboardFirstInApps: () => [...BROWSERS],
   insertRules: () => insertionRules(),
+  logger: createConsoleLogger("[rewrite]"),
+});
+/** Style notes, matching Memory facts and (in Email apps) writing samples for a Rewrite. */
+function rewriteContext(appId: string | null, text: string) {
+  const resolved = styles?.resolve({ bundleId: appId, windowTitle: null }) ?? null;
+  const preset = resolved ? PRESETS[resolved.style.preset].instruction : null;
+  const own = resolved?.style.instructions.trim() ?? "";
+  const settings = settingsStore.get();
+  return {
+    style: [preset, own].filter((note): note is string => Boolean(note)),
+    memory: settings.memory.enabled ? (memory?.relevant(text).map((item) => item.text) ?? []) : [],
+    // Writing samples were collected for email (PZ-20); elsewhere they would pull the tone.
+    samples:
+      resolved?.category === "email"
+        ? (writingSamples?.list() ?? []).map((sample) => sample.text)
+        : [],
+  };
+}
+// Auto-apply (RW-05): one Rewrite on every dictation, within 3 s.
+const autoRewrite = createAutoRewriter({
+  rewrites: rewrites ?? { list: () => [], markUsed: () => {} },
+  generation,
+  context: rewriteContext,
+  runs: rewriteRuns,
   logger: createConsoleLogger("[rewrite]"),
 });
 // Source text of old runs is cut to 200 characters after 7 days.
@@ -1198,6 +1209,7 @@ function registerIpc(): void {
       return result;
     },
     rewritesSetApplyDirectly: (id, applyDirectly) => rewrites?.setApplyDirectly(id, applyDirectly),
+    rewritesSetAutoApply: (id, settings) => rewrites?.setAutoApply(id, settings),
     rewritesMove: (id, step) => rewrites?.move(id, step),
     rewritesDuplicate: (id) =>
       rewrites?.duplicate(id) ?? {

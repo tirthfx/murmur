@@ -155,6 +155,7 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
     rewritesDelete: vi.fn().mockResolvedValue(null),
     rewritesSetShortcut: vi.fn().mockResolvedValue({ ok: true }),
     rewritesSetApplyDirectly: vi.fn().mockResolvedValue(undefined),
+    rewritesSetAutoApply: vi.fn().mockResolvedValue(undefined),
     importPreview: vi.fn(),
     importApply: vi.fn(),
     voiceProfileView: vi.fn().mockResolvedValue(SAMPLE_PROFILE),

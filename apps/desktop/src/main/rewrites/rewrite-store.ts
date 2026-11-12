@@ -7,6 +7,7 @@ import {
   REWRITE_LIMITS,
   type BuiltinRewriteKey,
   type Rewrite,
+  type RewriteAutoApply,
   type RewriteInput,
   type RewriteSaveResult,
 } from "@murmur/shared";
@@ -34,6 +35,8 @@ export interface RewriteStore {
     trigger: HotkeyTrigger | null,
   ): { ok: true } | { ok: false; message: string };
   setApplyDirectly(id: string, applyDirectly: boolean): void;
+  /** Auto-apply settings (RW-05). */
+  setAutoApply(id: string, settings: RewriteAutoApply): void;
 }
 
 /** Stored form of a shortcut: the same key and modifiers always give the same text. */
@@ -142,6 +145,10 @@ export function createRewriteStore(
   );
   const setApply = db.prepare(
     "UPDATE rewrites SET apply_directly = ?, updated_at = ? WHERE id = ?",
+  );
+  const setAuto = db.prepare(
+    `UPDATE rewrites SET auto_apply = ?, auto_apply_min_words = ?, auto_apply_categories_json = ?,
+       updated_at = ? WHERE id = ?`,
   );
 
   // The built-ins follow this app version's wording; the owner's switches and order stay.
@@ -331,6 +338,14 @@ export function createRewriteStore(
 
     setApplyDirectly(id, applyDirectly) {
       setApply.run(applyDirectly ? 1 : 0, now(), id);
+    },
+
+    setAutoApply(id, settings) {
+      const minWords = Math.max(0, Math.min(1000, Math.round(settings.minWords)));
+      const chosen = REWRITE_CATEGORIES.filter((category) =>
+        settings.categories.includes(category),
+      );
+      setAuto.run(settings.enabled ? 1 : 0, minWords, JSON.stringify(chosen), now(), id);
     },
   };
 }

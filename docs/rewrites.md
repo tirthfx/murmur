@@ -99,6 +99,23 @@ Pressing it runs that Rewrite on the selection without the list:
 Shortcuts are stored in `rewrites.shortcut` in one form (key code and sorted modifiers), so
 the table's unique index also catches two Rewrites with the same keys.
 
+### Auto-apply
+
+A Rewrite can run on every dictation, after cleanup and before the email steps (translation,
+style rules, signature). Set on the Rewrites page, per Rewrite:
+
+- **Apply to every dictation**: off by default.
+- **Minimum words**: dictations shorter than this go in without it (default 0).
+- **In these apps**: Personal, Work, Email, Other (default all four). Developer apps never get
+  it, so code is not rewritten.
+
+Only one Rewrite runs per dictation: the first auto-apply one in the list. The page says which
+one runs instead when another is earlier. The Rewrite has 3 seconds, model load included; if
+it is not done, the cleaned text goes in and the Bar says "Rewrite skipped (slow)". A failure
+says "Rewrite skipped". History records which Rewrite ran and how
+(`auto_rewrite_id`, `auto_rewrite_status`), and the texts go into `rewrite_runs`. Dictations
+that become several messages or contain snippets are not rewritten.
+
 ### Manual test
 
 1. In Notes, select a sentence with a number and press Control+Option+R.
@@ -113,8 +130,11 @@ the table's unique index also catches two Rewrites with the same keys.
    Rewrite: it is refused, naming the Rewrite shortcut.
 8. Turn off Apply directly for Tighten and press Control+Option+T again: the panel opens on
    the result.
-9. On a result, click View changes (or press Control+Option+D): removed words are struck
-   through, added ones marked, with the counts. Check it in light and dark mode.
+9. Turn on Apply to every dictation for Tighten, with minimum words 5 and only Work. Dictate
+   a long rambling sentence into Notes (Work): a tighter version goes in. Dictate four words:
+   they go in as cleaned. Dictate into Messages (Personal): no Rewrite.
+10. On a result, click View changes (or press Control+Option+D): removed words are struck
+    through, added ones marked, with the counts. Check it in light and dark mode.
 
 ## Benchmark
 
