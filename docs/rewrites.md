@@ -66,6 +66,18 @@ Each closed session with a result is stored in `rewrite_runs` (migration 0012): 
 source text, result, outcome (`replaced`, `copied`, `discarded`, `failed`), app and time. The
 source text is cut to its first 200 characters after 7 days, at start and once a day.
 
+### View changes
+
+On a result, **View changes** (or Control+Option+D while the panel has the keyboard) shows
+the result with the words that were removed struck through and the words added marked,
+and a count ("4 words removed, 2 added"). **Show result** goes back. The diff is word by
+word (Myers' method over words and punctuation, in
+`apps/desktop/src/renderer/rewrite/word-diff.ts`), after the shared start and end are set
+aside. When both texts together are over 20,000 characters, or they differ in more than
+1,500 places, only the counts are shown. The colours are set in `rewrite.css` for light and
+dark, and a test checks they reach 4.5:1 contrast. Opening the changes of an earlier result
+waits for the History page (M4), which can use the same view and `rewrite_runs`.
+
 ### A Rewrite's own shortcut
 
 Any enabled Rewrite can have its own shortcut (at most 20), set on the Rewrites page. It is
@@ -101,6 +113,8 @@ the table's unique index also catches two Rewrites with the same keys.
    Rewrite: it is refused, naming the Rewrite shortcut.
 8. Turn off Apply directly for Tighten and press Control+Option+T again: the panel opens on
    the result.
+9. On a result, click View changes (or press Control+Option+D): removed words are struck
+   through, added ones marked, with the counts. Check it in light and dark mode.
 
 ## Benchmark
 

@@ -2,7 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { MurmurRewriteApi, RewritePanelState } from "@murmur/shared";
-import { filterItems, RewritePanel } from "./RewritePanel";
+import { changeSummary, filterItems, RewritePanel } from "./RewritePanel";
 
 afterEach(cleanup);
 
@@ -107,5 +107,48 @@ describe("Rewrite panel", () => {
     expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
     fireEvent.keyDown(window, { key: "Escape" });
     expect(mock.close).toHaveBeenCalledOnce();
+  });
+});
+
+describe("View changes", () => {
+  const result: RewritePanelState = {
+    stage: "result",
+    rewriteName: "Tighten",
+    text: "The meeting moved to Friday.",
+    source: "So basically the meeting moved to Thursday.",
+  };
+
+  it("summarises counts in words", () => {
+    expect(changeSummary(1, 2)).toBe("1 word removed, 2 added");
+    expect(changeSummary(3, 0)).toBe("3 words removed, 0 added");
+  });
+
+  it("shows removed and added words, and goes back to the result", async () => {
+    const { mock } = api(result);
+    render(<RewritePanel api={mock} />);
+    await waitFor(() => expect(screen.getByLabelText("Result")).toBeTruthy());
+    await act(async () => screen.getByRole("button", { name: "View changes" }).click());
+    const changes = screen.getByLabelText("Changes");
+    expect([...changes.querySelectorAll("del")].map((node) => node.textContent)).toEqual([
+      "So basically the ",
+      "Thursday",
+    ]);
+    expect([...changes.querySelectorAll("ins")].map((node) => node.textContent)).toEqual([
+      "The ",
+      "Friday",
+    ]);
+    expect(screen.getByText("4 words removed, 2 added")).toBeTruthy();
+    await act(async () => screen.getByRole("button", { name: "Show result" }).click());
+    expect(screen.getByLabelText("Result")).toBeTruthy();
+  });
+
+  it("switches with Control+Option+D", async () => {
+    const { mock } = api(result);
+    render(<RewritePanel api={mock} />);
+    await waitFor(() => expect(screen.getByLabelText("Result")).toBeTruthy());
+    fireEvent.keyDown(window, { code: "KeyD", key: "∂", ctrlKey: true, altKey: true });
+    expect(screen.getByLabelText("Changes")).toBeTruthy();
+    fireEvent.keyDown(window, { code: "KeyD", key: "∂", ctrlKey: true, altKey: true });
+    expect(screen.getByLabelText("Result")).toBeTruthy();
   });
 });
