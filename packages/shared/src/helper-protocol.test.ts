@@ -23,6 +23,7 @@ import {
   contextSnapshotRequestSchema,
   editsCancelRequestSchema,
   editsChangedEventSchema,
+  procForegroundRequestSchema,
   editsWatchRequestSchema,
   typingWatchRequestSchema,
   mediaPlaybackRequestSchema,
@@ -140,6 +141,8 @@ function validateMessage(message: unknown): boolean {
       return editsCancelRequestSchema.safeParse(message).success;
     case "edits.changed":
       return editsChangedEventSchema.safeParse(message).success;
+    case "proc.foreground":
+      return procForegroundRequestSchema.safeParse(message).success;
     case "response": {
       const response = responseSchema.safeParse(message);
       if (!response.success) return false;

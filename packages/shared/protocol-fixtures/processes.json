@@ -1,0 +1,21 @@
+{
+  "description": "Coding CLI detection (PZ-28): the names of processes under the app in front, never arguments.",
+  "messages": [
+    {
+      "id": "m-000100",
+      "type": "proc.foreground",
+      "payload": {}
+    },
+    {
+      "id": "m-000100",
+      "type": "response",
+      "payload": {
+        "requestType": "proc.foreground",
+        "ok": true,
+        "result": {
+          "names": ["login", "zsh", "claude"]
+        }
+      }
+    }
+  ]
+}

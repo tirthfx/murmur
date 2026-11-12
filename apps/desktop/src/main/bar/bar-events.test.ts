@@ -42,6 +42,7 @@ describe("dictation steps on the Bar", () => {
         { type: "transcribed", words: 9 },
       ]),
     ).toEqual(["listening", "processing", "warning", "warning"]);
+    expect(barEventFor({ type: "variables-unavailable" })).toMatchObject({ type: "warn" });
     expect(barEventFor({ type: "translation-failed" })).toEqual({
       type: "warn",
       message: "Not translated: inserted as dictated",

@@ -4,6 +4,7 @@ import { Switch } from "@astryxdesign/core/Switch";
 import { Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
 import { JARGON_PACKS, type JargonPacks } from "@murmur/shared";
+import { DeveloperToolsSection } from "./DeveloperToolsSection";
 
 /** Developer word packs (PZ-27): which bundled term lists help in code editors and terminals. */
 export function JargonPacksSection() {
@@ -42,6 +43,7 @@ export function JargonPacksSection() {
             }}
           />
         ))}
+        <DeveloperToolsSection />
       </VStack>
     </section>
   );

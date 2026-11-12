@@ -1,4 +1,5 @@
 import type {
+  AppCategory,
   EmailLanguage,
   EmailSettings,
   AudioLevel,
@@ -31,6 +32,8 @@ import { assemble, findSnippets, type Piece } from "./snippets/match";
 import type { ResolvedStyle } from "./styles/style-store";
 import type { DeveloperVocabulary } from "./developer/packs";
 import { applySyntax, codeTokens, developerFormat } from "./developer/syntax";
+import { identifiersIn, variableReplacements } from "./developer/variables";
+import { tagFiles } from "./developer/workspace";
 import { rememberedFact } from "./memory/memory-store";
 import { dropSoundTags } from "./speech/sound-tags";
 import { systemClock } from "./helper/node-runtime";
@@ -92,7 +95,7 @@ export interface RecorderDeps {
   useContextText?: () => boolean;
   /** The style for the app in front (PZ-11, PZ-13). */
   styles?: {
-    resolve(app: { bundleId: string | null; windowTitle: string | null }): ResolvedStyle;
+    resolve(app: AppRef, category?: AppCategory): ResolvedStyle;
   };
   /**
    * Memory (PZ-18, PZ-19). `facts`: saved facts relevant to this text (none when Memory is
@@ -117,7 +120,18 @@ export interface RecorderDeps {
    * Developer apps (PZ-26, PZ-27): the terms of the jargon packs that are on. Spoken syntax
    * is converted in Developer apps whether or not this is given.
    */
-  developer?: { vocabulary(): DeveloperVocabulary };
+  developer?: {
+    vocabulary(): DeveloperVocabulary;
+    /** Whether identifiers on screen replace matching spoken words (PZ-25). */
+    variables?(): boolean;
+    /**
+     * The open workspace's files for file tags (PZ-24), or null when tags are off, the app is
+     * not an AI editor, or no workspace was found.
+     */
+    workspaceFiles?(app: AppRef): Promise<readonly string[] | null>;
+    /** True when a listed coding CLI runs in the terminal in front (PZ-28). */
+    codingCli?(app: AppRef): Promise<boolean>;
+  };
   /** Called with the text after it went in, for learning from corrections (PZ-02). */
   afterInsert?: (text: string) => void;
   /** Snippets (PZ-08): a trigger said on its own inserts the saved body, unchanged. */
@@ -190,6 +204,12 @@ export interface RecorderDeps {
   blocked?: () => Promise<string | null>;
 }
 
+/** The app in front, as the style and developer features need it. */
+export interface AppRef {
+  bundleId: string | null;
+  windowTitle: string | null;
+}
+
 /** One finished dictation, as the history store keeps it. */
 export interface DictationRecord {
   sessionId: string;
@@ -259,7 +279,9 @@ export type RecorderEvent =
   /** A "remember that" fact waits for Save or Dismiss on the Bar (PZ-19). */
   | { type: "memory-offered"; text: string }
   /** Email text went in untranslated: the translation ran out of time or failed (PZ-22). */
-  | { type: "translation-failed" };
+  | { type: "translation-failed" }
+  /** Variable recognition is on but the editor shows no text (screen reader mode off). */
+  | { type: "variables-unavailable" };
 
 export interface Recorder {
   start(): void;
@@ -498,6 +520,8 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 
   /** Transcribe, clean, insert, then write the history row. */
   let processing = 0;
+  /** Apps already told that their text cannot be read for variable names (once per run). */
+  const hinted = new Set<string>();
 
   async function runTake(take: Take): Promise<void> {
     processing++;
@@ -513,21 +537,50 @@ export function createRecorder(deps: RecorderDeps): Recorder {
     // The app's category is known before transcription, so a Developer app's jargon packs
     // can join the speech prompt.
     const app = await take.context;
+    const appRef: AppRef = {
+      bundleId: app?.bundleId ?? null,
+      windowTitle: app?.windowTitle ?? null,
+    };
+    // A coding CLI in the terminal makes it a Developer app for this dictation (PZ-28).
+    const cli = (await deps.developer?.codingCli?.(appRef).catch(() => false)) ?? false;
+    if (cli) logger.info("a coding CLI runs in the terminal: Developer category");
     const resolved =
-      deps.styles?.resolve({
-        bundleId: app?.bundleId ?? null,
-        windowTitle: app?.windowTitle ?? null,
-      }) ?? null;
+      (cli ? deps.styles?.resolve(appRef, "developer") : deps.styles?.resolve(appRef)) ?? null;
     const developer = resolved?.category === "developer";
     const vocabulary = developer ? (deps.developer?.vocabulary() ?? null) : null;
+    // File tags (PZ-24): the index is read while the speech model works.
+    const workspace =
+      developer && deps.developer?.workspaceFiles
+        ? deps.developer.workspaceFiles(appRef).catch(() => null)
+        : Promise.resolve(null);
+    // Variable recognition (PZ-25): identifiers on screen, for this dictation only.
+    let identifiers: string[] = [];
+    if (developer && deps.developer?.variables?.()) {
+      const shownNow = textContext(app);
+      const visible = shownNow ? `${shownNow.textBefore}\n${shownNow.textAfter}` : "";
+      identifiers = identifiersIn(visible);
+      if (visible.trim() !== "") {
+        logger.info(`variables: ${identifiers.length} names on screen`);
+      } else if (shownNow && !hinted.has(appRef.bundleId ?? "")) {
+        hinted.add(appRef.bundleId ?? "");
+        logger.info("variables: the editor shows no text; its screen reader mode may be off");
+        emit({ type: "variables-unavailable" });
+      }
+    }
     try {
       const context = textContext(app);
       const dictionary = deps.dictionary?.rules() ?? null;
       const ownTerms = dictionary?.promptTerms ?? [];
-      // Starred terms first, then the packs, then the most used terms (PZ-01, PZ-27).
+      // Starred terms first, then names on screen, then the packs, then the most used terms
+      // (PZ-01, PZ-25, PZ-27).
       const starred = dictionary?.starredCount ?? 0;
-      const promptTerms = vocabulary
-        ? [...ownTerms.slice(0, starred), ...vocabulary.promptTerms, ...ownTerms.slice(starred)]
+      const promptTerms = developer
+        ? [
+            ...ownTerms.slice(0, starred),
+            ...identifiers.slice(0, 20),
+            ...(vocabulary?.promptTerms ?? []),
+            ...ownTerms.slice(starred),
+          ]
         : ownTerms;
       if (developer) {
         logger.info(
@@ -595,11 +648,18 @@ export function createRecorder(deps: RecorderDeps): Recorder {
       if (code.length > 0) out = keepSpellings(out, code).text;
       return out;
     };
+    const files = await workspace;
+    const variables = variableReplacements(identifiers);
     const toText = (raw: string): string => {
       const spokenOnly = dropSoundTags(raw);
       const text = byDictionary(deps.rewriteText ? deps.rewriteText(spokenOnly) : spokenOnly);
-      // Before cleanup, so the model never sees "dash dash" and drops one as a stutter.
-      return developer ? applySyntax(text) : text;
+      if (!developer) return text;
+      // Before cleanup, so the model never sees "dash dash" and drops one as a stutter. Then
+      // names on screen, then file tags, all kept exact through cleanup as code.
+      let out = applySyntax(text);
+      if (variables.length > 0) out = applyReplacements(out, variables).text;
+      if (files && files.length > 0) out = tagFiles(out, files);
+      return out;
     };
     const heard = toText(transcript.text);
     if (developer) code = codeTokens(heard).map((term) => ({ id: `code:${term}`, term }));

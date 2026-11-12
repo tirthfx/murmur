@@ -32,6 +32,13 @@ function setup() {
     voiceProfile: { enabled: true, useInCleanup: true, prompts: true },
     email: { signature: "", addToNew: true, addToReplies: false, language: null },
     jargonPacks: { git: true, packages: true, web: true, cloud: false, databases: false },
+    developerTools: {
+      fileTags: false,
+      codeFolders: [],
+      variables: false,
+      cliDetection: false,
+      cliNames: ["claude"],
+    },
     experimental: {
       splitMessages: false,
       pauseMedia: false,

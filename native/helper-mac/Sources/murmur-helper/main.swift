@@ -88,6 +88,7 @@ var host = HelperHost(
         context: ContextController(reader: SystemFocusContextReader(), permissions: permissions, reply: output.send),
         playback: PlaybackController(control: SystemNowPlaying()),
         edits: EditWatchController(source: SystemWatchedFieldSource(), permissions: permissions, emit: output.send),
+        processes: ProcessController(table: SystemProcessTable()),
         uptimeMs: HostInfo.uptimeProvider()))
 Log.info("started, helper \(ProtocolConstants.helperVersion), protocol \(ProtocolConstants.protocolVersion)")
 output.send(host.greeting())

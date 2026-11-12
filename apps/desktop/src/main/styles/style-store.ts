@@ -23,7 +23,11 @@ export interface StyleStore {
   update(update: StyleUpdate): Style;
   setOverride(override: AppCategoryOverride): void;
   clearOverride(bundleId: string): void;
-  resolve(app: { bundleId: string | null; windowTitle: string | null }): ResolvedStyle;
+  /** `category`, when given, is used instead of the app's (a coding CLI found, PZ-28). */
+  resolve(
+    app: { bundleId: string | null; windowTitle: string | null },
+    category?: AppCategory,
+  ): ResolvedStyle;
 }
 
 interface StyleRow {
@@ -143,8 +147,10 @@ export function createStyleStore(db: DatabaseSync, now: () => number = Date.now)
       cachedOverrides = null;
     },
 
-    resolve(app) {
-      const { category, source } = resolveCategory(app, overrideMap());
+    resolve(app, forced) {
+      const found = resolveCategory(app, overrideMap());
+      const category = forced ?? found.category;
+      const source = found.source;
       const wanted = STYLE_FOR[category];
       const list = allStyles();
       const style =
