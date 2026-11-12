@@ -71,6 +71,14 @@ import {
 } from "./imports";
 import { voiceProfileViewSchema, type VoiceProfileView } from "./voice-profile";
 import {
+  rewriteInputSchema,
+  rewriteSaveResultSchema,
+  rewriteSchema,
+  type Rewrite,
+  type RewriteInput,
+  type RewriteSaveResult,
+} from "./rewrites";
+import {
   writingSampleInputSchema,
   writingSampleSaveResultSchema,
   writingSampleSchema,
@@ -124,6 +132,12 @@ export const IPC_CHANNELS = {
   writingSamplesList: "writing-samples:list",
   writingSamplesSave: "writing-samples:save",
   writingSamplesDelete: "writing-samples:delete",
+  rewritesList: "rewrites:list",
+  rewritesSave: "rewrites:save",
+  rewritesSetEnabled: "rewrites:set-enabled",
+  rewritesMove: "rewrites:move",
+  rewritesDuplicate: "rewrites:duplicate",
+  rewritesDelete: "rewrites:delete",
 } as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
@@ -306,6 +320,31 @@ export const IPC_CONTRACT = {
     args: z.tuple([]),
     result: voiceProfileViewSchema,
   },
+  [IPC_CHANNELS.rewritesList]: {
+    args: z.tuple([]),
+    result: z.array(rewriteSchema),
+  },
+  [IPC_CHANNELS.rewritesSave]: {
+    args: z.tuple([rewriteInputSchema]),
+    result: rewriteSaveResultSchema,
+  },
+  [IPC_CHANNELS.rewritesSetEnabled]: {
+    args: z.tuple([z.string().min(1), z.boolean()]),
+    result: z.void(),
+  },
+  [IPC_CHANNELS.rewritesMove]: {
+    args: z.tuple([z.string().min(1), z.union([z.literal(-1), z.literal(1)])]),
+    result: z.void(),
+  },
+  [IPC_CHANNELS.rewritesDuplicate]: {
+    args: z.tuple([z.string().min(1)]),
+    result: rewriteSaveResultSchema,
+  },
+  // Null when deleted; a refusal for built-ins.
+  [IPC_CHANNELS.rewritesDelete]: {
+    args: z.tuple([z.string().min(1)]),
+    result: rewriteSaveResultSchema.nullable(),
+  },
 } as const satisfies Record<IpcChannel, { args: z.ZodType; result: z.ZodType }>;
 
 export function isIpcChannel(value: unknown): value is IpcChannel {
@@ -387,6 +426,14 @@ export interface MurmurApi {
   writingSamplesList(): Promise<WritingSample[]>;
   writingSamplesSave(input: WritingSampleInput): Promise<WritingSampleSaveResult>;
   writingSamplesDelete(id: string): Promise<void>;
+  /** Every Rewrite in order, built-ins included (RW-02, RW-03). */
+  rewritesList(): Promise<Rewrite[]>;
+  /** Creates or edits a custom Rewrite. */
+  rewritesSave(input: RewriteInput): Promise<RewriteSaveResult>;
+  rewritesSetEnabled(id: string, enabled: boolean): Promise<void>;
+  rewritesMove(id: string, step: -1 | 1): Promise<void>;
+  rewritesDuplicate(id: string): Promise<RewriteSaveResult>;
+  rewritesDelete(id: string): Promise<RewriteSaveResult | null>;
   /** Main asks the Hub to show a page (for example after a Bar prompt). */
   onOpenPage(handler: (pageId: string) => void): () => void;
   /** Input levels during a microphone check, about 20 a second. Returns an unsubscribe. */

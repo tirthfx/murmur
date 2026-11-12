@@ -30,6 +30,7 @@ describe("migrations", () => {
       "memory_items",
       "pending_sessions",
       "phrase_counts",
+      "rewrites",
       "schema_migrations",
       "settings",
       "snippets",

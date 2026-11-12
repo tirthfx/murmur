@@ -53,9 +53,9 @@ describe("Hub", () => {
       "Dictionary",
       "Snippets",
       "Styles",
+      "Rewrites",
       "Memory",
       "My Voice",
-      "Rewrites",
       "Scratchpad",
       "Notetaker",
       "Tasks",
@@ -71,10 +71,10 @@ describe("Hub", () => {
 
     expect(screen.getByRole("heading", { level: 1, name: "Home" })).toBeTruthy();
 
-    await user.click(screen.getByText("Rewrites"));
+    await user.click(screen.getByText("Scratchpad"));
 
-    expect(screen.getByRole("heading", { level: 1, name: "Rewrites" })).toBeTruthy();
-    expect(screen.getByText("No rewrites available")).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 1, name: "Scratchpad" })).toBeTruthy();
+    expect(screen.getByText("The scratchpad is blank")).toBeTruthy();
     expect(screen.queryByRole("heading", { level: 1, name: "Home" })).toBeNull();
   });
 

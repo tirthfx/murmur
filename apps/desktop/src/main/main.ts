@@ -53,6 +53,7 @@ import { createCorrectionLearner } from "./dictionary/learn";
 import { createSnippetStore } from "./snippets/snippet-store";
 import { createStyleStore } from "./styles/style-store";
 import { createMemoryStore } from "./memory/memory-store";
+import { createRewriteStore } from "./rewrites/rewrite-store";
 import { createPhraseLearner } from "./dictionary/phrases";
 import { createClipRecorder } from "./dictionary/clips";
 import { createWritingSampleStore } from "./email/writing-samples";
@@ -172,6 +173,7 @@ const snippets = database ? createSnippetStore(database) : null;
 const styles = database ? createStyleStore(database) : null;
 // Memory (PZ-18, PZ-19), and the one "remember that" fact waiting on the Bar.
 const memory = database ? createMemoryStore(database) : null;
+const rewrites = database ? createRewriteStore(database) : null;
 const writingSamples = database ? createWritingSampleStore(database) : null;
 // Bulk import of dictionary entries and snippets (PZ-07, PZ-10).
 const importer = createImporter({ dictionary, snippets });
@@ -1062,6 +1064,22 @@ function registerIpc(): void {
         message: "Memory could not be opened.",
       },
     memoryDelete: (id) => memory?.remove(id),
+    rewritesList: () => rewrites?.list() ?? [],
+    rewritesSave: (input) =>
+      rewrites?.save(input) ?? {
+        ok: false,
+        reason: "not-found",
+        message: "Rewrites could not be opened.",
+      },
+    rewritesSetEnabled: (id, enabled) => rewrites?.setEnabled(id, enabled),
+    rewritesMove: (id, step) => rewrites?.move(id, step),
+    rewritesDuplicate: (id) =>
+      rewrites?.duplicate(id) ?? {
+        ok: false,
+        reason: "not-found",
+        message: "Rewrites could not be opened.",
+      },
+    rewritesDelete: (id) => rewrites?.remove(id) ?? null,
     stylesClearOverride: (bundleId) => {
       styles?.clearOverride(bundleId);
       return styles?.view() ?? { styles: [], overrides: [], recentApps: [] };

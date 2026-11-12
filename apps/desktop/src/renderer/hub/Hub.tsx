@@ -10,6 +10,7 @@ import { DictionaryPage } from "./DictionaryPage";
 import { SnippetsPage } from "./SnippetsPage";
 import { StylesPage } from "./StylesPage";
 import { MemoryPage } from "./MemoryPage";
+import { RewritesPage } from "./RewritesPage";
 import { MyVoicePage } from "./MyVoicePage";
 import { HelperStatusLine } from "./HelperStatusLine";
 import { Onboarding } from "./Onboarding";
@@ -142,6 +143,8 @@ function HubPages({ onRunSetup }: { onRunSetup: () => void }) {
             <SnippetsPage />
           ) : page.id === "styles" ? (
             <StylesPage />
+          ) : page.id === "rewrites" ? (
+            <RewritesPage />
           ) : page.id === "memory" ? (
             <MemoryPage />
           ) : page.id === "my-voice" ? (

@@ -24,6 +24,12 @@ export const PAGES = [
     emptyDescription: "Writing styles for different apps and moods will be managed here.",
   },
   {
+    id: "rewrites",
+    title: "Rewrites",
+    emptyTitle: "No rewrites available",
+    emptyDescription: "Saved instructions for reshaping selected text will appear here.",
+  },
+  {
     id: "memory",
     title: "Memory",
     emptyTitle: "Nothing remembered",
@@ -34,12 +40,6 @@ export const PAGES = [
     title: "My Voice",
     emptyTitle: "Nothing learned yet",
     emptyDescription: "How you write will be summarised here.",
-  },
-  {
-    id: "rewrites",
-    title: "Rewrites",
-    emptyTitle: "No rewrites available",
-    emptyDescription: "Saved instructions for reshaping selected text will appear here.",
   },
   {
     id: "scratchpad",
