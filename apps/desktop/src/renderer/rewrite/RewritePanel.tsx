@@ -4,6 +4,7 @@ import { HStack } from "@astryxdesign/core/HStack";
 import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import type { MurmurRewriteApi, RewritePanelItem, RewritePanelState } from "@murmur/shared";
+import { wordDiff } from "./word-diff";
 
 /** Items whose name or detail contains every word typed, names first. */
 export function filterItems(items: RewritePanelItem[], query: string): RewritePanelItem[] {
@@ -151,6 +152,43 @@ function ListStage({
   );
 }
 
+/** "3 words removed, 2 added". */
+export function changeSummary(removed: number, added: number): string {
+  const words = (count: number) => `${count} ${count === 1 ? "word" : "words"}`;
+  return `${words(removed)} removed, ${added} added`;
+}
+
+/** View changes (RW-06): the result with removed words struck through and added ones marked. */
+function ChangesView({ source, text }: { source: string; text: string }) {
+  const diff = useMemo(() => wordDiff(source, text), [source, text]);
+  return (
+    <>
+      <Text size="sm" color="secondary">
+        {diff.parts
+          ? changeSummary(diff.removed, diff.added)
+          : `Too long to show word by word: ${changeSummary(diff.removed, diff.added)}`}
+      </Text>
+      {diff.parts ? (
+        <div className="rewrite-output" aria-label="Changes">
+          {diff.parts.map((part, index) =>
+            part.kind === "added" ? (
+              <ins key={index} className="diff-added">
+                {part.text}
+              </ins>
+            ) : part.kind === "removed" ? (
+              <del key={index} className="diff-removed">
+                {part.text}
+              </del>
+            ) : (
+              <span key={index}>{part.text}</span>
+            ),
+          )}
+        </div>
+      ) : null}
+    </>
+  );
+}
+
 function ResultStage({
   api,
   state,
@@ -159,16 +197,40 @@ function ResultStage({
   state: Extract<RewritePanelState, { stage: "result" }>;
 }) {
   const replaceRef = useRef<HTMLDivElement>(null);
+  const [changes, setChanges] = useState(false);
   useEffect(() => {
+    setChanges(false);
     replaceRef.current?.querySelector("button")?.focus();
   }, [state.text]);
+  // Control+Option+D switches between the result and its changes.
+  useEffect(() => {
+    const onKey = (event: globalThis.KeyboardEvent) => {
+      if (event.code === "KeyD" && event.ctrlKey && event.altKey && !event.metaKey) {
+        event.preventDefault();
+        setChanges((shown) => !shown);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   return (
     <>
       <Text weight="semibold">{state.rewriteName}</Text>
-      <div className="rewrite-output" aria-label="Result">
-        {state.text}
-      </div>
+      {changes ? (
+        <ChangesView source={state.source} text={state.text} />
+      ) : (
+        <div className="rewrite-output" aria-label="Result">
+          {state.text}
+        </div>
+      )}
       <HStack gap={2} justify="end" wrap="wrap">
+        <Button
+          variant="ghost"
+          label={changes ? "Show result" : "View changes"}
+          onClick={() => setChanges((shown) => !shown)}
+        >
+          {changes ? "Show result" : "View changes"}
+        </Button>
         <Button variant="ghost" label="Try another Rewrite" onClick={() => void api.back()}>
           Try another
         </Button>
