@@ -24,7 +24,12 @@ export const audioDeviceSchema = z.object({
 });
 export type AudioDevice = z.infer<typeof audioDeviceSchema>;
 
-export const audioDevicesResultSchema = z.object({ devices: z.array(audioDeviceSchema) });
+export const audioDevicesResultSchema = z.object({
+  devices: z.array(audioDeviceSchema),
+  /** True when the laptop's lid is closed; null without a lid. Older helpers leave it out. */
+  lidClosed: z.boolean().nullable().optional(),
+});
+export type AudioInputs = { devices: AudioDevice[]; lidClosed: boolean | null };
 
 export const audioStartPayloadSchema = z.object({
   sessionId: audioSessionIdSchema,

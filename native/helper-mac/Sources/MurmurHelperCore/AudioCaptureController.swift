@@ -17,9 +17,12 @@ public protocol AudioInputSource: AnyObject, Sendable {
     var isRunning: Bool { get }
     /// Called on any queue when the device list, the default input or the route changes.
     func onChange(_ handler: @escaping @Sendable () -> Void)
+    /// True when the laptop's lid is closed; nil without a lid or when unknown.
+    func lidClosed() -> Bool?
 }
 
 extension AudioInputSource {
+    public func lidClosed() -> Bool? { nil }
     public var runningDeviceUID: String? { nil }
     public var isRunning: Bool { true }
     public func onChange(_ handler: @escaping @Sendable () -> Void) {}
@@ -276,14 +279,13 @@ public final class AudioCaptureController: @unchecked Sendable {
         }
     }
 
-    /// `audio.devices`: the connected input devices.
+    /// `audio.devices`: the connected input devices, and whether the lid is closed (so main
+    /// can skip the built-in microphone in Auto).
     public func devices() -> [String: JSONValue] {
-        .init(uniqueKeysWithValues: [
-            (
-                "devices",
-                JSONValue.array(source.listDevices().map(Self.json))
-            )
-        ])
+        [
+            "devices": JSONValue.array(source.listDevices().map(Self.json)),
+            "lidClosed": source.lidClosed().map { .bool($0) } ?? .null,
+        ]
     }
 
     /// Ends any running session and deletes its file. Used at shutdown.

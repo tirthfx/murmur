@@ -106,7 +106,7 @@ Permissions (what each is for, granting in development vs a packaged build, `tcc
 
 Hotkeys (the listen-only key listener, default bindings, manual key test): see `docs/hotkeys.md`.
 
-Microphone capture (where audio goes, gain and limiter, silent check, manual test): see `docs/audio.md`.
+Microphone capture (where audio goes, gain and limiter, silent check, automatic choice, manual test): see `docs/audio.md`.
 
 Speech recognition (model download and SHA-256 check, offline loading, manual test): see `docs/speech.md`. Download the models with `npm run model:download`.
 

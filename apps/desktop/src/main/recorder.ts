@@ -170,7 +170,7 @@ export interface RecorderDeps {
   /** Whisper mode for the next recording (DC-12). */
   whisperMode?: () => boolean;
   /** The microphone for the next session: a device id, or null for the system default. */
-  deviceId?: () => string | null;
+  deviceId?: () => string | null | Promise<string | null>;
   /** Stores a finished dictation (history). Returns the row id. */
   record?: (record: DictationRecord) => string | null;
   now?: () => number;
@@ -418,7 +418,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
     current = session;
     try {
       await deps.beforeStart?.();
-      const chosen = deps.deviceId?.() ?? null;
+      const chosen = (await deps.deviceId?.()) ?? null;
       const options = {
         sessionId: session.id,
         emitLevels: true,

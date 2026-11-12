@@ -462,6 +462,14 @@ final class AudioCaptureControllerTests: XCTestCase {
             ]))
     }
 
+    func testDevicesSayWhetherTheLidIsClosed() {
+        let (controller, _, _, _) = make()
+        // The fake source has no lid.
+        XCTAssertEqual(controller.devices()["lidClosed"], .null)
+        // The real reader answers without crashing on any Mac.
+        _ = Clamshell.isClosed()
+    }
+
     func testUnsafeSessionIdsAndOtherDevicesAreRefused() {
         let (controller, source, _, _) = make()
         for id in ["", "../escape", "a/b", String(repeating: "x", count: 65), "spaces here"] {

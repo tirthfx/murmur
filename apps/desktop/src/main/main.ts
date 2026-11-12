@@ -60,6 +60,7 @@ import { createTranslator } from "./email/translator";
 import { developerVocabulary, type DeveloperVocabulary } from "./developer/packs";
 import { codingCliRunning, TERMINALS } from "./developer/coding-cli";
 import { createWorkspaceIndexer, findWorkspace, TAG_EDITORS } from "./developer/workspace";
+import { chooseAutoDevice } from "./settings/auto-device";
 import { createImporter } from "./imports/importer";
 import { createVoiceProfile, recentExamples } from "./voice/voice-profile";
 import { createLlmClient, type LlmReply } from "./cleanup/llm-client";
@@ -398,6 +399,29 @@ const cleanup = createCleanupService({
   logger: cleanupLogger,
   level: () => settingsStore.get().cleanupLevel,
 });
+// The microphone for a session. In Auto: a real microphone over a virtual one, and not the
+// built-in one while the lid is closed (roadmap M2 epic 7). Asked at each start.
+let lastAutoChoice: string | null = null;
+async function inputDevice(): Promise<string | null> {
+  const chosen = deviceFor(settingsStore.get());
+  if (chosen !== null) return chosen;
+  const inputs = await Promise.race([
+    helper.audioInputs().catch(() => null),
+    new Promise<null>((done) => setTimeout(() => done(null), 300)),
+  ]);
+  const id = inputs ? chooseAutoDevice(inputs) : null;
+  if (id !== lastAutoChoice) {
+    const name = inputs?.devices.find((device) => device.id === id)?.name;
+    console.log(
+      id
+        ? `[audio] Auto uses ${name ?? "another microphone"}${inputs?.lidClosed ? " (lid closed)" : ""}`
+        : "[audio] Auto uses the system default",
+    );
+    lastAutoChoice = id;
+  }
+  return id;
+}
+
 // File tags (PZ-24): the workspace of an AI editor, from its window title.
 const developerLogger = createConsoleLogger("[developer]");
 const workspaceIndexer = createWorkspaceIndexer();
@@ -532,7 +556,7 @@ const recorder = createRecorder({
     const flags = settingsStore.get().voiceProfile;
     return flags.enabled && flags.useInCleanup ? (voiceProfile?.summary(Date.now()) ?? null) : null;
   },
-  deviceId: () => deviceFor(settingsStore.get()),
+  deviceId: () => inputDevice(),
   whisperMode: () => settingsStore.get().whisperMode,
   ...(history
     ? {
@@ -578,7 +602,7 @@ const micCheck = createMicCheck({
   helper,
   logger: createConsoleLogger("[mic-check]"),
   newSessionId: () => `check-${randomUUID()}`,
-  deviceId: () => deviceFor(settingsStore.get()),
+  deviceId: () => inputDevice(),
   whisper: () => settingsStore.get().whisperMode,
   isDictating: () => recorder.isBusy(),
   sendLevel: (rmsDb) => hubWindow?.webContents.send(IPC_EVENTS.micCheckLevel, rmsDb),
@@ -590,7 +614,7 @@ const clips = dictionary
       dictionary,
       dir: path.join(profile.appData, "Murmur", "clips"),
       isDictating: () => recorder.isBusy() || micCheck.isRunning(),
-      deviceId: () => deviceFor(settingsStore.get()),
+      deviceId: () => inputDevice(),
       newSessionId: () => `clip-${randomUUID()}`,
       clock: systemClock,
       logger: createConsoleLogger("[clips]"),

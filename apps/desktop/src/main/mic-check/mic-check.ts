@@ -13,7 +13,7 @@ export interface MicCheckDeps {
   logger: Logger;
   newSessionId(): string;
   /** The chosen microphone, or null for the system default. */
-  deviceId(): string | null;
+  deviceId(): string | null | Promise<string | null>;
   whisper(): boolean;
   /** A dictation is recording or being processed. */
   isDictating(): boolean;
@@ -48,7 +48,7 @@ export function createMicCheck(deps: MicCheckDeps): MicCheck {
       try {
         const started = await deps.helper.startAudio({
           sessionId: id,
-          deviceId: deps.deviceId(),
+          deviceId: await deps.deviceId(),
           emitLevels: true,
           levelIntervalMs: MIC_CHECK_LEVEL_MS,
           whisper: deps.whisper(),

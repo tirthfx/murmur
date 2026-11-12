@@ -61,6 +61,22 @@ to its call profile). Changes come in bursts, so it acts 0.3 s after the last on
 3. With AirPods as the input, start a recording and play a video so the headset changes
    profile: the log shows `interrupted` and the recording carries on.
 
+## Automatic microphone choice
+
+With "Automatic" (stored as `auto`), main asks the helper for the devices and the lid state
+(`audio.devices` now also returns `lidClosed`, true, false or null without a lid) at each start
+of a dictation, microphone check or pronunciation clip, with a 300 ms limit:
+
+- Virtual inputs (transport `virtual`, which includes aggregate devices, or a known loopback
+  name such as BlackHole or Loopback) are never chosen over a real microphone.
+- While the lid is closed, the built-in microphone is skipped.
+- If the system default passes both checks, it is used as before. Otherwise the best real
+  device is used: USB, then Bluetooth, then other, then built in. With none left, the system
+  default is used anyway.
+
+Opening the lid again counts from the next dictation. The log says when the choice changes
+(`Auto uses Desk Mic (lid closed)`). A device chosen by name in Settings is always used as is.
+
 ## Whisper mode
 
 For speech well below normal conversation. Settings, **Whisper mode** (`audio.whisper_mode`,
@@ -80,3 +96,7 @@ under -50 dB is "hard to hear". The advice changes no setting.
 
 The check is an `audio.start` with `test: true`: the helper writes no file, and main writes
 no history row. It uses the chosen microphone and the whisper setting.
+
+Automatic choice: make a virtual device (for example an aggregate device in Audio MIDI Setup)
+the system input and dictate: the log says Auto uses the real microphone. With an external
+microphone and display, close the lid and dictate: the external microphone is used.
