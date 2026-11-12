@@ -29,6 +29,8 @@ export interface GenerateInput extends GenerationPromptInput {
   followUp?: boolean;
   /** Earlier turns of the thread. */
   history?: GenerationTurn[];
+  /** A shorter limit than the kind's own (auto-apply, RW-05). */
+  timeoutMs?: number;
 }
 
 export interface GenerateHandlers {
@@ -99,7 +101,8 @@ export function createGenerationService(deps: GenerationServiceDeps): Generation
         const llm = deps.llm;
         const built = buildGenerationPrompt(input);
         const limits = GENERATION_LIMITS[input.kind];
-        const timeoutMs = input.followUp ? limits.followUpTimeoutMs : limits.timeoutMs;
+        const timeoutMs =
+          input.timeoutMs ?? (input.followUp ? limits.followUpTimeoutMs : limits.timeoutMs);
         let deadline: number | null = null;
         let sentAt = 0;
         for (let attempt = 0; attempt < 2; attempt++) {

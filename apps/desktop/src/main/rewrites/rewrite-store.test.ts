@@ -216,3 +216,25 @@ describe("rewrite shortcuts", () => {
     expect(store.get("builtin:clarify")!.applyDirectly).toBe(false);
   });
 });
+
+describe("rewrite auto-apply settings", () => {
+  it("saves the switch, a whole word count within 0 to 1,000 and known categories only", () => {
+    const { store } = setup();
+    store.setAutoApply("builtin:structure", {
+      enabled: true,
+      minWords: 40.6,
+      categories: ["email", "work", "nope" as never],
+    });
+    expect(store.get("builtin:structure")).toMatchObject({
+      autoApply: true,
+      autoApplyMinWords: 41,
+      autoApplyCategories: ["work", "email"],
+    });
+    store.setAutoApply("builtin:structure", { enabled: false, minWords: 5000, categories: [] });
+    expect(store.get("builtin:structure")).toMatchObject({
+      autoApply: false,
+      autoApplyMinWords: 1000,
+      autoApplyCategories: [],
+    });
+  });
+});

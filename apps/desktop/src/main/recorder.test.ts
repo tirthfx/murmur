@@ -12,7 +12,12 @@ import { FakeClock, createTestLogger } from "./helper/fakes";
 import { HelperError } from "./helper/types";
 import { DEFAULT_JARGON_PACKS, type AppCategory } from "@murmur/shared";
 import { developerVocabulary } from "./developer/packs";
-import { RESPONSE_TARGET_MS, createRecorder, type DictationRecord } from "./recorder";
+import {
+  RESPONSE_TARGET_MS,
+  createRecorder,
+  type AutoRewriteResult,
+  type DictationRecord,
+} from "./recorder";
 
 const stopResult: AudioStopResult = {
   durationMs: 10020,
@@ -684,6 +689,120 @@ describe("recorder", () => {
       await dictate();
       expect(insert).toHaveBeenCalledWith("See you at 5.\n\nBest,\nTirth", { pressEnter: false });
       expect(events).toContain("translation-failed");
+    });
+  });
+
+  describe("auto-apply", () => {
+    function autoSetup(result: AutoRewriteResult, category: "work" | "email" = "work") {
+      const insert = vi.fn(async (_text: string, _options: { pressEnter: boolean }) => ({
+        method: "paste_cmd_v" as const,
+        delivered: true,
+        clipboardRestored: true,
+      }));
+      const events: string[] = [];
+      const records: DictationRecord[] = [];
+      const autoRewrite = vi.fn(async () => result);
+      const translate = vi.fn(async (text: string) => `[fr] ${text}`);
+      const { recorder } = setup({
+        transcribe: async () => ({
+          ...transcript,
+          text: "so we ship it on monday",
+          language: "en",
+        }),
+        clean: async () => ({
+          text: "So we ship it on Monday.",
+          source: "rules" as const,
+          fallback: false,
+          reason: null,
+          modelMs: null,
+        }),
+        insert,
+        onEvent: (event) => events.push(event.type),
+        record: (record) => {
+          records.push(record);
+          return "h1";
+        },
+        readContext: async () => ({
+          appName: "Notes",
+          bundleId: "com.apple.Notes",
+          windowTitle: "Notes",
+          role: null,
+          subrole: null,
+          editable: true,
+          secure: false,
+          textBefore: "",
+          textAfter: "",
+        }),
+        styles: {
+          resolve: () => ({
+            category,
+            source: "default" as const,
+            style: {
+              id: `style-${category}`,
+              category,
+              preset: "caps" as const,
+              instructions: "",
+              updatedAt: 0,
+            },
+          }),
+        },
+        email: {
+          settings: () => ({ signature: "", addToNew: false, addToReplies: false, language: "fr" }),
+          translate,
+        },
+        autoRewrite,
+      });
+      const dictate = async () => {
+        recorder.handleHotkey(key("down"));
+        recorder.handleHotkey(key("up"));
+        await recorder.idle();
+      };
+      return { insert, events, records, autoRewrite, translate, dictate };
+    }
+
+    it("runs on the cleaned text and inserts the rewrite, recording it", async () => {
+      const { insert, records, autoRewrite, dictate } = autoSetup({
+        status: "applied",
+        rewriteId: "builtin:concise",
+        text: "Ship Monday.",
+      });
+      await dictate();
+      expect(autoRewrite).toHaveBeenCalledWith(
+        "So we ship it on Monday.",
+        "work",
+        "com.apple.Notes",
+      );
+      expect(insert).toHaveBeenCalledWith("Ship Monday.", { pressEnter: false });
+      expect(records[0]!.autoRewrite).toEqual({ rewriteId: "builtin:concise", status: "applied" });
+    });
+
+    it("inserts the cleaned text and warns when the Rewrite was too slow", async () => {
+      const { insert, events, records, dictate } = autoSetup({
+        status: "skipped_timeout",
+        rewriteId: "builtin:concise",
+      });
+      await dictate();
+      expect(insert).toHaveBeenCalledWith("So we ship it on Monday.", { pressEnter: false });
+      expect(events).toContain("rewrite-skipped");
+      expect(records[0]!.autoRewrite).toEqual({
+        rewriteId: "builtin:concise",
+        status: "skipped_timeout",
+      });
+    });
+
+    it("rewrites before an email is translated, and records nothing when none applies", async () => {
+      const email = autoSetup(
+        { status: "applied", rewriteId: "builtin:concise", text: "Ship Monday." },
+        "email",
+      );
+      await email.dictate();
+      expect(email.translate).toHaveBeenCalledWith("Ship Monday.", "fr", expect.any(Array));
+
+      const none = autoSetup({ status: "none" });
+      await none.dictate();
+      expect(none.insert).toHaveBeenCalledWith("So we ship it on Monday.", { pressEnter: false });
+      expect(none.records[0]!.autoRewrite).toBeNull();
+      expect(none.events).not.toContain("rewrite-skipped");
     });
   });
 

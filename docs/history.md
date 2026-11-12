@@ -14,6 +14,10 @@ Every finished dictation is stored on the Mac, in SQLite.
 - `history`: one row per dictation, including empty and failed ones: when, how long, language, raw and final text, word count, cleanup level, status and fallback reason, insert status and method, error code, the audio path and when it expires, and `retry_of` for retries.
 - `audio_chunks`: the recording behind each row (one chunk per dictation for now), with codec, length and expiry.
 
+Migration 0013 adds `auto_rewrite_id` and `auto_rewrite_status` (`applied`, `skipped_timeout`,
+`failed`) to `history`: the Rewrite auto-applied after cleanup and how it went (see
+`rewrites.md`). Its texts are in `rewrite_runs`.
+
 Audio paths are relative to `~/Library/Application Support/Murmur/audio`. Recordings live in `audio/tmp` and expire after 24 hours, when the helper deletes them.
 
 ## Migrations

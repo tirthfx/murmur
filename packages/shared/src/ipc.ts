@@ -75,7 +75,9 @@ import {
   rewriteSaveResultSchema,
   rewriteSchema,
   rewriteShortcutResultSchema,
+  rewriteAutoApplySchema,
   type Rewrite,
+  type RewriteAutoApply,
   type RewriteInput,
   type RewriteSaveResult,
   type RewriteShortcutResult,
@@ -142,6 +144,7 @@ export const IPC_CHANNELS = {
   rewritesDelete: "rewrites:delete",
   rewritesSetShortcut: "rewrites:set-shortcut",
   rewritesSetApplyDirectly: "rewrites:set-apply-directly",
+  rewritesSetAutoApply: "rewrites:set-auto-apply",
 } as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
@@ -358,6 +361,10 @@ export const IPC_CONTRACT = {
     args: z.tuple([z.string().min(1), z.boolean()]),
     result: z.void(),
   },
+  [IPC_CHANNELS.rewritesSetAutoApply]: {
+    args: z.tuple([z.string().min(1), rewriteAutoApplySchema]),
+    result: z.void(),
+  },
 } as const satisfies Record<IpcChannel, { args: z.ZodType; result: z.ZodType }>;
 
 export function isIpcChannel(value: unknown): value is IpcChannel {
@@ -450,6 +457,8 @@ export interface MurmurApi {
   /** A Rewrite's own shortcut, checked against every other one; null removes it. */
   rewritesSetShortcut(id: string, key: CapturedKey | null): Promise<RewriteShortcutResult>;
   rewritesSetApplyDirectly(id: string, applyDirectly: boolean): Promise<void>;
+  /** Auto-apply after cleanup (RW-05). Only the first auto-apply Rewrite in order runs. */
+  rewritesSetAutoApply(id: string, settings: RewriteAutoApply): Promise<void>;
   /** Main asks the Hub to show a page (for example after a Bar prompt). */
   onOpenPage(handler: (pageId: string) => void): () => void;
   /** Input levels during a microphone check, about 20 a second. Returns an unsubscribe. */

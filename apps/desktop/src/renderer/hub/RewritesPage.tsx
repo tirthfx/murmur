@@ -9,6 +9,7 @@ import { TextArea } from "@astryxdesign/core/TextArea";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { VStack } from "@astryxdesign/core/VStack";
 import { REWRITE_LIMITS, type Rewrite, type RewriteSaveResult } from "@murmur/shared";
+import { RewriteAutoApplyControl } from "./RewriteAutoApplyControl";
 import { RewriteShortcutControl } from "./RewriteShortcutControl";
 
 interface Draft {
@@ -141,13 +142,27 @@ export function RewritesPage() {
                     <HStack gap={2} align="center" wrap="wrap">
                       <Text weight="semibold">{item.name}</Text>
                       {item.builtinKey ? <Badge variant="neutral" label="Built in" /> : null}
+                      {item.enabled && item.autoApply ? (
+                        <Badge variant="neutral" label="Every dictation" />
+                      ) : null}
                       {!item.enabled ? <Badge variant="neutral" label="Off" /> : null}
                     </HStack>
                     <Text size="sm" color="secondary">
                       {item.builtinKey ? item.description : item.instruction}
                     </Text>
                     {item.enabled ? (
-                      <RewriteShortcutControl rewrite={item} onChanged={() => void reload()} />
+                      <>
+                        <RewriteShortcutControl rewrite={item} onChanged={() => void reload()} />
+                        <RewriteAutoApplyControl
+                          rewrite={item}
+                          shadowedBy={
+                            (items ?? [])
+                              .slice(0, index)
+                              .find((other) => other.enabled && other.autoApply)?.name ?? null
+                          }
+                          onChanged={() => void reload()}
+                        />
+                      </>
                     ) : null}
                   </VStack>
                   <HStack gap={1} align="center">

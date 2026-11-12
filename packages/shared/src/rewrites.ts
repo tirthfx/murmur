@@ -133,6 +133,17 @@ export const rewriteSaveResultSchema = z.discriminatedUnion("ok", [
 ]);
 export type RewriteSaveResult = z.infer<typeof rewriteSaveResultSchema>;
 
+/** Auto-apply settings for one Rewrite (RW-05). */
+export const rewriteAutoApplySchema = z.strictObject({
+  enabled: z.boolean(),
+  minWords: z.number().int().min(0).max(1000),
+  categories: z.array(z.enum(REWRITE_CATEGORIES)).max(REWRITE_CATEGORIES.length),
+});
+export type RewriteAutoApply = z.infer<typeof rewriteAutoApplySchema>;
+
+/** Auto-apply waits at most this long, model load included, then the text goes in as cleaned. */
+export const AUTO_APPLY_TIMEOUT_MS = 3000;
+
 export const rewriteShortcutResultSchema = z.discriminatedUnion("ok", [
   z.strictObject({ ok: z.literal(true) }),
   z.strictObject({ ok: z.literal(false), message: z.string() }),

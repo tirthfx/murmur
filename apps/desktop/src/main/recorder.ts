@@ -135,6 +135,15 @@ export interface RecorderDeps {
   };
   /** Style detection (PZ-14, experimental): the field's content may set the category. */
   styleDetection?: () => boolean;
+  /**
+   * Auto-apply (RW-05): the first Rewrite set to run on every dictation, after cleanup. It
+   * keeps its own time limit; the cleaned text is used when it is skipped.
+   */
+  autoRewrite?: (
+    text: string,
+    category: AppCategory | null,
+    appBundleId: string | null,
+  ) => Promise<AutoRewriteResult>;
   /** Called with the text after it went in, for learning from corrections (PZ-02). */
   afterInsert?: (text: string) => void;
   /** Snippets (PZ-08): a trigger said on its own inserts the saved body, unchanged. */
@@ -238,7 +247,15 @@ export interface DictationRecord {
   appName?: string | null;
   /** The style used (PZ-11). */
   styleId?: string | null;
+  /** The Rewrite auto-applied after cleanup (RW-05), and how it went. */
+  autoRewrite?: { rewriteId: string; status: "applied" | "skipped_timeout" | "failed" } | null;
 }
+
+/** What the auto-apply stage did with a dictation (RW-05). */
+export type AutoRewriteResult =
+  | { status: "none" }
+  | { status: "applied"; rewriteId: string; text: string }
+  | { status: "skipped_timeout" | "failed"; rewriteId: string };
 
 /** A recording on its way through transcription, cleanup and insertion. */
 interface Take {
@@ -284,7 +301,8 @@ export type RecorderEvent =
   /** Email text went in untranslated: the translation ran out of time or failed (PZ-22). */
   | { type: "translation-failed" }
   /** Variable recognition is on but the editor shows no text (screen reader mode off). */
-  | { type: "variables-unavailable" };
+  | { type: "variables-unavailable" }
+  | { type: "rewrite-skipped"; slow: boolean };
 
 export interface Recorder {
   start(): void;
@@ -721,6 +739,8 @@ export function createRecorder(deps: RecorderDeps): Recorder {
     const style: TakeStyle = resolved
       ? {
           id: resolved.style.id,
+          category: resolved.category,
+          appBundleId: appRef.bundleId,
           flags: PRESETS[resolved.style.preset].flags,
           instructions: notes,
           appName: context?.appName ?? null,
@@ -728,6 +748,8 @@ export function createRecorder(deps: RecorderDeps): Recorder {
         }
       : {
           id: null,
+          category: null,
+          appBundleId: appRef.bundleId,
           flags: null,
           instructions: notes,
           appName: context?.appName ?? null,
@@ -791,10 +813,12 @@ export function createRecorder(deps: RecorderDeps): Recorder {
       spoken.text.trim() === ""
         ? null
         : await cleanUp(spoken.text, terms, take.releasedAt, style.instructions);
+    // Auto-apply (RW-05): one Rewrite on the cleaned text, before the email steps.
+    const autoRewrite = cleanup ? await rewriteAfterCleanup(cleanup.text, style) : null;
     // Email only: translated after cleanup, then the style's rules, then the signature, which
     // never goes through the model.
     const translated = await translateEmail(
-      cleanup?.text ?? spoken.text.trim(),
+      autoRewrite?.text ?? cleanup?.text ?? spoken.text.trim(),
       style,
       transcript.language,
       terms,
@@ -820,7 +844,28 @@ export function createRecorder(deps: RecorderDeps): Recorder {
       cleanup,
       styleId: style.id,
       appName: style.appName,
+      autoRewrite: autoRewrite?.record ?? null,
     });
+  }
+
+  /** The auto-apply stage: the rewritten text, or null to go on with the cleaned one. */
+  async function rewriteAfterCleanup(
+    text: string,
+    style: TakeStyle,
+  ): Promise<{ text: string | null; record: NonNullable<DictationRecord["autoRewrite"]> } | null> {
+    if (!deps.autoRewrite || text.trim() === "") return null;
+    let result: AutoRewriteResult;
+    try {
+      result = await deps.autoRewrite(text, style.category, style.appBundleId);
+    } catch {
+      return null;
+    }
+    if (result.status === "none") return null;
+    if (result.status === "applied") {
+      return { text: result.text, record: { rewriteId: result.rewriteId, status: "applied" } };
+    }
+    emit({ type: "rewrite-skipped", slow: result.status === "skipped_timeout" });
+    return { text: null, record: { rewriteId: result.rewriteId, status: result.status } };
   }
 
   /**
@@ -1194,6 +1239,9 @@ export function dictionaryTermsIn(text: string, rules: DictionaryRules): string[
 /** The style a dictation was resolved to, as the pipeline needs it. */
 interface TakeStyle {
   id: string | null;
+  /** The category the style came from, for auto-apply (RW-05). */
+  category: AppCategory | null;
+  appBundleId: string | null;
   flags: StyleFlags | null;
   instructions: string[];
   appName: string | null;
