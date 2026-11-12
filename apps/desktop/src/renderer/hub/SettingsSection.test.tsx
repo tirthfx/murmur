@@ -60,13 +60,33 @@ describe("Settings section", () => {
         ...SAMPLE_SETTINGS.settings,
         handsFreeShortcut: { type: "key" as const, keyCode: 2, modifiers: ["control" as const] },
       },
-      shortcutLabels: { hold: "Right Option", handsFree: "Control+D" },
+      shortcutLabels: { hold: "Right Option", handsFree: "Control+D", rewrite: "Off" },
     };
     const api = mount({ getSettings: vi.fn().mockResolvedValue(withChord) });
     await userEvent.click(
       await screen.findByRole("button", { name: "Use a double tap for hands-free" }),
     );
     expect(api.setShortcut).toHaveBeenCalledWith("handsFree", null);
+  });
+
+  it("shows the Rewrite shortcut and turns it off", async () => {
+    const withRewrite = {
+      ...SAMPLE_SETTINGS,
+      settings: {
+        ...SAMPLE_SETTINGS.settings,
+        rewriteShortcut: {
+          type: "key" as const,
+          keyCode: 15,
+          modifiers: ["control" as const, "option" as const],
+        },
+      },
+      shortcutLabels: { ...SAMPLE_SETTINGS.shortcutLabels, rewrite: "Control+Option+R" },
+    };
+    const api = mount({ getSettings: vi.fn().mockResolvedValue(withRewrite) });
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Turn off the Rewrite shortcut" }),
+    );
+    expect(api.setShortcut).toHaveBeenCalledWith("rewrite", null);
   });
 
   it("records an extra mouse button, ignores left and right, and pauses dictation meanwhile", async () => {

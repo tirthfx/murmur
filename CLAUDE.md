@@ -134,7 +134,7 @@ Voice Profile (what is learned and kept, summary, milestones, My Voice): see `do
 
 Transcript cleanup (rules, the local model and its guard, the 1.5 s budget, benchmark): see `docs/cleanup.md`.
 
-Rewrites (the five built-ins, custom instructions, the Rewrites page, benchmark): see `docs/rewrites.md`.
+Rewrites (the five built-ins, custom instructions, the Rewrites page, the Rewrite panel and its Replace checks, benchmark): see `docs/rewrites.md`.
 
 Text generation for Rewrites, Command Mode and Instruct Mode (prompt rules, streaming, limits, dictation first, benchmark): see `docs/generation.md`.
 

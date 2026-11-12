@@ -1,12 +1,13 @@
-import type {
-  AudioDevice,
-  CapturedKey,
-  HotkeyBinding,
-  Settings,
-  SettingsPatch,
-  SettingsView,
-  ShortcutResult,
-  ShortcutSlot,
+import {
+  REWRITE_PANEL_BINDING_ID,
+  type AudioDevice,
+  type CapturedKey,
+  type HotkeyBinding,
+  type Settings,
+  type SettingsPatch,
+  type SettingsView,
+  type ShortcutResult,
+  type ShortcutSlot,
 } from "@murmur/shared";
 import type { SettingsStore } from "./settings-store";
 import { checkShortcut, type KeyPlatform } from "./shortcuts";
@@ -56,6 +57,15 @@ export function bindingsFor(
       action: "dictate.toggle",
       trigger: { type: "mouse", button: settings.mouseButtons.handsFree },
       mode: "press",
+    });
+  }
+  if (settings.rewriteShortcut) {
+    bindings.push({
+      id: "rewrite-panel",
+      action: "rewrite",
+      trigger: settings.rewriteShortcut,
+      mode: "press",
+      rewriteId: REWRITE_PANEL_BINDING_ID,
     });
   }
   if (cancelKeyCode !== null) {
@@ -108,6 +118,7 @@ export function createSettingsService(deps: SettingsServiceDeps): SettingsServic
         handsFree: settings.handsFreeShortcut
           ? platform.label(settings.handsFreeShortcut)
           : `Double-tap ${hold}`,
+        rewrite: settings.rewriteShortcut ? platform.label(settings.rewriteShortcut) : "Off",
       },
       devices,
     };
@@ -129,7 +140,11 @@ export function createSettingsService(deps: SettingsServiceDeps): SettingsServic
       const result = checkShortcut(
         key,
         slot,
-        { hold: settings.holdShortcut, handsFree: settings.handsFreeShortcut },
+        {
+          hold: settings.holdShortcut,
+          handsFree: settings.handsFreeShortcut,
+          rewrite: settings.rewriteShortcut,
+        },
         platform,
       );
       if (!result.ok) return result;

@@ -1,4 +1,4 @@
-import type { HotkeyBinding } from "@murmur/shared";
+import type { HotkeyBinding, HotkeyTrigger } from "@murmur/shared";
 
 /** macOS virtual key code of Right Option. */
 export const MAC_KEY_RIGHT_OPTION = 61;
@@ -15,3 +15,13 @@ export const MAC_DEFAULT_HOTKEY_BINDINGS: readonly HotkeyBinding[] = [
     mode: "hold",
   },
 ];
+
+/** macOS virtual key code of R. */
+export const MAC_KEY_R = 15;
+
+/** Opens the Rewrite panel (RW-01): Control+Option+R. */
+export const MAC_DEFAULT_REWRITE_TRIGGER: HotkeyTrigger = {
+  type: "key",
+  keyCode: MAC_KEY_R,
+  modifiers: ["control", "option"],
+};

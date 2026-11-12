@@ -85,6 +85,15 @@ export function SettingsSection() {
         canClear={settings.handsFreeShortcut !== null}
         onSaved={setView}
       />
+      <ShortcutField
+        slot="rewrite"
+        title="Rewrite"
+        description="Select text in any app, press this and pick a Rewrite."
+        label={view.shortcutLabels.rewrite}
+        canClear={settings.rewriteShortcut !== null}
+        clear={{ label: "Turn off the Rewrite shortcut", text: "Turn off" }}
+        onSaved={setView}
+      />
       <MouseButtonField
         title="Push to talk (mouse)"
         description="Hold an extra mouse button to dictate. The button also keeps doing what it did before."

@@ -13,8 +13,10 @@ interface ShortcutFieldProps {
   title: string;
   description: string;
   label: string;
-  /** Hands-free can go back to the double tap. */
+  /** Hands-free can go back to the double tap; the Rewrite shortcut can be turned off. */
   canClear: boolean;
+  /** What clearing does, as a button: accessible label and visible text. */
+  clear?: { label: string; text: string };
   onSaved: (view: SettingsView) => void;
 }
 
@@ -25,6 +27,7 @@ export function ShortcutField({
   description,
   label,
   canClear,
+  clear: clearButton = { label: "Use a double tap for hands-free", text: "Use double tap" },
   onSaved,
 }: ShortcutFieldProps) {
   const [recording, setRecording] = useState(false);
@@ -101,13 +104,8 @@ export function ShortcutField({
             Change
           </Button>
           {canClear && !recording ? (
-            <Button
-              size="sm"
-              variant="ghost"
-              label="Use a double tap for hands-free"
-              onClick={clear}
-            >
-              Use double tap
+            <Button size="sm" variant="ghost" label={clearButton.label} onClick={clear}>
+              {clearButton.text}
             </Button>
           ) : null}
         </HStack>

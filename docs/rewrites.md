@@ -1,7 +1,7 @@
 # Rewrites
 
-Saved instructions that reshape selected text (M3, RW-02 and RW-03). This covers what is
-stored and the Rewrites page; running one on a selection is the Rewrite panel (#113).
+Saved instructions that reshape selected text (M3, RW-01 to RW-03): what is stored, the
+Rewrites page, and the Rewrite panel that runs them on a selection.
 
 ## Built-ins
 
@@ -34,6 +34,47 @@ Table `rewrites` (migration 0011), with the data model's column names (`prompt`,
 `use_count`) plus `example`, `enabled`, `apply_directly` and
 `auto_apply_categories_json`. Shortcuts (#114) and auto-apply (#116) use the columns already
 there. Built-in rows have ids `builtin:<key>`.
+
+## The Rewrite panel
+
+Select text in any app and press the Rewrite shortcut (Control+Option+R by default; change
+or turn it off under Settings, Dictation). The shortcut is a `rewrite` hotkey binding with
+the reserved `rewriteId` `panel`, so the helper needs nothing new.
+
+1. Main reads the selection (`selection.read`, see `selection.md`). In browsers the copy is
+   used first, because web editors such as Google Docs report the wrong selection through
+   Accessibility. Nothing selected, over 8,000 characters, or a password field: the Bar says
+   so and no panel opens.
+2. The panel opens near the Bar (above it, or below when there is no room) with the enabled
+   Rewrites. Type to filter, Up and Down to move, Enter to choose. Escape closes.
+3. The result streams in ("Loading model…" first if the model is not loaded). Then:
+   **Replace** (Enter), **Copy**, **Regenerate**, **Try another**, **Discard**.
+
+The panel takes the keyboard for the filter. Closing it brings the app with the selection
+back to the front. **Replace** does more:
+
+1. hides the panel and brings the app back
+2. reads the selection again and compares its SHA-256 with the one read at the start
+3. if the text changed, nothing is pasted: "Selection changed. Copy instead?"
+4. if another app is in front, the result is copied instead and the Bar says so
+5. otherwise the result is pasted over the selection, with the clipboard restored
+
+The prompt gets the app's style notes, Memory facts that match the text (when Memory is on),
+and, in Email apps only, up to two writing samples. See `generation.md` for the engine.
+
+Each closed session with a result is stored in `rewrite_runs` (migration 0012): Rewrite,
+source text, result, outcome (`replaced`, `copied`, `discarded`, `failed`), app and time. The
+source text is cut to its first 200 characters after 7 days, at start and once a day.
+
+### Manual test
+
+1. In Notes, select a sentence with a number and press Control+Option+R.
+2. Type "tig", press Enter: Tighten streams a shorter sentence with the same number.
+3. Press Enter: the sentence is replaced, and the clipboard holds what it held before.
+4. Select text again, run Clarify, then click into Notes and change the text before
+   pressing Replace: the panel says the selection changed and offers Copy.
+5. In Google Docs in Chrome, select a paragraph and run Keep tone; Replace works there too.
+6. Press the shortcut with nothing selected: the Bar says "Select some text first".
 
 ## Benchmark
 
