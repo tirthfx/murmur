@@ -134,6 +134,8 @@ Voice Profile (what is learned and kept, summary, milestones, My Voice): see `do
 
 Transcript cleanup (rules, the local model and its guard, the 1.5 s budget, benchmark): see `docs/cleanup.md`.
 
+Text generation for Rewrites, Command Mode and Instruct Mode (prompt rules, streaming, limits, dictation first, benchmark): see `docs/generation.md`.
+
 Dictation history (database, tables, migrations): see `docs/history.md`.
 
 Settings (shortcuts and their checks, microphone, language, cleanup level): see `docs/settings.md`.

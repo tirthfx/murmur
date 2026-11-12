@@ -28,3 +28,4 @@ export * from "./email";
 export * from "./developer";
 export * from "./processes";
 export * from "./selection";
+export * from "./generation";

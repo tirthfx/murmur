@@ -4,7 +4,13 @@ import { LlmTimeoutError, type LlmClient } from "../cleanup/llm-client";
 import { createTranslator } from "./translator";
 
 function llmWith(translate: LlmClient["translate"]): LlmClient {
-  return { prepare: vi.fn(), clean: vi.fn(), stop: vi.fn(), translate: vi.fn(translate) };
+  return {
+    prepare: vi.fn(),
+    clean: vi.fn(),
+    generate: vi.fn(),
+    stop: vi.fn(),
+    translate: vi.fn(translate),
+  };
 }
 
 describe("email translator", () => {
