@@ -24,6 +24,8 @@ import {
   editsCancelRequestSchema,
   editsChangedEventSchema,
   procForegroundRequestSchema,
+  selectionReadRequestSchema,
+  keysPressRequestSchema,
   editsWatchRequestSchema,
   typingWatchRequestSchema,
   mediaPlaybackRequestSchema,
@@ -143,6 +145,10 @@ function validateMessage(message: unknown): boolean {
       return editsChangedEventSchema.safeParse(message).success;
     case "proc.foreground":
       return procForegroundRequestSchema.safeParse(message).success;
+    case "selection.read":
+      return selectionReadRequestSchema.safeParse(message).success;
+    case "keys.press":
+      return keysPressRequestSchema.safeParse(message).success;
     case "response": {
       const response = responseSchema.safeParse(message);
       if (!response.success) return false;

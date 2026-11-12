@@ -604,3 +604,70 @@ describe("audio", () => {
     await expect(stopped).rejects.toMatchObject({ code: "INVALID_PAYLOAD" });
   });
 });
+
+describe("selection and keys", () => {
+  const selected = {
+    status: "ok",
+    text: "the quarterly numbers",
+    length: 21,
+    range: { location: 12, length: 21 },
+    hash: "a".repeat(64),
+    source: "ax",
+    appBundleId: "com.apple.Notes",
+  };
+
+  it("readSelection sends selection.read and returns the validated result", async () => {
+    const { supervisor, spawner } = await startReady();
+    const helper = spawner.processes[0]!;
+    const result = supervisor.readSelection({ clipboardFirstInApps: ["com.google.Chrome"] });
+    await flush();
+    const request = helper.lastRequest("selection.read")!;
+    expect(request.payload).toEqual({ clipboardFirstInApps: ["com.google.Chrome"] });
+    helper.respondOk(request, selected);
+    await expect(result).resolves.toEqual(selected);
+  });
+
+  it("readSelection rejects text over the limit from a misbehaving helper", async () => {
+    const { supervisor, spawner } = await startReady();
+    const helper = spawner.processes[0]!;
+    const result = supervisor.readSelection();
+    await flush();
+    helper.respondOk(helper.lastRequest("selection.read")!, {
+      ...selected,
+      text: "x".repeat(8001),
+    });
+    await expect(result).rejects.toMatchObject({ code: "INVALID_PAYLOAD" });
+  });
+
+  it("pressKey sends an allowed key and refuses others without sending them", async () => {
+    const { supervisor, spawner } = await startReady();
+    const helper = spawner.processes[0]!;
+    const pressed = supervisor.pressKey({
+      key: "b",
+      modifiers: ["command"],
+      onlyInApp: "com.apple.Notes",
+    });
+    await flush();
+    const request = helper.lastRequest("keys.press")!;
+    expect(request.payload).toEqual({
+      key: "b",
+      modifiers: ["command"],
+      onlyInApp: "com.apple.Notes",
+    });
+    helper.respondOk(request, { pressed: true, appBundleId: "com.apple.Notes" });
+    await expect(pressed).resolves.toEqual({ pressed: true, appBundleId: "com.apple.Notes" });
+
+    await expect(supervisor.pressKey({ key: "a", modifiers: ["control"] })).rejects.toMatchObject({
+      code: "INVALID_PAYLOAD",
+    });
+    expect(helper.received.filter((message) => message.type === "keys.press")).toHaveLength(1);
+  });
+
+  it("both reject as unavailable when the helper is not running", async () => {
+    const { supervisor } = setup();
+    await expect(supervisor.readSelection()).rejects.toMatchObject({ code: "HELPER_UNAVAILABLE" });
+    await expect(supervisor.pressKey({ key: "return", modifiers: [] })).rejects.toMatchObject({
+      code: "HELPER_UNAVAILABLE",
+    });
+  });
+});

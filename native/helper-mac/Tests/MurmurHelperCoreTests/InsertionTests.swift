@@ -44,6 +44,10 @@ final class FakePasteboard: PasteboardAccess, @unchecked Sendable {
         }
     }
 
+    func readString() -> String? {
+        lock.withLock { contents.first?["public.utf8-plain-text"].flatMap { String(data: $0, encoding: .utf8) } }
+    }
+
     /// What the user does when they copy something.
     func userCopies(_ text: String) { writeText(text) }
 }
@@ -72,6 +76,20 @@ final class FakeKeys: KeyPoster, @unchecked Sendable {
             returns += 1
             return true
         }
+    }
+
+    private(set) var keyPresses: [(UInt16, KeyModifiers)] = []
+    var keyWorks = true
+    /// Runs after a key press is recorded, as the app would react (for example, copying).
+    var onKey: (@Sendable (UInt16, KeyModifiers) -> Void)?
+
+    func postKey(_ keyCode: UInt16, modifiers: KeyModifiers) -> Bool {
+        let works = lock.withLock { () -> Bool in
+            keyPresses.append((keyCode, modifiers))
+            return keyWorks
+        }
+        if works { onKey?(keyCode, modifiers) }
+        return works
     }
 
     func postText(_ chunk: String) -> Bool {

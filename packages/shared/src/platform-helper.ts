@@ -17,6 +17,12 @@ import type { EditsChanged, EditsWatchInput } from "./edits";
 import type { MediaPlayback } from "./media";
 import type { InsertTextInput, InsertTextResult } from "./insert";
 import type {
+  KeysPressInput,
+  KeysPressResult,
+  SelectionReadInput,
+  SelectionResult,
+} from "./selection";
+import type {
   SpeechModelLoadInput,
   SpeechModelLoadResult,
   TranscribeFileInput,
@@ -131,6 +137,14 @@ export interface PlatformHelper {
    * when they cannot be read or the helper is too old. Never arguments.
    */
   foregroundProcesses(): Promise<string[]>;
+  /**
+   * The selected text in the app in front (RW-01): through Accessibility, or copied with the
+   * clipboard put back. Needs Accessibility; rejects with PERMISSION_DENIED without prompting
+   * when it is missing, and with UNSUPPORTED_REQUEST from a helper that is too old.
+   */
+  readSelection(input?: SelectionReadInput): Promise<SelectionResult>;
+  /** Presses one key from the helper's allow-list (RW-09, RW-13). Needs Accessibility. */
+  pressKey(input: KeysPressInput): Promise<KeysPressResult>;
   /** The changed words only, at most once per correction. */
   onEditsChanged(handler: (change: EditsChanged) => void): Unsubscribe;
   /** The output's mute switch: null when there is none. */

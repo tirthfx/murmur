@@ -16,6 +16,8 @@ public struct MessageRouter: Sendable {
     private let playback: PlaybackController?
     private let edits: EditWatchController?
     private let processes: ProcessController?
+    private let selection: SelectionController?
+    private let keys: KeysController?
     private var handshakeComplete = false
 
     /// Set once a `shutdown` request has been answered. The host exits after writing the reply.
@@ -34,6 +36,8 @@ public struct MessageRouter: Sendable {
         playback: PlaybackController? = nil,
         edits: EditWatchController? = nil,
         processes: ProcessController? = nil,
+        selection: SelectionController? = nil,
+        keys: KeysController? = nil,
         uptimeMs: @escaping @Sendable () -> Int
     ) {
         self.helperVersion = helperVersion
@@ -48,6 +52,8 @@ public struct MessageRouter: Sendable {
         self.playback = playback
         self.edits = edits
         self.processes = processes
+        self.selection = selection
+        self.keys = keys
         self.uptimeMs = uptimeMs
     }
 
@@ -164,6 +170,16 @@ public struct MessageRouter: Sendable {
                 return [Self.failure(id: id, requestType: type, .unsupportedRequest, "Unknown request type")]
             }
             return [Self.success(id: id, requestType: type, processes.foreground())]
+        case "selection.read":
+            guard let selection else {
+                return [Self.failure(id: id, requestType: type, .unsupportedRequest, "Unknown request type")]
+            }
+            return selection.handle(id: id, payload: envelope.payload).map { [$0] } ?? []
+        case "keys.press":
+            guard let keys else {
+                return [Self.failure(id: id, requestType: type, .unsupportedRequest, "Unknown request type")]
+            }
+            return [keys.press(id: id, payload: envelope.payload)]
         case "insert.text", "insert.copy":
             guard let insertion else {
                 return [Self.failure(id: id, requestType: type, .unsupportedRequest, "Unknown request type")]

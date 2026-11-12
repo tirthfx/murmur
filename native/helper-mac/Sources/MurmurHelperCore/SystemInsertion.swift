@@ -43,6 +43,8 @@ public final class SystemPasteboard: PasteboardAccess, @unchecked Sendable {
         board.setString(text, forType: .string)
     }
 
+    public func readString() -> String? { board.string(forType: .string) }
+
     public func restore(_ snapshot: PasteboardSnapshot) {
         board.clearContents()
         guard !snapshot.items.isEmpty else { return }
@@ -83,6 +85,23 @@ public struct SystemKeyPoster: KeyPoster {
         else { return false }
         down.flags = []
         up.flags = []
+        down.post(tap: .cghidEventTap)
+        up.post(tap: .cghidEventTap)
+        return true
+    }
+
+    public func postKey(_ keyCode: UInt16, modifiers: KeyModifiers) -> Bool {
+        let source = CGEventSource(stateID: .combinedSessionState)
+        guard let down = CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(keyCode), keyDown: true),
+            let up = CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(keyCode), keyDown: false)
+        else { return false }
+        var flags: CGEventFlags = []
+        if modifiers.contains(.command) { flags.insert(.maskCommand) }
+        if modifiers.contains(.shift) { flags.insert(.maskShift) }
+        if modifiers.contains(.option) { flags.insert(.maskAlternate) }
+        if modifiers.contains(.control) { flags.insert(.maskControl) }
+        down.flags = flags
+        up.flags = flags
         down.post(tap: .cghidEventTap)
         up.post(tap: .cghidEventTap)
         return true
