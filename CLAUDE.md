@@ -4,16 +4,16 @@ Project instructions for Claude Code working in this repository.
 
 ## Project summary
 
-Murmur is a personal, single-owner Mac desktop app for voice dictation and meeting notes. It re-implements the behaviour of a commercial dictation app for the owner's private use. It is not a product, has no users other than the owner, and is not for distribution.
+Murmur is a personal, single-owner Mac desktop app for voice dictation and meeting notes, built for the owner's own use. It is not a product and is not distributed as an app. The source is public.
 
 - Owner GitHub account: `tirthfx`
-- Repository: private, `tirthfx/murmur`
+- Repository: public, `tirthfx/murmur` (public since 2026-11-12)
 - Status: pre-alpha
 
 ## Hard rules
 
-- **Clean room.** Never copy code, UI text, artwork, sounds, names or branding from the reference commercial app into this repo. Re-implement observed behaviour only, in our own words and our own design. Do not commit reverse-engineering output (decompiled code, string catalogues, bundle dumps, migration files, flag lists) from any third-party app.
-- **Private repo.** The repository stays private. Do not add public badges, publish packages, or enable Pages.
+- **Clean room.** Never copy code, UI text, artwork, sounds, names or branding from any other app into this repo. Re-implement observed behaviour only, in our own words and our own design. Do not commit reverse-engineering output (decompiled code, string catalogues, bundle dumps, migration files, flag lists) from any third-party app.
+- **Public repo.** Everything committed is published. No secrets, personal data, recordings, transcripts or third-party material. Do not add badges, publish packages, or enable Pages.
 - **No payments.** No real payment, billing or subscription integration. Plan tiers (free, paid, team) are a local setting that unlocks features for testing.
 - **Local-only AI.** Speech recognition and text cleanup or rewriting run on-device. The speech model runs in the Swift helper. Cleanup and rewrites use a local LLM. No cloud AI APIs, no telemetry that sends transcripts or audio off the machine.
 - **Secrets.** No API keys, tokens or `.env` files in git. Model files (`*.gguf`, `*.mlmodelc`, `models/`) are never committed.

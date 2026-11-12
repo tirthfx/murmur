@@ -1,10 +1,10 @@
 # Murmur
 
-Murmur is a personal, local-first voice dictation and meeting-notes app for Mac. It is built for one owner's private use.
+Murmur is a personal, local-first voice dictation and meeting-notes app for Mac. It is built for one owner's own use.
 
-- **Private project.** This repository is private and not intended for distribution.
+- **Personal project.** The source is public, but Murmur is not distributed as an app and takes no contributions.
 - **Local first.** Speech recognition and text cleanup run on the machine. No cloud AI.
-- **Status:** pre-alpha. The scaffold is in place; no features are complete yet.
+- **Status:** pre-alpha. Dictation (M1) works; personalization (M2) is being finished.
 
 ## Layout
 
