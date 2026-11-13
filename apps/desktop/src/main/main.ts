@@ -27,6 +27,8 @@ import {
   DEFAULT_EMAIL,
   DEFAULT_JARGON_PACKS,
   DEFAULT_DEVELOPER_TOOLS,
+  DEFAULT_COMMAND_MODE,
+  GENERATION_LIMITS,
   DEFAULT_SOUNDS,
   DEFAULT_SPEECH_MODEL,
   IPC_CHANNELS,
@@ -58,6 +60,13 @@ import { createStyleStore } from "./styles/style-store";
 import { createMemoryStore } from "./memory/memory-store";
 import { createRewriteStore } from "./rewrites/rewrite-store";
 import { createRewriteRunStore } from "./rewrites/run-store";
+import { createCommandRunStore } from "./commands/run-store";
+import { createCommandRunner, type LastDictation } from "./commands/command-runner";
+import {
+  COMMAND_CHOICE_MAX_TOKENS,
+  commandChoicePrompt,
+  parseCommandChoice,
+} from "./commands/model-match";
 import { createRewriteController } from "./rewrites/rewrite-controller";
 import { RewritePanelWindow } from "./rewrites/panel-window";
 import { createRewritePanelIpcHandler } from "./rewrites/panel-ipc";
@@ -90,6 +99,7 @@ import {
   appActivator,
   createPlatformHelper,
   defaultHotkeyBindings,
+  defaultCommandShortcut,
   defaultRewriteShortcut,
   keyPlatform,
 } from "./platform";
@@ -209,6 +219,33 @@ const styles = database ? createStyleStore(database) : null;
 const memory = database ? createMemoryStore(database) : null;
 const rewrites = database ? createRewriteStore(database) : null;
 const rewriteRuns = database ? createRewriteRunStore(database) : null;
+const commandRuns = database ? createCommandRunStore(database) : null;
+/** The last dictation that went in, for a command said with nothing selected (RW-08). */
+let lastDictation: LastDictation | null = null;
+/** A Command Mode question on the Bar ("Delete the selected text?"), waiting for its answer. */
+let commandQuestion: { answer: (yes: boolean) => void; timer: NodeJS.Timeout } | null = null;
+/** How long a Command Mode question waits before it counts as No. */
+const COMMAND_ASK_MS = 60_000;
+function askOnBar(message: string, detail: string): Promise<boolean> {
+  commandQuestion?.answer(false);
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      if (commandQuestion?.timer !== timer) return;
+      commandQuestion = null;
+      bar.dispatch({ type: "answered" });
+      resolve(false);
+    }, COMMAND_ASK_MS);
+    commandQuestion = {
+      timer,
+      answer: (yes) => {
+        clearTimeout(timer);
+        commandQuestion = null;
+        resolve(yes);
+      },
+    };
+    bar.dispatch({ type: "ask", message, detail });
+  });
+}
 const writingSamples = database ? createWritingSampleStore(database) : null;
 // Bulk import of dictionary entries and snippets (PZ-07, PZ-10).
 const importer = createImporter({ dictionary, snippets });
@@ -218,6 +255,11 @@ let profilePromptShown = false;
 let offeredFact: { text: string; until: number } | null = null;
 /** The Bar's question was answered: "Save to Memory?" or the weekly profile prompt. */
 function answerBar(choice: "yes" | "no"): void {
+  if (commandQuestion) {
+    commandQuestion.answer(choice === "yes");
+    bar.dispatch({ type: "answered" });
+    return;
+  }
   if (profilePromptShown && !offeredFact) {
     profilePromptShown = false;
     bar.dispatch({ type: "answered" });
@@ -267,6 +309,8 @@ const settingsStore = createSettingsStore(database, {
       : { type: "key", keyCode: 61, modifiers: [] },
   handsFreeShortcut: null,
   rewriteShortcut: defaultRewriteShortcut(process.platform),
+  commandShortcut: defaultCommandShortcut(process.platform),
+  commandMode: DEFAULT_COMMAND_MODE,
   inputDevice: "auto",
   languages: [],
   cleanupLevel: "standard",
@@ -293,6 +337,7 @@ const settingsStore = createSettingsStore(database, {
     phraseLearning: false,
     styleDetection: false,
     pronunciationClips: false,
+    commandMode: false,
   },
 });
 const keys = keyPlatform(process.platform);
@@ -599,6 +644,13 @@ const recorder = createRecorder({
   autoRewrite: (text, category, appBundleId) => autoRewrite(text, category, appBundleId),
   record: (dictation) => {
     const id = history?.add(dictation) ?? null;
+    if (dictation.insertStatus === "inserted" && dictation.finalText) {
+      lastDictation = {
+        text: dictation.finalText,
+        appBundleId: dictation.appBundleId ?? null,
+        at: Date.now(),
+      };
+    }
     learnVoice(dictation, id);
     // Phrase learning (PZ-05, experimental): from text that went in only.
     if (
@@ -657,6 +709,15 @@ const recorder = createRecorder({
       }
     : {}),
   rewriteText: (text) => (wantsLatinHindi(settingsStore.get()) ? toLatinHindi(text) : text),
+  // Command Mode (RW-08, experimental). The runner below exists before any recording ends.
+  command: {
+    enabled: () => settingsStore.get().experimental.commandMode,
+    wakePhrase: () => {
+      const options = settingsStore.get().commandMode;
+      return options.wakePhraseEnabled ? options.wakePhrase : null;
+    },
+    run: (phrase, trigger) => commandRunner.run(phrase, trigger),
+  },
 });
 const micCheck = createMicCheck({
   helper,
@@ -725,10 +786,36 @@ const autoRewrite = createAutoRewriter({
   runs: rewriteRuns,
   logger: createConsoleLogger("[rewrite]"),
 });
+// Command Mode (RW-08, RW-09): rules first, then the model may pick a command id.
+const commandLogger = createConsoleLogger("[command]");
+const commandRunner = createCommandRunner({
+  helper,
+  chooseWithModel: async (phrase) => {
+    if (!(await cleanupModelReady())) return null;
+    const { system, prompt } = commandChoicePrompt(phrase);
+    const job = llm.generate(
+      { system, prompt, maxTokens: COMMAND_CHOICE_MAX_TOKENS },
+      { timeoutMs: GENERATION_LIMITS.command.timeoutMs },
+    );
+    const answer = await job.result;
+    const id = parseCommandChoice(answer);
+    commandLogger.info(`model picked ${id ?? "none"}`);
+    return id;
+  },
+  panel: rewriteController,
+  notify: (message) => bar.dispatch({ type: "warn", message }),
+  ask: askOnBar,
+  lastDictation: () => lastDictation,
+  mayReadField: () => settingsStore.get().contextAwareness,
+  runs: commandRuns,
+  clipboardFirstInApps: () => [...BROWSERS],
+  insertRules: () => insertionRules(),
+  logger: commandLogger,
+});
 // Source text of old runs is cut to 200 characters after 7 days.
 const trimRewriteRuns = () => {
   try {
-    const trimmed = rewriteRuns?.trimOld() ?? 0;
+    const trimmed = (rewriteRuns?.trimOld() ?? 0) + (commandRuns?.trimOld() ?? 0);
     if (trimmed > 0) console.log(`[rewrite] trimmed ${trimmed} old runs`);
   } catch (error) {
     console.warn(`[rewrite] could not trim old runs: ${String(error)}`);

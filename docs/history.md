@@ -18,6 +18,11 @@ Migration 0013 adds `auto_rewrite_id` and `auto_rewrite_status` (`applied`, `ski
 `failed`) to `history`: the Rewrite auto-applied after cleanup and how it went (see
 `rewrites.md`). Its texts are in `rewrite_runs`.
 
+Migration 0014 adds `command_runs`: each Command Mode command, with what was said, the
+command it matched (by rule or by the model), the text it acted on and what replaced it, and
+how it ended (see `commands.md`). A command's recording is also a `history` row with insert
+status `empty`, like "remember that".
+
 Audio paths are relative to `~/Library/Application Support/Murmur/audio`. Recordings live in `audio/tmp` and expire after 24 hours, when the helper deletes them.
 
 ## Migrations

@@ -198,6 +198,8 @@ function ResultStage({
 }) {
   const replaceRef = useRef<HTMLDivElement>(null);
   const [changes, setChanges] = useState(false);
+  // A command's output (summary, questions) goes below the text, so there is nothing to compare.
+  const below = state.placement === "below";
   useEffect(() => {
     setChanges(false);
     replaceRef.current?.querySelector("button")?.focus();
@@ -205,6 +207,7 @@ function ResultStage({
   // Control+Option+D switches between the result and its changes.
   useEffect(() => {
     const onKey = (event: globalThis.KeyboardEvent) => {
+      if (below) return;
       if (event.code === "KeyD" && event.ctrlKey && event.altKey && !event.metaKey) {
         event.preventDefault();
         setChanges((shown) => !shown);
@@ -212,7 +215,7 @@ function ResultStage({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [below]);
   return (
     <>
       <Text weight="semibold">{state.rewriteName}</Text>
@@ -224,13 +227,15 @@ function ResultStage({
         </div>
       )}
       <HStack gap={2} justify="end" wrap="wrap">
-        <Button
-          variant="ghost"
-          label={changes ? "Show result" : "View changes"}
-          onClick={() => setChanges((shown) => !shown)}
-        >
-          {changes ? "Show result" : "View changes"}
-        </Button>
+        {below ? null : (
+          <Button
+            variant="ghost"
+            label={changes ? "Show result" : "View changes"}
+            onClick={() => setChanges((shown) => !shown)}
+          >
+            {changes ? "Show result" : "View changes"}
+          </Button>
+        )}
         <Button variant="ghost" label="Try another Rewrite" onClick={() => void api.back()}>
           Try another
         </Button>
@@ -244,8 +249,11 @@ function ResultStage({
           Copy
         </Button>
         <div ref={replaceRef}>
-          <Button label="Replace" onClick={() => void api.replace()}>
-            Replace
+          <Button
+            label={below ? "Insert below the text" : "Replace"}
+            onClick={() => void api.replace()}
+          >
+            {below ? "Insert below" : "Replace"}
           </Button>
         </div>
       </HStack>

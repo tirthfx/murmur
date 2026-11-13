@@ -71,6 +71,11 @@ export const hotkeyBindingSchema = z.object({
   mode: z.enum(HOTKEY_MODES),
   /** Required by the helper when the action is `rewrite`. */
   rewriteId: z.string().min(1).optional(),
+  /**
+   * Hold bindings only: the hold counts only while no other key is pressed. Another key or
+   * button going down ends it with `interrupted` (helper capability `hotkey.exclusive`).
+   */
+  exclusive: z.boolean().optional(),
 });
 export type HotkeyBinding = z.infer<typeof hotkeyBindingSchema>;
 
@@ -92,8 +97,11 @@ export const hotkeyConfigureResultSchema = z.object({
 });
 export type HotkeyConfigureResult = z.infer<typeof hotkeyConfigureResultSchema>;
 
-/** `down` and `up` for hold bindings, `press` for the others. */
-export const HOTKEY_EVENT_STATES = ["down", "up", "press"] as const;
+/**
+ * `down` and `up` for hold bindings, `press` for the others. `interrupted` ends an exclusive
+ * hold when another key was pressed; no `up` follows it.
+ */
+export const HOTKEY_EVENT_STATES = ["down", "up", "press", "interrupted"] as const;
 
 export const hotkeyEventPayloadSchema = z.object({
   bindingId: z.string().min(1),

@@ -8,6 +8,8 @@ const base: Settings = {
   holdShortcut: { type: "key", keyCode: 61, modifiers: [] },
   handsFreeShortcut: null,
   rewriteShortcut: null,
+  commandShortcut: null,
+  commandMode: { wakePhrase: "Hey Murmur", wakePhraseEnabled: true },
   inputDevice: "auto",
   languages: [],
   cleanupLevel: "standard",
@@ -40,6 +42,7 @@ const base: Settings = {
     phraseLearning: false,
     styleDetection: false,
     pronunciationClips: false,
+    commandMode: false,
   },
 };
 
@@ -110,6 +113,7 @@ describe("session effects", () => {
       phraseLearning: false,
       styleDetection: false,
       pronunciationClips: false,
+      commandMode: false,
     };
     const on = setup({
       playing: true,
@@ -211,6 +215,7 @@ describe("session effects", () => {
           phraseLearning: false,
           styleDetection: false,
           pronunciationClips: false,
+          commandMode: false,
         },
         sounds: { start: false, lock: true, success: true, error: false, cancel: false },
       },

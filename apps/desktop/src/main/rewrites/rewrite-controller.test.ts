@@ -362,4 +362,50 @@ describe("rewrite controller", () => {
       expect(helper.readSelection).not.toHaveBeenCalled();
     });
   });
+
+  it("runs a command on the panel and puts its output below the text", async () => {
+    const { controller, helper, view, gen, runs } = setup();
+    const outcomes: [string, string | null, number | null][] = [];
+    void controller.runCommand({
+      name: "Add a summary below",
+      instruction: "Summarise it.",
+      selection: selected,
+      placement: "below",
+      onOutcome: (outcome, inserted, ms) => outcomes.push([outcome, inserted, ms]),
+    });
+    await flush();
+    expect(view.states[0]).toMatchObject({ shown: true, state: { stage: "running" } });
+    expect(gen.runs[0]!.input).toMatchObject({ kind: "command", instruction: "Summarise it." });
+    gen.runs[0]!.resolve("A short summary.");
+    await flush();
+    expect(view.last()).toMatchObject({
+      stage: "result",
+      rewriteName: "Add a summary below",
+      placement: "below",
+    });
+    await controller.replace();
+    expect(helper.insertText).toHaveBeenCalledWith(
+      expect.objectContaining({ text: "the long text\n\nA short summary." }),
+    );
+    expect(outcomes).toEqual([["replaced", "the long text\n\nA short summary.", 800]]);
+    // Command runs are kept with the command, not as Rewrite runs.
+    expect(runs.recent(10)).toEqual([]);
+  });
+
+  it("records a command that is closed as discarded", async () => {
+    const { controller, gen } = setup();
+    const outcomes: string[] = [];
+    void controller.runCommand({
+      name: "Make it shorter",
+      instruction: "Shorter.",
+      selection: selected,
+      placement: "replace",
+      onOutcome: (outcome) => outcomes.push(outcome),
+    });
+    await flush();
+    gen.runs[0]!.resolve("short");
+    await flush();
+    await controller.close();
+    expect(outcomes).toEqual(["discarded"]);
+  });
 });

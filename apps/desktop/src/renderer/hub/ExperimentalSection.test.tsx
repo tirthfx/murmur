@@ -13,6 +13,7 @@ const off = {
   phraseLearning: false,
   styleDetection: false,
   pronunciationClips: false,
+  commandMode: false,
 };
 
 afterEach(() => {

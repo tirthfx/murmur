@@ -11,7 +11,7 @@ public enum ProtocolConstants {
     public static let capabilities = [
         "permissions.check", "hotkey.hold", "audio.capture", "audio.silent-warning", "transcribe.whisperkit", "transcribe.file",
         "insert.paste", "insert.keystrokes", "insert.press-enter", "media.mute", "context.snapshot", "transcribe.prompt", "audio.hotplug", "hotkey.mouse", "typing.watch", "media.playback", "edits.watch", "proc.foreground",
-        "selection.read", "keys.press",
+        "selection.read", "keys.press", "hotkey.exclusive",
     ]
 
     /// Longest accepted line in bytes, terminator excluded (1 MiB).

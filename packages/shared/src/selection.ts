@@ -65,6 +65,7 @@ export const PRESS_KEYS = [
   "up",
   "down",
   "left_bracket",
+  "delete",
 ] as const;
 export type PressKey = (typeof PRESS_KEYS)[number];
 
@@ -108,6 +109,8 @@ export function keyComboAllowed(key: PressKey, modifiers: readonly PressModifier
       return has("command") && !has("option") && !has("control");
     case "return":
       return set.size === 0 || (set.size === 1 && has("shift"));
+    case "delete":
+      return set.size === 0;
     default:
       // Arrows move the caret or extend the selection.
       return !has("control");

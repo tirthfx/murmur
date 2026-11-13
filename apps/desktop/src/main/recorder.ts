@@ -5,6 +5,7 @@ import type {
   AudioLevel,
   AudioRouteChanged,
   AudioSilent,
+  CommandTrigger,
   HotkeyEvent,
   FocusContext,
   InsertTextResult,
@@ -37,8 +38,9 @@ import { detectCategory } from "./styles/detect";
 import { tagFiles } from "./developer/workspace";
 import { rememberedFact } from "./memory/memory-store";
 import { dropSoundTags } from "./speech/sound-tags";
+import { afterWakePhrase } from "./commands/match";
 import { systemClock } from "./helper/node-runtime";
-import type { Clock, Logger } from "./helper/types";
+import type { Clock, Logger, TimerHandle } from "./helper/types";
 
 /** Failures worth one automatic retry (DC-38): the model or the helper was briefly away. */
 const AUTO_RETRY_CODES: ReadonlySet<unknown> = new Set([
@@ -144,6 +146,16 @@ export interface RecorderDeps {
     category: AppCategory | null,
     appBundleId: string | null,
   ) => Promise<AutoRewriteResult>;
+  /**
+   * Command Mode (RW-08): the command key's recordings, and dictations that start with the
+   * wake phrase, are commands. Their words are never inserted.
+   */
+  command?: {
+    enabled(): boolean;
+    /** The wake phrase, or null when it is off. */
+    wakePhrase(): string | null;
+    run(phrase: string, trigger: CommandTrigger): Promise<void>;
+  };
   /** Called with the text after it went in, for learning from corrections (PZ-02). */
   afterInsert?: (text: string) => void;
   /** Snippets (PZ-08): a trigger said on its own inserts the saved body, unchanged. */
@@ -271,6 +283,8 @@ interface Take {
   releasedAt: number;
   /** Set on the one automatic retry, so it is never retried twice. */
   autoRetried?: boolean;
+  /** Recorded with the Command Mode key: the words are a command (RW-08). */
+  command?: boolean;
 }
 
 type InsertOutcome = Pick<DictationRecord, "insertStatus"> &
@@ -302,7 +316,12 @@ export type RecorderEvent =
   | { type: "translation-failed" }
   /** Variable recognition is on but the editor shows no text (screen reader mode off). */
   | { type: "variables-unavailable" }
-  | { type: "rewrite-skipped"; slow: boolean };
+  | { type: "rewrite-skipped"; slow: boolean }
+  /** The recording was a command; it runs now and no text goes in (RW-08). */
+  | { type: "command-heard" };
+
+/** The Command Mode key must be held alone this long before the microphone starts. */
+export const COMMAND_KEY_HOLD_MS = 250;
 
 export interface Recorder {
   start(): void;
@@ -334,6 +353,8 @@ interface Session {
   context: Promise<FocusContext | null>;
   /** The Bar is told about an input change once per session. */
   switched: boolean;
+  /** Started by the Command Mode key, not the dictation keys. */
+  purpose: "dictation" | "command";
 }
 
 function errorCode(error: unknown): unknown {
@@ -388,14 +409,52 @@ export function createRecorder(deps: RecorderDeps): Recorder {
     return Promise.race([read, limit]).finally(() => clearTimeout(timer));
   }
   const gesture = new DictationGesture(deps.clock ?? systemClock, (command) => perform(command));
+  const clock = deps.clock ?? systemClock;
+
+  /**
+   * The Command Mode key (RW-08). Recording starts only once the key has been held alone for
+   * a moment, so a quick tap or a Command shortcut never starts the microphone; another key
+   * pressed during the hold (`interrupted`) discards what was recorded.
+   */
+  let commandKeyState:
+    | { kind: "idle" }
+    | { kind: "waiting"; timer: TimerHandle }
+    | {
+        kind: "recording";
+      } = { kind: "idle" };
+  function commandKey(state: HotkeyEvent["state"]): void {
+    const was = commandKeyState;
+    if (state === "down") {
+      if (was.kind !== "idle" || !deps.command?.enabled() || gesture.recording) return;
+      const timer = clock.setTimeout(() => {
+        if (commandKeyState.kind !== "waiting") return;
+        commandKeyState = { kind: "recording" };
+        enqueue(() => begin("command"));
+      }, COMMAND_KEY_HOLD_MS);
+      commandKeyState = { kind: "waiting", timer };
+      return;
+    }
+    if (state !== "up" && state !== "interrupted") return;
+    commandKeyState = { kind: "idle" };
+    if (was.kind === "waiting") clock.clearTimeout(was.timer);
+    if (was.kind !== "recording") return;
+    if (state === "up") enqueue(() => end("command"));
+    else enqueue(cancelCommand);
+  }
+
+  /** The command key was part of a shortcut after all: drop the recording quietly. */
+  async function cancelCommand(): Promise<void> {
+    if (current?.purpose !== "command") return;
+    await cancelSession();
+  }
 
   function perform(command: GestureCommand): void {
     switch (command) {
       case "start":
-        enqueue(begin);
+        enqueue(() => begin("dictation"));
         return;
       case "stop":
-        enqueue(end);
+        enqueue(() => end("dictation"));
         return;
       case "lock":
         // Queued like start and stop, so the Bar sees "started" before "locked".
@@ -415,7 +474,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
     queue = queue.then(step, step);
   }
 
-  async function begin(): Promise<void> {
+  async function begin(purpose: Session["purpose"]): Promise<void> {
     if (current) return;
     const reason = (await deps.blocked?.()) ?? null;
     if (reason !== null) {
@@ -430,6 +489,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
       deviceName: null,
       levels: 0,
       switched: false,
+      purpose,
       // Read before the microphone starts, while the field the user is in still has focus.
       context: readContext(),
     };
@@ -474,9 +534,10 @@ export function createRecorder(deps: RecorderDeps): Recorder {
     }
   }
 
-  async function end(): Promise<void> {
+  async function end(purpose: Session["purpose"]): Promise<void> {
     const session = current;
-    if (!session) return;
+    // A dictation key's release never ends a command recording, nor the other way round.
+    if (!session || session.purpose !== purpose) return;
     current = null;
     const releasedAt = now();
     emit({ type: "stopped" });
@@ -502,6 +563,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
         retryOf: null,
         context: session.context,
         releasedAt,
+        ...(purpose === "command" ? { command: true } : {}),
       };
       if (result.audioFile) {
         const audioPath = result.audioFile.path;
@@ -684,6 +746,32 @@ export function createRecorder(deps: RecorderDeps): Recorder {
       if (files && files.length > 0) out = tagFiles(out, files);
       return out;
     };
+    // Command Mode (RW-08): the command key's words, or what follows the wake phrase.
+    const spokenText = dropSoundTags(transcript.text);
+    const wake = deps.command?.enabled() ? deps.command.wakePhrase() : null;
+    const commandPhrase = take.command
+      ? spokenText.trim()
+      : wake
+        ? afterWakePhrase(spokenText, wake)
+        : null;
+    if (deps.command && commandPhrase !== null) {
+      logger.info(`command by ${take.command ? "key" : "wake phrase"}`);
+      emit({ type: "command-heard" });
+      record(take, {
+        insertStatus: "empty",
+        language: transcript.language || null,
+        rawText: transcript.text,
+        finalText: null,
+        wordCount: 0,
+        cleanup: null,
+      });
+      try {
+        await deps.command.run(commandPhrase, take.command ? "key" : "wake_phrase");
+      } catch (error) {
+        logger.warn(`command failed: ${errorMessage(error)}`);
+      }
+      return;
+    }
     const heard = toText(transcript.text);
     if (developer) code = codeTokens(heard).map((term) => ({ id: `code:${term}`, term }));
     // "Remember that ..." is a question for the Bar, never text in the app.
@@ -1142,6 +1230,10 @@ export function createRecorder(deps: RecorderDeps): Recorder {
       subscriptions = [];
     },
     handleHotkey(event) {
+      if (event.action === "command.mode") {
+        commandKey(event.state);
+        return;
+      }
       if (event.action === "dictate.hold") {
         if (event.state === "down") gesture.holdDown(event.at);
         else if (event.state === "up") gesture.holdUp(event.at);

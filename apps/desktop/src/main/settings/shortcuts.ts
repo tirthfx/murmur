@@ -16,6 +16,7 @@ export const SLOT_NAMES: Record<ShortcutSlot, string> = {
   hold: "Push to talk",
   handsFree: "Hands-free",
   rewrite: "Rewrite",
+  command: "Command Mode",
 };
 
 export function sameTrigger(a: HotkeyTrigger, b: HotkeyTrigger): boolean {

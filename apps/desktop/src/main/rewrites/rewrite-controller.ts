@@ -48,6 +48,20 @@ export interface RewriteControllerDeps {
   sleep?: (ms: number) => Promise<void>;
 }
 
+/**
+ * A Command Mode command that uses the model (RW-09): shown on the panel like a Rewrite, then
+ * put over the text or below it.
+ */
+export interface CommandTask {
+  name: string;
+  instruction: string;
+  /** The text it acts on, read just before. */
+  selection: SelectionResult;
+  placement: "replace" | "below";
+  /** How it ended, with the text that went in (or would have) and the model's time. */
+  onOutcome(outcome: RewriteOutcome, inserted: string | null, durationMs: number | null): void;
+}
+
 export interface RewriteController {
   /** The Rewrite shortcut: reads the selection and opens the panel. */
   open(): Promise<void>;
@@ -56,6 +70,8 @@ export interface RewriteController {
    * directly the result replaces the text and the Bar says so; otherwise the panel shows it.
    */
   runDirect(rewriteId: string): Promise<void>;
+  /** A Command Mode command on the panel (RW-09): the result is shown before it goes in. */
+  runCommand(task: CommandTask): Promise<void>;
   choose(rewriteId: string): Promise<void>;
   regenerate(): Promise<void>;
   back(): void;
@@ -69,9 +85,38 @@ export interface RewriteController {
 /** Time for the app to take the keyboard back before the selection is checked. */
 export const REFOCUS_MS = 150;
 
+/** What the model is asked: a Rewrite, or a command. */
+interface Job {
+  name: string;
+  instruction: string;
+  example?: string;
+  rewrite: Rewrite | null;
+  task: CommandTask | null;
+}
+
+const rewriteJob = (rewrite: Rewrite): Job => ({
+  name: rewrite.name,
+  instruction: rewrite.instruction,
+  ...(rewrite.example ? { example: rewrite.example } : {}),
+  rewrite,
+  task: null,
+});
+
+const taskJob = (task: CommandTask): Job => ({
+  name: task.name,
+  instruction: task.instruction,
+  rewrite: null,
+  task,
+});
+
+/** The text that goes into the app for a result. */
+function insertedText(job: Job | null, source: string, output: string): string {
+  return job?.task?.placement === "below" ? `${source.replace(/\s+$/, "")}\n\n${output}` : output;
+}
+
 interface Session {
   selection: SelectionResult;
-  rewrite: Rewrite | null;
+  job: Job | null;
   output: string | null;
   durationMs: number | null;
   run: GenerationRun | null;
@@ -117,11 +162,24 @@ export function createRewriteController(deps: RewriteControllerDeps): RewriteCon
   }
 
   function record(outcome: RewriteOutcome, current: Session | null = session): void {
-    if (!current?.rewrite || !deps.runs) return;
+    const task = current?.job?.task;
+    if (current && task) {
+      const inserted =
+        current.output === null
+          ? null
+          : insertedText(current.job, current.selection.text, current.output);
+      try {
+        task.onOutcome(outcome, inserted, current.durationMs);
+      } catch (error) {
+        deps.logger.warn(`command run not saved: ${String(error)}`);
+      }
+      return;
+    }
+    if (!current?.job?.rewrite || !deps.runs) return;
     try {
       deps.runs.record({
-        rewriteId: current.rewrite.id,
-        rewriteName: current.rewrite.name,
+        rewriteId: current.job.rewrite.id,
+        rewriteName: current.job.rewrite.name,
         sourceText: current.selection.text,
         outputText: current.output,
         outcome,
@@ -162,12 +220,12 @@ export function createRewriteController(deps: RewriteControllerDeps): RewriteCon
     }
   }
 
-  function inputFor(rewrite: Rewrite, selection: SelectionResult) {
+  function inputFor(job: Job, selection: SelectionResult) {
     const context = deps.context(selection.appBundleId, selection.text);
     return {
-      kind: "rewrite" as const,
-      instruction: rewrite.instruction,
-      ...(rewrite.example ? { example: rewrite.example } : {}),
+      kind: job.task ? ("command" as const) : ("rewrite" as const),
+      instruction: job.instruction,
+      ...(job.example ? { example: job.example } : {}),
       text: selection.text,
       style: context.style,
       memory: context.memory,
@@ -227,18 +285,18 @@ export function createRewriteController(deps: RewriteControllerDeps): RewriteCon
     if (app) await deps.activateApp(app);
   }
 
-  async function start(rewrite: Rewrite): Promise<void> {
+  async function start(job: Job): Promise<void> {
     const current = session;
     if (!current) return;
     current.run?.cancel();
-    current.rewrite = rewrite;
+    current.job = job;
     current.output = null;
     current.durationMs = null;
     let text = "";
     let loading = false;
-    const running = () => setState({ stage: "running", rewriteName: rewrite.name, text, loading });
+    const running = () => setState({ stage: "running", rewriteName: job.name, text, loading });
     running();
-    const run = deps.generation.generate(inputFor(rewrite, current.selection), {
+    const run = deps.generation.generate(inputFor(job, current.selection), {
       onChunk: (chunk) => {
         text += chunk;
         loading = false;
@@ -260,12 +318,13 @@ export function createRewriteController(deps: RewriteControllerDeps): RewriteCon
       current.run = null;
       current.output = result.text;
       current.durationMs = result.ms;
-      deps.rewrites.markUsed(rewrite.id);
+      if (job.rewrite) deps.rewrites.markUsed(job.rewrite.id);
       setState({
         stage: "result",
-        rewriteName: rewrite.name,
+        rewriteName: job.name,
         text: result.text,
         source: current.selection.text,
+        ...(job.task?.placement === "below" ? { placement: "below" as const } : {}),
       });
     } catch (error) {
       if (session !== current || current.run !== run) return;
@@ -292,7 +351,7 @@ export function createRewriteController(deps: RewriteControllerDeps): RewriteCon
         deps.notify(REWRITE_PANEL_MESSAGES.noRewrites);
         return;
       }
-      session = { selection, rewrite: null, output: null, durationMs: null, run: null, state };
+      session = { selection, job: null, output: null, durationMs: null, run: null, state };
       setState(state, true);
     },
 
@@ -307,7 +366,7 @@ export function createRewriteController(deps: RewriteControllerDeps): RewriteCon
       if (!selection) return;
       const current: Session = {
         selection,
-        rewrite,
+        job: rewriteJob(rewrite),
         output: null,
         durationMs: null,
         run: null,
@@ -316,10 +375,10 @@ export function createRewriteController(deps: RewriteControllerDeps): RewriteCon
       session = current;
       if (!rewrite.applyDirectly) {
         setState({ stage: "running", rewriteName: rewrite.name, text: "", loading: false }, true);
-        await start(rewrite);
+        await start(rewriteJob(rewrite));
         return;
       }
-      const run = deps.generation.generate(inputFor(rewrite, selection), {
+      const run = deps.generation.generate(inputFor(rewriteJob(rewrite), selection), {
         onLoading: () => deps.notify(GENERATION_MESSAGES.loading),
       });
       current.run = run;
@@ -356,14 +415,32 @@ export function createRewriteController(deps: RewriteControllerDeps): RewriteCon
       session = null;
     },
 
+    async runCommand(task) {
+      if (session) {
+        dropSession();
+        deps.panel.hide();
+      }
+      const job = taskJob(task);
+      session = {
+        selection: task.selection,
+        job,
+        output: null,
+        durationMs: null,
+        run: null,
+        state: { stage: "hidden" },
+      };
+      setState({ stage: "running", rewriteName: task.name, text: "", loading: false }, true);
+      await start(job);
+    },
+
     async choose(rewriteId) {
       const rewrite = deps.rewrites.get(rewriteId);
       if (!session || !rewrite || !rewrite.enabled) return;
-      await start(rewrite);
+      await start(rewriteJob(rewrite));
     },
 
     async regenerate() {
-      if (session?.rewrite) await start(session.rewrite);
+      if (session?.job) await start(session.job);
     },
 
     back() {
@@ -376,7 +453,7 @@ export function createRewriteController(deps: RewriteControllerDeps): RewriteCon
     async replace() {
       const current = session;
       if (!current?.output) return;
-      const output = current.output;
+      const output = insertedText(current.job, current.selection.text, current.output);
       const app = current.selection.appBundleId;
       deps.panel.hide();
       if (app) await deps.activateApp(app);
@@ -406,6 +483,7 @@ export function createRewriteController(deps: RewriteControllerDeps): RewriteCon
     async copy() {
       const current = session;
       if (!current?.output) return;
+      // Only the result: "below" output is copied without the text it was made from.
       await deps.helper.copyText(current.output).catch(() => {});
       record("copied");
       deps.notify(REWRITE_PANEL_MESSAGES.copied);

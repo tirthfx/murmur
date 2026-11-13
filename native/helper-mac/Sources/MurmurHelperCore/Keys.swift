@@ -1,13 +1,13 @@
 import Foundation
 
 /// `keys.press` (RW-09, RW-13): one key from a fixed list, for bold, italic, select all,
-/// undo, Return, caret moves and browser back. Anything else is refused, so main cannot type
+/// undo, Return, Delete, caret moves and browser back. Anything else is refused, so main cannot type
 /// arbitrary input into another app.
 public struct KeysController: Sendable {
     /// Key names to macOS virtual key codes.
     static let keyCodes: [String: UInt16] = [
         "b": 11, "i": 34, "a": 0, "z": 6, "return": 36,
-        "left": 123, "right": 124, "down": 125, "up": 126, "left_bracket": 33,
+        "left": 123, "right": 124, "down": 125, "up": 126, "left_bracket": 33, "delete": 51,
     ]
     static let modifierNames: [String: KeyModifiers] = [
         "command": .command, "shift": .shift, "option": .option, "control": .control,
@@ -32,6 +32,7 @@ public struct KeysController: Sendable {
         case "b", "i", "a", "left_bracket": return modifiers == .command
         case "z": return modifiers.contains(.command) && !modifiers.contains(.option) && !modifiers.contains(.control)
         case "return": return modifiers.isEmpty || modifiers == .shift
+        case "delete": return modifiers.isEmpty
         case "left", "right", "up", "down": return !modifiers.contains(.control)
         default: return false
         }

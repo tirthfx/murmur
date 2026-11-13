@@ -24,7 +24,9 @@ export type BarEvent =
   | { type: "timeout" }
   /** Ask a question with Yes and No (PZ-19); it goes away after ASK_MS. */
   | { type: "ask"; message: string; detail: string }
-  | { type: "answered" };
+  | { type: "answered" }
+  /** The recording was a command (RW-08): no text goes in; what it did is shown next. */
+  | { type: "settle" };
 
 export interface BarStep {
   view: BarView;
@@ -115,6 +117,8 @@ export function transition(current: BarView, event: BarEvent): BarStep {
         : to(view("ask", { message: event.message, detail: event.detail }), ASK_MS);
     case "answered":
       return current.state === "ask" ? to(view("idle")) : same;
+    case "settle":
+      return current.state === "processing" ? to(view("idle")) : same;
     case "timeout":
       if (current.state === "ask") return to(view("idle"));
       if (current.state === "done" || current.state === "cancelled") return to(view("idle"));

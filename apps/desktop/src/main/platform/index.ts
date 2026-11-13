@@ -3,7 +3,11 @@ import { createConsoleLogger, spawnHelperProcess, systemClock } from "../helper/
 import { HelperSupervisor } from "../helper/supervisor";
 import { createMacHelper, type MacHelperDeps } from "./mac-helper";
 import type { KeyPlatform } from "../settings/shortcuts";
-import { MAC_DEFAULT_HOTKEY_BINDINGS, MAC_DEFAULT_REWRITE_TRIGGER } from "./mac-hotkeys";
+import {
+  MAC_DEFAULT_COMMAND_TRIGGER,
+  MAC_DEFAULT_HOTKEY_BINDINGS,
+  MAC_DEFAULT_REWRITE_TRIGGER,
+} from "./mac-hotkeys";
 import { activateMacApp } from "./mac-apps";
 import {
   MAC_CAPS_LOCK,
@@ -46,6 +50,11 @@ export function defaultHotkeyBindings(platform: NodeJS.Platform): HotkeyBinding[
 /** The default Rewrite panel shortcut for this OS, or null when there is none. */
 export function defaultRewriteShortcut(platform: NodeJS.Platform): HotkeyTrigger | null {
   return platform === "darwin" ? MAC_DEFAULT_REWRITE_TRIGGER : null;
+}
+
+/** The default Command Mode key for this OS, or null when there is none. */
+export function defaultCommandShortcut(platform: NodeJS.Platform): HotkeyTrigger | null {
+  return platform === "darwin" ? MAC_DEFAULT_COMMAND_TRIGGER : null;
 }
 
 /** Brings an app back to the front by its id, so a paste reaches it. */

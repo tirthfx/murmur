@@ -9,6 +9,7 @@ function setup() {
   const controller: RewriteController = {
     open: vi.fn(),
     runDirect: vi.fn(),
+    runCommand: vi.fn(async () => {}),
     choose: vi.fn(async () => {}),
     regenerate: vi.fn(async () => {}),
     back: vi.fn(),

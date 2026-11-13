@@ -70,6 +70,16 @@ export function bindingsFor(
       rewriteId: REWRITE_PANEL_BINDING_ID,
     });
   }
+  // Command Mode (RW-08, experimental): exclusive, so Command+C never starts it.
+  if (settings.experimental.commandMode && settings.commandShortcut) {
+    bindings.push({
+      id: "command-mode",
+      action: "command.mode",
+      trigger: settings.commandShortcut,
+      mode: "hold",
+      exclusive: true,
+    });
+  }
   if (cancelKeyCode !== null) {
     bindings.push({
       id: "dictate-cancel",
@@ -121,6 +131,7 @@ export function createSettingsService(deps: SettingsServiceDeps): SettingsServic
           ? platform.label(settings.handsFreeShortcut)
           : `Double-tap ${hold}`,
         rewrite: settings.rewriteShortcut ? platform.label(settings.rewriteShortcut) : "Off",
+        command: settings.commandShortcut ? platform.label(settings.commandShortcut) : "Off",
       },
       devices,
     };
@@ -146,6 +157,7 @@ export function createSettingsService(deps: SettingsServiceDeps): SettingsServic
           hold: settings.holdShortcut,
           handsFree: settings.handsFreeShortcut,
           rewrite: settings.rewriteShortcut,
+          command: settings.commandShortcut,
         },
         platform,
         deps.otherShortcuts?.() ?? [],
