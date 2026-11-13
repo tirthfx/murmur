@@ -22,6 +22,8 @@ export interface InstructThreadStore {
   addTurn(threadId: string, turn: InstructTurnInput): void;
   /** Regenerate, or a context chip: the last turn's draft is replaced. */
   updateLastDraft(threadId: string, draft: string): void;
+  /** The last draft was taken out again by Murmur's undo (RW-13). */
+  markUndone(threadId: string): void;
   /** What became of the thread's last draft. */
   setOutcome(threadId: string, outcome: InstructOutcome): void;
   /** Newest first. An empty query lists all; otherwise any request or draft containing it. */
@@ -167,6 +169,9 @@ export function createInstructThreadStore(
     updateLastDraft(threadId, draft) {
       lastDraft.run(draft, threadId, threadId);
       threadDraft.run(draft, now(), threadId);
+    },
+    markUndone(threadId) {
+      lastTurnOutcome.run("undone", threadId, threadId);
     },
     setOutcome(threadId, outcome) {
       threadOutcome.run(outcome, now(), threadId);

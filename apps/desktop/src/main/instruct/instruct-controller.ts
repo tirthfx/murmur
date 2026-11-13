@@ -8,6 +8,7 @@ import {
   type InstructSource,
   type PlatformHelper,
   type Settings,
+  UNDO_MESSAGES,
 } from "@murmur/shared";
 import type { Logger } from "../helper/types";
 import type { GenerationTurn } from "../cleanup/engine";
@@ -17,6 +18,7 @@ import { actionInstruction, asksForAction, followUpInstruction } from "./actions
 
 export { followUpInstruction } from "./actions";
 import type { InstructThreadStore } from "./thread-store";
+import type { UndoService } from "../undo/undo-service";
 
 /** The Instruct panel window as the controller sees it. */
 export interface InstructPanelPort {
@@ -35,8 +37,10 @@ export interface InstructControllerDeps {
   /** Saved threads (RW-14); null without a database. */
   threads: Pick<
     InstructThreadStore,
-    "create" | "addTurn" | "updateLastDraft" | "setOutcome" | "get"
+    "create" | "addTurn" | "updateLastDraft" | "setOutcome" | "get" | "markUndone"
   > | null;
+  /** Murmur's own undo (RW-13); inserts are recorded there. */
+  undo?: Pick<UndoService, "record" | "has" | "undoLast">;
   /** The model's id, for the saved turns. */
   modelId: () => string;
   /** A short message on the Bar. */
@@ -63,6 +67,8 @@ export interface InstructController {
   followUp(text: string): Promise<void>;
   /** Drops the thread; the panel waits for a new first request. */
   newThread(): Promise<void>;
+  /** Control+Z in the panel: undoes the last Instruct insert in its app (RW-13). */
+  undo(): Promise<void>;
   /** A saved thread's last draft as the start of a new thread (RW-14). False if it is gone. */
   reuse(threadId: string): Promise<boolean>;
   insert(): Promise<void>;
@@ -457,6 +463,13 @@ export function createInstructController(deps: InstructControllerDeps): Instruct
           ...deps.insertRules(),
         });
         deps.notify(INSTRUCT_MESSAGES.inserted);
+        const savedId = current.savedId;
+        await deps.undo?.record("instruct", {
+          appBundleId: current.appId,
+          before: "",
+          after: draft,
+          ...(savedId ? { onUndone: () => save(() => deps.threads?.markUndone(savedId)) } : {}),
+        });
       } catch {
         await deps.helper.copyText(draft).catch(() => {});
         deps.notify(INSTRUCT_MESSAGES.notBack);
@@ -471,6 +484,21 @@ export function createInstructController(deps: InstructControllerDeps): Instruct
       outcome(current, "copied");
       deps.notify(INSTRUCT_MESSAGES.copied);
       await end(true);
+    },
+
+    async undo() {
+      if (!deps.undo?.has("instruct")) {
+        deps.notify(UNDO_MESSAGES.nothing);
+        return;
+      }
+      // The panel gives the keyboard back to the app the draft went into.
+      const current = thread;
+      thread = null;
+      panelOpen = false;
+      current?.run?.cancel();
+      deps.panel.hide();
+      const result = await deps.undo.undoLast("instruct", { refocus: true });
+      deps.notify(UNDO_MESSAGES[result]);
     },
 
     async regenerate() {

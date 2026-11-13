@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   COMMAND_MESSAGES,
+  UNDO_MESSAGES,
   type CommandId,
   type FocusContext,
   type KeysPressInput,
@@ -44,6 +45,7 @@ interface Options {
   last?: LastDictation | null;
   field?: FocusContext;
   mayRead?: boolean;
+  canUndo?: boolean;
 }
 
 function setup(options: Options = {}) {
@@ -67,6 +69,18 @@ function setup(options: Options = {}) {
     focusContext: vi.fn(async () => options.field ?? context("")),
   };
   const chooseWithModel = vi.fn(async () => options.model ?? null);
+  const undone: string[] = [];
+  const edits: { before: string; after: string }[] = [];
+  const undo = {
+    record: vi.fn(async (_kind: string, edit: { before: string; after: string }) => {
+      edits.push({ before: edit.before, after: edit.after });
+    }),
+    has: vi.fn(() => options.canUndo ?? false),
+    undoLast: vi.fn(async (kind: string) => {
+      undone.push(kind);
+      return "undone" as const;
+    }),
+  };
   const runner = createCommandRunner({
     helper,
     chooseWithModel,
@@ -79,12 +93,26 @@ function setup(options: Options = {}) {
     lastDictation: () => options.last ?? null,
     mayReadField: () => options.mayRead ?? true,
     runs: { record: (run) => (runs.push(run), "id") },
+    undo,
     clipboardFirstInApps: () => [],
     insertRules: () => ({}),
     logger: createTestLogger(),
     now: () => 1_000_000,
   });
-  return { runner, helper, keys, inserted, messages, runs, tasks, asked, chooseWithModel };
+  return {
+    runner,
+    helper,
+    keys,
+    inserted,
+    messages,
+    runs,
+    tasks,
+    asked,
+    chooseWithModel,
+    undo,
+    undone,
+    edits,
+  };
 }
 
 describe("command runner", () => {
@@ -247,5 +275,33 @@ describe("command runner", () => {
     const long = setup({ selections: [{ ...selected(""), status: "too_long", length: 9000 }] });
     await long.runner.run("make it shorter", "key");
     expect(long.messages).toEqual([COMMAND_MESSAGES.tooLong]);
+  });
+
+  it("records each text change for undo, but not key presses", async () => {
+    const upper = setup();
+    await upper.runner.run("uppercase that", "key");
+    expect(upper.edits).toEqual([{ before: "Hello there friend", after: "HELLO THERE FRIEND" }]);
+    const removed = setup();
+    await removed.runner.run("delete that", "key");
+    expect(removed.edits).toEqual([{ before: "Hello there friend", after: "" }]);
+    const bold = setup();
+    await bold.runner.run("bold that", "key");
+    expect(bold.edits).toEqual([]);
+    const panel = setup();
+    await panel.runner.run("make it shorter", "key");
+    panel.tasks[0]!.onOutcome("replaced", "Hi friend", 500);
+    await Promise.resolve();
+    expect(panel.edits).toEqual([{ before: "Hello there friend", after: "Hi friend" }]);
+  });
+
+  it("undoes Murmur's last edit on 'undo that', and presses Command+Z when there is none", async () => {
+    const mine = setup({ canUndo: true });
+    await mine.runner.run("undo that", "key");
+    expect(mine.undone).toEqual(["any"]);
+    expect(mine.keys).toEqual([]);
+    expect(mine.messages).toEqual([UNDO_MESSAGES.undone]);
+    const app = setup({ canUndo: false });
+    await app.runner.run("undo that", "key");
+    expect(app.keys).toEqual([{ key: "z", modifiers: ["command"] }]);
   });
 });

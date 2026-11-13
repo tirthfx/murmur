@@ -20,6 +20,7 @@ function api(initial: InstructPanelState) {
     toggleSource: vi.fn(async () => {}),
     followUp: vi.fn(async () => {}),
     newThread: vi.fn(async () => {}),
+    undo: vi.fn(async () => {}),
     close: vi.fn(async () => {}),
   };
   return { mock, push: (state: InstructPanelState) => act(() => push(state)) };
@@ -130,5 +131,15 @@ describe("Instruct panel", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Send the request" }));
     expect(mock.followUp).toHaveBeenCalledWith("a haiku");
+  });
+
+  it("undoes the last insert on Control+Z, but not on Command+Z", async () => {
+    const { mock, push } = api({ stage: "hidden" });
+    render(<InstructPanel api={mock} />);
+    push({ stage: "empty" });
+    fireEvent.keyDown(window, { key: "z", metaKey: true });
+    expect(mock.undo).not.toHaveBeenCalled();
+    fireEvent.keyDown(window, { key: "z", ctrlKey: true });
+    expect(mock.undo).toHaveBeenCalled();
   });
 });

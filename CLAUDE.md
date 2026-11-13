@@ -140,6 +140,8 @@ Command Mode (the key and the wake phrase, the command list, matching by rule th
 
 Instruct Mode (the key, the drafting panel, context chips and settings, drafts-only for action requests, follow-ups, saved threads and the Instruct page, benchmark): see `docs/instruct.md`.
 
+Undo of Murmur's own edits (what is recorded, the anchor and selection checks, the copy fallback): see `docs/undo.md`.
+
 Text generation for Rewrites, Command Mode and Instruct Mode (prompt rules, streaming, limits, dictation first, benchmark): see `docs/generation.md`.
 
 Dictation history (database, tables, migrations): see `docs/history.md`.

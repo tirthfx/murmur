@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   INSTRUCT_MESSAGES,
+  UNDO_MESSAGES,
   type FocusContext,
   type InstructPanelState,
   type SelectionResult,
@@ -89,11 +90,25 @@ function setup(options: Options = {}) {
   const notify = vi.fn();
   const activateApp = vi.fn(async () => {});
   const threads = createInstructThreadStore(openDatabase(":memory:"));
+  const undoEntries: { before: string; after: string; onUndone?: () => void }[] = [];
+  const undo = {
+    record: vi.fn(
+      async (_kind: string, edit: { before: string; after: string; onUndone?: () => void }) => {
+        undoEntries.push(edit);
+      },
+    ),
+    has: vi.fn(() => undoEntries.length > 0),
+    undoLast: vi.fn(async () => {
+      undoEntries.pop()?.onUndone?.();
+      return "undone" as const;
+    }),
+  };
   const controller = createInstructController({
     helper,
     generation: options.generation ?? gen.service,
     panel,
     threads,
+    undo,
     modelId: () => "test-model",
     notify,
     activateApp,
@@ -117,7 +132,18 @@ function setup(options: Options = {}) {
     logger: createTestLogger(),
     sleep: async () => {},
   });
-  return { controller, helper, panel, states, gen, notify, activateApp, threads };
+  return {
+    controller,
+    helper,
+    panel,
+    states,
+    gen,
+    notify,
+    activateApp,
+    threads,
+    undo,
+    undoEntries,
+  };
 }
 
 const last = (states: { state: InstructPanelState }[]) => states.at(-1)!.state;
@@ -356,5 +382,25 @@ describe("instruct controller", () => {
     expect(gen.inputs[1]).toMatchObject({ followUp: true, text: "Thursday works for me." });
     expect(threads.list("")).toHaveLength(2);
     expect(await controller.reuse("missing")).toBe(false);
+  });
+
+  it("records an insert for undo, and Control+Z in the panel takes it out", async () => {
+    const { controller, undo, undoEntries, threads, notify, panel } = setup();
+    await controller.spoken("write a haiku");
+    await controller.insert();
+    expect(undoEntries).toMatchObject([{ before: "", after: "Thursday works for me." }]);
+    await controller.spoken("another one");
+    await controller.undo();
+    expect(undo.undoLast).toHaveBeenCalledWith("instruct", { refocus: true });
+    expect(notify).toHaveBeenLastCalledWith(UNDO_MESSAGES.undone);
+    expect(panel.hidden).toBeGreaterThan(0);
+    const saved = threads.list("").find((thread) => thread.title === "write a haiku")!;
+    expect(threads.get(saved.id)!.turns).toHaveLength(1);
+  });
+
+  it("says there is nothing to undo", async () => {
+    const { controller, notify } = setup();
+    await controller.undo();
+    expect(notify).toHaveBeenCalledWith(UNDO_MESSAGES.nothing);
   });
 });

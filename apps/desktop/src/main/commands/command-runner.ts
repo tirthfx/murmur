@@ -10,11 +10,13 @@ import {
   type InsertTextInput,
   type PlatformHelper,
   type SelectionResult,
+  UNDO_MESSAGES,
 } from "@murmur/shared";
 import type { Logger } from "../helper/types";
 import type { RewriteController } from "../rewrites/rewrite-controller";
 import { findLanguage, matchCommand, type CommandMatch } from "./match";
 import type { CommandRunInput, CommandRunStore, CommandTarget } from "./run-store";
+import type { UndoService } from "../undo/undo-service";
 
 /** The last dictation that went in, for a command said with nothing selected (RW-08). */
 export interface LastDictation {
@@ -38,6 +40,8 @@ export interface CommandRunnerDeps {
   /** Whether the field's text may be read (context awareness); the last dictation needs it. */
   mayReadField: () => boolean;
   runs: Pick<CommandRunStore, "record"> | null;
+  /** Murmur's own undo (RW-10): edits are recorded; "undo that" uses it first. */
+  undo?: Pick<UndoService, "record" | "has" | "undoLast">;
   clipboardFirstInApps: () => string[];
   insertRules: () => Pick<InsertTextInput, "typeInApps" | "trimTrailingNewlinesInApps">;
   logger: Logger;
@@ -204,12 +208,30 @@ export function createCommandRunner(deps: CommandRunnerDeps): CommandRunner {
     }
   }
 
+  /** An edit Murmur made, for undo. Never throws. */
+  async function remember(appBundleId: string | null, before: string, after: string) {
+    await deps.undo?.record("command", { appBundleId, before, after }).catch(() => {});
+  }
+
   /** Commands that need no text: key presses, new line and new paragraph. */
   async function runWithoutText(
     command: CommandDefinition,
     base: Omit<CommandRunInput, "outcome" | "appBundleId" | "durationMs">,
     started: number,
   ): Promise<void> {
+    // "undo that" (RW-10): Murmur's own undo while there is an edit to undo; the app's
+    // Command+Z otherwise.
+    if (command.id === "undo" && deps.undo?.has("any")) {
+      const result = await deps.undo.undoLast("any");
+      deps.notify(UNDO_MESSAGES[result]);
+      record({
+        ...base,
+        outcome: result === "undone" ? "replaced" : result === "copied" ? "copied" : "failed",
+        appBundleId: null,
+        durationMs: now() - started,
+      });
+      return;
+    }
     if (command.keys) {
       try {
         const result = await deps.helper.pressKey({
@@ -241,6 +263,7 @@ export function createCommandRunner(deps: CommandRunnerDeps): CommandRunner {
     const text = command.id === "new_paragraph" ? "\n\n" : "\n";
     const outcome = await paste(text);
     if (outcome === "failed") deps.notify(COMMAND_MESSAGES.failed);
+    else await remember(selection?.appBundleId ?? null, "", text);
     record({
       ...base,
       outputText: text,
@@ -302,8 +325,12 @@ export function createCommandRunner(deps: CommandRunnerDeps): CommandRunner {
           instruction: (command.instruction ?? "").replace("{language}", language ?? ""),
           selection,
           placement: command.kind === "output" ? "below" : "replace",
-          onOutcome: (outcome, inserted, durationMs) =>
-            record({ ...onText, outputText: inserted, outcome, durationMs }),
+          onOutcome: (outcome, inserted, durationMs) => {
+            record({ ...onText, outputText: inserted, outcome, durationMs });
+            if (outcome === "replaced" && inserted !== null) {
+              void remember(selection.appBundleId, selection.text, inserted);
+            }
+          },
         });
         return;
       }
@@ -313,6 +340,7 @@ export function createCommandRunner(deps: CommandRunnerDeps): CommandRunner {
         const output = change(selection.text);
         const outcome = await paste(output);
         deps.notify(outcome === "failed" ? COMMAND_MESSAGES.failed : command.label);
+        if (outcome === "inserted") await remember(selection.appBundleId, selection.text, output);
         record({
           ...onText,
           outputText: output,
@@ -349,6 +377,7 @@ export function createCommandRunner(deps: CommandRunnerDeps): CommandRunner {
         if (!pressed.pressed) throw new Error("another app is in front");
         deps.notify(command.label);
         record({ ...onText, outputText: "", outcome: "replaced", durationMs: now() - started });
+        await remember(selection.appBundleId, selection.text, "");
       } catch {
         deps.notify(COMMAND_MESSAGES.failed);
         record({ ...onText, outcome: "failed", durationMs: now() - started });
