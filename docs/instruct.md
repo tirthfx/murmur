@@ -45,7 +45,7 @@ Once a day, threads older than 30 days lose their text (their requests and draft
 the count of requests stays and the page shows "Text removed after 30 days"), and threads
 beyond the newest 1,000 are deleted.
 
-Undo comes in #120 and the model choice in #121.
+Control+Z in the panel takes the last inserted draft out of the app again (see `undo.md`). The model choice comes in #121.
 
 ## Context (RW-17)
 

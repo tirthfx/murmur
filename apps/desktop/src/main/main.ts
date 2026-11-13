@@ -77,6 +77,7 @@ import { PanelWindow, RewritePanelWindow } from "./rewrites/panel-window";
 import { createInstructController } from "./instruct/instruct-controller";
 import { createInstructPanelIpcHandler } from "./instruct/panel-ipc";
 import { createInstructThreadStore } from "./instruct/thread-store";
+import { createUndoService } from "./undo/undo-service";
 import { createRewritePanelIpcHandler } from "./rewrites/panel-ipc";
 import {
   rewriteBindings,
@@ -832,11 +833,20 @@ const autoRewrite = createAutoRewriter({
 });
 // Instruct Mode (RW-11, RW-17): drafts from a spoken instruction, with the allowed context.
 const instructThreads = database ? createInstructThreadStore(database) : null;
+// Undo of Murmur's own edits (RW-10, RW-13), for Command Mode and Instruct Mode.
+const undo = createUndoService({
+  helper,
+  mayReadField: () => settingsStore.get().contextAwareness,
+  insertRules: () => insertionRules(),
+  activateApp,
+  logger: createConsoleLogger("[undo]"),
+});
 const instructController = createInstructController({
   helper,
   generation,
   panel: instructPanel,
   threads: instructThreads,
+  undo,
   modelId: () => DEFAULT_CLEANUP_MODEL.id,
   notify: (message) => bar.dispatch({ type: "warn", message }),
   activateApp,
@@ -871,6 +881,7 @@ const commandRunner = createCommandRunner({
   lastDictation: () => lastDictation,
   mayReadField: () => settingsStore.get().contextAwareness,
   runs: commandRuns,
+  undo,
   clipboardFirstInApps: () => [...BROWSERS],
   insertRules: () => insertionRules(),
   logger: commandLogger,

@@ -104,6 +104,12 @@ export function InstructPanel({ api }: { api: MurmurInstructApi }) {
         event.preventDefault();
         void api.close();
       }
+      // Control+Z (panel only, RW-13): take the last inserted draft out of the app again.
+      // Command+Z stays the text box's own undo.
+      if (event.ctrlKey && !event.metaKey && !event.altKey && event.key.toLowerCase() === "z") {
+        event.preventDefault();
+        void api.undo();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);

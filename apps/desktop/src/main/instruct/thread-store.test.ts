@@ -112,4 +112,15 @@ describe("Instruct thread store", () => {
     expect(store.get(first)).toBeNull();
     expect(store.list("", 2000)).toHaveLength(INSTRUCT_LIMITS.maxThreads);
   });
+
+  it("marks the last turn undone", () => {
+    const { db, store } = setup();
+    const id = store.create(null);
+    store.addTurn(id, turn("one", "1"));
+    store.markUndone(id);
+    const row = db
+      .prepare("SELECT action_taken FROM instruct_history WHERE thread_id = ?")
+      .get(id) as { action_taken: string };
+    expect(row.action_taken).toBe("undone");
+  });
 });

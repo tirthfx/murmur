@@ -65,6 +65,7 @@ export const INSTRUCT_PANEL_CHANNELS = {
   toggleSource: "instruct-panel:toggle-source",
   followUp: "instruct-panel:follow-up",
   newThread: "instruct-panel:new-thread",
+  undo: "instruct-panel:undo",
   close: "instruct-panel:close",
 } as const;
 
@@ -79,6 +80,7 @@ export const INSTRUCT_PANEL_ARGS = {
   [INSTRUCT_PANEL_CHANNELS.toggleSource]: z.tuple([z.enum(INSTRUCT_SOURCES)]),
   [INSTRUCT_PANEL_CHANNELS.followUp]: z.tuple([z.string().min(1).max(1000)]),
   [INSTRUCT_PANEL_CHANNELS.newThread]: z.tuple([]),
+  [INSTRUCT_PANEL_CHANNELS.undo]: z.tuple([]),
   [INSTRUCT_PANEL_CHANNELS.close]: z.tuple([]),
 } as const;
 
@@ -99,6 +101,8 @@ export interface MurmurInstructApi {
   followUp(text: string): Promise<void>;
   /** Drops the thread and waits for a new request. */
   newThread(): Promise<void>;
+  /** Control+Z in the panel (RW-13): takes the last inserted draft out of the app again. */
+  undo(): Promise<void>;
   /** Escape or Discard. */
   close(): Promise<void>;
 }

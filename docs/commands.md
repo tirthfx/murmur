@@ -46,6 +46,9 @@ shows it.
 | Text    | uppercase, lowercase, capitalise, delete, new line, new paragraph                    | Done in Murmur, no model. New line and new paragraph go after the selection, never over it. |
 | Keys    | bold, italic, select all, undo, press enter                                          | Command+B, Command+I, Command+A, Command+Z, Return in the app.                              |
 
+"undo that" takes back Murmur's last edit when there is one (see `undo.md`), and presses
+Command+Z otherwise.
+
 "delete that" on more than 200 characters asks on the Bar first ("Delete the selected
 text?"); no answer within a minute counts as No. After a Yes the selection is read again and
 deleted only if it is the very same text.
