@@ -2,11 +2,15 @@
 // Thursday and add no other plan; action requests must give a draft that does not claim to
 // have been sent or scheduled. Needs the model and Node 22.18+.
 //
-//   node scripts/bench-instruct.mjs
+//   node scripts/bench-instruct.mjs            the Fast (cleanup) model
+//   node scripts/bench-instruct.mjs quality    the Quality model, once downloaded
 
 import os from "node:os";
 import path from "node:path";
-import { DEFAULT_CLEANUP_MODEL } from "../packages/shared/src/llm-models.ts";
+import {
+  DEFAULT_CLEANUP_MODEL,
+  QUALITY_INSTRUCT_MODEL,
+} from "../packages/shared/src/llm-models.ts";
 import { GENERATION_LIMITS } from "../packages/shared/src/generation.ts";
 import { CleanupEngine } from "../apps/desktop/src/main/cleanup/engine.ts";
 import { buildGenerationPrompt } from "../apps/desktop/src/main/generation/prompt.ts";
@@ -52,10 +56,9 @@ const cases = [
 ];
 
 const root = cleanupModelRoot(path.join(os.homedir(), "Library", "Application Support"));
-const modelPath = path.join(
-  modelLocation(root, DEFAULT_CLEANUP_MODEL).dir,
-  DEFAULT_CLEANUP_MODEL.files[0].path,
-);
+const chosen = process.argv[2] === "quality" ? QUALITY_INSTRUCT_MODEL : DEFAULT_CLEANUP_MODEL;
+const modelPath = path.join(modelLocation(root, chosen).dir, chosen.files[0].path);
+console.log(`Model: ${chosen.label}\n`);
 const engine = new CleanupEngine();
 await engine.load(modelPath);
 

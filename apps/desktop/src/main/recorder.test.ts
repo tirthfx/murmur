@@ -1914,3 +1914,62 @@ describe("Instruct Mode in the recorder (RW-11)", () => {
     expect(helper.startAudio).not.toHaveBeenCalled();
   });
 });
+
+describe("Instruct auto-detect in the recorder (RW-16)", () => {
+  function autoSetup(options: { enabled: boolean; answer: boolean; said: string }) {
+    const run = vi.fn(async () => {});
+    const ask = vi.fn(async () => options.answer);
+    const insert = vi.fn(async () => ({
+      method: "paste_cmd_v" as const,
+      delivered: true,
+      clipboardRestored: true,
+    }));
+    const { recorder } = setup({
+      clock: new FakeClock(),
+      transcribe: async () => ({ ...transcript, text: options.said }),
+      insert,
+      instruct: { run },
+      autoInstruct: { enabled: () => options.enabled, ask },
+    });
+    const dictate = async () => {
+      recorder.handleHotkey(key("down"));
+      recorder.handleHotkey(key("up"));
+      await recorder.idle();
+    };
+    return { run, ask, insert, dictate };
+  }
+
+  it("asks, and on Use writes a draft instead of inserting", async () => {
+    const { run, ask, insert, dictate } = autoSetup({
+      enabled: true,
+      answer: true,
+      said: "Draft a reply saying I can do Thursday.",
+    });
+    await dictate();
+    expect(ask).toHaveBeenCalled();
+    expect(run).toHaveBeenCalledWith("Draft a reply saying I can do Thursday.");
+    expect(insert).not.toHaveBeenCalled();
+  });
+
+  it("inserts as dictated when the prompt is ignored, without calling Instruct", async () => {
+    const { run, insert, dictate } = autoSetup({
+      enabled: true,
+      answer: false,
+      said: "Draft a reply saying I can do Thursday.",
+    });
+    await dictate();
+    expect(run).not.toHaveBeenCalled();
+    expect(insert).toHaveBeenCalledWith("Draft a reply saying I can do Thursday.", {
+      pressEnter: false,
+    });
+  });
+
+  it("never asks while the setting is off, or for ordinary dictation", async () => {
+    const off = autoSetup({ enabled: false, answer: true, said: "Draft a reply to Sam." });
+    await off.dictate();
+    expect(off.ask).not.toHaveBeenCalled();
+    const plain = autoSetup({ enabled: true, answer: true, said: "See you at five." });
+    await plain.dictate();
+    expect(plain.ask).not.toHaveBeenCalled();
+  });
+});

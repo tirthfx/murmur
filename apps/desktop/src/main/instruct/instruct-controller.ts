@@ -7,6 +7,7 @@ import {
   type InstructPanelState,
   type InstructSource,
   type PlatformHelper,
+  type InstructModelChoice,
   type Settings,
   UNDO_MESSAGES,
 } from "@murmur/shared";
@@ -32,7 +33,10 @@ export interface InstructControllerDeps {
     PlatformHelper,
     "readSelection" | "focusContext" | "insertText" | "copyText" | "pressKey"
   >;
-  generation: GenerationService;
+  /** The generation engine on Fast (the cleanup model) or Quality (RW-15). */
+  generation: (model: InstructModelChoice) => GenerationService;
+  /** True once the Quality model is downloaded and checked. */
+  qualityReady: () => boolean;
   panel: InstructPanelPort;
   /** Saved threads (RW-14); null without a database. */
   threads: Pick<
@@ -41,8 +45,8 @@ export interface InstructControllerDeps {
   > | null;
   /** Murmur's own undo (RW-13); inserts are recorded there. */
   undo?: Pick<UndoService, "record" | "has" | "undoLast">;
-  /** The model's id, for the saved turns. */
-  modelId: () => string;
+  /** A model's id, for the saved turns. */
+  modelId: (model: InstructModelChoice) => string;
   /** A short message on the Bar. */
   notify: (message: string) => void;
   /** Brings the app back to the front (the panel took the keyboard). */
@@ -69,6 +73,8 @@ export interface InstructController {
   newThread(): Promise<void>;
   /** Control+Z in the panel: undoes the last Instruct insert in its app (RW-13). */
   undo(): Promise<void>;
+  /** The panel's model switch (RW-15): applies to the next request; the thread stays. */
+  setModel(model: InstructModelChoice): Promise<void>;
   /** A saved thread's last draft as the start of a new thread (RW-14). False if it is gone. */
   reuse(threadId: string): Promise<boolean>;
   insert(): Promise<void>;
@@ -111,6 +117,8 @@ interface Thread {
   pending: boolean;
   /** Saved thread id, once the first draft is saved. */
   savedId: string | null;
+  /** The model for the next request. */
+  model: InstructModelChoice;
   run: GenerationRun | null;
   state: InstructPanelState;
 }
@@ -149,6 +157,8 @@ export function createInstructController(deps: InstructControllerDeps): Instruct
       turns: current.turns.length + (current.pending ? 1 : 0),
       available: availableSources(current.gathered),
       off: [...current.off],
+      model: current.model,
+      qualityAvailable: deps.qualityReady(),
     };
   }
 
@@ -250,7 +260,8 @@ export function createInstructController(deps: InstructControllerDeps): Instruct
     let text = "";
     let loading = false;
     const running = () => setState(current, { ...base(current), stage: "running", text, loading });
-    const run = deps.generation.generate(inputFor(current), {
+    const model = current.model === "quality" && deps.qualityReady() ? "quality" : "fast";
+    const run = deps.generation(model).generate(inputFor(current), {
       onChunk: (chunk) => {
         text += chunk;
         loading = false;
@@ -282,7 +293,7 @@ export function createInstructController(deps: InstructControllerDeps): Instruct
             store.addTurn(current.savedId, {
               instruction: turn.instruction,
               draft: turn.draft,
-              modelId: deps.modelId(),
+              modelId: deps.modelId(model),
               appBundleId: current.appId,
               durationMs: result.ms,
             });
@@ -349,9 +360,15 @@ export function createInstructController(deps: InstructControllerDeps): Instruct
       instruction: "",
       pending: false,
       savedId: null,
+      model: defaultModel(),
       run: null,
       state: { stage: "empty" },
     };
+  }
+
+  /** Settings' model for a new thread; Fast while Quality is not downloaded. */
+  function defaultModel(): InstructModelChoice {
+    return deps.settings().instruct.model === "quality" && deps.qualityReady() ? "quality" : "fast";
   }
 
   async function ask(text: string): Promise<void> {
@@ -499,6 +516,20 @@ export function createInstructController(deps: InstructControllerDeps): Instruct
       deps.panel.hide();
       const result = await deps.undo.undoLast("instruct", { refocus: true });
       deps.notify(UNDO_MESSAGES[result]);
+    },
+
+    async setModel(model) {
+      const current = thread;
+      if (model === "quality" && !deps.qualityReady()) {
+        deps.notify(INSTRUCT_MESSAGES.downloadQuality);
+        return;
+      }
+      if (!current || current.state.stage === "empty" || current.state.stage === "hidden") {
+        if (current) current.model = model;
+        return;
+      }
+      current.model = model;
+      setState(current, { ...current.state, model, qualityAvailable: deps.qualityReady() });
     },
 
     async regenerate() {

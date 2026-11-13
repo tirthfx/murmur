@@ -48,3 +48,16 @@ export function followUpInstruction(request: string, older: string[]): string {
   }
   return lines.join(" ");
 }
+
+/** A dictation that starts like a request to write (RW-16): "draft a…", "write a reply…". */
+const INSTRUCTION_START =
+  /^(?:(?:ok|okay|so|please|can you|could you)\s+)*(?:draft (?:a|an|the|me)|write (?:a|an|the|me)|compose (?:a|an)|rewrite (?:this|that|it)|summari[sz]e (?:this|that|it)|make a list of|reply to|respond to|write back)\b/;
+
+export function looksLikeInstruction(text: string): boolean {
+  const start = text
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}'\s-]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return INSTRUCTION_START.test(start);
+}

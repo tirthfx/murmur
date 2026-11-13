@@ -79,6 +79,9 @@ function setup() {
     instructDelete: vi.fn(),
     instructDeleteAll: vi.fn(),
     instructReuse: vi.fn(() => true),
+    instructModelStatus: vi.fn(),
+    instructModelDownload: vi.fn(),
+    instructModelRemove: vi.fn(),
     importPreview: vi.fn(),
     importApply: vi.fn(),
     voiceProfileView: vi.fn(() => ({

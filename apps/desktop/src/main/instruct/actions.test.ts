@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { asksForAction } from "./actions";
+import { asksForAction, looksLikeInstruction } from "./actions";
 
 describe("asksForAction", () => {
   it.each([
@@ -28,5 +28,26 @@ describe("asksForAction", () => {
     "create a short bio for my profile",
   ])("knows %j is drafting", (instruction) => {
     expect(asksForAction(instruction)).toBe(false);
+  });
+});
+
+describe("looksLikeInstruction", () => {
+  it.each([
+    "Draft a reply saying I can do Thursday",
+    "write an email to the team about the launch",
+    "Okay, compose a short note for Sam",
+    "rewrite this more formally",
+    "reply to Priya that the budget is fine",
+  ])("offers Instruct Mode for %j", (text) => {
+    expect(looksLikeInstruction(text)).toBe(true);
+  });
+
+  it.each([
+    "I'll draft a reply later",
+    "We need to write the report by Friday",
+    "Thanks for the reply",
+    "the draft is ready",
+  ])("leaves %j as dictation", (text) => {
+    expect(looksLikeInstruction(text)).toBe(false);
   });
 });

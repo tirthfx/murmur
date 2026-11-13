@@ -31,6 +31,10 @@ interface ThreadContext {
   available: InstructSource[];
   /** Sources turned off for this thread. */
   off: InstructSource[];
+  /** The model for the next request (RW-15). */
+  model: "fast" | "quality";
+  /** False until the Quality model is downloaded. */
+  qualityAvailable: boolean;
 }
 
 export type InstructPanelState =
@@ -66,6 +70,7 @@ export const INSTRUCT_PANEL_CHANNELS = {
   followUp: "instruct-panel:follow-up",
   newThread: "instruct-panel:new-thread",
   undo: "instruct-panel:undo",
+  setModel: "instruct-panel:set-model",
   close: "instruct-panel:close",
 } as const;
 
@@ -81,6 +86,7 @@ export const INSTRUCT_PANEL_ARGS = {
   [INSTRUCT_PANEL_CHANNELS.followUp]: z.tuple([z.string().min(1).max(1000)]),
   [INSTRUCT_PANEL_CHANNELS.newThread]: z.tuple([]),
   [INSTRUCT_PANEL_CHANNELS.undo]: z.tuple([]),
+  [INSTRUCT_PANEL_CHANNELS.setModel]: z.tuple([z.enum(["fast", "quality"])]),
   [INSTRUCT_PANEL_CHANNELS.close]: z.tuple([]),
 } as const;
 
@@ -103,6 +109,8 @@ export interface MurmurInstructApi {
   newThread(): Promise<void>;
   /** Control+Z in the panel (RW-13): takes the last inserted draft out of the app again. */
   undo(): Promise<void>;
+  /** The model for the next request in this thread (RW-15); the thread is kept. */
+  setModel(model: "fast" | "quality"): Promise<void>;
   /** Escape or Discard. */
   close(): Promise<void>;
 }
@@ -115,6 +123,8 @@ export const INSTRUCT_MESSAGES = {
   copied: "Copied",
   turnLimit: "Start a new thread to keep going.",
   newThread: "New thread. Hold the Instruct key and say what to write.",
+  downloadQuality: "Download a Quality model in Settings",
+  autoAsk: "Use Instruct Mode for this?",
 } as const;
 
 /** RW-12 and RW-14 limits. */
@@ -166,3 +176,17 @@ export type InstructThread = z.infer<typeof instructThreadSchema>;
 
 /** Longest field text sent with an instruction, on each side of the caret. */
 export const INSTRUCT_FIELD_CHARS = 2000;
+
+/** The Quality model on this Mac (RW-15), for Settings. */
+export const instructModelStatusSchema = z.object({
+  state: z.enum(["missing", "downloading", "ready", "failed"]),
+  label: z.string(),
+  totalBytes: z.number(),
+  doneBytes: z.number(),
+  /** Why the download or check failed. */
+  message: z.string().nullable(),
+});
+export type InstructModelStatus = z.infer<typeof instructModelStatusSchema>;
+
+/** Auto-detect (RW-16): how long the Bar asks before the dictation goes in as text. */
+export const AUTO_INSTRUCT_ASK_MS = 4000;

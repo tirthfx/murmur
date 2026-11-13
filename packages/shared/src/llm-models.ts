@@ -19,3 +19,25 @@ export const DEFAULT_CLEANUP_MODEL: ModelManifest = {
     },
   ],
 };
+
+/**
+ * Instruct Mode's Quality model (RW-15, owner's choice 2026-11-13): Qwen3 8B, 4-bit (Q4_K_M)
+ * GGUF. Apache 2.0. Downloaded only when asked, in Settings. Its thinking mode is kept off.
+ */
+export const QUALITY_INSTRUCT_MODEL: ModelManifest = {
+  id: "qwen3-8b-q4km",
+  label: "Qwen3 8B (4-bit)",
+  totalBytes: 5027784512,
+  files: [
+    {
+      path: "model/Qwen3-8B-Q4_K_M.gguf",
+      url: "https://huggingface.co/unsloth/Qwen3-8B-GGUF/resolve/a6adef130ffb23ddaf1a62fec9dced968c9bc482/Qwen3-8B-Q4_K_M.gguf",
+      size: 5027784512,
+      sha256: "120307ba529eb2439d6c430d94104dabd578497bc7bfe7e322b5d9933b449bd4",
+    },
+  ],
+};
+
+/** Instruct Mode's two presets: Fast is the cleanup model, Quality the larger one. */
+export const INSTRUCT_MODEL_CHOICES = ["fast", "quality"] as const;
+export type InstructModelChoice = (typeof INSTRUCT_MODEL_CHOICES)[number];

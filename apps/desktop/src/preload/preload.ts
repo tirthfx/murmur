@@ -50,6 +50,9 @@ const api: MurmurApi = {
   instructDelete: (id) => ipcRenderer.invoke(IPC_CHANNELS.instructDelete, id),
   instructDeleteAll: () => ipcRenderer.invoke(IPC_CHANNELS.instructDeleteAll),
   instructReuse: (id) => ipcRenderer.invoke(IPC_CHANNELS.instructReuse, id),
+  instructModelStatus: () => ipcRenderer.invoke(IPC_CHANNELS.instructModelStatus),
+  instructModelDownload: () => ipcRenderer.invoke(IPC_CHANNELS.instructModelDownload),
+  instructModelRemove: () => ipcRenderer.invoke(IPC_CHANNELS.instructModelRemove),
   rewritesSetApplyDirectly: (id, applyDirectly) =>
     ipcRenderer.invoke(IPC_CHANNELS.rewritesSetApplyDirectly, id, applyDirectly),
   importPreview: (request) => ipcRenderer.invoke(IPC_CHANNELS.importPreview, request),

@@ -9,7 +9,7 @@ const base: Settings = {
   handsFreeShortcut: null,
   rewriteShortcut: null,
   instructShortcut: null,
-  instruct: { fieldContext: true, memory: true, samples: true, saveThreads: true },
+  instruct: { fieldContext: true, memory: true, samples: true, saveThreads: true, model: "fast" },
   commandShortcut: null,
   commandMode: { wakePhrase: "Hey Murmur", wakePhraseEnabled: true },
   inputDevice: "auto",
@@ -45,6 +45,7 @@ const base: Settings = {
     styleDetection: false,
     pronunciationClips: false,
     commandMode: false,
+    autoInstruct: false,
   },
 };
 
@@ -116,6 +117,7 @@ describe("session effects", () => {
       styleDetection: false,
       pronunciationClips: false,
       commandMode: false,
+      autoInstruct: false,
     };
     const on = setup({
       playing: true,
@@ -218,6 +220,7 @@ describe("session effects", () => {
           styleDetection: false,
           pronunciationClips: false,
           commandMode: false,
+          autoInstruct: false,
         },
         sounds: { start: false, lock: true, success: true, error: false, cancel: false },
       },

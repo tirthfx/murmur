@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { rm } from "node:fs/promises";
 import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { pathToFileURL } from "node:url";
@@ -24,6 +25,9 @@ import {
   type StyleCategory,
   EDIT_WATCH_MAX_MS,
   DEFAULT_CLEANUP_MODEL,
+  QUALITY_INSTRUCT_MODEL,
+  AUTO_INSTRUCT_ASK_MS,
+  INSTRUCT_MESSAGES,
   DEFAULT_EMAIL,
   DEFAULT_JARGON_PACKS,
   DEFAULT_DEVELOPER_TOOLS,
@@ -78,6 +82,7 @@ import { createInstructController } from "./instruct/instruct-controller";
 import { createInstructPanelIpcHandler } from "./instruct/panel-ipc";
 import { createInstructThreadStore } from "./instruct/thread-store";
 import { createUndoService } from "./undo/undo-service";
+import { createQualityModel } from "./instruct/quality-model";
 import { createRewritePanelIpcHandler } from "./rewrites/panel-ipc";
 import {
   rewriteBindings,
@@ -248,7 +253,7 @@ let lastDictation: LastDictation | null = null;
 let commandQuestion: { answer: (yes: boolean) => void; timer: NodeJS.Timeout } | null = null;
 /** How long a Command Mode question waits before it counts as No. */
 const COMMAND_ASK_MS = 60_000;
-function askOnBar(message: string, detail: string): Promise<boolean> {
+function askOnBar(message: string, detail: string, waitMs = COMMAND_ASK_MS): Promise<boolean> {
   commandQuestion?.answer(false);
   return new Promise((resolve) => {
     const timer = setTimeout(() => {
@@ -256,7 +261,7 @@ function askOnBar(message: string, detail: string): Promise<boolean> {
       commandQuestion = null;
       bar.dispatch({ type: "answered" });
       resolve(false);
-    }, COMMAND_ASK_MS);
+    }, waitMs);
     commandQuestion = {
       timer,
       answer: (yes) => {
@@ -362,6 +367,7 @@ const settingsStore = createSettingsStore(database, {
     styleDetection: false,
     pronunciationClips: false,
     commandMode: false,
+    autoInstruct: false,
   },
 });
 const keys = keyPlatform(process.platform);
@@ -763,6 +769,11 @@ const recorder = createRecorder({
   },
   // Instruct Mode (RW-11). The controller below exists before any recording ends.
   instruct: { run: (instruction) => instructController.spoken(instruction) },
+  autoInstruct: {
+    enabled: () => settingsStore.get().experimental.autoInstruct,
+    ask: () =>
+      askOnBar(INSTRUCT_MESSAGES.autoAsk, "Or it goes in as dictated.", AUTO_INSTRUCT_ASK_MS),
+  },
 });
 const micCheck = createMicCheck({
   helper,
@@ -790,6 +801,53 @@ const clips = dictionary
 const generation = createGenerationService({
   llm,
   modelReady: cleanupModelReady,
+  logger: createConsoleLogger("[generate]"),
+});
+// Instruct Mode's Quality model (RW-15): its own worker, started only when a thread uses it,
+// so the cleanup model stays loaded for dictation.
+const qualityFile = path.join(
+  modelLocation(cleanupRoot, QUALITY_INSTRUCT_MODEL).dir,
+  QUALITY_INSTRUCT_MODEL.files[0]!.path,
+);
+let qualityReadyNow = false;
+const qualityModel = createQualityModel({
+  model: QUALITY_INSTRUCT_MODEL,
+  check: () => checkModel(cleanupRoot, QUALITY_INSTRUCT_MODEL),
+  download: (onProgress) => downloadModel(cleanupRoot, QUALITY_INSTRUCT_MODEL, { onProgress }),
+  remove: async () => {
+    qualityLlm.stop();
+    await rm(modelLocation(cleanupRoot, QUALITY_INSTRUCT_MODEL).dir, {
+      recursive: true,
+      force: true,
+    });
+  },
+  onChange: (ready) => {
+    qualityReadyNow = ready;
+  },
+  logger: createConsoleLogger("[instruct]"),
+});
+void qualityModel.isReady().then((ready) => {
+  qualityReadyNow = ready;
+});
+const qualityLlm = createLlmClient({
+  spawn: () => {
+    const child = utilityProcess.fork(path.join(__dirname, "llm-worker.cjs"), [], {
+      serviceName: "Murmur Instruct Quality",
+    });
+    return {
+      post: (request) => child.postMessage(request),
+      onMessage: (handler) => child.on("message", (reply: LlmReply) => handler(reply)),
+      onExit: (handler) => child.on("exit", handler),
+      kill: () => void child.kill(),
+    };
+  },
+  modelPath: qualityFile,
+  clock: systemClock,
+  logger: createConsoleLogger("[instruct]"),
+});
+const qualityGeneration = createGenerationService({
+  llm: qualityLlm,
+  modelReady: () => qualityModel.isReady(),
   logger: createConsoleLogger("[generate]"),
 });
 const activateApp = appActivator(process.platform);
@@ -843,11 +901,12 @@ const undo = createUndoService({
 });
 const instructController = createInstructController({
   helper,
-  generation,
+  generation: (model) => (model === "quality" ? qualityGeneration : generation),
+  qualityReady: () => qualityReadyNow,
   panel: instructPanel,
   threads: instructThreads,
   undo,
-  modelId: () => DEFAULT_CLEANUP_MODEL.id,
+  modelId: (model) => (model === "quality" ? QUALITY_INSTRUCT_MODEL.id : DEFAULT_CLEANUP_MODEL.id),
   notify: (message) => bar.dispatch({ type: "warn", message }),
   activateApp,
   context: (appId, text) => rewriteContext(appId, text),
@@ -1383,6 +1442,9 @@ function registerIpc(): void {
     instructDelete: (id) => instructThreads?.delete(id),
     instructDeleteAll: () => instructThreads?.deleteAll(),
     instructReuse: (id) => instructController.reuse(id),
+    instructModelStatus: () => qualityModel.status(),
+    instructModelDownload: () => qualityModel.download(),
+    instructModelRemove: () => qualityModel.remove(),
     rewritesMove: (id, step) => rewrites?.move(id, step),
     rewritesDuplicate: (id) =>
       rewrites?.duplicate(id) ?? {

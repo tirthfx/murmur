@@ -62,7 +62,9 @@ interface Options {
     memory: boolean;
     samples: boolean;
     saveThreads: boolean;
+    model: "fast" | "quality";
   }>;
+  qualityReady?: boolean;
   contextAwareness?: boolean;
   generation?: GenerationService;
 }
@@ -90,6 +92,7 @@ function setup(options: Options = {}) {
   const notify = vi.fn();
   const activateApp = vi.fn(async () => {});
   const threads = createInstructThreadStore(openDatabase(":memory:"));
+  const models: string[] = [];
   const undoEntries: { before: string; after: string; onUndone?: () => void }[] = [];
   const undo = {
     record: vi.fn(
@@ -105,11 +108,15 @@ function setup(options: Options = {}) {
   };
   const controller = createInstructController({
     helper,
-    generation: options.generation ?? gen.service,
+    generation: (model) => {
+      models.push(model);
+      return options.generation ?? gen.service;
+    },
+    qualityReady: () => options.qualityReady ?? false,
     panel,
     threads,
     undo,
-    modelId: () => "test-model",
+    modelId: (model) => `test-${model}`,
     notify,
     activateApp,
     context: () => ({
@@ -123,6 +130,7 @@ function setup(options: Options = {}) {
         memory: true,
         samples: true,
         saveThreads: true,
+        model: "fast",
         ...options.settings,
       },
       contextAwareness: options.contextAwareness ?? true,
@@ -143,6 +151,7 @@ function setup(options: Options = {}) {
     threads,
     undo,
     undoEntries,
+    models,
   };
 }
 
@@ -402,5 +411,32 @@ describe("instruct controller", () => {
     const { controller, notify } = setup();
     await controller.undo();
     expect(notify).toHaveBeenCalledWith(UNDO_MESSAGES.nothing);
+  });
+
+  it("stays on Fast and says to download Quality when it is missing", async () => {
+    const { controller, states, notify, models } = setup({ settings: { model: "quality" } });
+    await controller.spoken("write a haiku");
+    expect(last(states)).toMatchObject({ model: "fast", qualityAvailable: false });
+    await controller.setModel("quality");
+    expect(notify).toHaveBeenCalledWith(INSTRUCT_MESSAGES.downloadQuality);
+    expect(models).toEqual(["fast"]);
+  });
+
+  it("switches to Quality for the next request and keeps the thread", async () => {
+    const { controller, states, models, threads } = setup({ qualityReady: true });
+    await controller.spoken("write a haiku");
+    await controller.setModel("quality");
+    expect(last(states)).toMatchObject({ stage: "draft", model: "quality", turns: 1 });
+    await controller.followUp("about rain");
+    expect(models).toEqual(["fast", "quality"]);
+    expect(last(states)).toMatchObject({ turns: 2, earlier: ["write a haiku"] });
+    const saved = threads.get(threads.list("")[0]!.id)!;
+    expect(saved.turns).toHaveLength(2);
+  });
+
+  it("starts new threads on the Quality model when Settings choose it and it is there", async () => {
+    const { controller, models } = setup({ qualityReady: true, settings: { model: "quality" } });
+    await controller.spoken("write a haiku");
+    expect(models).toEqual(["quality"]);
   });
 });

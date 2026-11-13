@@ -39,6 +39,7 @@ import { tagFiles } from "./developer/workspace";
 import { rememberedFact } from "./memory/memory-store";
 import { dropSoundTags } from "./speech/sound-tags";
 import { afterWakePhrase } from "./commands/match";
+import { looksLikeInstruction } from "./instruct/actions";
 import { systemClock } from "./helper/node-runtime";
 import type { Clock, Logger, TimerHandle } from "./helper/types";
 
@@ -159,6 +160,14 @@ export interface RecorderDeps {
   /** Instruct Mode (RW-11): the Instruct key's words are an instruction for a draft. */
   instruct?: {
     run(instruction: string): Promise<void>;
+  };
+  /**
+   * Auto-detect (RW-16, experimental): a dictation that starts like a request to write asks
+   * on the Bar whether to use Instruct Mode. False (or no answer in 4 s) inserts it as said.
+   */
+  autoInstruct?: {
+    enabled(): boolean;
+    ask(): Promise<boolean>;
   };
   /** Called with the text after it went in, for learning from corrections (PZ-02). */
   afterInsert?: (text: string) => void;
@@ -760,8 +769,16 @@ export function createRecorder(deps: RecorderDeps): Recorder {
       return out;
     };
     const spokenText = dropSoundTags(transcript.text);
+    // Auto-detect (RW-16): only for a plain dictation that starts like a request to write.
+    const offered =
+      !take.purpose &&
+      Boolean(deps.instruct) &&
+      deps.autoInstruct?.enabled() === true &&
+      looksLikeInstruction(spokenText);
+    const useInstruct = offered ? await deps.autoInstruct!.ask() : false;
+    if (offered) logger.info(`auto-detect: ${useInstruct ? "Instruct Mode" : "dictated"}`);
     // Instruct Mode (RW-11): the words are what to write, never text for the app.
-    if (take.purpose === "instruct" && deps.instruct) {
+    if ((take.purpose === "instruct" || useInstruct) && deps.instruct) {
       logger.info("instruction heard");
       emit({ type: "command-heard" });
       record(take, {

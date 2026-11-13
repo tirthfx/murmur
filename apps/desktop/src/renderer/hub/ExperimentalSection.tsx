@@ -120,6 +120,12 @@ export function ExperimentalSection({ experimental, onChange }: ExperimentalSect
           onChange={(commandMode) => set({ commandMode })}
         />
         <Switch
+          label="Offer Instruct Mode"
+          description="When a dictation starts like a request to write (“draft a reply…”, “write an email…”), the Bar asks for 4 seconds whether to use Instruct Mode. No answer inserts it as dictated."
+          value={experimental.autoInstruct}
+          onChange={(autoInstruct) => set({ autoInstruct })}
+        />
+        <Switch
           label="Learn from sent mail"
           description="Learn how you write email from messages you have sent."
           value={false}
