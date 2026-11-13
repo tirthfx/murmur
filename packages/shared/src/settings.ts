@@ -49,6 +49,8 @@ export const settingsSchema = z.strictObject({
     fieldContext: z.boolean(),
     memory: z.boolean(),
     samples: z.boolean(),
+    /** Keep threads for 30 days on the Instruct page (RW-14). */
+    saveThreads: z.boolean(),
   }),
   /** Command Mode's wake phrase (RW-08). Command Mode itself is an experimental option. */
   commandMode: z.strictObject({
@@ -212,6 +214,7 @@ export const DEFAULT_INSTRUCT: Settings["instruct"] = {
   fieldContext: true,
   memory: true,
   samples: true,
+  saveThreads: true,
 };
 
 /** RW-08 defaults. */

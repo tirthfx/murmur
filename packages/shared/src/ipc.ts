@@ -83,6 +83,12 @@ import {
   type RewriteShortcutResult,
 } from "./rewrites";
 import {
+  instructThreadSchema,
+  instructThreadSummarySchema,
+  type InstructThread,
+  type InstructThreadSummary,
+} from "./instruct";
+import {
   writingSampleInputSchema,
   writingSampleSaveResultSchema,
   writingSampleSchema,
@@ -145,6 +151,11 @@ export const IPC_CHANNELS = {
   rewritesSetShortcut: "rewrites:set-shortcut",
   rewritesSetApplyDirectly: "rewrites:set-apply-directly",
   rewritesSetAutoApply: "rewrites:set-auto-apply",
+  instructThreads: "instruct:threads",
+  instructThread: "instruct:thread",
+  instructDelete: "instruct:delete",
+  instructDeleteAll: "instruct:delete-all",
+  instructReuse: "instruct:reuse",
 } as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
@@ -365,6 +376,27 @@ export const IPC_CONTRACT = {
     args: z.tuple([z.string().min(1), rewriteAutoApplySchema]),
     result: z.void(),
   },
+  // Instruct threads (RW-14): listed with a search, read, deleted, or reused as a new thread.
+  [IPC_CHANNELS.instructThreads]: {
+    args: z.tuple([z.string().max(200)]),
+    result: z.array(instructThreadSummarySchema),
+  },
+  [IPC_CHANNELS.instructThread]: {
+    args: z.tuple([z.string().min(1)]),
+    result: instructThreadSchema.nullable(),
+  },
+  [IPC_CHANNELS.instructDelete]: {
+    args: z.tuple([z.string().min(1)]),
+    result: z.void(),
+  },
+  [IPC_CHANNELS.instructDeleteAll]: {
+    args: z.tuple([]),
+    result: z.void(),
+  },
+  [IPC_CHANNELS.instructReuse]: {
+    args: z.tuple([z.string().min(1)]),
+    result: z.boolean(),
+  },
 } as const satisfies Record<IpcChannel, { args: z.ZodType; result: z.ZodType }>;
 
 export function isIpcChannel(value: unknown): value is IpcChannel {
@@ -459,6 +491,13 @@ export interface MurmurApi {
   rewritesSetApplyDirectly(id: string, applyDirectly: boolean): Promise<void>;
   /** Auto-apply after cleanup (RW-05). Only the first auto-apply Rewrite in order runs. */
   rewritesSetAutoApply(id: string, settings: RewriteAutoApply): Promise<void>;
+  /** Saved Instruct threads, newest first, whose text contains the query (RW-14). */
+  instructThreads(query: string): Promise<InstructThreadSummary[]>;
+  instructThread(id: string): Promise<InstructThread | null>;
+  instructDelete(id: string): Promise<void>;
+  instructDeleteAll(): Promise<void>;
+  /** Opens the Instruct panel with this thread's last draft as a new thread. False if gone. */
+  instructReuse(id: string): Promise<boolean>;
   /** Main asks the Hub to show a page (for example after a Bar prompt). */
   onOpenPage(handler: (pageId: string) => void): () => void;
   /** Input levels during a microphone check, about 20 a second. Returns an unsubscribe. */

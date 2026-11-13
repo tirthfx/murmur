@@ -27,6 +27,8 @@ describe("migrations", () => {
       "command_runs",
       "dictionary",
       "history",
+      "instruct_history",
+      "instruct_threads",
       "learn_candidates",
       "memory_items",
       "pending_sessions",

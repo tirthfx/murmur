@@ -10,3 +10,12 @@
   font-size: 13px;
   opacity: 0.8;
 }
+
+.instruct-earlier {
+  margin: 0;
+  padding-left: 18px;
+  max-height: 64px;
+  overflow-y: auto;
+  font-size: 12px;
+  opacity: 0.75;
+}

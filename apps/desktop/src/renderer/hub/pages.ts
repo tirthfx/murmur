@@ -30,6 +30,12 @@ export const PAGES = [
     emptyDescription: "Saved instructions for reshaping selected text will appear here.",
   },
   {
+    id: "instruct",
+    title: "Instruct",
+    emptyTitle: "No threads yet",
+    emptyDescription: "Drafts written in Instruct Mode will be kept here for 30 days.",
+  },
+  {
     id: "memory",
     title: "Memory",
     emptyTitle: "Nothing remembered",

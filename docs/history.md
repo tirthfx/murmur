@@ -23,6 +23,9 @@ command it matched (by rule or by the model), the text it acted on and what repl
 how it ended (see `commands.md`). A command's recording is also a `history` row with insert
 status `empty`, like "remember that".
 
+Migration 0015 adds `instruct_threads` and `instruct_history` (one row per Instruct request,
+with its draft and what became of it), kept 30 days, then only counts (see `instruct.md`).
+
 Audio paths are relative to `~/Library/Application Support/Murmur/audio`. Recordings live in `audio/tmp` and expire after 24 hours, when the helper deletes them.
 
 ## Migrations

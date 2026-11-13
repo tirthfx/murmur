@@ -165,3 +165,19 @@ body {
   max-height: 12rem;
   overflow: auto;
 }
+
+/* Instruct page (RW-14): a thread's turns. */
+.hub-instruct-turns {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hub-instruct-draft {
+  white-space: pre-wrap;
+  user-select: text;
+  -webkit-user-select: text;
+  margin-top: 4px;
+}

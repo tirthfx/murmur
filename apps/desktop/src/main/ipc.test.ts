@@ -74,6 +74,11 @@ function setup() {
     rewritesSetShortcut: vi.fn(() => ({ ok: true as const })),
     rewritesSetApplyDirectly: vi.fn(),
     rewritesSetAutoApply: vi.fn(),
+    instructThreads: vi.fn(() => []),
+    instructThread: vi.fn(() => null),
+    instructDelete: vi.fn(),
+    instructDeleteAll: vi.fn(),
+    instructReuse: vi.fn(() => true),
     importPreview: vi.fn(),
     importApply: vi.fn(),
     voiceProfileView: vi.fn(() => ({

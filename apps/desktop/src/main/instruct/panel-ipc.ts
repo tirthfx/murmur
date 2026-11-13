@@ -41,6 +41,10 @@ export function createInstructPanelIpcHandler(deps: InstructPanelIpcDeps) {
         return controller.regenerate();
       case INSTRUCT_PANEL_CHANNELS.toggleSource:
         return controller.toggleSource(parsed.data[0] as InstructSource);
+      case INSTRUCT_PANEL_CHANNELS.followUp:
+        return controller.followUp(parsed.data[0] as string);
+      case INSTRUCT_PANEL_CHANNELS.newThread:
+        return controller.newThread();
       case INSTRUCT_PANEL_CHANNELS.close:
         return controller.close();
       default:

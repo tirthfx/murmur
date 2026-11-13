@@ -18,6 +18,8 @@ function api(initial: InstructPanelState) {
     copy: vi.fn(async () => {}),
     regenerate: vi.fn(async () => {}),
     toggleSource: vi.fn(async () => {}),
+    followUp: vi.fn(async () => {}),
+    newThread: vi.fn(async () => {}),
     close: vi.fn(async () => {}),
   };
   return { mock, push: (state: InstructPanelState) => act(() => push(state)) };
@@ -25,6 +27,8 @@ function api(initial: InstructPanelState) {
 
 const thread = {
   instruction: "send this to Sam",
+  earlier: [] as string[],
+  turns: 1,
   available: ["selection", "memory", "samples"] as const,
   off: [] as const,
 };
@@ -85,5 +89,46 @@ describe("Instruct panel", () => {
     expect(screen.getByText("Taking too long.")).toBeTruthy();
     fireEvent.keyDown(window, { key: "Escape" });
     expect(mock.close).toHaveBeenCalled();
+  });
+
+  it("sends a typed follow-up, shows earlier requests and stops at 20", async () => {
+    const { mock, push } = api({ stage: "hidden" });
+    render(<InstructPanel api={mock} />);
+    const draft = {
+      ...thread,
+      available: [],
+      off: [],
+      instruction: "make it shorter",
+      earlier: ["write to Sam"],
+      turns: 2,
+      stage: "draft" as const,
+      text: "Short.",
+      used: [],
+      note: null,
+    };
+    push(draft);
+    expect(screen.getByRole("list", { name: "Earlier requests" }).textContent).toBe("write to Sam");
+    fireEvent.change(screen.getByRole("textbox", { name: "Ask for a change" }), {
+      target: { value: "add a thank you" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send the request" }));
+    expect(mock.followUp).toHaveBeenCalledWith("add a thank you");
+    push({ ...draft, turns: 20 });
+    expect(screen.queryByRole("textbox", { name: "Ask for a change" })).toBeNull();
+    expect(screen.getByText(INSTRUCT_MESSAGES.turnLimit)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Start a new thread" }));
+    expect(mock.newThread).toHaveBeenCalled();
+  });
+
+  it("asks for a first request in a new thread", async () => {
+    const { mock, push } = api({ stage: "hidden" });
+    render(<InstructPanel api={mock} />);
+    push({ stage: "empty" });
+    expect(screen.getByText(INSTRUCT_MESSAGES.newThread)).toBeTruthy();
+    fireEvent.change(screen.getByRole("textbox", { name: "What should Murmur write?" }), {
+      target: { value: "a haiku" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send the request" }));
+    expect(mock.followUp).toHaveBeenCalledWith("a haiku");
   });
 });
