@@ -156,6 +156,10 @@ export interface RecorderDeps {
     wakePhrase(): string | null;
     run(phrase: string, trigger: CommandTrigger): Promise<void>;
   };
+  /** Instruct Mode (RW-11): the Instruct key's words are an instruction for a draft. */
+  instruct?: {
+    run(instruction: string): Promise<void>;
+  };
   /** Called with the text after it went in, for learning from corrections (PZ-02). */
   afterInsert?: (text: string) => void;
   /** Snippets (PZ-08): a trigger said on its own inserts the saved body, unchanged. */
@@ -283,8 +287,8 @@ interface Take {
   releasedAt: number;
   /** Set on the one automatic retry, so it is never retried twice. */
   autoRetried?: boolean;
-  /** Recorded with the Command Mode key: the words are a command (RW-08). */
-  command?: boolean;
+  /** Recorded with the Command Mode key (a command, RW-08) or the Instruct key (RW-11). */
+  purpose?: "command" | "instruct";
 }
 
 type InsertOutcome = Pick<DictationRecord, "insertStatus"> &
@@ -354,7 +358,7 @@ interface Session {
   /** The Bar is told about an input change once per session. */
   switched: boolean;
   /** Started by the Command Mode key, not the dictation keys. */
-  purpose: "dictation" | "command";
+  purpose: "dictation" | "command" | "instruct";
 }
 
 function errorCode(error: unknown): unknown {
@@ -412,39 +416,48 @@ export function createRecorder(deps: RecorderDeps): Recorder {
   const clock = deps.clock ?? systemClock;
 
   /**
-   * The Command Mode key (RW-08). Recording starts only once the key has been held alone for
-   * a moment, so a quick tap or a Command shortcut never starts the microphone; another key
-   * pressed during the hold (`interrupted`) discards what was recorded.
+   * The Command Mode key (RW-08) and the Instruct key (RW-11): hold, speak, let go. The Command
+   * Mode key starts recording only once it has been held alone for a moment, so a quick tap or
+   * a Command shortcut never starts the microphone; another key pressed during the hold
+   * (`interrupted`) discards what was recorded.
    */
-  let commandKeyState:
+  type HeldPurpose = "command" | "instruct";
+  let heldKey:
     | { kind: "idle" }
-    | { kind: "waiting"; timer: TimerHandle }
-    | {
-        kind: "recording";
-      } = { kind: "idle" };
-  function commandKey(state: HotkeyEvent["state"]): void {
-    const was = commandKeyState;
+    | { kind: "waiting"; purpose: HeldPurpose; timer: TimerHandle }
+    | { kind: "recording"; purpose: HeldPurpose } = { kind: "idle" };
+  function holdKey(purpose: HeldPurpose, state: HotkeyEvent["state"]): void {
+    const was = heldKey;
     if (state === "down") {
-      if (was.kind !== "idle" || !deps.command?.enabled() || gesture.recording) return;
+      const allowed = purpose === "command" ? deps.command?.enabled() : Boolean(deps.instruct);
+      if (was.kind !== "idle" || !allowed || gesture.recording || current) return;
+      if (purpose === "instruct") {
+        heldKey = { kind: "recording", purpose };
+        enqueue(() => begin(purpose));
+        return;
+      }
       const timer = clock.setTimeout(() => {
-        if (commandKeyState.kind !== "waiting") return;
-        commandKeyState = { kind: "recording" };
-        enqueue(() => begin("command"));
+        if (heldKey.kind !== "waiting") return;
+        heldKey = { kind: "recording", purpose };
+        enqueue(() => begin(purpose));
       }, COMMAND_KEY_HOLD_MS);
-      commandKeyState = { kind: "waiting", timer };
+      heldKey = { kind: "waiting", purpose, timer };
       return;
     }
     if (state !== "up" && state !== "interrupted") return;
-    commandKeyState = { kind: "idle" };
-    if (was.kind === "waiting") clock.clearTimeout(was.timer);
-    if (was.kind !== "recording") return;
-    if (state === "up") enqueue(() => end("command"));
-    else enqueue(cancelCommand);
+    if (was.kind === "idle" || was.purpose !== purpose) return;
+    heldKey = { kind: "idle" };
+    if (was.kind === "waiting") {
+      clock.clearTimeout(was.timer);
+      return;
+    }
+    if (state === "up") enqueue(() => end(purpose));
+    else enqueue(() => cancelHeld(purpose));
   }
 
-  /** The command key was part of a shortcut after all: drop the recording quietly. */
-  async function cancelCommand(): Promise<void> {
-    if (current?.purpose !== "command") return;
+  /** The key was part of a shortcut after all: drop the recording quietly. */
+  async function cancelHeld(purpose: HeldPurpose): Promise<void> {
+    if (current?.purpose !== purpose) return;
     await cancelSession();
   }
 
@@ -563,7 +576,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
         retryOf: null,
         context: session.context,
         releasedAt,
-        ...(purpose === "command" ? { command: true } : {}),
+        ...(purpose !== "dictation" ? { purpose } : {}),
       };
       if (result.audioFile) {
         const audioPath = result.audioFile.path;
@@ -746,16 +759,10 @@ export function createRecorder(deps: RecorderDeps): Recorder {
       if (files && files.length > 0) out = tagFiles(out, files);
       return out;
     };
-    // Command Mode (RW-08): the command key's words, or what follows the wake phrase.
     const spokenText = dropSoundTags(transcript.text);
-    const wake = deps.command?.enabled() ? deps.command.wakePhrase() : null;
-    const commandPhrase = take.command
-      ? spokenText.trim()
-      : wake
-        ? afterWakePhrase(spokenText, wake)
-        : null;
-    if (deps.command && commandPhrase !== null) {
-      logger.info(`command by ${take.command ? "key" : "wake phrase"}`);
+    // Instruct Mode (RW-11): the words are what to write, never text for the app.
+    if (take.purpose === "instruct" && deps.instruct) {
+      logger.info("instruction heard");
       emit({ type: "command-heard" });
       record(take, {
         insertStatus: "empty",
@@ -766,7 +773,33 @@ export function createRecorder(deps: RecorderDeps): Recorder {
         cleanup: null,
       });
       try {
-        await deps.command.run(commandPhrase, take.command ? "key" : "wake_phrase");
+        await deps.instruct.run(spokenText.trim());
+      } catch (error) {
+        logger.warn(`instruction failed: ${errorMessage(error)}`);
+      }
+      return;
+    }
+    // Command Mode (RW-08): the command key's words, or what follows the wake phrase.
+    const byKey = take.purpose === "command";
+    const wake = deps.command?.enabled() ? deps.command.wakePhrase() : null;
+    const commandPhrase = byKey
+      ? spokenText.trim()
+      : wake
+        ? afterWakePhrase(spokenText, wake)
+        : null;
+    if (deps.command && commandPhrase !== null) {
+      logger.info(`command by ${byKey ? "key" : "wake phrase"}`);
+      emit({ type: "command-heard" });
+      record(take, {
+        insertStatus: "empty",
+        language: transcript.language || null,
+        rawText: transcript.text,
+        finalText: null,
+        wordCount: 0,
+        cleanup: null,
+      });
+      try {
+        await deps.command.run(commandPhrase, byKey ? "key" : "wake_phrase");
       } catch (error) {
         logger.warn(`command failed: ${errorMessage(error)}`);
       }
@@ -1230,8 +1263,8 @@ export function createRecorder(deps: RecorderDeps): Recorder {
       subscriptions = [];
     },
     handleHotkey(event) {
-      if (event.action === "command.mode") {
-        commandKey(event.state);
+      if (event.action === "command.mode" || event.action === "instruct.mode") {
+        holdKey(event.action === "command.mode" ? "command" : "instruct", event.state);
         return;
       }
       if (event.action === "dictate.hold") {

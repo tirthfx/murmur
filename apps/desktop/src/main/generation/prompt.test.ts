@@ -47,4 +47,18 @@ describe("buildGenerationPrompt", () => {
     expect(system).toContain("x".repeat(1000));
     expect(system).not.toContain("x".repeat(1001));
   });
+
+  it("adds the field's text as reference and names it as a source", () => {
+    const { system, sources } = buildGenerationPrompt({
+      instruction: "Reply yes.",
+      text: "",
+      fieldText: "Are you coming on Friday?",
+    });
+    expect(system).toContain("<field>\nAre you coming on Friday?\n</field>");
+    expect(system.indexOf("<field>")).toBeLessThan(system.indexOf("Instruction:"));
+    expect(sources).toEqual(["field"]);
+    expect(buildGenerationPrompt({ instruction: "x", text: "", fieldText: "  " }).sources).toEqual(
+      [],
+    );
+  });
 });

@@ -35,12 +35,15 @@ export function createPanelWindowOptions(input: {
   isDevelopment: boolean;
   x: number;
   y: number;
+  size?: { width: number; height: number };
+  title?: string;
 }): BrowserWindowConstructorOptions {
+  const size = input.size ?? REWRITE_PANEL_SIZE;
   return {
     x: input.x,
     y: input.y,
-    width: REWRITE_PANEL_SIZE.width,
-    height: REWRITE_PANEL_SIZE.height,
+    width: size.width,
+    height: size.height,
     show: false,
     // A floating panel that takes typing for the filter; the app is given the keyboard back
     // when the panel closes (see the controller).
@@ -56,7 +59,7 @@ export function createPanelWindowOptions(input: {
     fullscreenable: false,
     skipTaskbar: true,
     alwaysOnTop: true,
-    title: "Murmur Rewrite",
+    title: input.title ?? "Murmur Rewrite",
     webPreferences: {
       preload: input.preloadPath,
       contextIsolation: true,
@@ -82,26 +85,48 @@ export interface PanelWindowDeps {
   /** The work area of the display at a point (the Bar's), or the primary one. */
   workArea: (point: [number, number] | null) => Rect;
   logger: Logger;
+  /** Where the page listens for its state. Default: the Rewrite panel's. */
+  pushChannel?: string;
+  size?: { width: number; height: number };
+  title?: string;
 }
 
-/** The Rewrite panel's window: created once, moved next to the Bar each time it opens. */
-export class RewritePanelWindow implements RewritePanelPort {
+/**
+ * A panel window next to the Bar (the Rewrite panel, the Instruct panel): created once, moved
+ * next to the Bar each time it opens, and sent the state to show.
+ */
+export class PanelWindow<State extends { stage: string }> {
   private window: BrowserWindow | null = null;
   private loading: Promise<void> | null = null;
-  private latest: RewritePanelState = { stage: "hidden" };
+  private latest: State;
 
-  constructor(private readonly deps: PanelWindowDeps) {}
+  constructor(
+    private readonly deps: PanelWindowDeps,
+    private readonly hidden: State,
+  ) {
+    this.latest = hidden;
+  }
+
+  private get channel(): string {
+    return this.deps.pushChannel ?? REWRITE_PANEL_PUSH.state;
+  }
+
+  private position(): { x: number; y: number } {
+    const bar = this.deps.barPosition();
+    return panelPosition(bar, this.deps.workArea(bar), this.deps.size ?? REWRITE_PANEL_SIZE);
+  }
 
   private ensure(): BrowserWindow {
     if (this.window && !this.window.isDestroyed()) return this.window;
-    const bar = this.deps.barPosition();
-    const { x, y } = panelPosition(bar, this.deps.workArea(bar));
+    const { x, y } = this.position();
     const window = this.deps.create(
       createPanelWindowOptions({
         preloadPath: this.deps.preloadPath,
         isDevelopment: this.deps.isDevelopment,
         x,
         y,
+        ...(this.deps.size ? { size: this.deps.size } : {}),
+        ...(this.deps.title ? { title: this.deps.title } : {}),
       }),
     );
     window.setAlwaysOnTop(true, "floating");
@@ -112,7 +137,7 @@ export class RewritePanelWindow implements RewritePanelPort {
     });
     this.window = window;
     this.loading = window.loadURL(this.deps.entryUrl).catch((error: unknown) => {
-      this.deps.logger.warn(`the Rewrite panel did not load: ${String(error)}`);
+      this.deps.logger.warn(`the panel did not load: ${String(error)}`);
     });
     return window;
   }
@@ -123,31 +148,30 @@ export class RewritePanelWindow implements RewritePanelPort {
     );
   }
 
-  show(state: RewritePanelState): void {
+  show(state: State): void {
     this.latest = state;
     const window = this.ensure();
-    const bar = this.deps.barPosition();
-    const { x, y } = panelPosition(bar, this.deps.workArea(bar));
+    const { x, y } = this.position();
     window.setPosition(x, y);
     void (this.loading ?? Promise.resolve()).then(() => {
       if (window.isDestroyed()) return;
-      window.webContents.send(REWRITE_PANEL_PUSH.state, this.latest);
+      window.webContents.send(this.channel, this.latest);
       window.show();
       window.focus();
     });
   }
 
-  update(state: RewritePanelState): void {
+  update(state: State): void {
     this.latest = state;
     const window = this.window;
-    if (window && !window.isDestroyed()) window.webContents.send(REWRITE_PANEL_PUSH.state, state);
+    if (window && !window.isDestroyed()) window.webContents.send(this.channel, state);
   }
 
   hide(): void {
-    this.latest = { stage: "hidden" };
+    this.latest = this.hidden;
     const window = this.window;
     if (window && !window.isDestroyed()) {
-      window.webContents.send(REWRITE_PANEL_PUSH.state, this.latest);
+      window.webContents.send(this.channel, this.latest);
       window.hide();
     }
   }
@@ -155,5 +179,12 @@ export class RewritePanelWindow implements RewritePanelPort {
   close(): void {
     if (this.window && !this.window.isDestroyed()) this.window.destroy();
     this.window = null;
+  }
+}
+
+/** The Rewrite panel's window (RW-01). */
+export class RewritePanelWindow extends PanelWindow<RewritePanelState> implements RewritePanelPort {
+  constructor(deps: PanelWindowDeps) {
+    super(deps, { stage: "hidden" });
   }
 }

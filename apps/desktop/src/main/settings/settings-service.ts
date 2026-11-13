@@ -80,6 +80,14 @@ export function bindingsFor(
       exclusive: true,
     });
   }
+  if (settings.instructShortcut) {
+    bindings.push({
+      id: "instruct-mode",
+      action: "instruct.mode",
+      trigger: settings.instructShortcut,
+      mode: "hold",
+    });
+  }
   if (cancelKeyCode !== null) {
     bindings.push({
       id: "dictate-cancel",
@@ -132,6 +140,7 @@ export function createSettingsService(deps: SettingsServiceDeps): SettingsServic
           : `Double-tap ${hold}`,
         rewrite: settings.rewriteShortcut ? platform.label(settings.rewriteShortcut) : "Off",
         command: settings.commandShortcut ? platform.label(settings.commandShortcut) : "Off",
+        instruct: settings.instructShortcut ? platform.label(settings.instructShortcut) : "Off",
       },
       devices,
     };
@@ -158,6 +167,7 @@ export function createSettingsService(deps: SettingsServiceDeps): SettingsServic
           handsFree: settings.handsFreeShortcut,
           rewrite: settings.rewriteShortcut,
           command: settings.commandShortcut,
+          instruct: settings.instructShortcut,
         },
         platform,
         deps.otherShortcuts?.() ?? [],

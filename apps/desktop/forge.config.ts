@@ -74,8 +74,14 @@ const config: ForgeConfig = {
           config: "vite.preload.config.ts",
           target: "preload",
         },
+        {
+          entry: "src/preload/instruct-preload.ts",
+          config: "vite.preload.config.ts",
+          target: "preload",
+        },
       ],
-      // One renderer build with three pages: index.html (Hub), bar.html (Bar), rewrite.html.
+      // One renderer build with four pages: index.html (Hub), bar.html (Bar), rewrite.html and
+      // instruct.html (the panels).
       renderer: [{ name: "main_window", config: "vite.renderer.config.ts" }],
     }),
   ],

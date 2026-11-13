@@ -17,6 +17,8 @@ function setup() {
     holdShortcut: { type: "key", keyCode: 61, modifiers: [] },
     handsFreeShortcut: null,
     rewriteShortcut: null,
+    instructShortcut: null,
+    instruct: { fieldContext: true, memory: true, samples: true },
     commandShortcut: null,
     commandMode: { wakePhrase: "Hey Murmur", wakePhraseEnabled: true },
     inputDevice: "auto",

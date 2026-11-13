@@ -1,0 +1,12 @@
+/* The Instruct panel reuses the Rewrite panel's card (rewrite.css). */
+.instruct-asked {
+  font-style: italic;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.instruct-note {
+  font-size: 13px;
+  opacity: 0.8;
+}
