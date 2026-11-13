@@ -27,6 +27,13 @@ export const MAC_DEFAULT_COMMAND_TRIGGER: HotkeyTrigger = {
   modifiers: [],
 };
 
+/** Control+Option+I, held while speaking (RW-11). */
+export const MAC_DEFAULT_INSTRUCT_TRIGGER: HotkeyTrigger = {
+  type: "key",
+  keyCode: 34,
+  modifiers: ["control", "option"],
+};
+
 export const MAC_DEFAULT_REWRITE_TRIGGER: HotkeyTrigger = {
   type: "key",
   keyCode: MAC_KEY_R,

@@ -60,7 +60,7 @@ describe("Settings section", () => {
         ...SAMPLE_SETTINGS.settings,
         handsFreeShortcut: { type: "key" as const, keyCode: 2, modifiers: ["control" as const] },
       },
-      shortcutLabels: { hold: "Right Option", handsFree: "Control+D", rewrite: "Off" },
+      shortcutLabels: { ...SAMPLE_SETTINGS.shortcutLabels, handsFree: "Control+D" },
     };
     const api = mount({ getSettings: vi.fn().mockResolvedValue(withChord) });
     await userEvent.click(

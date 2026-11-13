@@ -12,6 +12,7 @@ import {
 } from "@murmur/shared";
 import { CommandModeSection } from "./CommandModeSection";
 import { ExperimentalSection } from "./ExperimentalSection";
+import { InstructSection } from "./InstructSection";
 import { LanguagesField } from "./LanguagesField";
 import { MouseButtonField } from "./MouseButtonField";
 import { ShortcutField } from "./ShortcutField";
@@ -179,6 +180,7 @@ export function SettingsSection() {
         value={settings.muteWhileDictating}
         onChange={(muteWhileDictating) => update({ muteWhileDictating })}
       />
+      <InstructSection view={view} onSaved={setView} update={update} />
       <ExperimentalSection
         experimental={settings.experimental}
         onChange={(experimental) => update({ experimental })}

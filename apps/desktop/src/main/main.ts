@@ -28,6 +28,11 @@ import {
   DEFAULT_JARGON_PACKS,
   DEFAULT_DEVELOPER_TOOLS,
   DEFAULT_COMMAND_MODE,
+  DEFAULT_INSTRUCT,
+  INSTRUCT_PANEL_CHANNELS,
+  INSTRUCT_PANEL_PUSH,
+  INSTRUCT_PANEL_SIZE,
+  type InstructPanelState,
   GENERATION_LIMITS,
   DEFAULT_SOUNDS,
   DEFAULT_SPEECH_MODEL,
@@ -68,7 +73,9 @@ import {
   parseCommandChoice,
 } from "./commands/model-match";
 import { createRewriteController } from "./rewrites/rewrite-controller";
-import { RewritePanelWindow } from "./rewrites/panel-window";
+import { PanelWindow, RewritePanelWindow } from "./rewrites/panel-window";
+import { createInstructController } from "./instruct/instruct-controller";
+import { createInstructPanelIpcHandler } from "./instruct/panel-ipc";
 import { createRewritePanelIpcHandler } from "./rewrites/panel-ipc";
 import {
   rewriteBindings,
@@ -100,6 +107,7 @@ import {
   createPlatformHelper,
   defaultHotkeyBindings,
   defaultCommandShortcut,
+  defaultInstructShortcut,
   defaultRewriteShortcut,
   keyPlatform,
 } from "./platform";
@@ -165,6 +173,18 @@ function resolveRewriteEntryUrl(): string {
 }
 
 const rewriteEntryUrl = resolveRewriteEntryUrl();
+
+/** The Instruct panel (RW-11), another page of the same build with its own preload. */
+function resolveInstructEntryUrl(): string {
+  if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
+    return new URL("instruct.html", `${MAIN_WINDOW_VITE_DEV_SERVER_URL}/`).toString();
+  }
+  return pathToFileURL(
+    path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/instruct.html`),
+  ).toString();
+}
+
+const instructEntryUrl = resolveInstructEntryUrl();
 
 /** The Bar is a second page of the same renderer build, with its own preload. */
 function resolveBarEntryUrl(): string {
@@ -311,6 +331,8 @@ const settingsStore = createSettingsStore(database, {
   rewriteShortcut: defaultRewriteShortcut(process.platform),
   commandShortcut: defaultCommandShortcut(process.platform),
   commandMode: DEFAULT_COMMAND_MODE,
+  instructShortcut: defaultInstructShortcut(process.platform),
+  instruct: DEFAULT_INSTRUCT,
   inputDevice: "auto",
   languages: [],
   cleanupLevel: "standard",
@@ -427,6 +449,25 @@ const rewritePanel = new RewritePanelWindow({
     ).workArea,
   logger: createConsoleLogger("[rewrite]"),
 });
+const instructPanel = new PanelWindow<InstructPanelState>(
+  {
+    create: (options) => new BrowserWindow(options),
+    preloadPath: path.join(__dirname, "instruct-preload.cjs"),
+    entryUrl: instructEntryUrl,
+    isDevelopment,
+    barPosition: () => barWindow.position(),
+    workArea: (point) =>
+      (point
+        ? screen.getDisplayNearestPoint({ x: point[0], y: point[1] })
+        : screen.getPrimaryDisplay()
+      ).workArea,
+    logger: createConsoleLogger("[instruct]"),
+    pushChannel: INSTRUCT_PANEL_PUSH.state,
+    size: INSTRUCT_PANEL_SIZE,
+    title: "Murmur Instruct",
+  },
+  { stage: "hidden" },
+);
 
 // Sounds and output mute around each recording. The marker file exists only while Murmur
 // holds the output muted, so a crash leaves a note for the next launch to undo.
@@ -718,6 +759,8 @@ const recorder = createRecorder({
     },
     run: (phrase, trigger) => commandRunner.run(phrase, trigger),
   },
+  // Instruct Mode (RW-11). The controller below exists before any recording ends.
+  instruct: { run: (instruction) => instructController.start(instruction) },
 });
 const micCheck = createMicCheck({
   helper,
@@ -785,6 +828,22 @@ const autoRewrite = createAutoRewriter({
   context: rewriteContext,
   runs: rewriteRuns,
   logger: createConsoleLogger("[rewrite]"),
+});
+// Instruct Mode (RW-11, RW-17): drafts from a spoken instruction, with the allowed context.
+const instructController = createInstructController({
+  helper,
+  generation,
+  panel: instructPanel,
+  notify: (message) => bar.dispatch({ type: "warn", message }),
+  activateApp,
+  context: (appId, text) => rewriteContext(appId, text),
+  settings: () => {
+    const settings = settingsStore.get();
+    return { instruct: settings.instruct, contextAwareness: settings.contextAwareness };
+  },
+  clipboardFirstInApps: () => [...BROWSERS],
+  insertRules: () => insertionRules(),
+  logger: createConsoleLogger("[instruct]"),
 });
 // Command Mode (RW-08, RW-09): rules first, then the model may pick a command id.
 const commandLogger = createConsoleLogger("[command]");
@@ -1341,6 +1400,15 @@ function registerIpc(): void {
   for (const channel of Object.values(REWRITE_PANEL_CHANNELS)) {
     ipcMain.handle(channel, (event, ...args: unknown[]) =>
       handleRewritePanel(channel, event.senderFrame?.url, args),
+    );
+  }
+  const handleInstructPanel = createInstructPanelIpcHandler({
+    entryUrl: instructEntryUrl,
+    controller: instructController,
+  });
+  for (const channel of Object.values(INSTRUCT_PANEL_CHANNELS)) {
+    ipcMain.handle(channel, (event, ...args: unknown[]) =>
+      handleInstructPanel(channel, event.senderFrame?.url, args),
     );
   }
   ipcMain.handle(BAR_IPC_CHANNELS.ready, (event) =>

@@ -41,6 +41,15 @@ export const settingsSchema = z.strictObject({
    * key is pressed during the hold, so Command shortcuts never start it. Null turns it off.
    */
   commandShortcut: hotkeyTriggerSchema.nullable(),
+  /** Hold to say what to write in Instruct Mode (RW-11). Null turns it off. */
+  instructShortcut: hotkeyTriggerSchema.nullable(),
+  /** Context Instruct Mode may use (RW-11, RW-17). Style and the selection are always offered. */
+  instruct: z.strictObject({
+    /** Text of the focused field around the caret. */
+    fieldContext: z.boolean(),
+    memory: z.boolean(),
+    samples: z.boolean(),
+  }),
   /** Command Mode's wake phrase (RW-08). Command Mode itself is an experimental option. */
   commandMode: z.strictObject({
     wakePhrase: z
@@ -151,6 +160,7 @@ export const settingsPatchSchema = settingsSchema
     developerTools: true,
     experimental: true,
     commandMode: true,
+    instruct: true,
   })
   .partial()
   .strict();
@@ -163,6 +173,8 @@ export const SETTING_KEYS: Record<keyof Settings, string> = {
   rewriteShortcut: "hotkey.rewrite",
   commandShortcut: "hotkey.command_mode",
   commandMode: "command_mode.settings",
+  instructShortcut: "hotkey.instruct",
+  instruct: "instruct.context",
   inputDevice: "audio.input_device",
   languages: "speech.languages",
   cleanupLevel: "cleanup.level",
@@ -195,6 +207,13 @@ export const DEFAULT_EXPERIMENTAL: Settings["experimental"] = {
   commandMode: false,
 };
 
+/** RW-11 and RW-17 defaults. */
+export const DEFAULT_INSTRUCT: Settings["instruct"] = {
+  fieldContext: true,
+  memory: true,
+  samples: true,
+};
+
 /** RW-08 defaults. */
 export const DEFAULT_COMMAND_MODE: Settings["commandMode"] = {
   wakePhrase: "Hey Murmur",
@@ -213,7 +232,7 @@ export const DEFAULT_SOUNDS: Settings["sounds"] = {
   cancel: false,
 };
 
-export const SHORTCUT_SLOTS = ["hold", "handsFree", "rewrite", "command"] as const;
+export const SHORTCUT_SLOTS = ["hold", "handsFree", "rewrite", "command", "instruct"] as const;
 export type ShortcutSlot = (typeof SHORTCUT_SLOTS)[number];
 
 /** A key the Hub captured: the browser's key code and the modifiers held. */
@@ -232,6 +251,7 @@ export const settingsViewSchema = z.strictObject({
     handsFree: z.string(),
     rewrite: z.string(),
     command: z.string(),
+    instruct: z.string(),
   }),
   /** Null when the helper could not list devices. */
   devices: z.array(audioDeviceSchema).nullable(),

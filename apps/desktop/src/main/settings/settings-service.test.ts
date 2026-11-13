@@ -14,6 +14,8 @@ const defaults: Settings = {
   holdShortcut: { type: "key", keyCode: 61, modifiers: [] },
   handsFreeShortcut: null,
   rewriteShortcut: null,
+  instructShortcut: null,
+  instruct: { fieldContext: true, memory: true, samples: true },
   commandShortcut: null,
   commandMode: { wakePhrase: "Hey Murmur", wakePhraseEnabled: true },
   inputDevice: "auto",
@@ -79,6 +81,7 @@ describe("settings service", () => {
       handsFree: "Double-tap Right Option",
       rewrite: "Off",
       command: "Off",
+      instruct: "Off",
     });
     expect(view.devices?.[0]?.name).toBe("Desk Mic");
   });
@@ -137,6 +140,21 @@ describe("settings service", () => {
       rewriteId: "panel",
     });
     expect(bindingsFor(defaults).some((binding) => binding.action === "rewrite")).toBe(false);
+  });
+
+  it("binds the Instruct key as a hold, unless it is off", () => {
+    const trigger = {
+      type: "key" as const,
+      keyCode: 34,
+      modifiers: ["control" as const, "option" as const],
+    };
+    expect(bindingsFor({ ...defaults, instructShortcut: trigger })).toContainEqual({
+      id: "instruct-mode",
+      action: "instruct.mode",
+      trigger,
+      mode: "hold",
+    });
+    expect(bindingsFor(defaults).some((binding) => binding.action === "instruct.mode")).toBe(false);
   });
 
   it("binds the Command Mode key, exclusive, only while Command Mode is on", () => {

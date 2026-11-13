@@ -1877,3 +1877,40 @@ describe("Command Mode in the recorder (RW-08)", () => {
     expect(run).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("Instruct Mode in the recorder (RW-11)", () => {
+  it("records while the Instruct key is held and passes the words as an instruction", async () => {
+    const run = vi.fn(async () => {});
+    const insert = vi.fn();
+    const events: string[] = [];
+    const { recorder, helper } = setup({
+      clock: new FakeClock(),
+      transcribe: async () => ({ ...transcript, text: "Draft a reply saying yes. " }),
+      insert,
+      onEvent: (event) => events.push(event.type),
+      instruct: { run },
+    });
+    const instructKey = (state: HotkeyEvent["state"]) =>
+      recorder.handleHotkey({ bindingId: "instruct-mode", action: "instruct.mode", state, at: 0 });
+    instructKey("down");
+    await recorder.idle();
+    expect(helper.startAudio).toHaveBeenCalledTimes(1);
+    instructKey("up");
+    await recorder.idle();
+    expect(run).toHaveBeenCalledWith("Draft a reply saying yes.");
+    expect(insert).not.toHaveBeenCalled();
+    expect(events).toContain("command-heard");
+  });
+
+  it("ignores the Instruct key when Instruct Mode is not wired, or while dictating", async () => {
+    const { recorder, helper } = setup({ clock: new FakeClock() });
+    recorder.handleHotkey({
+      bindingId: "instruct-mode",
+      action: "instruct.mode",
+      state: "down",
+      at: 0,
+    });
+    await recorder.idle();
+    expect(helper.startAudio).not.toHaveBeenCalled();
+  });
+});

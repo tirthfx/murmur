@@ -28,14 +28,19 @@ export interface GenerationPromptInput {
   memory?: string[];
   /** The user's own writing (PZ-20), as tone reference. */
   samples?: string[];
+  /** Text already in the field around the caret (Instruct Mode, DC-30), for reference only. */
+  fieldText?: string;
 }
 
 export interface GenerationPrompt {
   system: string;
   prompt: string;
   /** Which context sources went in, for the panel's chips (RW-17). */
-  sources: ("memory" | "samples" | "style")[];
+  sources: ("memory" | "samples" | "style" | "field")[];
 }
+
+/** Field text in the prompt: both sides of the caret together. */
+const FIELD_MAX = 4000;
 
 const cut = (text: string, max: number) => (text.length > max ? text.slice(0, max) : text);
 
@@ -71,6 +76,15 @@ export function buildGenerationPrompt(input: GenerationPromptInput): GenerationP
       ...samples.map((sample, index) => `<sample ${index + 1}>\n${sample}\n</sample ${index + 1}>`),
     );
     sources.push("samples");
+  }
+  const field = input.fieldText?.trim();
+  if (field) {
+    lines.push(
+      "",
+      "Text already in the field where the answer will go, for reference only. Do not repeat it:",
+      `<field>\n${cut(field, FIELD_MAX)}\n</field>`,
+    );
+    sources.push("field");
   }
   lines.push("", "Instruction:", cut(input.instruction.trim(), GENERATION_INSTRUCTION_MAX));
   const example = input.example?.trim();
