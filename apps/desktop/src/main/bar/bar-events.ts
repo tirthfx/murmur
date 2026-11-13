@@ -46,6 +46,8 @@ export function barEventFor(event: RecorderEvent): BarEvent {
       return { type: "warn", message: "Not translated: inserted as dictated" };
     case "variables-unavailable":
       return { type: "warn", message: "Turn on the editor's screen reader mode to match names" };
+    case "command-heard":
+      return { type: "settle" };
     case "rewrite-skipped":
       return { type: "warn", message: event.slow ? "Rewrite skipped (slow)" : "Rewrite skipped" };
   }

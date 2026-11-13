@@ -114,6 +114,12 @@ export function ExperimentalSection({ experimental, onChange }: ExperimentalSect
           onChange={(pronunciationClips) => set({ pronunciationClips })}
         />
         <Switch
+          label="Command Mode"
+          description="Say a command to change selected text: hold the Command Mode key, or start a dictation with the wake phrase. With nothing selected it acts on your last dictation."
+          value={experimental.commandMode}
+          onChange={(commandMode) => set({ commandMode })}
+        />
+        <Switch
           label="Learn from sent mail"
           description="Learn how you write email from messages you have sent."
           value={false}

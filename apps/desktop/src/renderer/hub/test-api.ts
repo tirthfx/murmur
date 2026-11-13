@@ -13,6 +13,8 @@ export const SAMPLE_SETTINGS: SettingsView = {
     holdShortcut: { type: "key", keyCode: 61, modifiers: [] },
     handsFreeShortcut: null,
     rewriteShortcut: null,
+    commandShortcut: null,
+    commandMode: { wakePhrase: "Hey Murmur", wakePhraseEnabled: true },
     inputDevice: "auto",
     languages: [],
     cleanupLevel: "standard",
@@ -45,9 +47,15 @@ export const SAMPLE_SETTINGS: SettingsView = {
       phraseLearning: false,
       styleDetection: false,
       pronunciationClips: false,
+      commandMode: false,
     },
   },
-  shortcutLabels: { hold: "Right Option", handsFree: "Double-tap Right Option", rewrite: "Off" },
+  shortcutLabels: {
+    hold: "Right Option",
+    handsFree: "Double-tap Right Option",
+    rewrite: "Off",
+    command: "Off",
+  },
   devices: [
     {
       id: "BuiltIn",

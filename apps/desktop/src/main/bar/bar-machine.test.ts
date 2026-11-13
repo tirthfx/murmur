@@ -247,4 +247,10 @@ describe("bar state machine", () => {
     ).toBe("Model missing");
     expect(BAR_ERROR_TEXT).toBe("Transcription failed. Tap to retry.");
   });
+
+  it("settles from processing to idle when the recording was a command", () => {
+    expect(transition(at("processing"), { type: "settle" }).view.state).toBe("idle");
+    expect(transition(at("idle"), { type: "settle" }).changed).toBe(false);
+    expect(transition(at("listening", { startedAt: 1 }), { type: "settle" }).changed).toBe(false);
+  });
 });

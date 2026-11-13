@@ -43,6 +43,35 @@ final class HotkeyMatcherTests: XCTestCase {
         XCTAssertEqual(TapHandler.mouseInput(type: .otherMouseUp, button: 4), .mouseUp(button: 4))
     }
 
+    func testAnExclusiveHoldEndsWhenAnotherKeyIsPressed() {
+        let commandKey = HotkeyBinding(
+            id: "command-mode", action: "command.mode", trigger: HotkeyTrigger(keyCode: 54), mode: .hold, exclusive: true)
+        var m = matcher([commandKey, rightOptionHold])
+        // Right Command then C (Command+C): interrupted, and its release sends nothing.
+        XCTAssertEqual(m.handle(.modifier(keyCode: 54, isDown: true)).map(\.state), [.down])
+        XCTAssertEqual(
+            m.handle(.keyDown(keyCode: 8, modifiers: [.command], isRepeat: false)),
+            [HotkeyFiring(binding: commandKey, state: .interrupted)])
+        XCTAssertEqual(m.handle(.keyUp(keyCode: 8)), [])
+        XCTAssertEqual(m.handle(.modifier(keyCode: 54, isDown: false)), [])
+        // Held alone, it goes down and up as usual.
+        XCTAssertEqual(m.handle(.modifier(keyCode: 54, isDown: true)).map(\.state), [.down])
+        XCTAssertEqual(m.handle(.modifier(keyCode: 54, isDown: false)).map(\.state), [.up])
+        // Another modifier or a mouse button interrupts it too; the other binding still fires.
+        XCTAssertEqual(m.handle(.modifier(keyCode: 54, isDown: true)).map(\.state), [.down])
+        XCTAssertEqual(m.handle(.modifier(keyCode: 61, isDown: true)).map(\.state), [.interrupted, .down])
+        XCTAssertEqual(m.handle(.modifier(keyCode: 61, isDown: false)).map(\.state), [.up])
+        XCTAssertEqual(m.handle(.modifier(keyCode: 54, isDown: true)).map(\.state), [.down])
+        XCTAssertEqual(m.handle(.mouseDown(button: 3)).map(\.state), [.interrupted])
+    }
+
+    func testANormalHoldIgnoresOtherKeys() {
+        var m = matcher([rightOptionHold])
+        XCTAssertEqual(m.handle(.modifier(keyCode: 61, isDown: true)).map(\.state), [.down])
+        XCTAssertEqual(m.handle(.keyDown(keyCode: 0, modifiers: [.option], isRepeat: false)), [])
+        XCTAssertEqual(m.handle(.modifier(keyCode: 61, isDown: false)).map(\.state), [.up])
+    }
+
     func testLeftOptionDoesNothing() {
         var m = matcher([rightOptionHold])
         XCTAssertEqual(m.handle(.modifier(keyCode: 58, isDown: true)), [])
@@ -158,6 +187,23 @@ final class HotkeyParseTests: XCTestCase {
     private func reasons(_ items: [JSONValue]) -> [String: String] {
         let parsed = HotkeyMatcher.parse(["bindings": .array(items)])!
         return Dictionary(uniqueKeysWithValues: parsed.rejected.map { ($0.id, "\($0.code.rawValue): \($0.message)") })
+    }
+
+    func testExclusiveIsReadForHoldBindingsOnly() {
+        func with(_ value: JSONValue, mode: String = "hold", id: String = "x") -> JSONValue {
+            guard case .object(var object) = binding(id: id, keyCode: 54, mode: mode) else { return .null }
+            object["exclusive"] = value
+            return .object(object)
+        }
+        let parsed = HotkeyMatcher.parse(["bindings": .array([with(.bool(true))])])!
+        XCTAssertEqual(parsed.valid.map(\.exclusive), [true])
+        XCTAssertEqual(
+            reasons([with(.bool(true), mode: "press", id: "p"), with(.string("yes"), id: "s")]),
+            [
+                "p": "INVALID_PAYLOAD: Only a hold binding can be exclusive",
+                "s": "INVALID_PAYLOAD: exclusive must be true or false",
+            ])
+        XCTAssertEqual(HotkeyMatcher.parse(["bindings": .array([binding()])])!.valid.map(\.exclusive), [false])
     }
 
     func testMalformedPayloadIsNil() {

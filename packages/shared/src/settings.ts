@@ -3,6 +3,9 @@ import { audioDeviceSchema } from "./audio";
 import { developerToolsSchema, jargonPacksSchema } from "./developer";
 import { emailSettingsSchema } from "./email";
 import { hotkeyTriggerSchema, mouseButtonSchema } from "./hotkeys";
+import { languageCodes, SPEECH_LANGUAGES } from "./languages";
+
+export { SPEECH_LANGUAGES, type SpeechLanguage } from "./languages";
 
 /**
  * User settings (DC-06, DC-09, DC-17, DC-28). Stored one key per row in the `settings`
@@ -10,38 +13,6 @@ import { hotkeyTriggerSchema, mouseButtonSchema } from "./hotkeys";
  */
 
 export const SETTINGS_CLEANUP_LEVELS = ["off", "light", "standard", "full"] as const;
-
-/**
- * Languages the user can choose (DC-17, DC-19). No choice means the language is detected.
- * `hi-Latn` is a profile, not a separate model: Hindi or English, written in Latin letters.
- */
-export const SPEECH_LANGUAGES = [
-  { code: "en", label: "English" },
-  { code: "hi", label: "Hindi" },
-  { code: "mr", label: "Marathi" },
-  { code: "gu", label: "Gujarati" },
-  { code: "ta", label: "Tamil" },
-  { code: "te", label: "Telugu" },
-  { code: "bn", label: "Bengali" },
-  { code: "ur", label: "Urdu" },
-  { code: "es", label: "Spanish" },
-  { code: "fr", label: "French" },
-  { code: "de", label: "German" },
-  { code: "it", label: "Italian" },
-  { code: "pt", label: "Portuguese" },
-  { code: "nl", label: "Dutch" },
-  { code: "ru", label: "Russian" },
-  { code: "ar", label: "Arabic" },
-  { code: "ja", label: "Japanese" },
-  { code: "ko", label: "Korean" },
-  { code: "zh", label: "Chinese" },
-  { code: "hi-Latn", label: "Mixed: Hindi in Latin script" },
-] as const;
-export type SpeechLanguage = (typeof SPEECH_LANGUAGES)[number]["code"];
-const languageCodes = SPEECH_LANGUAGES.map((language) => language.code) as [
-  SpeechLanguage,
-  ...SpeechLanguage[],
-];
 
 /** At most this many languages; the first is the primary (DC-19). */
 export const MAX_LANGUAGES = 5;
@@ -55,6 +26,9 @@ export function languageLabel(code: string): string {
   return SPEECH_LANGUAGES.find((language) => language.code === code)?.label ?? code;
 }
 
+/** A wake phrase is two to forty characters. */
+export const COMMAND_WAKE_PHRASE_LIMITS = { min: 2, max: 40 } as const;
+
 export const settingsSchema = z.strictObject({
   /** Hold to dictate. */
   holdShortcut: hotkeyTriggerSchema,
@@ -62,6 +36,21 @@ export const settingsSchema = z.strictObject({
   handsFreeShortcut: hotkeyTriggerSchema.nullable(),
   /** Opens the Rewrite panel on the selection (RW-01). Null turns it off. */
   rewriteShortcut: hotkeyTriggerSchema.nullable(),
+  /**
+   * Hold to speak a command (RW-08), while Command Mode is on. It counts only when no other
+   * key is pressed during the hold, so Command shortcuts never start it. Null turns it off.
+   */
+  commandShortcut: hotkeyTriggerSchema.nullable(),
+  /** Command Mode's wake phrase (RW-08). Command Mode itself is an experimental option. */
+  commandMode: z.strictObject({
+    wakePhrase: z
+      .string()
+      .trim()
+      .min(COMMAND_WAKE_PHRASE_LIMITS.min)
+      .max(COMMAND_WAKE_PHRASE_LIMITS.max)
+      .regex(/^[\p{L}\p{N}' ,-]+$/u, "Letters, numbers and spaces only"),
+    wakePhraseEnabled: z.boolean(),
+  }),
   /** Extra mouse buttons for push to talk and hands-free; null when unbound (DC-04). */
   mouseButtons: z
     .strictObject({ hold: mouseButtonSchema.nullable(), handsFree: mouseButtonSchema.nullable() })
@@ -108,6 +97,8 @@ export const settingsSchema = z.strictObject({
     styleDetection: z.boolean(),
     /** Record a pronunciation clip for a dictionary entry (PZ-06). */
     pronunciationClips: z.boolean(),
+    /** Speak commands that act on the selection or the last dictation (RW-08). */
+    commandMode: z.boolean(),
   }),
   /** Whisper mode (DC-12): more gain for very quiet speech. */
   whisperMode: z.boolean(),
@@ -159,6 +150,7 @@ export const settingsPatchSchema = settingsSchema
     jargonPacks: true,
     developerTools: true,
     experimental: true,
+    commandMode: true,
   })
   .partial()
   .strict();
@@ -169,6 +161,8 @@ export const SETTING_KEYS: Record<keyof Settings, string> = {
   holdShortcut: "hotkey.dictate_hold",
   handsFreeShortcut: "hotkey.hands_free",
   rewriteShortcut: "hotkey.rewrite",
+  commandShortcut: "hotkey.command_mode",
+  commandMode: "command_mode.settings",
   inputDevice: "audio.input_device",
   languages: "speech.languages",
   cleanupLevel: "cleanup.level",
@@ -198,6 +192,13 @@ export const DEFAULT_EXPERIMENTAL: Settings["experimental"] = {
   phraseLearning: false,
   styleDetection: false,
   pronunciationClips: false,
+  commandMode: false,
+};
+
+/** RW-08 defaults. */
+export const DEFAULT_COMMAND_MODE: Settings["commandMode"] = {
+  wakePhrase: "Hey Murmur",
+  wakePhraseEnabled: true,
 };
 
 export const SOUND_NAMES = ["start", "lock", "success", "error", "cancel"] as const;
@@ -212,7 +213,7 @@ export const DEFAULT_SOUNDS: Settings["sounds"] = {
   cancel: false,
 };
 
-export const SHORTCUT_SLOTS = ["hold", "handsFree", "rewrite"] as const;
+export const SHORTCUT_SLOTS = ["hold", "handsFree", "rewrite", "command"] as const;
 export type ShortcutSlot = (typeof SHORTCUT_SLOTS)[number];
 
 /** A key the Hub captured: the browser's key code and the modifiers held. */
@@ -226,7 +227,12 @@ export type CapturedKey = z.infer<typeof capturedKeySchema>;
 export const settingsViewSchema = z.strictObject({
   settings: settingsSchema,
   /** Readable names: "Right Option", "Control+Option+Space". */
-  shortcutLabels: z.strictObject({ hold: z.string(), handsFree: z.string(), rewrite: z.string() }),
+  shortcutLabels: z.strictObject({
+    hold: z.string(),
+    handsFree: z.string(),
+    rewrite: z.string(),
+    command: z.string(),
+  }),
   /** Null when the helper could not list devices. */
   devices: z.array(audioDeviceSchema).nullable(),
 });

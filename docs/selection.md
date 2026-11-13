@@ -44,6 +44,7 @@ unlike text Murmur pastes, which is marked transient.
 | Return                | none, or Shift              | press enter, line break in chat apps      |
 | Left, Right, Up, Down | any except Control          | moving the caret, extending the selection |
 | Left bracket          | Command only                | browser back (Focus Mode)                 |
+| Delete                | none                        | Command Mode's "delete that"              |
 
 `repeat` (1 to 200) presses it several times. With `onlyInApp`, nothing is pressed unless
 that app is in front, and the answer is `pressed: false`.

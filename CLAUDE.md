@@ -136,6 +136,8 @@ Transcript cleanup (rules, the local model and its guard, the 1.5 s budget, benc
 
 Rewrites (the five built-ins, custom instructions, the Rewrites page, the Rewrite panel and its Replace checks, benchmark): see `docs/rewrites.md`.
 
+Command Mode (the key and the wake phrase, the command list, matching by rule then model, the last-dictation fallback, benchmark): see `docs/commands.md`.
+
 Text generation for Rewrites, Command Mode and Instruct Mode (prompt rules, streaming, limits, dictation first, benchmark): see `docs/generation.md`.
 
 Dictation history (database, tables, migrations): see `docs/history.md`.

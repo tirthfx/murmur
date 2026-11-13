@@ -26,6 +26,7 @@ Left Option is a different key and does nothing. There is no default chord; a ha
 - For each binding the helper sends `hotkey.event` with the binding id, the action, `down`/`up` (hold bindings) or `press`, and the time of the key change in epoch milliseconds. Keys that match no binding are never reported or logged.
 - `hotkey.tap.status` reports `active`, `disabled_by_system` (macOS turned the listener off, for example after a slow callback; held keys are released so dictation cannot get stuck) and `reenabled`.
 - Auto-repeat is ignored: holding the key gives one `down` and one `up`.
+- An `exclusive` hold binding (capability `hotkey.exclusive`) counts only while no other key is pressed: another key, modifier or mouse button going down during the hold ends it with `interrupted`, and no `up` follows. The Command Mode key (Right Command) uses it, so Command+C never starts a command (see `commands.md`).
 - The helper checks each binding on its own. A trigger used twice is rejected with `CONFLICT`; a plain letter or number key without a modifier, Caps Lock, or an unknown action is rejected with `INVALID_PAYLOAD`. The rest are kept.
 
 Types and schemas: `packages/shared/src/hotkeys.ts`. Example messages: `packages/shared/protocol-fixtures/hotkey.*.json`. Mac default bindings: `apps/desktop/src/main/platform/mac-hotkeys.ts`.

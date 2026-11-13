@@ -10,6 +10,7 @@ import {
   type SettingsPatch,
   type SettingsView,
 } from "@murmur/shared";
+import { CommandModeSection } from "./CommandModeSection";
 import { ExperimentalSection } from "./ExperimentalSection";
 import { LanguagesField } from "./LanguagesField";
 import { MouseButtonField } from "./MouseButtonField";
@@ -182,6 +183,9 @@ export function SettingsSection() {
         experimental={settings.experimental}
         onChange={(experimental) => update({ experimental })}
       />
+      {settings.experimental.commandMode ? (
+        <CommandModeSection view={view} onSaved={setView} update={update} />
+      ) : null}
       {problem ? <Banner status="error" title={problem} /> : null}
     </VStack>
   );

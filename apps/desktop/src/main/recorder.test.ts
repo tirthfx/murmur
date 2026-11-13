@@ -1748,3 +1748,132 @@ describe("recorder", () => {
     ]);
   });
 });
+
+describe("Command Mode in the recorder (RW-08)", () => {
+  function commandSetup(options: { enabled?: boolean; wake?: string | null; said?: string } = {}) {
+    const clock = new FakeClock();
+    const insert = vi.fn(async () => ({
+      method: "paste_cmd_v" as const,
+      delivered: true,
+      clipboardRestored: true,
+    }));
+    const run = vi.fn(async () => {});
+    const events: string[] = [];
+    const records: DictationRecord[] = [];
+    const parts = setup({
+      clock,
+      transcribe: async () => ({ ...transcript, text: options.said ?? "Make it shorter." }),
+      insert,
+      onEvent: (event) => events.push(event.type),
+      record: (record) => {
+        records.push(record);
+        return "h1";
+      },
+      command: {
+        enabled: () => options.enabled ?? true,
+        wakePhrase: () => (options.wake === undefined ? "Hey Murmur" : options.wake),
+        run,
+      },
+    });
+    const commandKey = (state: HotkeyEvent["state"]) =>
+      parts.recorder.handleHotkey({
+        bindingId: "command-mode",
+        action: "command.mode",
+        state,
+        at: 0,
+      });
+    return { ...parts, clock, insert, run, events, records, commandKey };
+  }
+
+  it("records while the key is held alone, and runs the words as a command", async () => {
+    const { commandKey, clock, recorder, helper, run, insert, events, records } = commandSetup();
+    commandKey("down");
+    await clock.advance(100);
+    expect(helper.startAudio).not.toHaveBeenCalled();
+    await clock.advance(200);
+    await recorder.idle();
+    expect(helper.startAudio).toHaveBeenCalledTimes(1);
+    commandKey("up");
+    await recorder.idle();
+    expect(run).toHaveBeenCalledWith("Make it shorter.", "key");
+    expect(insert).not.toHaveBeenCalled();
+    expect(events).toContain("command-heard");
+    expect(records[0]).toMatchObject({ insertStatus: "empty", finalText: null });
+  });
+
+  it("never starts on a tap or a Command shortcut", async () => {
+    const { commandKey, clock, recorder, helper } = commandSetup();
+    commandKey("down");
+    await clock.advance(100);
+    commandKey("up");
+    commandKey("down");
+    await clock.advance(50);
+    commandKey("interrupted");
+    await clock.advance(1000);
+    await recorder.idle();
+    expect(helper.startAudio).not.toHaveBeenCalled();
+  });
+
+  it("drops the recording when another key is pressed during a long hold", async () => {
+    const { commandKey, clock, recorder, helper, run } = commandSetup();
+    commandKey("down");
+    await clock.advance(300);
+    await recorder.idle();
+    commandKey("interrupted");
+    await recorder.idle();
+    expect(helper.cancelAudio).toHaveBeenCalledWith("s1");
+    expect(helper.stopAudio).not.toHaveBeenCalled();
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it("does nothing with the key while Command Mode is off", async () => {
+    const { commandKey, clock, recorder, helper } = commandSetup({ enabled: false });
+    commandKey("down");
+    await clock.advance(1000);
+    await recorder.idle();
+    expect(helper.startAudio).not.toHaveBeenCalled();
+  });
+
+  it("takes a dictation that starts with the wake phrase as a command", async () => {
+    const { recorder, run, insert } = commandSetup({ said: "Hey Murmur, make this a list." });
+    recorder.handleHotkey(key("down"));
+    recorder.handleHotkey(key("up"));
+    await recorder.idle();
+    expect(run).toHaveBeenCalledWith("make this a list.", "wake_phrase");
+    expect(insert).not.toHaveBeenCalled();
+  });
+
+  it("inserts the wake phrase as text while Command Mode is off", async () => {
+    const { recorder, run, insert } = commandSetup({
+      enabled: false,
+      said: "Hey Murmur, make this a list.",
+    });
+    recorder.handleHotkey(key("down"));
+    recorder.handleHotkey(key("up"));
+    await recorder.idle();
+    expect(run).not.toHaveBeenCalled();
+    expect(insert).toHaveBeenCalledWith("Hey Murmur, make this a list.", { pressEnter: false });
+  });
+
+  it("inserts the wake phrase as text when the wake phrase is off", async () => {
+    const { recorder, run, insert } = commandSetup({ wake: null, said: "Hey Murmur, hello." });
+    recorder.handleHotkey(key("down"));
+    recorder.handleHotkey(key("up"));
+    await recorder.idle();
+    expect(run).not.toHaveBeenCalled();
+    expect(insert).toHaveBeenCalled();
+  });
+
+  it("a dictation key release does not end a command recording", async () => {
+    const { commandKey, clock, recorder, helper, run } = commandSetup();
+    commandKey("down");
+    await clock.advance(300);
+    await recorder.idle();
+    recorder.handleHotkey(key("up"));
+    await recorder.idle();
+    expect(helper.stopAudio).not.toHaveBeenCalled();
+    commandKey("up");
+    await recorder.idle();
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+});

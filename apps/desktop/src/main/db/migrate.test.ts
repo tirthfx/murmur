@@ -24,6 +24,7 @@ describe("migrations", () => {
     expect(tables(db)).toEqual([
       "app_categories",
       "audio_chunks",
+      "command_runs",
       "dictionary",
       "history",
       "learn_candidates",

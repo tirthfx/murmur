@@ -20,6 +20,13 @@ export const MAC_DEFAULT_HOTKEY_BINDINGS: readonly HotkeyBinding[] = [
 export const MAC_KEY_R = 15;
 
 /** Opens the Rewrite panel (RW-01): Control+Option+R. */
+/** Right Command, held on its own (RW-08). Pressed with another key it does nothing. */
+export const MAC_DEFAULT_COMMAND_TRIGGER: HotkeyTrigger = {
+  type: "key",
+  keyCode: 54,
+  modifiers: [],
+};
+
 export const MAC_DEFAULT_REWRITE_TRIGGER: HotkeyTrigger = {
   type: "key",
   keyCode: MAC_KEY_R,

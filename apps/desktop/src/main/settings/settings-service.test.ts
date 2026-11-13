@@ -14,6 +14,8 @@ const defaults: Settings = {
   holdShortcut: { type: "key", keyCode: 61, modifiers: [] },
   handsFreeShortcut: null,
   rewriteShortcut: null,
+  commandShortcut: null,
+  commandMode: { wakePhrase: "Hey Murmur", wakePhraseEnabled: true },
   inputDevice: "auto",
   languages: [],
   cleanupLevel: "standard",
@@ -46,6 +48,7 @@ const defaults: Settings = {
     phraseLearning: false,
     styleDetection: false,
     pronunciationClips: false,
+    commandMode: false,
   },
 };
 
@@ -75,6 +78,7 @@ describe("settings service", () => {
       hold: "Right Option",
       handsFree: "Double-tap Right Option",
       rewrite: "Off",
+      command: "Off",
     });
     expect(view.devices?.[0]?.name).toBe("Desk Mic");
   });
@@ -133,6 +137,27 @@ describe("settings service", () => {
       rewriteId: "panel",
     });
     expect(bindingsFor(defaults).some((binding) => binding.action === "rewrite")).toBe(false);
+  });
+
+  it("binds the Command Mode key, exclusive, only while Command Mode is on", () => {
+    const rightCommand = { type: "key" as const, keyCode: 54, modifiers: [] };
+    const settings = { ...defaults, commandShortcut: rightCommand };
+    expect(bindingsFor(settings).some((binding) => binding.action === "command.mode")).toBe(false);
+    expect(
+      bindingsFor({ ...settings, experimental: { ...defaults.experimental, commandMode: true } }),
+    ).toContainEqual({
+      id: "command-mode",
+      action: "command.mode",
+      trigger: rightCommand,
+      mode: "hold",
+      exclusive: true,
+    });
+    expect(
+      bindingsFor({
+        ...defaults,
+        experimental: { ...defaults.experimental, commandMode: true },
+      }).some((binding) => binding.action === "command.mode"),
+    ).toBe(false);
   });
 
   it("clears hands-free back to the double tap, but never the hold key", async () => {

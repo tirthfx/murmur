@@ -17,6 +17,8 @@ function setup() {
     holdShortcut: { type: "key", keyCode: 61, modifiers: [] },
     handsFreeShortcut: null,
     rewriteShortcut: null,
+    commandShortcut: null,
+    commandMode: { wakePhrase: "Hey Murmur", wakePhraseEnabled: true },
     inputDevice: "auto",
     languages: [],
     cleanupLevel: "standard",
@@ -49,6 +51,7 @@ function setup() {
       phraseLearning: false,
       styleDetection: false,
       pronunciationClips: false,
+      commandMode: false,
     },
   };
   const views: TrayView[] = [];

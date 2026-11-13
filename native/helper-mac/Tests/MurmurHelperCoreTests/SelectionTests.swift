@@ -226,6 +226,8 @@ final class KeysTests: XCTestCase {
         XCTAssertTrue(KeysController.allowed("z", [.command, .shift]))
         XCTAssertTrue(KeysController.allowed("left", [.shift, .option]))
         XCTAssertTrue(KeysController.allowed("return", .shift))
+        XCTAssertTrue(KeysController.allowed("delete", []))
+        XCTAssertFalse(KeysController.allowed("delete", .command))
         XCTAssertFalse(KeysController.allowed("z", [.command, .option]))
         XCTAssertFalse(KeysController.allowed("left_bracket", [.command, .shift]))
     }

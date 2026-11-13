@@ -38,6 +38,8 @@ export type RewritePanelState =
       text: string;
       /** The selected text, for "View changes" (RW-06). */
       source: string;
+      /** A command's output goes below the text instead of over it (RW-09). */
+      placement?: "below";
     }
   | {
       stage: "message";

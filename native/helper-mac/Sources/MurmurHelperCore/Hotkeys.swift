@@ -62,13 +62,21 @@ public struct HotkeyBinding: Sendable, Equatable {
     public var trigger: HotkeyTrigger
     public var mode: HotkeyMode
     public var rewriteId: String?
+    /// A hold binding that counts only while no other key is pressed: another key or button
+    /// going down while it is held ends it with `interrupted` (Command Mode on Right Command,
+    /// so Command+C never starts it).
+    public var exclusive: Bool
 
-    public init(id: String, action: String, trigger: HotkeyTrigger, mode: HotkeyMode, rewriteId: String? = nil) {
+    public init(
+        id: String, action: String, trigger: HotkeyTrigger, mode: HotkeyMode, rewriteId: String? = nil,
+        exclusive: Bool = false
+    ) {
         self.id = id
         self.action = action
         self.trigger = trigger
         self.mode = mode
         self.rewriteId = rewriteId
+        self.exclusive = exclusive
     }
 }
 
@@ -76,6 +84,8 @@ public enum HotkeyEventState: String, Sendable {
     case down
     case up
     case press
+    /// An exclusive hold binding ended because another key was pressed. No `up` follows.
+    case interrupted
 }
 
 /// One event to send to main for one binding.
@@ -182,7 +192,7 @@ public struct HotkeyMatcher: Sendable {
 
     /// Unmatched input returns an empty array and leaves no trace.
     public mutating func handle(_ input: RawKeyInput) -> [HotkeyFiring] {
-        var firings: [HotkeyFiring] = []
+        var firings = interruptExclusive(by: input)
         switch input {
         case .modifier(let keyCode, let isDown):
             for binding in bindings where binding.trigger.isModifierOnly && binding.trigger.keyCode == keyCode {
@@ -208,6 +218,29 @@ public struct HotkeyMatcher: Sendable {
             for binding in bindings where binding.trigger.mouseButton == button {
                 if let firing = release(binding) { firings.append(firing) }
             }
+        }
+        return firings
+    }
+
+    /// Ends each held exclusive binding when another key or button goes down.
+    private mutating func interruptExclusive(by input: RawKeyInput) -> [HotkeyFiring] {
+        guard bindings.contains(where: { $0.exclusive && active.contains($0.id) }) else { return [] }
+        let isOther: (HotkeyTrigger) -> Bool
+        switch input {
+        case .modifier(let keyCode, let isDown):
+            guard isDown else { return [] }
+            isOther = { $0.keyCode != keyCode || $0.mouseButton != nil }
+        case .keyDown(let keyCode, _, _):
+            isOther = { $0.keyCode != keyCode || $0.mouseButton != nil }
+        case .mouseDown(let button):
+            isOther = { $0.mouseButton != button }
+        case .keyUp, .mouseUp:
+            return []
+        }
+        var firings: [HotkeyFiring] = []
+        for binding in bindings where binding.exclusive && active.contains(binding.id) && isOther(binding.trigger) {
+            active.remove(binding.id)
+            firings.append(HotkeyFiring(binding: binding, state: .interrupted))
         }
         return firings
     }
@@ -282,13 +315,21 @@ public struct HotkeyMatcher: Sendable {
         guard let modeName = object["mode"]?.stringValue, let mode = HotkeyMode(rawValue: modeName) else {
             return fail("Mode must be hold, toggle or press")
         }
+        var exclusive = false
+        if let value = object["exclusive"] {
+            guard case .bool(let flag) = value else { return fail("exclusive must be true or false") }
+            guard !flag || mode == .hold else { return fail("Only a hold binding can be exclusive") }
+            exclusive = flag
+        }
         guard let trigger = object["trigger"]?.objectValue else { return fail("Trigger must be an object") }
         if trigger["type"]?.stringValue == "mouse" {
             guard let button = trigger["button"]?.intValue, MouseButtons.allowed.contains(button) else {
                 return fail("button must be an extra mouse button from 2 to 31; left and right cannot be bound")
             }
             return .success(
-                HotkeyBinding(id: id, action: action, trigger: HotkeyTrigger(mouseButton: button), mode: mode, rewriteId: rewriteId))
+                HotkeyBinding(
+                    id: id, action: action, trigger: HotkeyTrigger(mouseButton: button), mode: mode, rewriteId: rewriteId,
+                    exclusive: exclusive))
         }
         guard trigger["type"]?.stringValue == "key" else {
             return fail("Trigger type must be key or mouse")
@@ -314,6 +355,7 @@ public struct HotkeyMatcher: Sendable {
         if !parsed.isModifierOnly && modifiers.isEmpty && !KeyCodes.functionKeys.contains(keyCode) && !cancelByEscape {
             return fail("This key needs at least one modifier")
         }
-        return .success(HotkeyBinding(id: id, action: action, trigger: parsed, mode: mode, rewriteId: rewriteId))
+        return .success(
+            HotkeyBinding(id: id, action: action, trigger: parsed, mode: mode, rewriteId: rewriteId, exclusive: exclusive))
     }
 }
