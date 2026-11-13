@@ -21,6 +21,7 @@ function api(initial: InstructPanelState) {
     followUp: vi.fn(async () => {}),
     newThread: vi.fn(async () => {}),
     undo: vi.fn(async () => {}),
+    setModel: vi.fn(async () => {}),
     close: vi.fn(async () => {}),
   };
   return { mock, push: (state: InstructPanelState) => act(() => push(state)) };
@@ -30,6 +31,8 @@ const thread = {
   instruction: "send this to Sam",
   earlier: [] as string[],
   turns: 1,
+  model: "fast" as const,
+  qualityAvailable: false,
   available: ["selection", "memory", "samples"] as const,
   off: [] as const,
 };
@@ -141,5 +144,14 @@ describe("Instruct panel", () => {
     expect(mock.undo).not.toHaveBeenCalled();
     fireEvent.keyDown(window, { key: "z", ctrlKey: true });
     expect(mock.undo).toHaveBeenCalled();
+  });
+
+  it("shows the model switch and says Quality needs a download", async () => {
+    const { mock, push } = api({ stage: "hidden" });
+    render(<InstructPanel api={mock} />);
+    push({ ...thread, available: [], off: [], stage: "draft", text: "x", used: [], note: null });
+    expect(screen.getByText(INSTRUCT_MESSAGES.downloadQuality)).toBeTruthy();
+    fireEvent.click(screen.getByRole("radio", { name: "Quality" }));
+    expect(mock.setModel).toHaveBeenCalledWith("quality");
   });
 });

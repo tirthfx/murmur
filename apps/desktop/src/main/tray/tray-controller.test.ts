@@ -18,7 +18,7 @@ function setup() {
     handsFreeShortcut: null,
     rewriteShortcut: null,
     instructShortcut: null,
-    instruct: { fieldContext: true, memory: true, samples: true, saveThreads: true },
+    instruct: { fieldContext: true, memory: true, samples: true, saveThreads: true, model: "fast" },
     commandShortcut: null,
     commandMode: { wakePhrase: "Hey Murmur", wakePhraseEnabled: true },
     inputDevice: "auto",
@@ -54,6 +54,7 @@ function setup() {
       styleDetection: false,
       pronunciationClips: false,
       commandMode: false,
+      autoInstruct: false,
     },
   };
   const views: TrayView[] = [];

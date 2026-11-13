@@ -83,8 +83,10 @@ import {
   type RewriteShortcutResult,
 } from "./rewrites";
 import {
+  instructModelStatusSchema,
   instructThreadSchema,
   instructThreadSummarySchema,
+  type InstructModelStatus,
   type InstructThread,
   type InstructThreadSummary,
 } from "./instruct";
@@ -156,6 +158,9 @@ export const IPC_CHANNELS = {
   instructDelete: "instruct:delete",
   instructDeleteAll: "instruct:delete-all",
   instructReuse: "instruct:reuse",
+  instructModelStatus: "instruct:model-status",
+  instructModelDownload: "instruct:model-download",
+  instructModelRemove: "instruct:model-remove",
 } as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
@@ -397,6 +402,10 @@ export const IPC_CONTRACT = {
     args: z.tuple([z.string().min(1)]),
     result: z.boolean(),
   },
+  // The Quality model (RW-15): downloaded only when the owner asks, from Settings.
+  [IPC_CHANNELS.instructModelStatus]: { args: z.tuple([]), result: instructModelStatusSchema },
+  [IPC_CHANNELS.instructModelDownload]: { args: z.tuple([]), result: instructModelStatusSchema },
+  [IPC_CHANNELS.instructModelRemove]: { args: z.tuple([]), result: instructModelStatusSchema },
 } as const satisfies Record<IpcChannel, { args: z.ZodType; result: z.ZodType }>;
 
 export function isIpcChannel(value: unknown): value is IpcChannel {
@@ -498,6 +507,12 @@ export interface MurmurApi {
   instructDeleteAll(): Promise<void>;
   /** Opens the Instruct panel with this thread's last draft as a new thread. False if gone. */
   instructReuse(id: string): Promise<boolean>;
+  /** The Quality model's state; poll it while it downloads. */
+  instructModelStatus(): Promise<InstructModelStatus>;
+  /** Starts the Quality model download (5 GB) and returns at once. */
+  instructModelDownload(): Promise<InstructModelStatus>;
+  /** Deletes the Quality model's files; Instruct goes back to Fast. */
+  instructModelRemove(): Promise<InstructModelStatus>;
   /** Main asks the Hub to show a page (for example after a Bar prompt). */
   onOpenPage(handler: (pageId: string) => void): () => void;
   /** Input levels during a microphone check, about 20 a second. Returns an unsubscribe. */

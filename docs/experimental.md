@@ -72,3 +72,8 @@ recognition.
    the log says `style detection: email`.
 5. Turn on Pronunciation clips, record a word, play it back, delete the entry: the file in
    the clips folder is gone.
+
+## Offer Instruct Mode (RW-16)
+
+A dictation that starts like a request to write asks on the Bar for 4 seconds whether to use
+Instruct Mode; no answer inserts it as dictated. See `instruct.md`.

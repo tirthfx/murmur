@@ -45,7 +45,28 @@ Once a day, threads older than 30 days lose their text (their requests and draft
 the count of requests stays and the page shows "Text removed after 30 days"), and threads
 beyond the newest 1,000 are deleted.
 
-Control+Z in the panel takes the last inserted draft out of the app again (see `undo.md`). The model choice comes in #121.
+Control+Z in the panel takes the last inserted draft out of the app again (see `undo.md`).
+
+## Models (RW-15)
+
+- **Fast:** the cleanup model (Qwen3 4B Instruct), always there.
+- **Quality:** Qwen3 8B, 4-bit, 5.0 GB (Apache 2.0; owner's choice 2026-11-13). Never
+  downloaded unless asked: Settings, Instruct Mode, Quality model, Download. The file is pinned
+  by revision, size and SHA-256 in `packages/shared/src/llm-models.ts`, checked once per run,
+  and can be removed again. `npm run model:download -- quality` fetches it from a terminal.
+  It runs in its own worker ("Murmur Instruct Quality"), started only when a thread uses it
+  and stopped after a while unused, so the cleanup model stays loaded for dictation. Its
+  thinking mode is off (`budgets.thoughtTokens: 0`).
+- Settings, Instruct Mode, Model picks the model for new threads. The panel's Fast/Quality
+  switch applies to the next request and keeps the thread. Without the Quality model the switch
+  stays on Fast and says "Download a Quality model in Settings".
+
+## Auto-detect (RW-16, experimental)
+
+Settings, Experimental, "Offer Instruct Mode" (off by default). A dictation that starts like a
+request to write ("draft a…", "write an email…", "reply to…", "rewrite this…") asks on the Bar
+"Use Instruct Mode for this?" for 4 seconds. Yes sends the words to Instruct Mode as a new
+thread; No or no answer inserts them as dictated, and Instruct is never called.
 
 ## Context (RW-17)
 
@@ -71,7 +92,8 @@ tokens, 30 s); field text goes in as reference that is not to be repeated.
 mention Thursday and no other day, a short one must stay under 40 words, "send this to Sam"
 and a meeting request must give a message to the person with no claim it was done, and the
 follow-up "make it shorter" must shorten the same draft and keep Thursday. Measured
-2026-11-13 on the default model: 5 of 5, 0.3 to 0.9 s each.
+2026-11-13 on the default model: 5 of 5, 0.3 to 0.9 s each. `node scripts/bench-instruct.mjs
+quality` runs the same checks on the Quality model once it is downloaded.
 
 ## Manual test
 

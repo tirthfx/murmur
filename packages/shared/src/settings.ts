@@ -51,6 +51,8 @@ export const settingsSchema = z.strictObject({
     samples: z.boolean(),
     /** Keep threads for 30 days on the Instruct page (RW-14). */
     saveThreads: z.boolean(),
+    /** The model for new threads (RW-15). Quality is used only once it is downloaded. */
+    model: z.enum(["fast", "quality"]),
   }),
   /** Command Mode's wake phrase (RW-08). Command Mode itself is an experimental option. */
   commandMode: z.strictObject({
@@ -110,6 +112,8 @@ export const settingsSchema = z.strictObject({
     pronunciationClips: z.boolean(),
     /** Speak commands that act on the selection or the last dictation (RW-08). */
     commandMode: z.boolean(),
+    /** Offer Instruct Mode when a dictation starts like a request to write (RW-16). */
+    autoInstruct: z.boolean(),
   }),
   /** Whisper mode (DC-12): more gain for very quiet speech. */
   whisperMode: z.boolean(),
@@ -207,6 +211,7 @@ export const DEFAULT_EXPERIMENTAL: Settings["experimental"] = {
   styleDetection: false,
   pronunciationClips: false,
   commandMode: false,
+  autoInstruct: false,
 };
 
 /** RW-11 and RW-17 defaults. */
@@ -215,6 +220,7 @@ export const DEFAULT_INSTRUCT: Settings["instruct"] = {
   memory: true,
   samples: true,
   saveThreads: true,
+  model: "fast",
 };
 
 /** RW-08 defaults. */

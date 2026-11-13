@@ -5,10 +5,14 @@
 //
 //   npm run model:download            both models
 //   npm run model:download -- speech  one of them (speech or cleanup)
+//   npm run model:download -- quality Instruct Mode's Quality model (5 GB, never by default)
 
 import os from "node:os";
 import path from "node:path";
-import { DEFAULT_CLEANUP_MODEL } from "../packages/shared/src/llm-models.ts";
+import {
+  DEFAULT_CLEANUP_MODEL,
+  QUALITY_INSTRUCT_MODEL,
+} from "../packages/shared/src/llm-models.ts";
 import { DEFAULT_SPEECH_MODEL } from "../packages/shared/src/speech-models.ts";
 import {
   checkModel,
@@ -21,8 +25,9 @@ const appData = path.join(os.homedir(), "Library", "Application Support");
 const targets = {
   speech: { root: speechModelRoot(appData), model: DEFAULT_SPEECH_MODEL },
   cleanup: { root: cleanupModelRoot(appData), model: DEFAULT_CLEANUP_MODEL },
+  quality: { root: cleanupModelRoot(appData), model: QUALITY_INSTRUCT_MODEL },
 };
-const wanted = process.argv[2] ? [process.argv[2]] : Object.keys(targets);
+const wanted = process.argv[2] ? [process.argv[2]] : ["speech", "cleanup"];
 
 for (const name of wanted) {
   const target = targets[name];

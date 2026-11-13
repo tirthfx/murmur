@@ -3,6 +3,7 @@ import {
   parseIpcRequest,
   type AppInfo,
   type CapturedKey,
+  type InstructModelStatus,
   type InstructThread,
   type InstructThreadSummary,
   type HelperStatus,
@@ -96,6 +97,9 @@ export interface IpcDeps {
   instructDelete: (id: string) => void;
   instructDeleteAll: () => void;
   instructReuse: (id: string) => boolean | Promise<boolean>;
+  instructModelStatus: () => InstructModelStatus | Promise<InstructModelStatus>;
+  instructModelDownload: () => InstructModelStatus | Promise<InstructModelStatus>;
+  instructModelRemove: () => InstructModelStatus | Promise<InstructModelStatus>;
   importPreview: (request: ImportRequest) => ImportPreview;
   importApply: (request: ImportRequest) => ImportResult;
   voiceProfileView: () => VoiceProfileView;
@@ -223,6 +227,12 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.instructDeleteAll();
       case IPC_CHANNELS.instructReuse:
         return deps.instructReuse(request.args[0] as string);
+      case IPC_CHANNELS.instructModelStatus:
+        return deps.instructModelStatus();
+      case IPC_CHANNELS.instructModelDownload:
+        return deps.instructModelDownload();
+      case IPC_CHANNELS.instructModelRemove:
+        return deps.instructModelRemove();
       case IPC_CHANNELS.rewritesSetApplyDirectly:
         return deps.rewritesSetApplyDirectly(request.args[0] as string, request.args[1] as boolean);
       case IPC_CHANNELS.writingSamplesList:

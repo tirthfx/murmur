@@ -174,6 +174,8 @@ export class CleanupEngine {
       maxTokens,
       temperature: 0.6,
       topP: 0.9,
+      // No chain of thought: Qwen3 8B (Instruct's Quality model) would think first otherwise.
+      budgets: { thoughtTokens: 0 },
       onTextChunk: onChunk,
       ...(signal ? { signal } : {}),
     });

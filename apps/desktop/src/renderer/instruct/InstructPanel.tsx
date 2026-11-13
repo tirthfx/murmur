@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@astryxdesign/core/Button";
 import { HStack } from "@astryxdesign/core/HStack";
+import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/SegmentedControl";
 import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { ToggleButton } from "@astryxdesign/core/ToggleButton";
@@ -40,6 +41,28 @@ function SourceChips({ api, state }: { api: MurmurInstructApi; state: InThread }
           </ToggleButton>
         );
       })}
+    </HStack>
+  );
+}
+
+/** The model for the next request (RW-15). Quality waits for its download. */
+function ModelSwitch({ api, state }: { api: MurmurInstructApi; state: InThread }) {
+  return (
+    <HStack gap={2} align="center" wrap="wrap">
+      <SegmentedControl
+        size="sm"
+        label="Model for the next request"
+        value={state.model}
+        onChange={(value) => void api.setModel(value === "quality" ? "quality" : "fast")}
+      >
+        <SegmentedControlItem value="fast" label="Fast" />
+        <SegmentedControlItem value="quality" label="Quality" />
+      </SegmentedControl>
+      {state.qualityAvailable ? null : (
+        <Text size="sm" color="secondary">
+          {INSTRUCT_MESSAGES.downloadQuality}
+        </Text>
+      )}
     </HStack>
   );
 }
@@ -162,6 +185,7 @@ export function InstructPanel({ api }: { api: MurmurInstructApi }) {
         “{state.instruction}”
       </Text>
       <SourceChips api={api} state={state} />
+      <ModelSwitch api={api} state={state} />
       {state.stage === "running" ? (
         <div className="rewrite-output" aria-live="polite" aria-busy="true">
           {state.text || (state.loading ? "Loading model…" : "Writing…")}

@@ -11,6 +11,7 @@ function setup() {
     followUp: vi.fn(async () => {}),
     newThread: vi.fn(async () => {}),
     undo: vi.fn(async () => {}),
+    setModel: vi.fn(async () => {}),
     reuse: vi.fn(async () => true),
     insert: vi.fn(async () => {}),
     copy: vi.fn(async () => {}),

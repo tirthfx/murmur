@@ -15,7 +15,7 @@ const defaults: Settings = {
   handsFreeShortcut: null,
   rewriteShortcut: null,
   instructShortcut: null,
-  instruct: { fieldContext: true, memory: true, samples: true, saveThreads: true },
+  instruct: { fieldContext: true, memory: true, samples: true, saveThreads: true, model: "fast" },
   commandShortcut: null,
   commandMode: { wakePhrase: "Hey Murmur", wakePhraseEnabled: true },
   inputDevice: "auto",
@@ -51,6 +51,7 @@ const defaults: Settings = {
     styleDetection: false,
     pronunciationClips: false,
     commandMode: false,
+    autoInstruct: false,
   },
 };
 
