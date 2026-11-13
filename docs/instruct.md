@@ -19,7 +19,33 @@ drafts. It never sends, schedules or sets anything.
   set." Detection is in `apps/desktop/src/main/instruct/actions.ts`; asking for words about an
   action ("draft a reply…", "write an email to…") is drafting.
 
-Follow-ups, threads and history come in #119; undo in #120; the model choice in #121.
+## Threads and follow-ups (RW-12)
+
+The panel is a short chat. Type a change in "Ask for a change", or hold the Instruct key again
+while the panel is open: each follow-up changes the current draft. Earlier requests are listed
+above the draft. A thread takes 20 requests; after that the panel says "Start a new thread to
+keep going." **New thread** clears the panel and waits for a new first request (typed, or said
+with the key); its context is read then.
+
+A follow-up sends the current draft as the text, the last 6 turns as the chat, and older
+requests as a short list in the instruction (no extra model call to summarise them). The
+selection is used for the first request only; the field text, Memory, samples and style stay.
+Regenerate and the chips write the last request again and replace its draft.
+
+## Saved threads (RW-14)
+
+Each request and its draft is saved (`instruct_threads` and `instruct_history`, migration
+0015), with the app, the time, and what became of the last draft (inserted, copied, discarded,
+or not used). The **Instruct** page in the Hub lists threads newest first with a search over
+requests and drafts; a thread can be opened to read every turn, its last draft copied, reused
+as the start of a new thread in the panel, or deleted, one at a time or all (after a second
+click). "Save Instruct threads" (on by default) is on that page.
+
+Once a day, threads older than 30 days lose their text (their requests and drafts are deleted;
+the count of requests stays and the page shows "Text removed after 30 days"), and threads
+beyond the newest 1,000 are deleted.
+
+Undo comes in #120 and the model choice in #121.
 
 ## Context (RW-17)
 
@@ -42,9 +68,10 @@ tokens, 30 s); field text goes in as reference that is not to be repeated.
 ## Benchmark
 
 `node scripts/bench-instruct.mjs` (needs the cleanup model): a reply about Thursday must
-mention Thursday and no other day, a short one must stay under 40 words, and "send this to
-Sam" and a meeting request must give a message to the person with no claim it was done.
-Measured 2026-11-13 on the default model: 4 of 4, 0.3 to 0.9 s each.
+mention Thursday and no other day, a short one must stay under 40 words, "send this to Sam"
+and a meeting request must give a message to the person with no claim it was done, and the
+follow-up "make it shorter" must shorten the same draft and keep Thursday. Measured
+2026-11-13 on the default model: 5 of 5, 0.3 to 0.9 s each.
 
 ## Manual test
 
@@ -56,3 +83,8 @@ Measured 2026-11-13 on the default model: 4 of 4, 0.3 to 0.9 s each.
 3. Press the Writing samples chip (in Mail): the draft is written again without it.
 4. Turn off "Use writing samples" in Settings: the chip is gone.
 5. Escape closes the panel and the app has the keyboard again.
+6. After a draft, type "make it shorter" and press Enter: the same draft comes back shorter,
+   with the first request listed above it. Hold the key and say "add a thank you": it changes
+   again.
+7. Open the Hub's Instruct page: the thread is listed; Open shows both turns; Reuse opens the
+   last draft in the panel; Delete removes it.

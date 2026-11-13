@@ -36,3 +36,15 @@ export function actionInstruction(request: string): string {
     "Do not repeat the request, do not write it as a confirmation, and never say it was sent, scheduled, booked or done.",
   ].join(" ");
 }
+
+/** How a follow-up is asked: change the current draft, which is sent as the text. */
+export function followUpInstruction(request: string, older: string[]): string {
+  const lines = [
+    `Change the current draft as the user asks: "${request.trim()}".`,
+    "Answer with the whole new draft only.",
+  ];
+  if (older.length > 0) {
+    lines.push(`Earlier requests in this thread, still to respect: ${older.join("; ")}.`);
+  }
+  return lines.join(" ");
+}

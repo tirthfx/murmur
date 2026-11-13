@@ -7,7 +7,10 @@ const URL = "file:///app/instruct.html";
 
 function setup() {
   const controller: InstructController = {
-    start: vi.fn(async () => {}),
+    spoken: vi.fn(async () => {}),
+    followUp: vi.fn(async () => {}),
+    newThread: vi.fn(async () => {}),
+    reuse: vi.fn(async () => true),
     insert: vi.fn(async () => {}),
     copy: vi.fn(async () => {}),
     regenerate: vi.fn(async () => {}),
@@ -24,6 +27,8 @@ describe("Instruct panel IPC", () => {
     expect(await handle(INSTRUCT_PANEL_CHANNELS.ready, URL, [])).toEqual({ stage: "hidden" });
     await handle(INSTRUCT_PANEL_CHANNELS.toggleSource, URL, ["samples"]);
     expect(controller.toggleSource).toHaveBeenCalledWith("samples");
+    await handle(INSTRUCT_PANEL_CHANNELS.followUp, URL, ["make it shorter"]);
+    expect(controller.followUp).toHaveBeenCalledWith("make it shorter");
     await handle(INSTRUCT_PANEL_CHANNELS.insert, URL, []);
     expect(controller.insert).toHaveBeenCalled();
   });
@@ -34,6 +39,9 @@ describe("Instruct panel IPC", () => {
       handle(INSTRUCT_PANEL_CHANNELS.insert, "file:///app/index.html", []),
     ).rejects.toThrow("untrusted sender");
     await expect(handle(INSTRUCT_PANEL_CHANNELS.toggleSource, URL, ["email"])).rejects.toThrow(
+      "invalid call",
+    );
+    await expect(handle(INSTRUCT_PANEL_CHANNELS.followUp, URL, ["x".repeat(1001)])).rejects.toThrow(
       "invalid call",
     );
     await expect(handle(INSTRUCT_PANEL_CHANNELS.insert, URL, ["extra"])).rejects.toThrow(

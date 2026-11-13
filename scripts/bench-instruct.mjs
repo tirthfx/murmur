@@ -11,7 +11,11 @@ import { GENERATION_LIMITS } from "../packages/shared/src/generation.ts";
 import { CleanupEngine } from "../apps/desktop/src/main/cleanup/engine.ts";
 import { buildGenerationPrompt } from "../apps/desktop/src/main/generation/prompt.ts";
 import { stripPreface } from "../apps/desktop/src/main/generation/output.ts";
-import { actionInstruction, asksForAction } from "../apps/desktop/src/main/instruct/actions.ts";
+import {
+  actionInstruction,
+  asksForAction,
+  followUpInstruction,
+} from "../apps/desktop/src/main/instruct/actions.ts";
 import { cleanupModelRoot } from "../apps/desktop/src/main/speech/paths.ts";
 import { modelLocation } from "../apps/desktop/src/main/speech/model-store.ts";
 
@@ -75,5 +79,50 @@ for (const item of cases) {
     `${ok ? "ok  " : "FAIL"} ${item.instruction} (${item.what}; action ${action}; ${Math.round(performance.now() - started)} ms)\n  → ${text.replace(/\n/g, "\n    ")}\n`,
   );
 }
-console.log(`${passed}/${cases.length} passed`);
+// A follow-up (RW-12): "make it shorter" must shorten the same draft and keep Thursday.
+const first = {
+  instruction:
+    "draft a friendly reply saying I can do Thursday afternoon, that I will bring the budget numbers and the Q3 forecast, and asking whether we should invite Priya from finance",
+  field: "Hi, could we meet next week to go over the budget? Let me know which day suits you.",
+};
+const opening = buildGenerationPrompt({
+  instruction: first.instruction,
+  text: "",
+  fieldText: first.field,
+});
+const draft = stripPreface(
+  await engine.generate(
+    {
+      system: opening.system,
+      prompt: opening.prompt,
+      maxTokens: GENERATION_LIMITS.instruct.maxTokens,
+    },
+    () => {},
+  ),
+);
+const follow = buildGenerationPrompt({
+  instruction: followUpInstruction("make it shorter", []),
+  text: draft,
+  fieldText: first.field,
+});
+const shorter = stripPreface(
+  await engine.generate(
+    {
+      system: follow.system,
+      prompt: follow.prompt,
+      maxTokens: GENERATION_LIMITS.instruct.maxTokens,
+      history: [
+        { role: "user", text: first.instruction },
+        { role: "assistant", text: draft },
+      ],
+    },
+    () => {},
+  ),
+);
+const followOk = shorter.length < draft.length && /thursday/i.test(shorter);
+if (followOk) passed++;
+console.log(
+  `${followOk ? "ok  " : "FAIL"} follow-up "make it shorter" (${draft.length} → ${shorter.length} characters, keeps Thursday)\n  → ${draft.replace(/\n/g, " ")}\n  → ${shorter.replace(/\n/g, " ")}\n`,
+);
+console.log(`${passed}/${cases.length + 1} passed`);
 await engine.unload();

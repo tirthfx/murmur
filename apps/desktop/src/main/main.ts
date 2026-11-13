@@ -76,6 +76,7 @@ import { createRewriteController } from "./rewrites/rewrite-controller";
 import { PanelWindow, RewritePanelWindow } from "./rewrites/panel-window";
 import { createInstructController } from "./instruct/instruct-controller";
 import { createInstructPanelIpcHandler } from "./instruct/panel-ipc";
+import { createInstructThreadStore } from "./instruct/thread-store";
 import { createRewritePanelIpcHandler } from "./rewrites/panel-ipc";
 import {
   rewriteBindings,
@@ -760,7 +761,7 @@ const recorder = createRecorder({
     run: (phrase, trigger) => commandRunner.run(phrase, trigger),
   },
   // Instruct Mode (RW-11). The controller below exists before any recording ends.
-  instruct: { run: (instruction) => instructController.start(instruction) },
+  instruct: { run: (instruction) => instructController.spoken(instruction) },
 });
 const micCheck = createMicCheck({
   helper,
@@ -830,10 +831,13 @@ const autoRewrite = createAutoRewriter({
   logger: createConsoleLogger("[rewrite]"),
 });
 // Instruct Mode (RW-11, RW-17): drafts from a spoken instruction, with the allowed context.
+const instructThreads = database ? createInstructThreadStore(database) : null;
 const instructController = createInstructController({
   helper,
   generation,
   panel: instructPanel,
+  threads: instructThreads,
+  modelId: () => DEFAULT_CLEANUP_MODEL.id,
   notify: (message) => bar.dispatch({ type: "warn", message }),
   activateApp,
   context: (appId, text) => rewriteContext(appId, text),
@@ -876,6 +880,13 @@ const trimRewriteRuns = () => {
   try {
     const trimmed = (rewriteRuns?.trimOld() ?? 0) + (commandRuns?.trimOld() ?? 0);
     if (trimmed > 0) console.log(`[rewrite] trimmed ${trimmed} old runs`);
+    // Instruct threads (RW-14): text gone after 30 days, counts kept; at most 1,000 threads.
+    const threads = instructThreads?.applyRetention();
+    if (threads && threads.textRemoved + threads.deleted > 0) {
+      console.log(
+        `[instruct] removed the text of ${threads.textRemoved} threads, deleted ${threads.deleted}`,
+      );
+    }
   } catch (error) {
     console.warn(`[rewrite] could not trim old runs: ${String(error)}`);
   }
@@ -1356,6 +1367,11 @@ function registerIpc(): void {
     },
     rewritesSetApplyDirectly: (id, applyDirectly) => rewrites?.setApplyDirectly(id, applyDirectly),
     rewritesSetAutoApply: (id, settings) => rewrites?.setAutoApply(id, settings),
+    instructThreads: (query) => instructThreads?.list(query) ?? [],
+    instructThread: (id) => instructThreads?.get(id) ?? null,
+    instructDelete: (id) => instructThreads?.delete(id),
+    instructDeleteAll: () => instructThreads?.deleteAll(),
+    instructReuse: (id) => instructController.reuse(id),
     rewritesMove: (id, step) => rewrites?.move(id, step),
     rewritesDuplicate: (id) =>
       rewrites?.duplicate(id) ?? {

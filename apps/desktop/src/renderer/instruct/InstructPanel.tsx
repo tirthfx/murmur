@@ -2,21 +2,24 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@astryxdesign/core/Button";
 import { HStack } from "@astryxdesign/core/HStack";
 import { Text } from "@astryxdesign/core/Text";
+import { TextInput } from "@astryxdesign/core/TextInput";
 import { ToggleButton } from "@astryxdesign/core/ToggleButton";
 import {
+  INSTRUCT_LIMITS,
+  INSTRUCT_MESSAGES,
   INSTRUCT_SOURCE_LABELS,
   type InstructPanelState,
   type InstructSource,
   type MurmurInstructApi,
 } from "@murmur/shared";
 
-type Shown = Exclude<InstructPanelState, { stage: "hidden" }>;
+type InThread = Exclude<InstructPanelState, { stage: "hidden" } | { stage: "empty" }>;
 
 /**
  * The context chips (RW-17): one per source this draft could use. Pressed means used; pressing
  * one turns it off (or back on) for this thread and writes the draft again.
  */
-function SourceChips({ api, state }: { api: MurmurInstructApi; state: Shown }) {
+function SourceChips({ api, state }: { api: MurmurInstructApi; state: InThread }) {
   if (state.available.length === 0) return null;
   const used = state.stage === "draft" ? state.used : null;
   return (
@@ -41,7 +44,49 @@ function SourceChips({ api, state }: { api: MurmurInstructApi; state: Shown }) {
   );
 }
 
-/** The Instruct panel (RW-11). Main holds the thread; this page shows it. */
+/** Typed requests (RW-12): a follow-up, or a new thread's first request. */
+function AskField({
+  api,
+  label,
+  disabled,
+}: {
+  api: MurmurInstructApi;
+  label: string;
+  disabled: boolean;
+}) {
+  const [text, setText] = useState("");
+  const send = () => {
+    const request = text.trim();
+    if (request === "" || disabled) return;
+    setText("");
+    void api.followUp(request.slice(0, INSTRUCT_LIMITS.followUpChars));
+  };
+  return (
+    <HStack gap={2} align="end">
+      <TextInput
+        label={label}
+        isLabelHidden
+        placeholder={label}
+        value={text}
+        onChange={setText}
+        onEnter={send}
+        isDisabled={disabled}
+        width="100%"
+      />
+      <Button
+        size="sm"
+        variant="secondary"
+        label="Send the request"
+        isDisabled={disabled || text.trim() === ""}
+        onClick={send}
+      >
+        Send
+      </Button>
+    </HStack>
+  );
+}
+
+/** The Instruct panel (RW-11, RW-12). Main holds the thread; this page shows it. */
 export function InstructPanel({ api }: { api: MurmurInstructApi }) {
   const [state, setState] = useState<InstructPanelState>({ stage: "hidden" });
   const insertRef = useRef<HTMLDivElement>(null);
@@ -70,9 +115,43 @@ export function InstructPanel({ api }: { api: MurmurInstructApi }) {
   }, [draftText]);
 
   if (state.stage === "hidden") return null;
+  if (state.stage === "empty") {
+    return (
+      <div className="rewrite-card" role="dialog" aria-label="Instruct">
+        <Text weight="semibold">Instruct</Text>
+        <div className="rewrite-output" role="status">
+          {INSTRUCT_MESSAGES.newThread}
+        </div>
+        <AskField api={api} label="What should Murmur write?" disabled={false} />
+        <HStack gap={2} justify="end">
+          <Button variant="ghost" label="Close" onClick={() => void api.close()}>
+            Close
+          </Button>
+        </HStack>
+      </div>
+    );
+  }
+  const atLimit = state.turns >= INSTRUCT_LIMITS.turns;
   return (
     <div className="rewrite-card" role="dialog" aria-label="Instruct">
-      <Text weight="semibold">Instruct</Text>
+      <HStack gap={2} align="center" justify="between">
+        <Text weight="semibold">Instruct</Text>
+        <Button
+          size="sm"
+          variant="ghost"
+          label="Start a new thread"
+          onClick={() => void api.newThread()}
+        >
+          New thread
+        </Button>
+      </HStack>
+      {state.earlier.length > 0 ? (
+        <ol className="instruct-earlier" aria-label="Earlier requests">
+          {state.earlier.map((request, index) => (
+            <li key={index}>{request}</li>
+          ))}
+        </ol>
+      ) : null}
       <Text size="sm" color="secondary" className="instruct-asked">
         “{state.instruction}”
       </Text>
@@ -99,21 +178,24 @@ export function InstructPanel({ api }: { api: MurmurInstructApi }) {
           {state.message}
         </div>
       ) : null}
-      <HStack gap={2} justify="end" wrap="wrap">
-        {state.stage === "running" ? (
-          <Button variant="ghost" label="Discard" onClick={() => void api.close()}>
-            Discard
-          </Button>
+      {state.stage === "draft" ? (
+        atLimit ? (
+          <Text size="sm" className="instruct-note" role="status">
+            {INSTRUCT_MESSAGES.turnLimit}
+          </Text>
         ) : (
-          <>
-            <Button variant="ghost" label="Discard" onClick={() => void api.close()}>
-              Discard
-            </Button>
-            <Button variant="ghost" label="Write it again" onClick={() => void api.regenerate()}>
-              {state.stage === "message" && state.canRetry ? "Try again" : "Regenerate"}
-            </Button>
-          </>
-        )}
+          <AskField api={api} label="Ask for a change" disabled={false} />
+        )
+      ) : null}
+      <HStack gap={2} justify="end" wrap="wrap">
+        <Button variant="ghost" label="Discard" onClick={() => void api.close()}>
+          Discard
+        </Button>
+        {state.stage !== "running" ? (
+          <Button variant="ghost" label="Write it again" onClick={() => void api.regenerate()}>
+            {state.stage === "message" && state.canRetry ? "Try again" : "Regenerate"}
+          </Button>
+        ) : null}
         {state.stage === "draft" ? (
           <>
             <Button variant="secondary" label="Copy" onClick={() => void api.copy()}>

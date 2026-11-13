@@ -3,6 +3,8 @@ import {
   parseIpcRequest,
   type AppInfo,
   type CapturedKey,
+  type InstructThread,
+  type InstructThreadSummary,
   type HelperStatus,
   type SettingsPatch,
   type SettingsView,
@@ -89,6 +91,11 @@ export interface IpcDeps {
   rewritesSetShortcut: (id: string, key: CapturedKey | null) => RewriteShortcutResult;
   rewritesSetApplyDirectly: (id: string, applyDirectly: boolean) => void;
   rewritesSetAutoApply: (id: string, settings: RewriteAutoApply) => void;
+  instructThreads: (query: string) => InstructThreadSummary[];
+  instructThread: (id: string) => InstructThread | null;
+  instructDelete: (id: string) => void;
+  instructDeleteAll: () => void;
+  instructReuse: (id: string) => boolean | Promise<boolean>;
   importPreview: (request: ImportRequest) => ImportPreview;
   importApply: (request: ImportRequest) => ImportResult;
   voiceProfileView: () => VoiceProfileView;
@@ -206,6 +213,16 @@ export function createIpcHandler(deps: IpcDeps) {
           request.args[0] as string,
           request.args[1] as RewriteAutoApply,
         );
+      case IPC_CHANNELS.instructThreads:
+        return deps.instructThreads(request.args[0] as string);
+      case IPC_CHANNELS.instructThread:
+        return deps.instructThread(request.args[0] as string);
+      case IPC_CHANNELS.instructDelete:
+        return deps.instructDelete(request.args[0] as string);
+      case IPC_CHANNELS.instructDeleteAll:
+        return deps.instructDeleteAll();
+      case IPC_CHANNELS.instructReuse:
+        return deps.instructReuse(request.args[0] as string);
       case IPC_CHANNELS.rewritesSetApplyDirectly:
         return deps.rewritesSetApplyDirectly(request.args[0] as string, request.args[1] as boolean);
       case IPC_CHANNELS.writingSamplesList:

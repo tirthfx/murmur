@@ -18,6 +18,8 @@ const api: MurmurInstructApi = {
   copy: () => ipcRenderer.invoke(INSTRUCT_PANEL_CHANNELS.copy),
   regenerate: () => ipcRenderer.invoke(INSTRUCT_PANEL_CHANNELS.regenerate),
   toggleSource: (source) => ipcRenderer.invoke(INSTRUCT_PANEL_CHANNELS.toggleSource, source),
+  followUp: (text) => ipcRenderer.invoke(INSTRUCT_PANEL_CHANNELS.followUp, text),
+  newThread: () => ipcRenderer.invoke(INSTRUCT_PANEL_CHANNELS.newThread),
   close: () => ipcRenderer.invoke(INSTRUCT_PANEL_CHANNELS.close),
 };
 

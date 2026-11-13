@@ -54,6 +54,7 @@ describe("Hub", () => {
       "Snippets",
       "Styles",
       "Rewrites",
+      "Instruct",
       "Memory",
       "My Voice",
       "Scratchpad",

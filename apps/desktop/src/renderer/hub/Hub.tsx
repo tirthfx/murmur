@@ -9,6 +9,7 @@ import { Button } from "@astryxdesign/core/Button";
 import { DictionaryPage } from "./DictionaryPage";
 import { SnippetsPage } from "./SnippetsPage";
 import { StylesPage } from "./StylesPage";
+import { InstructPage } from "./InstructPage";
 import { MemoryPage } from "./MemoryPage";
 import { RewritesPage } from "./RewritesPage";
 import { MyVoicePage } from "./MyVoicePage";
@@ -145,6 +146,8 @@ function HubPages({ onRunSetup }: { onRunSetup: () => void }) {
             <StylesPage />
           ) : page.id === "rewrites" ? (
             <RewritesPage />
+          ) : page.id === "instruct" ? (
+            <InstructPage />
           ) : page.id === "memory" ? (
             <MemoryPage />
           ) : page.id === "my-voice" ? (
