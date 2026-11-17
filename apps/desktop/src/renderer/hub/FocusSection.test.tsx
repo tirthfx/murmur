@@ -86,4 +86,30 @@ describe("Focus Mode section", () => {
     expect((await screen.findAllByText(/Use an app's bundle id/)).length).toBeGreaterThan(0);
     expect(api.focusAddApp).not.toHaveBeenCalled();
   });
+
+  it("blocks a site, says when a browser cannot be read, and removes it", async () => {
+    const site: FocusRule = {
+      ...safari,
+      id: "s1",
+      kind: "site",
+      value: "example.com",
+      label: "example.com",
+    };
+    const focusSites = vi
+      .fn()
+      .mockResolvedValueOnce({ rules: [], unavailableIn: ["Firefox"] })
+      .mockResolvedValue({ rules: [site], unavailableIn: ["Firefox"] });
+    const api = mount(ON, {
+      focusSites,
+      focusAddSite: vi.fn().mockResolvedValue({ ok: true, rule: site }),
+    });
+    expect(await screen.findByText("Website blocking is not available in Firefox.")).toBeTruthy();
+    await userEvent.type(screen.getByLabelText("Site to block"), "https://www.example.com/");
+    await userEvent.click(screen.getByRole("button", { name: "Block this site" }));
+    expect(api.focusAddSite).toHaveBeenCalledWith({ site: "https://www.example.com/" });
+    const list = await screen.findByRole("list", { name: "Blocked sites" });
+    expect(list.textContent).toContain("example.com");
+    await userEvent.click(screen.getByRole("button", { name: "Stop blocking example.com" }));
+    expect(api.focusRemoveApp).toHaveBeenCalledWith("s1");
+  });
 });

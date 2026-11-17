@@ -205,6 +205,8 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
     focusAddApp: vi.fn(),
     focusRemoveApp: vi.fn().mockResolvedValue(undefined),
     focusInstalledApps: vi.fn().mockResolvedValue([]),
+    focusSites: vi.fn().mockResolvedValue({ rules: [], unavailableIn: [] }),
+    focusAddSite: vi.fn(),
     importPreview: vi.fn(),
     importApply: vi.fn(),
     voiceProfileView: vi.fn().mockResolvedValue(SAMPLE_PROFILE),

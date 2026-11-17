@@ -1,5 +1,5 @@
 {
-  "description": "Focus Mode (RW-18, RW-19): the app in front while main asks, and the installed apps. Main decides what is blocked.",
+  "description": "Focus Mode (RW-18 to RW-20): the app in front while main asks, with a browser's page as host and path only, and the installed apps. Main decides what is blocked.",
   "messages": [
     {
       "id": "m-000090",
@@ -26,6 +26,31 @@
         "bundleId": "com.apple.Safari",
         "name": "Safari",
         "pid": 4211
+      }
+    },
+    {
+      "id": null,
+      "type": "focus.app",
+      "payload": {
+        "bundleId": "com.google.Chrome",
+        "name": "Google Chrome",
+        "pid": 5120,
+        "site": {
+          "host": "news.example.com",
+          "path": "/today"
+        },
+        "siteStatus": "ok"
+      }
+    },
+    {
+      "id": null,
+      "type": "focus.app",
+      "payload": {
+        "bundleId": "org.mozilla.firefox",
+        "name": "Firefox",
+        "pid": 5200,
+        "site": null,
+        "siteStatus": "unavailable"
       }
     },
     {
@@ -76,6 +101,20 @@
         "bundleId": "com.apple.Safari",
         "name": "Safari",
         "pid": "4211"
+      }
+    },
+    {
+      "id": null,
+      "type": "focus.app",
+      "payload": {
+        "bundleId": "com.google.Chrome",
+        "name": "Google Chrome",
+        "pid": 5120,
+        "site": {
+          "host": "",
+          "path": "/"
+        },
+        "siteStatus": "ok"
       }
     }
   ]

@@ -37,6 +37,7 @@ import {
   INSTRUCT_PANEL_CHANNELS,
   FOCUS_MESSAGES,
   FOCUS_OVERLAY_CHANNELS,
+  parseSiteEntry,
   type BarView,
   INSTRUCT_PANEL_PUSH,
   INSTRUCT_PANEL_SIZE,
@@ -1007,7 +1008,7 @@ const focusOverlay = new FocusOverlayWindow({
   logger: createConsoleLogger("[focus]"),
 });
 const focus = createFocusController({
-  rules: () => focusStore?.apps() ?? [],
+  rules: () => focusStore?.all() ?? [],
   sessions: focusStore,
   enabled: () => settingsStore.get().experimental.focusMode,
   lastDuration: () => settingsStore.get().focus.duration,
@@ -1016,6 +1017,9 @@ const focus = createFocusController({
   overlay: focusOverlay,
   say: (message) => bar.dispatch({ type: "warn", message }),
   activateApp,
+  pressBack: async (bundleId) =>
+    (await helper.pressKey({ key: "left_bracket", modifiers: ["command"], onlyInApp: bundleId }))
+      .pressed,
   ownPid: process.pid,
   clock: systemClock,
   logger: createConsoleLogger("[focus]"),
@@ -1545,6 +1549,20 @@ function registerIpc(): void {
       focus.refresh();
     },
     focusInstalledApps: () => helper.listApps(),
+    focusSites: () => ({
+      rules: focusStore?.sites() ?? [],
+      unavailableIn: focus.unavailableBrowsers(),
+    }),
+    focusAddSite: (input) => {
+      if (!focusStore) return { ok: false, message: "Focus Mode could not open its list." };
+      const parsed = parseSiteEntry(input.site);
+      if (!parsed) return { ok: false, message: FOCUS_MESSAGES.notASite };
+      const added = focusStore.addSite(parsed.value);
+      if (added === "duplicate") return { ok: false, message: FOCUS_MESSAGES.siteDuplicate };
+      if (added === "limit") return { ok: false, message: FOCUS_MESSAGES.sitesLimit };
+      focus.refresh();
+      return { ok: true, rule: added };
+    },
     rewritesMove: (id, step) => rewrites?.move(id, step),
     rewritesDuplicate: (id) =>
       rewrites?.duplicate(id) ?? {

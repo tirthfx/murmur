@@ -13,12 +13,16 @@ import {
   focusAppInputSchema,
   focusDurationSchema,
   focusRuleSchema,
+  focusSiteInputSchema,
+  focusSitesViewSchema,
   focusStateSchema,
   installedAppSchema,
   type FocusAddResult,
   type FocusAppInput,
   type FocusDuration,
   type FocusRule,
+  type FocusSiteInput,
+  type FocusSitesView,
   type FocusState,
   type InstalledApp,
 } from "./focus";
@@ -182,6 +186,8 @@ export const IPC_CHANNELS = {
   focusAddApp: "focus:add-app",
   focusRemoveApp: "focus:remove-app",
   focusInstalledApps: "focus:installed-apps",
+  focusSites: "focus:sites",
+  focusAddSite: "focus:add-site",
 } as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
@@ -438,6 +444,12 @@ export const IPC_CONTRACT = {
   },
   [IPC_CHANNELS.focusRemoveApp]: { args: z.tuple([z.string().min(1)]), result: z.void() },
   [IPC_CHANNELS.focusInstalledApps]: { args: z.tuple([]), result: z.array(installedAppSchema) },
+  // RW-20.
+  [IPC_CHANNELS.focusSites]: { args: z.tuple([]), result: focusSitesViewSchema },
+  [IPC_CHANNELS.focusAddSite]: {
+    args: z.tuple([focusSiteInputSchema]),
+    result: focusAddResultSchema,
+  },
 } as const satisfies Record<IpcChannel, { args: z.ZodType; result: z.ZodType }>;
 
 export function isIpcChannel(value: unknown): value is IpcChannel {
@@ -553,7 +565,11 @@ export interface MurmurApi {
   /** Blocked apps (RW-19), by name. */
   focusApps(): Promise<FocusRule[]>;
   focusAddApp(input: FocusAppInput): Promise<FocusAddResult>;
+  /** Removes a blocked app or site. */
   focusRemoveApp(id: string): Promise<void>;
+  /** Blocked sites (RW-20), and browsers seen whose page cannot be read. */
+  focusSites(): Promise<FocusSitesView>;
+  focusAddSite(input: FocusSiteInput): Promise<FocusAddResult>;
   /** Installed apps to choose from; empty when the helper cannot list them. */
   focusInstalledApps(): Promise<InstalledApp[]>;
   /** Main asks the Hub to show a page (for example after a Bar prompt). */

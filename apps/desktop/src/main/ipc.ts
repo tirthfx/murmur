@@ -8,6 +8,8 @@ import {
   type FocusAppInput,
   type FocusDuration,
   type FocusRule,
+  type FocusSiteInput,
+  type FocusSitesView,
   type FocusState,
   type InstalledApp,
   type InstructThread,
@@ -113,6 +115,8 @@ export interface IpcDeps {
   focusAddApp: (input: FocusAppInput) => FocusAddResult;
   focusRemoveApp: (id: string) => void;
   focusInstalledApps: () => Promise<InstalledApp[]>;
+  focusSites: () => FocusSitesView;
+  focusAddSite: (input: FocusSiteInput) => FocusAddResult;
   importPreview: (request: ImportRequest) => ImportPreview;
   importApply: (request: ImportRequest) => ImportResult;
   voiceProfileView: () => VoiceProfileView;
@@ -260,6 +264,10 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.focusRemoveApp(request.args[0] as string);
       case IPC_CHANNELS.focusInstalledApps:
         return deps.focusInstalledApps();
+      case IPC_CHANNELS.focusSites:
+        return deps.focusSites();
+      case IPC_CHANNELS.focusAddSite:
+        return deps.focusAddSite(request.args[0] as FocusSiteInput);
       case IPC_CHANNELS.rewritesSetApplyDirectly:
         return deps.rewritesSetApplyDirectly(request.args[0] as string, request.args[1] as boolean);
       case IPC_CHANNELS.writingSamplesList:

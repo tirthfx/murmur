@@ -5,8 +5,14 @@ import { FOCUS_LIMITS, type FocusEndReason, type FocusRule } from "@murmur/share
 export interface FocusStore {
   /** Blocked apps, by name. */
   apps(): FocusRule[];
-  /** Adds a blocked app; null when the app is already there or the list is full. */
+  /** Blocked sites, A to Z. */
+  sites(): FocusRule[];
+  /** Every rule, apps then sites. */
+  all(): FocusRule[];
+  /** Adds a blocked app; refused when it is already there or the list is full. */
   addApp(bundleId: string, label: string): FocusRule | "duplicate" | "limit";
+  /** Adds a blocked site (`domain` or `domain/path`); refused the same way. */
+  addSite(value: string): FocusRule | "duplicate" | "limit";
   remove(id: string): void;
   /** Starts a session row; returns its id. */
   start(plannedMs: number | null): string;
@@ -17,7 +23,7 @@ export interface FocusStore {
 
 interface RuleRow {
   id: string;
-  kind: "app";
+  kind: "app" | "site";
   value: string;
   label: string;
   created_at: number;
@@ -37,36 +43,40 @@ export function createFocusStore(
   now: () => number = Date.now,
   newId: () => string = randomUUID,
 ): FocusStore {
+  function list(kind: "app" | "site"): FocusRule[] {
+    const rows = db
+      .prepare("SELECT * FROM focus_rules WHERE kind = ? ORDER BY label COLLATE NOCASE")
+      .all(kind) as unknown as RuleRow[];
+    return rows.map(toRule);
+  }
+
+  function add(
+    kind: "app" | "site",
+    value: string,
+    label: string,
+    limit: number,
+  ): FocusRule | "duplicate" | "limit" {
+    const existing = db
+      .prepare("SELECT id FROM focus_rules WHERE kind = ? AND value = ?")
+      .get(kind, value);
+    if (existing) return "duplicate";
+    const count = (
+      db.prepare("SELECT COUNT(*) AS n FROM focus_rules WHERE kind = ?").get(kind) as { n: number }
+    ).n;
+    if (count >= limit) return "limit";
+    const rule: FocusRule = { id: newId(), kind, value, label, createdAt: now() };
+    db.prepare(
+      "INSERT INTO focus_rules (id, kind, value, label, created_at) VALUES (?, ?, ?, ?, ?)",
+    ).run(rule.id, kind, rule.value, rule.label, rule.createdAt);
+    return rule;
+  }
+
   return {
-    apps() {
-      const rows = db
-        .prepare("SELECT * FROM focus_rules WHERE kind = 'app' ORDER BY label COLLATE NOCASE")
-        .all() as unknown as RuleRow[];
-      return rows.map(toRule);
-    },
-    addApp(bundleId, label) {
-      const existing = db
-        .prepare("SELECT id FROM focus_rules WHERE kind = 'app' AND value = ?")
-        .get(bundleId);
-      if (existing) return "duplicate";
-      const count = (
-        db.prepare("SELECT COUNT(*) AS n FROM focus_rules WHERE kind = 'app'").get() as {
-          n: number;
-        }
-      ).n;
-      if (count >= FOCUS_LIMITS.apps) return "limit";
-      const rule: FocusRule = {
-        id: newId(),
-        kind: "app",
-        value: bundleId,
-        label,
-        createdAt: now(),
-      };
-      db.prepare(
-        "INSERT INTO focus_rules (id, kind, value, label, created_at) VALUES (?, 'app', ?, ?, ?)",
-      ).run(rule.id, rule.value, rule.label, rule.createdAt);
-      return rule;
-    },
+    apps: () => list("app"),
+    sites: () => list("site"),
+    all: () => [...list("app"), ...list("site")],
+    addApp: (bundleId, label) => add("app", bundleId, label, FOCUS_LIMITS.apps),
+    addSite: (value) => add("site", value, value, FOCUS_LIMITS.sites),
     remove(id) {
       db.prepare("DELETE FROM focus_rules WHERE id = ?").run(id);
     },

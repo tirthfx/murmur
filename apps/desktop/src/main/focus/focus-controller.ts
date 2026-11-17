@@ -6,11 +6,12 @@ import {
   type FocusRule,
   type FocusState,
   type FrontApp,
+  siteMatches,
 } from "@murmur/shared";
 import type { Clock, Logger, TimerHandle } from "../helper/types";
 
 export interface FocusControllerDeps {
-  /** Blocked apps; read on every change of the app in front. */
+  /** Blocked apps and sites; read on every change of the app in front or its page. */
   rules: () => FocusRule[];
   /** Session rows; null without a database. */
   sessions: {
@@ -27,6 +28,8 @@ export interface FocusControllerDeps {
   /** Says something on the Bar ("Focus ended"). */
   say: (message: string) => void;
   activateApp: (bundleId: string) => Promise<void>;
+  /** Presses the browser's Back shortcut (Command+[) in that app; false when it could not. */
+  pressBack?: (bundleId: string) => Promise<boolean>;
   /** Murmur's own process: the overlay itself takes the front, and must not count. */
   ownPid: number;
   clock: Clock & { now(): number };
@@ -54,7 +57,14 @@ export interface FocusController {
   refresh(): void;
   /** Murmur is quitting: an open session ends as `quit`. */
   quit(): void;
+  /** Browsers seen this run whose page could not be read (RW-20); never stored. */
+  unavailableBrowsers(): string[];
 }
+
+/** How long Back gets to leave a blocked site before Go back switches app instead. */
+export const BACK_WAIT_MS = 1500;
+/** Time for the browser to take the keyboard back from the overlay. */
+const REFOCUS_MS = 150;
 
 /** When nothing else was used before the blocked app. */
 const FALLBACK_APP = "com.apple.finder";
@@ -74,9 +84,10 @@ export function createFocusController(deps: FocusControllerDeps): FocusControlle
   let timer: TimerHandle | null = null;
   /** The last app in front that was not blocked and not Murmur: where Go back goes. */
   let previous: string | null = null;
-  /** The blocked app the overlay is shown for. */
-  let blocked: string | null = null;
+  /** What the overlay is shown for: an app's bundle id, or a site rule with its browser. */
+  let blocked: { key: string; browser: string | null } | null = null;
   let lastFront: FrontApp | null = null;
+  const unavailable = new Set<string>();
 
   function clearTimer(): void {
     if (timer !== null) clock.clearTimeout(timer);
@@ -134,9 +145,15 @@ export function createFocusController(deps: FocusControllerDeps): FocusControlle
     changed();
   }
 
-  function isBlocked(bundleId: string | null): FocusRule | null {
+  function isBlocked(bundleId: string | null, rules = deps.rules()): FocusRule | null {
     if (!bundleId) return null;
-    return deps.rules().find((rule) => rule.kind === "app" && rule.value === bundleId) ?? null;
+    return rules.find((rule) => rule.kind === "app" && rule.value === bundleId) ?? null;
+  }
+
+  function show(key: string, name: string, browser: string | null): void {
+    if (blocked?.key === key) return;
+    blocked = { key, browser };
+    deps.overlay.show(name);
   }
 
   function check(app: FrontApp): void {
@@ -144,13 +161,19 @@ export function createFocusController(deps: FocusControllerDeps): FocusControlle
       hideOverlay();
       return;
     }
-    const rule = isBlocked(app.bundleId);
-    if (rule) {
-      if (blocked !== rule.value) {
-        blocked = rule.value;
-        deps.overlay.show(app.name ?? rule.label);
-      }
+    const rules = deps.rules();
+    const appRule = isBlocked(app.bundleId, rules);
+    if (appRule) {
+      show(`app:${appRule.value}`, app.name ?? appRule.label, null);
       return;
+    }
+    const site = app.site;
+    if (site) {
+      const siteRule = rules.find((rule) => rule.kind === "site" && siteMatches(rule.value, site));
+      if (siteRule) {
+        show(`site:${siteRule.value}`, siteRule.label, app.bundleId);
+        return;
+      }
     }
     hideOverlay();
     if (app.bundleId) previous = app.bundleId;
@@ -205,14 +228,34 @@ export function createFocusController(deps: FocusControllerDeps): FocusControlle
     },
 
     async goBack() {
-      const target = previous && !isBlocked(previous) ? previous : FALLBACK_APP;
-      await deps.activateApp(target);
+      const elsewhere = async () => {
+        const target = previous && !isBlocked(previous) ? previous : FALLBACK_APP;
+        await deps.activateApp(target);
+      };
+      const browser = blocked?.browser ?? null;
+      // A blocked site: Back in the browser; if the page stays blocked, another app instead.
+      if (browser && deps.pressBack) {
+        const key = blocked?.key;
+        await deps.activateApp(browser);
+        await new Promise<void>((resolve) => clock.setTimeout(resolve, REFOCUS_MS));
+        const pressed = await deps.pressBack(browser).catch(() => false);
+        if (!pressed) {
+          await elsewhere();
+          return;
+        }
+        clock.setTimeout(() => {
+          if (blocked?.key === key) void elsewhere();
+        }, BACK_WAIT_MS);
+        return;
+      }
+      await elsewhere();
     },
 
     frontApp(app) {
       // The overlay itself (or the Hub) in front changes nothing.
       if (app.pid !== null && app.pid === deps.ownPid) return;
       lastFront = app;
+      if (app.siteStatus === "unavailable" && app.name) unavailable.add(app.name);
       check(app);
     },
 
@@ -233,5 +276,7 @@ export function createFocusController(deps: FocusControllerDeps): FocusControlle
       clearTimer();
       current = { status: "off" };
     },
+
+    unavailableBrowsers: () => [...unavailable].sort(),
   };
 }
