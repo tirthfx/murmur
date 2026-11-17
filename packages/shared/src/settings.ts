@@ -2,6 +2,7 @@ import { z } from "zod";
 import { audioDeviceSchema } from "./audio";
 import { developerToolsSchema, jargonPacksSchema } from "./developer";
 import { emailSettingsSchema } from "./email";
+import { focusDurationSchema } from "./focus";
 import { hotkeyTriggerSchema, mouseButtonSchema } from "./hotkeys";
 import { languageCodes, SPEECH_LANGUAGES } from "./languages";
 
@@ -43,6 +44,10 @@ export const settingsSchema = z.strictObject({
   commandShortcut: hotkeyTriggerSchema.nullable(),
   /** Hold to say what to write in Instruct Mode (RW-11). Null turns it off. */
   instructShortcut: hotkeyTriggerSchema.nullable(),
+  /** Turns Focus Mode on or off (RW-18), while Focus Mode is on in Experimental. */
+  focusShortcut: hotkeyTriggerSchema.nullable(),
+  /** Focus Mode (RW-18): the last duration chosen, used by the shortcut. */
+  focus: z.strictObject({ duration: focusDurationSchema }),
   /** Context Instruct Mode may use (RW-11, RW-17). Style and the selection are always offered. */
   instruct: z.strictObject({
     /** Text of the focused field around the caret. */
@@ -114,6 +119,8 @@ export const settingsSchema = z.strictObject({
     commandMode: z.boolean(),
     /** Offer Instruct Mode when a dictation starts like a request to write (RW-16). */
     autoInstruct: z.boolean(),
+    /** Block chosen apps for a while (RW-18 to RW-21). */
+    focusMode: z.boolean(),
   }),
   /** Whisper mode (DC-12): more gain for very quiet speech. */
   whisperMode: z.boolean(),
@@ -167,6 +174,7 @@ export const settingsPatchSchema = settingsSchema
     experimental: true,
     commandMode: true,
     instruct: true,
+    focus: true,
   })
   .partial()
   .strict();
@@ -181,6 +189,8 @@ export const SETTING_KEYS: Record<keyof Settings, string> = {
   commandMode: "command_mode.settings",
   instructShortcut: "hotkey.instruct",
   instruct: "instruct.context",
+  focusShortcut: "hotkey.focus",
+  focus: "focus.settings",
   inputDevice: "audio.input_device",
   languages: "speech.languages",
   cleanupLevel: "cleanup.level",
@@ -212,7 +222,11 @@ export const DEFAULT_EXPERIMENTAL: Settings["experimental"] = {
   pronunciationClips: false,
   commandMode: false,
   autoInstruct: false,
+  focusMode: false,
 };
+
+/** RW-18 defaults. */
+export const DEFAULT_FOCUS: Settings["focus"] = { duration: 25 };
 
 /** RW-11 and RW-17 defaults. */
 export const DEFAULT_INSTRUCT: Settings["instruct"] = {
@@ -241,7 +255,14 @@ export const DEFAULT_SOUNDS: Settings["sounds"] = {
   cancel: false,
 };
 
-export const SHORTCUT_SLOTS = ["hold", "handsFree", "rewrite", "command", "instruct"] as const;
+export const SHORTCUT_SLOTS = [
+  "hold",
+  "handsFree",
+  "rewrite",
+  "command",
+  "instruct",
+  "focus",
+] as const;
 export type ShortcutSlot = (typeof SHORTCUT_SLOTS)[number];
 
 /** A key the Hub captured: the browser's key code and the modifiers held. */
@@ -261,6 +282,7 @@ export const settingsViewSchema = z.strictObject({
     rewrite: z.string(),
     command: z.string(),
     instruct: z.string(),
+    focus: z.string(),
   }),
   /** Null when the helper could not list devices. */
   devices: z.array(audioDeviceSchema).nullable(),

@@ -33,7 +33,11 @@ import {
   DEFAULT_DEVELOPER_TOOLS,
   DEFAULT_COMMAND_MODE,
   DEFAULT_INSTRUCT,
+  DEFAULT_FOCUS,
   INSTRUCT_PANEL_CHANNELS,
+  FOCUS_MESSAGES,
+  FOCUS_OVERLAY_CHANNELS,
+  type BarView,
   INSTRUCT_PANEL_PUSH,
   INSTRUCT_PANEL_SIZE,
   type InstructPanelState,
@@ -83,6 +87,10 @@ import { createInstructPanelIpcHandler } from "./instruct/panel-ipc";
 import { createInstructThreadStore } from "./instruct/thread-store";
 import { createUndoService } from "./undo/undo-service";
 import { createQualityModel } from "./instruct/quality-model";
+import { createFocusController } from "./focus/focus-controller";
+import { createFocusStore } from "./focus/focus-store";
+import { createFocusOverlayIpcHandler } from "./focus/overlay-ipc";
+import { FocusOverlayWindow } from "./focus/overlay-window";
 import { createRewritePanelIpcHandler } from "./rewrites/panel-ipc";
 import {
   rewriteBindings,
@@ -115,6 +123,7 @@ import {
   defaultHotkeyBindings,
   defaultCommandShortcut,
   defaultInstructShortcut,
+  defaultFocusShortcut,
   defaultRewriteShortcut,
   keyPlatform,
 } from "./platform";
@@ -192,6 +201,18 @@ function resolveInstructEntryUrl(): string {
 }
 
 const instructEntryUrl = resolveInstructEntryUrl();
+
+/** The Focus overlay (RW-21), another page of the same build with its own preload. */
+function resolveFocusEntryUrl(): string {
+  if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
+    return new URL("focus.html", `${MAIN_WINDOW_VITE_DEV_SERVER_URL}/`).toString();
+  }
+  return pathToFileURL(
+    path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/focus.html`),
+  ).toString();
+}
+
+const focusEntryUrl = resolveFocusEntryUrl();
 
 /** The Bar is a second page of the same renderer build, with its own preload. */
 function resolveBarEntryUrl(): string {
@@ -340,6 +361,8 @@ const settingsStore = createSettingsStore(database, {
   commandMode: DEFAULT_COMMAND_MODE,
   instructShortcut: defaultInstructShortcut(process.platform),
   instruct: DEFAULT_INSTRUCT,
+  focusShortcut: defaultFocusShortcut(process.platform),
+  focus: DEFAULT_FOCUS,
   inputDevice: "auto",
   languages: [],
   cleanupLevel: "standard",
@@ -368,6 +391,7 @@ const settingsStore = createSettingsStore(database, {
     pronunciationClips: false,
     commandMode: false,
     autoInstruct: false,
+    focusMode: false,
   },
 });
 const keys = keyPlatform(process.platform);
@@ -443,7 +467,13 @@ const barWindow = new BarWindow({
   primaryDisplay: () => displayArea(screen.getPrimaryDisplay()),
   logger: createConsoleLogger("[bar]"),
 });
-const bar = createBarController(barWindow, systemClock);
+/** Focus Mode's time left, drawn on the idle Bar (RW-18). */
+let focusBadge: BarView["focus"] = null;
+const barPort = {
+  render: (view: BarView) => barWindow.render({ ...view, focus: focusBadge }),
+  level: (rmsDb: number) => barWindow.level(rmsDb),
+};
+const bar = createBarController(barPort, systemClock);
 const rewritePanel = new RewritePanelWindow({
   create: (options) => new BrowserWindow(options),
   preloadPath: path.join(__dirname, "rewrite-preload.cjs"),
@@ -964,7 +994,48 @@ const trimRewriteRuns = () => {
 trimRewriteRuns();
 setInterval(trimRewriteRuns, 24 * 60 * 60_000).unref();
 
+// Focus Mode (RW-18 to RW-21, experimental).
+const focusStore = database ? createFocusStore(database) : null;
+// A session left open by a crash ended when Murmur did.
+focusStore?.endOpen("quit");
+const focusOverlay = new FocusOverlayWindow({
+  create: (options) => new BrowserWindow(options),
+  preloadPath: path.join(__dirname, "focus-preload.cjs"),
+  entryUrl: focusEntryUrl,
+  isDevelopment,
+  displayBounds: () => screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).bounds,
+  logger: createConsoleLogger("[focus]"),
+});
+const focus = createFocusController({
+  rules: () => focusStore?.apps() ?? [],
+  sessions: focusStore,
+  enabled: () => settingsStore.get().experimental.focusMode,
+  lastDuration: () => settingsStore.get().focus.duration,
+  saveDuration: (duration) => settingsStore.update({ focus: { duration } }),
+  watchFrontApp: (enabled) => helper.watchFrontApp(enabled),
+  overlay: focusOverlay,
+  say: (message) => bar.dispatch({ type: "warn", message }),
+  activateApp,
+  ownPid: process.pid,
+  clock: systemClock,
+  logger: createConsoleLogger("[focus]"),
+  onChange: (state) => {
+    focusBadge = state.status === "on" ? { endsAt: state.endsAt } : null;
+    barPort.render(bar.getView());
+    tray?.refresh();
+  },
+});
+helper.onFrontApp((front) => focus.frontApp(front));
+helper.onStatusChange((status) => {
+  if (status.state === "ready") focus.helperReady();
+});
+settingsStore.onChange(() => focus.refresh());
+
 hotkeys.onEvent((event) => {
+  if (event.action === "focus.toggle") {
+    if (event.state !== "up") focus.toggle();
+    return;
+  }
   if (event.action === "rewrite") {
     if (event.state === "up" || !event.rewriteId) return;
     if (event.rewriteId === REWRITE_PANEL_BINDING_ID) void rewriteController.open();
@@ -998,6 +1069,9 @@ function createTray(): void {
     snoozeReminder: (choice) => typingReminder.snooze(choice),
     copy: (text) => clipboard.writeText(text),
     quit: () => app.quit(),
+    focusState: () => focus.state(),
+    startFocus: (duration) => focus.start(duration),
+    stopFocus: () => focus.stop("user"),
   });
   tray = controller;
   controller.refresh();
@@ -1445,6 +1519,32 @@ function registerIpc(): void {
     instructModelStatus: () => qualityModel.status(),
     instructModelDownload: () => qualityModel.download(),
     instructModelRemove: () => qualityModel.remove(),
+    focusState: () => focus.state(),
+    focusStart: (duration) => {
+      focus.start(duration);
+      return focus.state();
+    },
+    focusStop: () => {
+      focus.stop("user");
+      return focus.state();
+    },
+    focusApps: () => focusStore?.apps() ?? [],
+    focusAddApp: (input) => {
+      if (!focusStore) return { ok: false, message: "Focus Mode could not open its list." };
+      if (/^(com\.github\.electron|com\.electron\.)/i.test(input.bundleId)) {
+        return { ok: false, message: FOCUS_MESSAGES.self };
+      }
+      const added = focusStore.addApp(input.bundleId, input.label);
+      if (added === "duplicate") return { ok: false, message: FOCUS_MESSAGES.duplicate };
+      if (added === "limit") return { ok: false, message: FOCUS_MESSAGES.limit };
+      focus.refresh();
+      return { ok: true, rule: added };
+    },
+    focusRemoveApp: (id) => {
+      focusStore?.remove(id);
+      focus.refresh();
+    },
+    focusInstalledApps: () => helper.listApps(),
     rewritesMove: (id, step) => rewrites?.move(id, step),
     rewritesDuplicate: (id) =>
       rewrites?.duplicate(id) ?? {
@@ -1489,6 +1589,18 @@ function registerIpc(): void {
   for (const channel of Object.values(REWRITE_PANEL_CHANNELS)) {
     ipcMain.handle(channel, (event, ...args: unknown[]) =>
       handleRewritePanel(channel, event.senderFrame?.url, args),
+    );
+  }
+  const handleFocusOverlay = createFocusOverlayIpcHandler({
+    entryUrl: focusEntryUrl,
+    state: () => focusOverlay.state(),
+    goBack: () => focus.goBack(),
+    pause: () => focus.pause(),
+    turnOff: () => focus.stop("user"),
+  });
+  for (const channel of Object.values(FOCUS_OVERLAY_CHANNELS)) {
+    ipcMain.handle(channel, (event, ...args: unknown[]) =>
+      handleFocusOverlay(channel, event.senderFrame?.url, args),
     );
   }
   const handleInstructPanel = createInstructPanelIpcHandler({
@@ -1566,6 +1678,8 @@ app.on("window-all-closed", () => {
 // Stop the helper before quitting so no child process outlives the app.
 let helperStopped = false;
 app.on("before-quit", (event) => {
+  focus.quit();
+  focusOverlay.close();
   if (helperStopped) return;
   event.preventDefault();
   helperStopped = true;

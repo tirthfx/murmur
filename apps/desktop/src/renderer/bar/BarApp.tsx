@@ -29,7 +29,7 @@ export function BarApp({ api }: { api: MurmurBarApi }) {
     };
   }, [api]);
 
-  const ticking = view?.startedAt != null;
+  const ticking = view?.startedAt != null || view?.focus?.endsAt != null;
   useEffect(() => {
     if (!ticking) return;
     const timer = window.setInterval(() => setNow(Date.now()), 250);

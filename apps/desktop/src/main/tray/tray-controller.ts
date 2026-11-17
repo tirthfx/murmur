@@ -1,4 +1,11 @@
-import { makePrimary, type AudioDevice, type Settings, type SettingsPatch } from "@murmur/shared";
+import {
+  makePrimary,
+  type AudioDevice,
+  type FocusDuration,
+  type FocusState,
+  type Settings,
+  type SettingsPatch,
+} from "@murmur/shared";
 import type { Clock, Logger, TimerHandle } from "../helper/types";
 import type { RecorderEvent } from "../recorder";
 import {
@@ -39,6 +46,10 @@ export interface TrayControllerDeps {
   snoozeReminder(choice: "hour" | "tomorrow" | "off" | "on"): void;
   copy(text: string): void;
   quit(): void;
+  /** Focus Mode now; absent where there is none. */
+  focusState?(): FocusState;
+  startFocus?(duration: FocusDuration): void;
+  stopFocus?(): void;
 }
 
 export interface TrayController {
@@ -85,6 +96,10 @@ export function createTrayController(deps: TrayControllerDeps): TrayController {
             settings.typingReminder.snoozedUntil > deps.clock.now()
           ? "snoozed"
           : "on",
+      focus:
+        settings.experimental.focusMode && deps.focusState
+          ? { state: deps.focusState(), duration: settings.focus.duration }
+          : null,
     };
   }
 
@@ -172,6 +187,12 @@ export function createTrayController(deps: TrayControllerDeps): TrayController {
           return;
         case "reminder":
           deps.snoozeReminder(action.choice);
+          return;
+        case "focus":
+          deps.startFocus?.(action.duration);
+          return;
+        case "focus-off":
+          deps.stopFocus?.();
           return;
         case "quit":
           deps.quit();

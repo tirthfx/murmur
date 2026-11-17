@@ -1,4 +1,12 @@
-import { SPEECH_LANGUAGES, type AudioDevice, type SpeechLanguage } from "@murmur/shared";
+import {
+  FOCUS_DURATIONS,
+  focusDurationLabel,
+  SPEECH_LANGUAGES,
+  type AudioDevice,
+  type FocusDuration,
+  type FocusState,
+  type SpeechLanguage,
+} from "@murmur/shared";
 
 /** What the menu bar icon shows next to the microphone. */
 export type TrayStatus = "idle" | "listening" | "warning";
@@ -16,6 +24,8 @@ export interface TrayState {
   /** A failed dictation can be transcribed again. */
   canRetry: boolean;
   typingReminder: "on" | "snoozed" | "off";
+  /** Focus Mode (RW-18); null while it is off in Experimental. */
+  focus?: { state: FocusState; duration: FocusDuration } | null;
 }
 
 export type TrayAction =
@@ -26,6 +36,8 @@ export type TrayAction =
   | { type: "copy-last" }
   | { type: "retry-last" }
   | { type: "reminder"; choice: "hour" | "tomorrow" | "off" | "on" }
+  | { type: "focus"; duration: FocusDuration }
+  | { type: "focus-off" }
   | { type: "quit" };
 
 /** One menu row, independent of the toolkit that draws it. */
@@ -40,6 +52,19 @@ export type TrayItem =
       checked?: boolean;
       submenu?: TrayItem[];
     };
+
+/** Focus Mode: turn it off, or start it for a chosen time (the last one is checked). */
+function focusItems(focus: NonNullable<TrayState["focus"]>): TrayItem[] {
+  if (focus.state.status !== "off") {
+    return [{ kind: "item", label: "Turn off Focus", action: { type: "focus-off" } }];
+  }
+  return FOCUS_DURATIONS.map((duration) => ({
+    kind: "item" as const,
+    label: focusDurationLabel(duration),
+    checked: focus.duration === duration,
+    action: { type: "focus" as const, duration },
+  }));
+}
 
 function microphoneItems(state: TrayState): TrayItem[] {
   const devices = state.devices ?? [];
@@ -143,6 +168,15 @@ export function trayMenu(state: TrayState): TrayItem[] {
       action: { type: "retry-last" },
     },
     { kind: "item", label: "Typing reminder", submenu: reminderItems(state.typingReminder) },
+    ...(state.focus
+      ? [
+          {
+            kind: "item" as const,
+            label: state.focus.state.status === "off" ? "Start Focus" : "Focus is on",
+            submenu: focusItems(state.focus),
+          },
+        ]
+      : []),
     { kind: "separator" },
     { kind: "item", label: "Quit Murmur", action: { type: "quit" } },
   ];

@@ -1,0 +1,82 @@
+{
+  "description": "Focus Mode (RW-18, RW-19): the app in front while main asks, and the installed apps. Main decides what is blocked.",
+  "messages": [
+    {
+      "id": "m-000090",
+      "type": "focus.watch",
+      "payload": {
+        "enabled": true
+      }
+    },
+    {
+      "id": "m-000090",
+      "type": "response",
+      "payload": {
+        "requestType": "focus.watch",
+        "ok": true,
+        "result": {
+          "watching": true
+        }
+      }
+    },
+    {
+      "id": null,
+      "type": "focus.app",
+      "payload": {
+        "bundleId": "com.apple.Safari",
+        "name": "Safari",
+        "pid": 4211
+      }
+    },
+    {
+      "id": null,
+      "type": "focus.app",
+      "payload": {
+        "bundleId": null,
+        "name": null,
+        "pid": null
+      }
+    },
+    {
+      "id": "m-000091",
+      "type": "apps.list",
+      "payload": {}
+    },
+    {
+      "id": "m-000091",
+      "type": "response",
+      "payload": {
+        "requestType": "apps.list",
+        "ok": true,
+        "result": {
+          "apps": [
+            {
+              "bundleId": "com.apple.Notes",
+              "name": "Notes"
+            },
+            {
+              "bundleId": "com.apple.Safari",
+              "name": "Safari"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "invalidMessages": [
+    {
+      "id": "m-000092",
+      "type": "focus.watch",
+      "payload": {}
+    },
+    {
+      "id": null,
+      "type": "focus.app",
+      "payload": {
+        "bundleId": "com.apple.Safari",
+        "name": "Safari",
+        "pid": "4211"
+      }
+    }
+  ]
+}

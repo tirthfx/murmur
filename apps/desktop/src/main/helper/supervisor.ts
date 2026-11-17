@@ -23,6 +23,8 @@ import {
   type FocusContext,
   type TypingActivity,
   type EditsChanged,
+  type FrontApp,
+  type InstalledApp,
   type EditsWatchInput,
   type MediaPlayback,
   type InsertTextInput,
@@ -109,6 +111,7 @@ export class HelperSupervisor implements PlatformHelper {
   private readonly routeChangedHandlers = new Set<(change: AudioRouteChanged) => void>();
   private readonly typingHandlers = new Set<(activity: TypingActivity) => void>();
   private readonly editsHandlers = new Set<(change: EditsChanged) => void>();
+  private readonly frontAppHandlers = new Set<(app: FrontApp) => void>();
 
   private connection: HelperConnection | null = null;
   private restartTimes: number[] = [];
@@ -361,6 +364,26 @@ export class HelperSupervisor implements PlatformHelper {
   async cancelEdits(): Promise<void> {
     if (!this.connection || this.status.state !== "ready") return;
     await this.connection.request("edits.cancel", {});
+  }
+
+  async watchFrontApp(enabled: boolean): Promise<void> {
+    if (!this.connection || this.status.state !== "ready") {
+      throw new HelperError("HELPER_UNAVAILABLE", "The helper is not running");
+    }
+    await this.connection.request("focus.watch", { enabled });
+  }
+
+  onFrontApp(handler: (app: FrontApp) => void): Unsubscribe {
+    return subscribe(this.frontAppHandlers, handler);
+  }
+
+  async listApps(): Promise<InstalledApp[]> {
+    if (!this.connection || this.status.state !== "ready") return [];
+    try {
+      return (await this.connection.request("apps.list", {})).apps;
+    } catch {
+      return [];
+    }
   }
 
   async foregroundProcesses(): Promise<string[]> {
@@ -625,6 +648,9 @@ export class HelperSupervisor implements PlatformHelper {
         break;
       case "edits.changed":
         for (const handler of this.editsHandlers) handler(event.payload);
+        break;
+      case "focus.app":
+        for (const handler of this.frontAppHandlers) handler(event.payload);
         break;
     }
   }

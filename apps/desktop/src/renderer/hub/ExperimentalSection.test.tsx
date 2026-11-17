@@ -15,6 +15,7 @@ const off = {
   pronunciationClips: false,
   commandMode: false,
   autoInstruct: false,
+  focusMode: false,
 };
 
 afterEach(() => {

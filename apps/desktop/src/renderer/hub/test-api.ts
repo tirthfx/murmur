@@ -14,6 +14,8 @@ export const SAMPLE_SETTINGS: SettingsView = {
     handsFreeShortcut: null,
     rewriteShortcut: null,
     instructShortcut: null,
+    focusShortcut: null,
+    focus: { duration: 25 },
     instruct: { fieldContext: true, memory: true, samples: true, saveThreads: true, model: "fast" },
     commandShortcut: null,
     commandMode: { wakePhrase: "Hey Murmur", wakePhraseEnabled: true },
@@ -51,6 +53,7 @@ export const SAMPLE_SETTINGS: SettingsView = {
       pronunciationClips: false,
       commandMode: false,
       autoInstruct: false,
+      focusMode: false,
     },
   },
   shortcutLabels: {
@@ -59,6 +62,7 @@ export const SAMPLE_SETTINGS: SettingsView = {
     rewrite: "Off",
     command: "Off",
     instruct: "Off",
+    focus: "Off",
   },
   devices: [
     {
@@ -194,6 +198,13 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
       doneBytes: 0,
       message: null,
     }),
+    focusState: vi.fn().mockResolvedValue({ status: "off" }),
+    focusStart: vi.fn().mockResolvedValue({ status: "on", endsAt: null }),
+    focusStop: vi.fn().mockResolvedValue({ status: "off" }),
+    focusApps: vi.fn().mockResolvedValue([]),
+    focusAddApp: vi.fn(),
+    focusRemoveApp: vi.fn().mockResolvedValue(undefined),
+    focusInstalledApps: vi.fn().mockResolvedValue([]),
     importPreview: vi.fn(),
     importApply: vi.fn(),
     voiceProfileView: vi.fn().mockResolvedValue(SAMPLE_PROFILE),

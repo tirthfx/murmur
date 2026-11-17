@@ -1,5 +1,5 @@
 import type { PointerEvent } from "react";
-import type { BarView } from "@murmur/shared";
+import { focusTimeLeft, type BarView } from "@murmur/shared";
 import { describeView, elapsed, meterFill } from "./bar-text";
 import { Icon } from "./icons";
 
@@ -57,7 +57,16 @@ export function BarPill({ view, level, now, onAnswer, ...handlers }: BarPillProp
       </div>
     );
   }
-  const { text, icon } = describeView(view);
+  const described = describeView(view);
+  // While idle, Focus Mode shows its time left (RW-18).
+  const focusText =
+    view.state === "idle" && view.focus
+      ? view.focus.endsAt === null
+        ? "Focus"
+        : `Focus ${focusTimeLeft(view.focus.endsAt, now)}`
+      : null;
+  const text = focusText ?? described.text;
+  const icon = described.icon;
   const recording = view.state === "listening" || view.state === "locked";
   const fill = meterFill(level);
   return (

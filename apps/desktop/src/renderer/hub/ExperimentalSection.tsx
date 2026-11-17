@@ -126,6 +126,12 @@ export function ExperimentalSection({ experimental, onChange }: ExperimentalSect
           onChange={(autoInstruct) => set({ autoInstruct })}
         />
         <Switch
+          label="Focus Mode"
+          description="Cover chosen apps with a notice for 25, 50 or 90 minutes, or until you turn it off. Apps are never quit."
+          value={experimental.focusMode}
+          onChange={(focusMode) => set({ focusMode })}
+        />
+        <Switch
           label="Learn from sent mail"
           description="Learn how you write email from messages you have sent."
           value={false}

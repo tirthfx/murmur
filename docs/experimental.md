@@ -73,6 +73,11 @@ recognition.
 5. Turn on Pronunciation clips, record a word, play it back, delete the entry: the file in
    the clips folder is gone.
 
+## Focus Mode (RW-18 to RW-21)
+
+Covers chosen apps with a notice for 25, 50 or 90 minutes, or until turned off. Its section
+in Settings and its tray menu appear only while it is on. See `focus.md`.
+
 ## Offer Instruct Mode (RW-16)
 
 A dictation that starts like a request to write asks on the Bar for 4 seconds whether to use

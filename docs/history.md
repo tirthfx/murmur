@@ -26,6 +26,9 @@ status `empty`, like "remember that".
 Migration 0015 adds `instruct_threads` and `instruct_history` (one row per Instruct request,
 with its draft and what became of it), kept 30 days, then only counts (see `instruct.md`).
 
+Migration 0016 adds `focus_rules` (blocked apps) and `focus_sessions` (each stretch of Focus
+Mode and why it ended). Nothing about which app was in front is stored (see `focus.md`).
+
 Audio paths are relative to `~/Library/Application Support/Murmur/audio`. Recordings live in `audio/tmp` and expire after 24 hours, when the helper deletes them.
 
 ## Migrations

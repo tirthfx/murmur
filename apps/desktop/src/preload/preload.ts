@@ -53,6 +53,13 @@ const api: MurmurApi = {
   instructModelStatus: () => ipcRenderer.invoke(IPC_CHANNELS.instructModelStatus),
   instructModelDownload: () => ipcRenderer.invoke(IPC_CHANNELS.instructModelDownload),
   instructModelRemove: () => ipcRenderer.invoke(IPC_CHANNELS.instructModelRemove),
+  focusState: () => ipcRenderer.invoke(IPC_CHANNELS.focusState),
+  focusStart: (duration) => ipcRenderer.invoke(IPC_CHANNELS.focusStart, duration),
+  focusStop: () => ipcRenderer.invoke(IPC_CHANNELS.focusStop),
+  focusApps: () => ipcRenderer.invoke(IPC_CHANNELS.focusApps),
+  focusAddApp: (input) => ipcRenderer.invoke(IPC_CHANNELS.focusAddApp, input),
+  focusRemoveApp: (id) => ipcRenderer.invoke(IPC_CHANNELS.focusRemoveApp, id),
+  focusInstalledApps: () => ipcRenderer.invoke(IPC_CHANNELS.focusInstalledApps),
   rewritesSetApplyDirectly: (id, applyDirectly) =>
     ipcRenderer.invoke(IPC_CHANNELS.rewritesSetApplyDirectly, id, applyDirectly),
   importPreview: (request) => ipcRenderer.invoke(IPC_CHANNELS.importPreview, request),

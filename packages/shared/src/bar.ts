@@ -32,6 +32,8 @@ export const barViewSchema = z.strictObject({
   message: z.string().nullable(),
   /** The second line of `ask`: what the question is about. */
   detail: z.string().nullable().optional(),
+  /** Focus Mode is on (RW-18): when it ends, or null until turned off. Shown while idle. */
+  focus: z.strictObject({ endsAt: z.number().nullable() }).nullable().optional(),
 });
 export type BarView = z.infer<typeof barViewSchema>;
 

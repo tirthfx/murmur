@@ -117,4 +117,29 @@ describe("tray menu", () => {
     expect(trayTooltip("listening")).toContain("listening");
     expect(trayTooltip("warning")).toContain("problem");
   });
+
+  it("offers Focus only while it is on in Experimental, with the last duration checked", () => {
+    expect(rows(trayMenu(base)).some((item) => item.label === "Start Focus")).toBe(false);
+    const start = row(
+      { ...base, focus: { state: { status: "off" }, duration: 50 } },
+      "Start Focus",
+    );
+    expect(start.submenu?.map((item) => (item.kind === "item" ? item.label : "-"))).toEqual([
+      "25 minutes",
+      "50 minutes",
+      "90 minutes",
+      "Until turned off",
+    ]);
+    const fifty = start.submenu?.[1];
+    expect(fifty?.kind === "item" && fifty.checked).toBe(true);
+    expect(fifty?.kind === "item" && fifty.action).toEqual({ type: "focus", duration: 50 });
+    const on = row(
+      { ...base, focus: { state: { status: "on", endsAt: null }, duration: 25 } },
+      "Focus is on",
+    );
+    expect(on.submenu?.[0]).toMatchObject({
+      label: "Turn off Focus",
+      action: { type: "focus-off" },
+    });
+  });
 });

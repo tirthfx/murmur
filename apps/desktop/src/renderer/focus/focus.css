@@ -1,0 +1,29 @@
+/* The Focus overlay (RW-21): covers the screen while a blocked app is in front. */
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+.focus-overlay {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(20 20 22 / 0.92);
+  color: #f4f4f5;
+}
+
+.focus-card {
+  max-width: 440px;
+  padding: 32px;
+  border-radius: 16px;
+  background: var(--color-background-surface, #1f1f22);
+  color: var(--color-text-primary, #f4f4f5);
+  box-shadow: 0 12px 48px rgb(0 0 0 / 0.4);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  text-align: center;
+}

@@ -9,6 +9,8 @@ const base: Settings = {
   handsFreeShortcut: null,
   rewriteShortcut: null,
   instructShortcut: null,
+  focusShortcut: null,
+  focus: { duration: 25 },
   instruct: { fieldContext: true, memory: true, samples: true, saveThreads: true, model: "fast" },
   commandShortcut: null,
   commandMode: { wakePhrase: "Hey Murmur", wakePhraseEnabled: true },
@@ -46,6 +48,7 @@ const base: Settings = {
     pronunciationClips: false,
     commandMode: false,
     autoInstruct: false,
+    focusMode: false,
   },
 };
 
@@ -118,6 +121,7 @@ describe("session effects", () => {
       pronunciationClips: false,
       commandMode: false,
       autoInstruct: false,
+      focusMode: false,
     };
     const on = setup({
       playing: true,
@@ -221,6 +225,7 @@ describe("session effects", () => {
           pronunciationClips: false,
           commandMode: false,
           autoInstruct: false,
+          focusMode: false,
         },
         sounds: { start: false, lock: true, success: true, error: false, cancel: false },
       },

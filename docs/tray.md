@@ -15,7 +15,10 @@ In order:
    checked.
 4. **Copy last transcript**: copies the most recent dictation that produced text. Sessions
    that failed are skipped. Disabled when there is nothing to copy.
-5. **Quit Murmur**: always present and enabled.
+5. **Start Focus** (while Focus Mode is on in Experimental): 25, 50 or 90 minutes or until
+   turned off, the last choice checked. While Focus is on it reads **Focus is on**, with
+   **Turn off Focus**. See `focus.md`.
+6. **Quit Murmur**: always present and enabled.
 
 Microphone and language choices are the same settings the Hub shows; a change in one place
 appears in the other.

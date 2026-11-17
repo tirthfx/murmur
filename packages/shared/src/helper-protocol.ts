@@ -20,6 +20,12 @@ import {
   selectionResultSchema,
 } from "./selection";
 import {
+  appsListResultSchema,
+  focusWatchPayloadSchema,
+  focusWatchResultSchema,
+  frontAppPayloadSchema,
+} from "./focus";
+import {
   typingActivityPayloadSchema,
   typingWatchPayloadSchema,
   typingWatchResultSchema,
@@ -255,6 +261,14 @@ export const HELPER_REQUESTS = {
     payload: keysPressPayloadSchema,
     result: keysPressResultSchema,
   },
+  "focus.watch": {
+    payload: focusWatchPayloadSchema,
+    result: focusWatchResultSchema,
+  },
+  "apps.list": {
+    payload: emptyObjectSchema,
+    result: appsListResultSchema,
+  },
 } as const;
 
 export type HelperRequestType = keyof typeof HELPER_REQUESTS;
@@ -285,6 +299,7 @@ export const HELPER_EVENTS = {
   "audio.route.changed": audioRouteChangedPayloadSchema,
   "typing.activity": typingActivityPayloadSchema,
   "edits.changed": editsChangedPayloadSchema,
+  "focus.app": frontAppPayloadSchema,
 } as const;
 
 export type HelperEventType = keyof typeof HELPER_EVENTS;
@@ -407,6 +422,9 @@ export const selectionReadRequestSchema = requestEnvelope(
   selectionReadPayloadSchema,
 );
 export const keysPressRequestSchema = requestEnvelope("keys.press", keysPressPayloadSchema);
+export const focusWatchRequestSchema = requestEnvelope("focus.watch", focusWatchPayloadSchema);
+export const focusAppEventSchema = eventEnvelope("focus.app", frontAppPayloadSchema);
+export const appsListRequestSchema = requestEnvelope("apps.list", emptyObjectSchema);
 export const contextSnapshotRequestSchema = requestEnvelope(
   "context.snapshot",
   contextSnapshotPayloadSchema,
