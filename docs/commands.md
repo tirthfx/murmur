@@ -4,6 +4,9 @@ Spoken commands that act on selected text (M3, RW-08 and RW-09). An experimental
 by default: Settings, Experimental, Command Mode. Raw speech is never inserted in Command
 Mode; a command that is not understood changes nothing.
 
+Command Mode is on Pro and above (RW-22, see `settings.md`). On Free, its Experimental
+switch says "Available on Pro", and neither the key nor the wake phrase does anything.
+
 ## Two ways to give a command
 
 - **The Command Mode key.** Right Command by default (change or turn it off in the Command

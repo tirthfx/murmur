@@ -60,6 +60,8 @@ Control+Z in the panel takes the last inserted draft out of the app again (see `
 - Settings, Instruct Mode, Model picks the model for new threads. The panel's Fast/Quality
   switch applies to the next request and keeps the thread. Without the Quality model the switch
   stays on Fast and says "Download a Quality model in Settings".
+- Quality is on Pro and above (RW-22, see `settings.md`). On Free, Instruct Mode uses Fast,
+  and the switch says "Available on Pro".
 
 ## Auto-detect (RW-16, experimental)
 
@@ -93,7 +95,8 @@ mention Thursday and no other day, a short one must stay under 40 words, "send t
 and a meeting request must give a message to the person with no claim it was done, and the
 follow-up "make it shorter" must shorten the same draft and keep Thursday. Measured
 2026-11-13 on the default model: 5 of 5, 0.3 to 0.9 s each. `node scripts/bench-instruct.mjs
-quality` runs the same checks on the Quality model once it is downloaded.
+quality` runs the same checks on the Quality model. Measured 2026-11-17: 5 of 5, 0.6 to 1.9 s
+each. Without the model it says how to download it.
 
 ## Manual test
 
