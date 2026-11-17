@@ -18,6 +18,7 @@ public struct MessageRouter: Sendable {
     private let processes: ProcessController?
     private let selection: SelectionController?
     private let keys: KeysController?
+    private let focus: FocusWatchController?
     private var handshakeComplete = false
 
     /// Set once a `shutdown` request has been answered. The host exits after writing the reply.
@@ -38,6 +39,7 @@ public struct MessageRouter: Sendable {
         processes: ProcessController? = nil,
         selection: SelectionController? = nil,
         keys: KeysController? = nil,
+        focus: FocusWatchController? = nil,
         uptimeMs: @escaping @Sendable () -> Int
     ) {
         self.helperVersion = helperVersion
@@ -54,6 +56,7 @@ public struct MessageRouter: Sendable {
         self.processes = processes
         self.selection = selection
         self.keys = keys
+        self.focus = focus
         self.uptimeMs = uptimeMs
     }
 
@@ -180,6 +183,11 @@ public struct MessageRouter: Sendable {
                 return [Self.failure(id: id, requestType: type, .unsupportedRequest, "Unknown request type")]
             }
             return [keys.press(id: id, payload: envelope.payload)]
+        case "focus.watch", "apps.list":
+            guard let focus else {
+                return [Self.failure(id: id, requestType: type, .unsupportedRequest, "Unknown request type")]
+            }
+            return [focus.handle(id: id, type: type, payload: envelope.payload)]
         case "insert.text", "insert.copy":
             guard let insertion else {
                 return [Self.failure(id: id, requestType: type, .unsupportedRequest, "Unknown request type")]

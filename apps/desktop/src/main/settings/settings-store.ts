@@ -18,13 +18,19 @@ export interface SettingsStore {
 
 const SLOT_FIELD: Record<
   ShortcutSlot,
-  "holdShortcut" | "handsFreeShortcut" | "rewriteShortcut" | "commandShortcut" | "instructShortcut"
+  | "holdShortcut"
+  | "handsFreeShortcut"
+  | "rewriteShortcut"
+  | "commandShortcut"
+  | "instructShortcut"
+  | "focusShortcut"
 > = {
   hold: "holdShortcut",
   handsFree: "handsFreeShortcut",
   rewrite: "rewriteShortcut",
   command: "commandShortcut",
   instruct: "instructShortcut",
+  focus: "focusShortcut",
 };
 
 /**

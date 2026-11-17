@@ -15,6 +15,8 @@ const defaults: Settings = {
   handsFreeShortcut: null,
   rewriteShortcut: null,
   instructShortcut: null,
+  focusShortcut: null,
+  focus: { duration: 25 },
   instruct: { fieldContext: true, memory: true, samples: true, saveThreads: true, model: "fast" },
   commandShortcut: null,
   commandMode: { wakePhrase: "Hey Murmur", wakePhraseEnabled: true },
@@ -52,6 +54,7 @@ const defaults: Settings = {
     pronunciationClips: false,
     commandMode: false,
     autoInstruct: false,
+    focusMode: false,
   },
 };
 
@@ -83,6 +86,7 @@ describe("settings service", () => {
       rewrite: "Off",
       command: "Off",
       instruct: "Off",
+      focus: "Off",
     });
     expect(view.devices?.[0]?.name).toBe("Desk Mic");
   });
@@ -156,6 +160,19 @@ describe("settings service", () => {
       mode: "hold",
     });
     expect(bindingsFor(defaults).some((binding) => binding.action === "instruct.mode")).toBe(false);
+  });
+
+  it("binds the Focus shortcut as a press, only while Focus Mode is on", () => {
+    const trigger = {
+      type: "key" as const,
+      keyCode: 3,
+      modifiers: ["control" as const, "option" as const],
+    };
+    const settings = { ...defaults, focusShortcut: trigger };
+    expect(bindingsFor(settings).some((binding) => binding.action === "focus.toggle")).toBe(false);
+    expect(
+      bindingsFor({ ...settings, experimental: { ...defaults.experimental, focusMode: true } }),
+    ).toContainEqual({ id: "focus-toggle", action: "focus.toggle", trigger, mode: "press" });
   });
 
   it("binds the Command Mode key, exclusive, only while Command Mode is on", () => {

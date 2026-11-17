@@ -88,6 +88,15 @@ export function bindingsFor(
       mode: "hold",
     });
   }
+  // Focus Mode (RW-18, experimental): a press turns it on or off.
+  if (settings.experimental.focusMode && settings.focusShortcut) {
+    bindings.push({
+      id: "focus-toggle",
+      action: "focus.toggle",
+      trigger: settings.focusShortcut,
+      mode: "press",
+    });
+  }
   if (cancelKeyCode !== null) {
     bindings.push({
       id: "dictate-cancel",
@@ -141,6 +150,7 @@ export function createSettingsService(deps: SettingsServiceDeps): SettingsServic
         rewrite: settings.rewriteShortcut ? platform.label(settings.rewriteShortcut) : "Off",
         command: settings.commandShortcut ? platform.label(settings.commandShortcut) : "Off",
         instruct: settings.instructShortcut ? platform.label(settings.instructShortcut) : "Off",
+        focus: settings.focusShortcut ? platform.label(settings.focusShortcut) : "Off",
       },
       devices,
     };
@@ -168,6 +178,7 @@ export function createSettingsService(deps: SettingsServiceDeps): SettingsServic
           rewrite: settings.rewriteShortcut,
           command: settings.commandShortcut,
           instruct: settings.instructShortcut,
+          focus: settings.focusShortcut,
         },
         platform,
         deps.otherShortcuts?.() ?? [],

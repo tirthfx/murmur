@@ -9,6 +9,20 @@ import {
 } from "./permissions";
 import { helperStatusSchema, type HelperStatus } from "./platform-helper";
 import {
+  focusAddResultSchema,
+  focusAppInputSchema,
+  focusDurationSchema,
+  focusRuleSchema,
+  focusStateSchema,
+  installedAppSchema,
+  type FocusAddResult,
+  type FocusAppInput,
+  type FocusDuration,
+  type FocusRule,
+  type FocusState,
+  type InstalledApp,
+} from "./focus";
+import {
   capturedKeySchema,
   settingsPatchSchema,
   settingsViewSchema,
@@ -161,6 +175,13 @@ export const IPC_CHANNELS = {
   instructModelStatus: "instruct:model-status",
   instructModelDownload: "instruct:model-download",
   instructModelRemove: "instruct:model-remove",
+  focusState: "focus:state",
+  focusStart: "focus:start",
+  focusStop: "focus:stop",
+  focusApps: "focus:apps",
+  focusAddApp: "focus:add-app",
+  focusRemoveApp: "focus:remove-app",
+  focusInstalledApps: "focus:installed-apps",
 } as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
@@ -406,6 +427,17 @@ export const IPC_CONTRACT = {
   [IPC_CHANNELS.instructModelStatus]: { args: z.tuple([]), result: instructModelStatusSchema },
   [IPC_CHANNELS.instructModelDownload]: { args: z.tuple([]), result: instructModelStatusSchema },
   [IPC_CHANNELS.instructModelRemove]: { args: z.tuple([]), result: instructModelStatusSchema },
+  // Focus Mode (RW-18, RW-19).
+  [IPC_CHANNELS.focusState]: { args: z.tuple([]), result: focusStateSchema },
+  [IPC_CHANNELS.focusStart]: { args: z.tuple([focusDurationSchema]), result: focusStateSchema },
+  [IPC_CHANNELS.focusStop]: { args: z.tuple([]), result: focusStateSchema },
+  [IPC_CHANNELS.focusApps]: { args: z.tuple([]), result: z.array(focusRuleSchema) },
+  [IPC_CHANNELS.focusAddApp]: {
+    args: z.tuple([focusAppInputSchema]),
+    result: focusAddResultSchema,
+  },
+  [IPC_CHANNELS.focusRemoveApp]: { args: z.tuple([z.string().min(1)]), result: z.void() },
+  [IPC_CHANNELS.focusInstalledApps]: { args: z.tuple([]), result: z.array(installedAppSchema) },
 } as const satisfies Record<IpcChannel, { args: z.ZodType; result: z.ZodType }>;
 
 export function isIpcChannel(value: unknown): value is IpcChannel {
@@ -513,6 +545,17 @@ export interface MurmurApi {
   instructModelDownload(): Promise<InstructModelStatus>;
   /** Deletes the Quality model's files; Instruct goes back to Fast. */
   instructModelRemove(): Promise<InstructModelStatus>;
+  /** Focus Mode now (RW-18). */
+  focusState(): Promise<FocusState>;
+  /** Turns Focus on for this long; the duration is remembered for the shortcut. */
+  focusStart(duration: FocusDuration): Promise<FocusState>;
+  focusStop(): Promise<FocusState>;
+  /** Blocked apps (RW-19), by name. */
+  focusApps(): Promise<FocusRule[]>;
+  focusAddApp(input: FocusAppInput): Promise<FocusAddResult>;
+  focusRemoveApp(id: string): Promise<void>;
+  /** Installed apps to choose from; empty when the helper cannot list them. */
+  focusInstalledApps(): Promise<InstalledApp[]>;
   /** Main asks the Hub to show a page (for example after a Bar prompt). */
   onOpenPage(handler: (pageId: string) => void): () => void;
   /** Input levels during a microphone check, about 20 a second. Returns an unsubscribe. */

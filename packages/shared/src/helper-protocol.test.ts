@@ -26,6 +26,9 @@ import {
   procForegroundRequestSchema,
   selectionReadRequestSchema,
   keysPressRequestSchema,
+  focusWatchRequestSchema,
+  focusAppEventSchema,
+  appsListRequestSchema,
   editsWatchRequestSchema,
   typingWatchRequestSchema,
   mediaPlaybackRequestSchema,
@@ -149,6 +152,12 @@ function validateMessage(message: unknown): boolean {
       return selectionReadRequestSchema.safeParse(message).success;
     case "keys.press":
       return keysPressRequestSchema.safeParse(message).success;
+    case "focus.watch":
+      return focusWatchRequestSchema.safeParse(message).success;
+    case "focus.app":
+      return focusAppEventSchema.safeParse(message).success;
+    case "apps.list":
+      return appsListRequestSchema.safeParse(message).success;
     case "response": {
       const response = responseSchema.safeParse(message);
       if (!response.success) return false;

@@ -11,6 +11,7 @@ import {
   type SettingsView,
 } from "@murmur/shared";
 import { CommandModeSection } from "./CommandModeSection";
+import { FocusSection } from "./FocusSection";
 import { ExperimentalSection } from "./ExperimentalSection";
 import { InstructSection } from "./InstructSection";
 import { LanguagesField } from "./LanguagesField";
@@ -188,6 +189,7 @@ export function SettingsSection() {
       {settings.experimental.commandMode ? (
         <CommandModeSection view={view} onSaved={setView} update={update} />
       ) : null}
+      {settings.experimental.focusMode ? <FocusSection view={view} onSaved={setView} /> : null}
       {problem ? <Banner status="error" title={problem} /> : null}
     </VStack>
   );

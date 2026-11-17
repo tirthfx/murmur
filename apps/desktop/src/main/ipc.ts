@@ -4,6 +4,12 @@ import {
   type AppInfo,
   type CapturedKey,
   type InstructModelStatus,
+  type FocusAddResult,
+  type FocusAppInput,
+  type FocusDuration,
+  type FocusRule,
+  type FocusState,
+  type InstalledApp,
   type InstructThread,
   type InstructThreadSummary,
   type HelperStatus,
@@ -100,6 +106,13 @@ export interface IpcDeps {
   instructModelStatus: () => InstructModelStatus | Promise<InstructModelStatus>;
   instructModelDownload: () => InstructModelStatus | Promise<InstructModelStatus>;
   instructModelRemove: () => InstructModelStatus | Promise<InstructModelStatus>;
+  focusState: () => FocusState;
+  focusStart: (duration: FocusDuration) => FocusState;
+  focusStop: () => FocusState;
+  focusApps: () => FocusRule[];
+  focusAddApp: (input: FocusAppInput) => FocusAddResult;
+  focusRemoveApp: (id: string) => void;
+  focusInstalledApps: () => Promise<InstalledApp[]>;
   importPreview: (request: ImportRequest) => ImportPreview;
   importApply: (request: ImportRequest) => ImportResult;
   voiceProfileView: () => VoiceProfileView;
@@ -233,6 +246,20 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.instructModelDownload();
       case IPC_CHANNELS.instructModelRemove:
         return deps.instructModelRemove();
+      case IPC_CHANNELS.focusState:
+        return deps.focusState();
+      case IPC_CHANNELS.focusStart:
+        return deps.focusStart(request.args[0] as FocusDuration);
+      case IPC_CHANNELS.focusStop:
+        return deps.focusStop();
+      case IPC_CHANNELS.focusApps:
+        return deps.focusApps();
+      case IPC_CHANNELS.focusAddApp:
+        return deps.focusAddApp(request.args[0] as FocusAppInput);
+      case IPC_CHANNELS.focusRemoveApp:
+        return deps.focusRemoveApp(request.args[0] as string);
+      case IPC_CHANNELS.focusInstalledApps:
+        return deps.focusInstalledApps();
       case IPC_CHANNELS.rewritesSetApplyDirectly:
         return deps.rewritesSetApplyDirectly(request.args[0] as string, request.args[1] as boolean);
       case IPC_CHANNELS.writingSamplesList:

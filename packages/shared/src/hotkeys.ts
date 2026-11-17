@@ -29,6 +29,7 @@ export const HOTKEY_ACTIONS = [
   "instruct.mode",
   "rewrite",
   "press.enter",
+  "focus.toggle",
 ] as const;
 export type HotkeyAction = (typeof HOTKEY_ACTIONS)[number];
 

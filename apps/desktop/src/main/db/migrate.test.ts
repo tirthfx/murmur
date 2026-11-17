@@ -26,6 +26,8 @@ describe("migrations", () => {
       "audio_chunks",
       "command_runs",
       "dictionary",
+      "focus_rules",
+      "focus_sessions",
       "history",
       "instruct_history",
       "instruct_threads",

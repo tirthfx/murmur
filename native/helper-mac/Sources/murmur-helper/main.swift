@@ -97,6 +97,7 @@ var host = HelperHost(
         processes: ProcessController(table: SystemProcessTable()),
         selection: selection,
         keys: KeysController(keys: keyPoster, permissions: permissions, frontmostBundleId: { Frontmost.bundleId() }),
+        focus: FocusWatchController(source: SystemAppsSource(), emit: output.send),
         uptimeMs: HostInfo.uptimeProvider()))
 Log.info("started, helper \(ProtocolConstants.helperVersion), protocol \(ProtocolConstants.protocolVersion)")
 output.send(host.greeting())

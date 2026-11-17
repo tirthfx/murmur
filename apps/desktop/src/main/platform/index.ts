@@ -5,6 +5,7 @@ import { createMacHelper, type MacHelperDeps } from "./mac-helper";
 import type { KeyPlatform } from "../settings/shortcuts";
 import {
   MAC_DEFAULT_COMMAND_TRIGGER,
+  MAC_DEFAULT_FOCUS_TRIGGER,
   MAC_DEFAULT_HOTKEY_BINDINGS,
   MAC_DEFAULT_INSTRUCT_TRIGGER,
   MAC_DEFAULT_REWRITE_TRIGGER,
@@ -56,6 +57,11 @@ export function defaultRewriteShortcut(platform: NodeJS.Platform): HotkeyTrigger
 /** The default Command Mode key for this OS, or null when there is none. */
 export function defaultCommandShortcut(platform: NodeJS.Platform): HotkeyTrigger | null {
   return platform === "darwin" ? MAC_DEFAULT_COMMAND_TRIGGER : null;
+}
+
+/** The default Focus Mode shortcut for this OS, or null when there is none. */
+export function defaultFocusShortcut(platform: NodeJS.Platform): HotkeyTrigger | null {
+  return platform === "darwin" ? MAC_DEFAULT_FOCUS_TRIGGER : null;
 }
 
 /** The default Instruct key for this OS, or null when there is none. */

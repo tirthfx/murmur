@@ -18,6 +18,7 @@ export const SLOT_NAMES: Record<ShortcutSlot, string> = {
   rewrite: "Rewrite",
   command: "Command Mode",
   instruct: "Instruct Mode",
+  focus: "Focus Mode",
 };
 
 export function sameTrigger(a: HotkeyTrigger, b: HotkeyTrigger): boolean {
@@ -106,5 +107,5 @@ export function checkShortcut(
   ][]) {
     if (otherSlot !== slot && trigger) used.push({ use: SLOT_NAMES[otherSlot], trigger });
   }
-  return checkTrigger(key, [...used, ...extra], platform, slot === "rewrite");
+  return checkTrigger(key, [...used, ...extra], platform, slot === "rewrite" || slot === "focus");
 }

@@ -27,6 +27,15 @@ export const MAC_DEFAULT_COMMAND_TRIGGER: HotkeyTrigger = {
   modifiers: [],
 };
 
+/**
+ * Control+Option+F turns Focus Mode on or off (RW-18). Not Option+F: on a Mac that types "ƒ".
+ */
+export const MAC_DEFAULT_FOCUS_TRIGGER: HotkeyTrigger = {
+  type: "key",
+  keyCode: 3,
+  modifiers: ["control", "option"],
+};
+
 /** Control+Option+I, held while speaking (RW-11). */
 export const MAC_DEFAULT_INSTRUCT_TRIGGER: HotkeyTrigger = {
   type: "key",

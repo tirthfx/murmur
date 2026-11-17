@@ -30,6 +30,7 @@ export default defineConfig(({ command }) => ({
         bar: fileURLToPath(new URL("./bar.html", import.meta.url)),
         rewrite: fileURLToPath(new URL("./rewrite.html", import.meta.url)),
         instruct: fileURLToPath(new URL("./instruct.html", import.meta.url)),
+        focus: fileURLToPath(new URL("./focus.html", import.meta.url)),
       },
     },
   },

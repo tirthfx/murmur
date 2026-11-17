@@ -79,9 +79,14 @@ const config: ForgeConfig = {
           config: "vite.preload.config.ts",
           target: "preload",
         },
+        {
+          entry: "src/preload/focus-preload.ts",
+          config: "vite.preload.config.ts",
+          target: "preload",
+        },
       ],
-      // One renderer build with four pages: index.html (Hub), bar.html (Bar), rewrite.html and
-      // instruct.html (the panels).
+      // One renderer build with five pages: index.html (Hub), bar.html (Bar), rewrite.html and
+      // instruct.html (the panels), focus.html (the Focus overlay).
       renderer: [{ name: "main_window", config: "vite.renderer.config.ts" }],
     }),
   ],

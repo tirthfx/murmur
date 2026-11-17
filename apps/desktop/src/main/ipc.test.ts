@@ -82,6 +82,13 @@ function setup() {
     instructModelStatus: vi.fn(),
     instructModelDownload: vi.fn(),
     instructModelRemove: vi.fn(),
+    focusState: vi.fn(),
+    focusStart: vi.fn(),
+    focusStop: vi.fn(),
+    focusApps: vi.fn(),
+    focusAddApp: vi.fn(),
+    focusRemoveApp: vi.fn(),
+    focusInstalledApps: vi.fn(),
     importPreview: vi.fn(),
     importApply: vi.fn(),
     voiceProfileView: vi.fn(() => ({

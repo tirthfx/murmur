@@ -28,10 +28,12 @@ describe("Bar pill", () => {
       "retry",
     ],
     [view("cancelled"), "Cancelled", "cancel"],
+    [view("idle", { focus: { endsAt: now + 24 * 60_000 + 5_000 } }), "Focus 24:05", "mic"],
+    [view("idle", { focus: { endsAt: null } }), "Focus", "mic"],
   ];
 
   for (const [current, text, icon] of cases) {
-    it(`${current.state}${current.words ? ` (${current.words})` : ""} shows "${text}" with the ${icon} icon`, () => {
+    it(`${current.state}${current.words ? ` (${current.words})` : ""}${current.focus ? " in Focus" : ""} shows "${text}" with the ${icon} icon`, () => {
       const { container } = render(<BarPill view={current} level={null} now={now} />);
       const pill = container.querySelector(".bar-pill");
       expect(pill?.getAttribute("data-state")).toBe(current.state);
