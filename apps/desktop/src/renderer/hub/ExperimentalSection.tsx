@@ -4,13 +4,15 @@ import { Heading } from "@astryxdesign/core/Heading";
 import { Switch } from "@astryxdesign/core/Switch";
 import { Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
-import type { SettingsView } from "@murmur/shared";
+import { lockedText, planAllows, type PlanTier, type SettingsView } from "@murmur/shared";
 
 type Experimental = SettingsView["settings"]["experimental"];
 
 interface ExperimentalSectionProps {
   experimental: Experimental;
   onChange: (experimental: Experimental) => void;
+  /** The local plan (RW-22): Command Mode and Focus Mode are on Pro and up. */
+  plan?: PlanTier;
 }
 
 /** How long "Search for ring" runs (DC-15). */
@@ -20,7 +22,13 @@ export const RING_SEARCH_SECONDS = 30;
  * Options that are still being tried out (HB-18). All are off by default. Nothing here asks
  * macOS for a new permission.
  */
-export function ExperimentalSection({ experimental, onChange }: ExperimentalSectionProps) {
+export function ExperimentalSection({
+  experimental,
+  onChange,
+  plan = "enterprise",
+}: ExperimentalSectionProps) {
+  const commandLocked = !planAllows(plan, "commandMode");
+  const focusLocked = !planAllows(plan, "focusMode");
   const [mediaAvailable, setMediaAvailable] = useState<boolean | null>(null);
   const [searchLeft, setSearchLeft] = useState<number | null>(null);
   const [searchDone, setSearchDone] = useState(false);
@@ -118,6 +126,9 @@ export function ExperimentalSection({ experimental, onChange }: ExperimentalSect
           description="Say a command to change selected text: hold the Command Mode key, or start a dictation with the wake phrase. With nothing selected it acts on your last dictation."
           value={experimental.commandMode}
           onChange={(commandMode) => set({ commandMode })}
+          {...(commandLocked
+            ? { isDisabled: true, disabledMessage: lockedText("commandMode") }
+            : {})}
         />
         <Switch
           label="Offer Instruct Mode"
@@ -130,6 +141,7 @@ export function ExperimentalSection({ experimental, onChange }: ExperimentalSect
           description="Cover chosen apps with a notice for 25, 50 or 90 minutes, or until you turn it off. Apps are never quit."
           value={experimental.focusMode}
           onChange={(focusMode) => set({ focusMode })}
+          {...(focusLocked ? { isDisabled: true, disabledMessage: lockedText("focusMode") } : {})}
         />
         <Switch
           label="Learn from sent mail"

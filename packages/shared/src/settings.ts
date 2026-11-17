@@ -4,6 +4,7 @@ import { developerToolsSchema, jargonPacksSchema } from "./developer";
 import { emailSettingsSchema } from "./email";
 import { focusDurationSchema } from "./focus";
 import { hotkeyTriggerSchema, mouseButtonSchema } from "./hotkeys";
+import { planTierSchema } from "./plans";
 import { languageCodes, SPEECH_LANGUAGES } from "./languages";
 
 export { SPEECH_LANGUAGES, type SpeechLanguage } from "./languages";
@@ -146,6 +147,8 @@ export const settingsSchema = z.strictObject({
   contextAwareness: z.boolean(),
   /** Saying "press enter" at the end of a dictation presses Return (DC-36). */
   pressEnterCommand: z.boolean(),
+  /** The local plan tier (RW-22, TM-25): unlocks features for testing; nothing is charged. */
+  plan: planTierSchema,
   /** True once first-run setup was finished (DC-44). */
   setupComplete: z.boolean(),
 });
@@ -175,6 +178,7 @@ export const settingsPatchSchema = settingsSchema
     commandMode: true,
     instruct: true,
     focus: true,
+    plan: true,
   })
   .partial()
   .strict();
@@ -191,6 +195,7 @@ export const SETTING_KEYS: Record<keyof Settings, string> = {
   instruct: "instruct.context",
   focusShortcut: "hotkey.focus",
   focus: "focus.settings",
+  plan: "plan.tier",
   inputDevice: "audio.input_device",
   languages: "speech.languages",
   cleanupLevel: "cleanup.level",

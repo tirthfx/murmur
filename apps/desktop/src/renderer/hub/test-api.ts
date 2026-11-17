@@ -16,6 +16,7 @@ export const SAMPLE_SETTINGS: SettingsView = {
     instructShortcut: null,
     focusShortcut: null,
     focus: { duration: 25 },
+    plan: "enterprise",
     instruct: { fieldContext: true, memory: true, samples: true, saveThreads: true, model: "fast" },
     commandShortcut: null,
     commandMode: { wakePhrase: "Hey Murmur", wakePhraseEnabled: true },

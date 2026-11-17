@@ -17,6 +17,7 @@ const defaults: Settings = {
   instructShortcut: null,
   focusShortcut: null,
   focus: { duration: 25 },
+  plan: "enterprise",
   instruct: { fieldContext: true, memory: true, samples: true, saveThreads: true, model: "fast" },
   commandShortcut: null,
   commandMode: { wakePhrase: "Hey Murmur", wakePhraseEnabled: true },
@@ -160,6 +161,26 @@ describe("settings service", () => {
       mode: "hold",
     });
     expect(bindingsFor(defaults).some((binding) => binding.action === "instruct.mode")).toBe(false);
+  });
+
+  it("binds Command Mode and Focus only from Pro up, and Pro unlocks them at once", () => {
+    const command = { type: "key" as const, keyCode: 54, modifiers: [] };
+    const focus = {
+      type: "key" as const,
+      keyCode: 3,
+      modifiers: ["control" as const, "option" as const],
+    };
+    const settings = {
+      ...defaults,
+      commandShortcut: command,
+      focusShortcut: focus,
+      experimental: { ...defaults.experimental, commandMode: true, focusMode: true },
+    };
+    const actions = (plan: typeof defaults.plan) =>
+      bindingsFor({ ...settings, plan }).map((binding) => binding.action);
+    expect(actions("free")).not.toContain("command.mode");
+    expect(actions("free")).not.toContain("focus.toggle");
+    expect(actions("pro")).toEqual(expect.arrayContaining(["command.mode", "focus.toggle"]));
   });
 
   it("binds the Focus shortcut as a press, only while Focus Mode is on", () => {

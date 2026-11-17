@@ -3,7 +3,12 @@ import { NumberInput } from "@astryxdesign/core/NumberInput";
 import { Switch } from "@astryxdesign/core/Switch";
 import { Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
-import { REWRITE_CATEGORIES, type Rewrite, type RewriteAutoApply } from "@murmur/shared";
+import {
+  lockedText,
+  REWRITE_CATEGORIES,
+  type Rewrite,
+  type RewriteAutoApply,
+} from "@murmur/shared";
 
 const CATEGORY_NAMES: Record<(typeof REWRITE_CATEGORIES)[number], string> = {
   personal: "Personal",
@@ -21,10 +26,13 @@ export function RewriteAutoApplyControl({
   rewrite,
   shadowedBy,
   onChanged,
+  locked = false,
 }: {
   rewrite: Rewrite;
   shadowedBy: string | null;
   onChanged: () => void;
+  /** The plan has no auto-apply (RW-22); one already on can still be turned off. */
+  locked?: boolean;
 }) {
   const current: RewriteAutoApply = {
     enabled: rewrite.autoApply,
@@ -42,6 +50,9 @@ export function RewriteAutoApplyControl({
         description="Runs after cleanup; if it takes over 3 seconds, the text goes in as cleaned."
         value={rewrite.autoApply}
         onChange={(enabled) => void save({ enabled })}
+        {...(locked && !rewrite.autoApply
+          ? { isDisabled: true, disabledMessage: lockedText("autoApply") }
+          : {})}
       />
       {rewrite.autoApply ? (
         <>

@@ -7,7 +7,13 @@ import { Selector } from "@astryxdesign/core/Selector";
 import { Text } from "@astryxdesign/core/Text";
 import { Switch } from "@astryxdesign/core/Switch";
 import { VStack } from "@astryxdesign/core/VStack";
-import type { InstructModelStatus, SettingsPatch, SettingsView } from "@murmur/shared";
+import {
+  lockedText,
+  planAllows,
+  type InstructModelStatus,
+  type SettingsPatch,
+  type SettingsView,
+} from "@murmur/shared";
 import { ShortcutField } from "./ShortcutField";
 
 interface InstructSectionProps {
@@ -144,6 +150,11 @@ export function InstructSection({ view, onSaved, update }: InstructSectionProps)
           ]}
           onChange={(model) => set({ model: model === "quality" ? "quality" : "fast" })}
         />
+        {planAllows(view.settings.plan, "qualityModel") ? null : (
+          <Text size="sm" color="secondary">
+            Quality: {lockedText("qualityModel")}
+          </Text>
+        )}
         <QualityModelField />
         <Switch
           label="Use the field's text"

@@ -8,7 +8,13 @@ import { Text } from "@astryxdesign/core/Text";
 import { TextArea } from "@astryxdesign/core/TextArea";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { VStack } from "@astryxdesign/core/VStack";
-import { REWRITE_LIMITS, type Rewrite, type RewriteSaveResult } from "@murmur/shared";
+import {
+  planAllows,
+  REWRITE_LIMITS,
+  type PlanTier,
+  type Rewrite,
+  type RewriteSaveResult,
+} from "@murmur/shared";
 import { RewriteAutoApplyControl } from "./RewriteAutoApplyControl";
 import { RewriteShortcutControl } from "./RewriteShortcutControl";
 
@@ -27,6 +33,7 @@ export function RewritesPage() {
   const [items, setItems] = useState<Rewrite[] | null>(null);
   const [draft, setDraft] = useState<Draft>(EMPTY);
   const [problem, setProblem] = useState<string | null>(null);
+  const [plan, setPlan] = useState<PlanTier>("enterprise");
 
   const reload = useCallback(async () => {
     try {
@@ -39,6 +46,10 @@ export function RewritesPage() {
 
   useEffect(() => {
     void reload();
+    window.murmur.getSettings().then(
+      (view) => setPlan(view.settings.plan),
+      () => {},
+    );
   }, [reload]);
 
   /** Shows a refusal, or reloads; true when it worked. */
@@ -161,6 +172,7 @@ export function RewritesPage() {
                               .find((other) => other.enabled && other.autoApply)?.name ?? null
                           }
                           onChanged={() => void reload()}
+                          locked={!planAllows(plan, "autoApply")}
                         />
                       </>
                     ) : null}

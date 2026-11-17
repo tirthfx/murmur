@@ -1,5 +1,6 @@
 import {
   REWRITE_PANEL_BINDING_ID,
+  planAllows,
   type AudioDevice,
   type CapturedKey,
   type HotkeyBinding,
@@ -71,7 +72,12 @@ export function bindingsFor(
     });
   }
   // Command Mode (RW-08, experimental): exclusive, so Command+C never starts it.
-  if (settings.experimental.commandMode && settings.commandShortcut) {
+  // Command Mode and Focus Mode are on Pro and up (RW-22).
+  if (
+    settings.experimental.commandMode &&
+    settings.commandShortcut &&
+    planAllows(settings.plan, "commandMode")
+  ) {
     bindings.push({
       id: "command-mode",
       action: "command.mode",
@@ -89,7 +95,11 @@ export function bindingsFor(
     });
   }
   // Focus Mode (RW-18, experimental): a press turns it on or off.
-  if (settings.experimental.focusMode && settings.focusShortcut) {
+  if (
+    settings.experimental.focusMode &&
+    settings.focusShortcut &&
+    planAllows(settings.plan, "focusMode")
+  ) {
     bindings.push({
       id: "focus-toggle",
       action: "focus.toggle",
