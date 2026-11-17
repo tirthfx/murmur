@@ -1,7 +1,8 @@
 // Downloads the default models (speech, then text cleanup) into Application Support and
 // checks every file's SHA-256 against the manifests. Files already correct are kept, so
 // it also repairs a copy that failed its check. Needs Node 22.18 or later (runs the app's
-// TypeScript directly).
+// TypeScript directly). A dropped connection is tried again a few times; if it still
+// fails, run the same command again and it continues from the bytes already downloaded.
 //
 //   npm run model:download            both models
 //   npm run model:download -- speech  one of them (speech or cleanup)
@@ -54,6 +55,10 @@ async function fetchModel(root, model) {
         lastPercent = percent;
         process.stdout.write(`  ${percent}%\n`);
       }
+    },
+    onRetry(attempt, of, error) {
+      const why = error?.cause?.code ?? error?.message ?? String(error);
+      console.log(`  Connection dropped (${why}); continuing, try ${attempt} of ${of}…`);
     },
   });
   const after = await checkModel(root, model);

@@ -5,6 +5,7 @@
 //   node scripts/bench-instruct.mjs            the Fast (cleanup) model
 //   node scripts/bench-instruct.mjs quality    the Quality model, once downloaded
 
+import { existsSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {
@@ -58,6 +59,12 @@ const cases = [
 const root = cleanupModelRoot(path.join(os.homedir(), "Library", "Application Support"));
 const chosen = process.argv[2] === "quality" ? QUALITY_INSTRUCT_MODEL : DEFAULT_CLEANUP_MODEL;
 const modelPath = path.join(modelLocation(root, chosen).dir, chosen.files[0].path);
+if (!existsSync(modelPath)) {
+  const target = chosen === QUALITY_INSTRUCT_MODEL ? "quality" : "cleanup";
+  console.error(`${chosen.label} is not downloaded yet. Download it with:`);
+  console.error(`  npm run model:download -- ${target}`);
+  process.exit(1);
+}
 console.log(`Model: ${chosen.label}\n`);
 const engine = new CleanupEngine();
 await engine.load(modelPath);
