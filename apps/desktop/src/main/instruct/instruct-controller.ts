@@ -1,4 +1,5 @@
 import {
+  lockedText,
   INSTRUCT_FIELD_CHARS,
   INSTRUCT_LIMITS,
   INSTRUCT_MESSAGES,
@@ -37,6 +38,8 @@ export interface InstructControllerDeps {
   generation: (model: InstructModelChoice) => GenerationService;
   /** True once the Quality model is downloaded and checked. */
   qualityReady: () => boolean;
+  /** The plan does not include Quality (RW-22). */
+  qualityLocked?: () => boolean;
   panel: InstructPanelPort;
   /** Saved threads (RW-14); null without a database. */
   threads: Pick<
@@ -159,6 +162,7 @@ export function createInstructController(deps: InstructControllerDeps): Instruct
       off: [...current.off],
       model: current.model,
       qualityAvailable: deps.qualityReady(),
+      qualityLocked: deps.qualityLocked?.() ?? false,
     };
   }
 
@@ -520,6 +524,10 @@ export function createInstructController(deps: InstructControllerDeps): Instruct
 
     async setModel(model) {
       const current = thread;
+      if (model === "quality" && deps.qualityLocked?.()) {
+        deps.notify(lockedText("qualityModel"));
+        return;
+      }
       if (model === "quality" && !deps.qualityReady()) {
         deps.notify(INSTRUCT_MESSAGES.downloadQuality);
         return;

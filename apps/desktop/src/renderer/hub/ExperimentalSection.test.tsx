@@ -83,4 +83,17 @@ describe("Experimental section", () => {
     act(() => vi.advanceTimersByTime(RING_SEARCH_SECONDS * 1000));
     expect(screen.getByText(/No ring found/)).toBeTruthy();
   });
+
+  it("locks Command Mode and Focus Mode on Free with Available on Pro", () => {
+    window.murmur = createMockApi();
+    const onChange = vi.fn();
+    render(<ExperimentalSection experimental={off} onChange={onChange} plan="free" />);
+    const command = screen.getByRole("switch", { name: /Command Mode/ });
+    expect(
+      command.getAttribute("aria-disabled") ?? String((command as HTMLInputElement).disabled),
+    ).toMatch(/true/);
+    expect(screen.getAllByText("Available on Pro").length).toBeGreaterThanOrEqual(2);
+    act(() => command.click());
+    expect(onChange).not.toHaveBeenCalled();
+  });
 });

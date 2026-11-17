@@ -34,6 +34,9 @@ import {
   DEFAULT_COMMAND_MODE,
   DEFAULT_INSTRUCT,
   DEFAULT_FOCUS,
+  DEFAULT_PLAN,
+  planAllows,
+  type PlanFeature,
   INSTRUCT_PANEL_CHANNELS,
   FOCUS_MESSAGES,
   FOCUS_OVERLAY_CHANNELS,
@@ -89,6 +92,7 @@ import { createInstructThreadStore } from "./instruct/thread-store";
 import { createUndoService } from "./undo/undo-service";
 import { createQualityModel } from "./instruct/quality-model";
 import { createFocusController } from "./focus/focus-controller";
+import { boundRewriteShortcuts, refuseNewRewrite, refuseRewriteShortcut } from "./plans/gates";
 import { createFocusStore } from "./focus/focus-store";
 import { createFocusOverlayIpcHandler } from "./focus/overlay-ipc";
 import { FocusOverlayWindow } from "./focus/overlay-window";
@@ -364,6 +368,7 @@ const settingsStore = createSettingsStore(database, {
   instruct: DEFAULT_INSTRUCT,
   focusShortcut: defaultFocusShortcut(process.platform),
   focus: DEFAULT_FOCUS,
+  plan: DEFAULT_PLAN,
   inputDevice: "auto",
   languages: [],
   cleanupLevel: "standard",
@@ -396,6 +401,8 @@ const settingsStore = createSettingsStore(database, {
   },
 });
 const keys = keyPlatform(process.platform);
+/** Plan gates (RW-22): read on every action, so a plan change applies at once. */
+const allows = (feature: PlanFeature) => planAllows(settingsStore.get().plan, feature);
 const settingsService = createSettingsService({
   store: settingsStore,
   platform: keys,
@@ -406,7 +413,10 @@ const bindingsNow = () =>
   platformDefaults.length > 0
     ? [
         ...bindingsFor(settingsStore.get(), keys.cancelKeyCode),
-        ...rewriteBindings(rewrites?.list() ?? []),
+        ...rewriteBindings(rewrites?.list() ?? []).slice(
+          0,
+          boundRewriteShortcuts(settingsStore.get().plan),
+        ),
       ]
     : [];
 
@@ -791,7 +801,7 @@ const recorder = createRecorder({
   rewriteText: (text) => (wantsLatinHindi(settingsStore.get()) ? toLatinHindi(text) : text),
   // Command Mode (RW-08, experimental). The runner below exists before any recording ends.
   command: {
-    enabled: () => settingsStore.get().experimental.commandMode,
+    enabled: () => settingsStore.get().experimental.commandMode && allows("commandMode"),
     wakePhrase: () => {
       const options = settingsStore.get().commandMode;
       return options.wakePhraseEnabled ? options.wakePhrase : null;
@@ -914,7 +924,11 @@ function rewriteContext(appId: string | null, text: string) {
 }
 // Auto-apply (RW-05): one Rewrite on every dictation, within 3 s.
 const autoRewrite = createAutoRewriter({
-  rewrites: rewrites ?? { list: () => [], markUsed: () => {} },
+  // Free has no auto-apply (RW-22): no Rewrite counts as auto-applying.
+  rewrites: {
+    list: () => (allows("autoApply") ? (rewrites?.list() ?? []) : []),
+    markUsed: (id) => rewrites?.markUsed(id),
+  },
   generation,
   context: rewriteContext,
   runs: rewriteRuns,
@@ -933,7 +947,8 @@ const undo = createUndoService({
 const instructController = createInstructController({
   helper,
   generation: (model) => (model === "quality" ? qualityGeneration : generation),
-  qualityReady: () => qualityReadyNow,
+  qualityReady: () => qualityReadyNow && allows("qualityModel"),
+  qualityLocked: () => !allows("qualityModel"),
   panel: instructPanel,
   threads: instructThreads,
   undo,
@@ -1010,7 +1025,7 @@ const focusOverlay = new FocusOverlayWindow({
 const focus = createFocusController({
   rules: () => focusStore?.all() ?? [],
   sessions: focusStore,
-  enabled: () => settingsStore.get().experimental.focusMode,
+  enabled: () => settingsStore.get().experimental.focusMode && allows("focusMode"),
   lastDuration: () => settingsStore.get().focus.duration,
   saveDuration: (duration) => settingsStore.update({ focus: { duration } }),
   watchFrontApp: (enabled) => helper.watchFrontApp(enabled),
@@ -1493,18 +1508,23 @@ function registerIpc(): void {
       },
     memoryDelete: (id) => memory?.remove(id),
     rewritesList: () => withShortcutLabels(rewrites?.list() ?? [], keys),
-    rewritesSave: (input) =>
-      rewrites?.save(input) ?? {
-        ok: false,
-        reason: "not-found",
-        message: "Rewrites could not be opened.",
-      },
+    rewritesSave: (input) => {
+      if (!rewrites) {
+        return { ok: false, reason: "not-found", message: "Rewrites could not be opened." };
+      }
+      const refused =
+        input.id === undefined ? refuseNewRewrite(settingsStore.get().plan, rewrites.list()) : null;
+      return refused ?? rewrites.save(input);
+    },
     rewritesSetEnabled: (id, enabled) => {
       rewrites?.setEnabled(id, enabled);
       refreshBindings();
     },
     rewritesSetShortcut: (id, key) => {
       if (!rewrites) return { ok: false, message: "Rewrites could not be opened." };
+      const locked =
+        key === null ? null : refuseRewriteShortcut(settingsStore.get().plan, rewrites.list(), id);
+      if (locked) return { ok: false, message: locked };
       const result = setRewriteShortcut(
         { store: rewrites, settings: () => settingsStore.get(), platform: keys },
         id,
@@ -1514,7 +1534,11 @@ function registerIpc(): void {
       return result;
     },
     rewritesSetApplyDirectly: (id, applyDirectly) => rewrites?.setApplyDirectly(id, applyDirectly),
-    rewritesSetAutoApply: (id, settings) => rewrites?.setAutoApply(id, settings),
+    rewritesSetAutoApply: (id, settings) => {
+      // Free has no auto-apply (RW-22); turning it off is always allowed.
+      if (settings.enabled && !allows("autoApply")) return;
+      rewrites?.setAutoApply(id, settings);
+    },
     instructThreads: (query) => instructThreads?.list(query) ?? [],
     instructThread: (id) => instructThreads?.get(id) ?? null,
     instructDelete: (id) => instructThreads?.delete(id),
@@ -1564,12 +1588,12 @@ function registerIpc(): void {
       return { ok: true, rule: added };
     },
     rewritesMove: (id, step) => rewrites?.move(id, step),
-    rewritesDuplicate: (id) =>
-      rewrites?.duplicate(id) ?? {
-        ok: false,
-        reason: "not-found",
-        message: "Rewrites could not be opened.",
-      },
+    rewritesDuplicate: (id) => {
+      if (!rewrites) {
+        return { ok: false, reason: "not-found", message: "Rewrites could not be opened." };
+      }
+      return refuseNewRewrite(settingsStore.get().plan, rewrites.list()) ?? rewrites.duplicate(id);
+    },
     rewritesDelete: (id) => {
       const result = rewrites?.remove(id) ?? null;
       refreshBindings();

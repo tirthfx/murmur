@@ -121,6 +121,8 @@ export const REWRITE_SAVE_REASONS = [
   "full",
   "built-in",
   "not-found",
+  /** Free allows three custom Rewrites (RW-22). */
+  "plan",
 ] as const;
 
 export const rewriteSaveResultSchema = z.discriminatedUnion("ok", [

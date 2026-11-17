@@ -9,6 +9,7 @@ import {
   INSTRUCT_LIMITS,
   INSTRUCT_MESSAGES,
   INSTRUCT_SOURCE_LABELS,
+  lockedText,
   type InstructPanelState,
   type InstructSource,
   type MurmurInstructApi,
@@ -60,7 +61,7 @@ function ModelSwitch({ api, state }: { api: MurmurInstructApi; state: InThread }
       </SegmentedControl>
       {state.qualityAvailable ? null : (
         <Text size="sm" color="secondary">
-          {INSTRUCT_MESSAGES.downloadQuality}
+          {state.qualityLocked ? lockedText("qualityModel") : INSTRUCT_MESSAGES.downloadQuality}
         </Text>
       )}
     </HStack>

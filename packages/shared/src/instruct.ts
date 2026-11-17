@@ -35,6 +35,8 @@ interface ThreadContext {
   model: "fast" | "quality";
   /** False until the Quality model is downloaded. */
   qualityAvailable: boolean;
+  /** The plan does not include Quality (RW-22): the switch says "Available on Pro". */
+  qualityLocked?: boolean;
 }
 
 export type InstructPanelState =

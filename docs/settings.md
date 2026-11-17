@@ -34,3 +34,35 @@ The list comes from the helper (Core Audio, no permission needed). If the chosen
 
 A group of flags (for example `experimental.flags`) stored before a new flag was added keeps its
 stored values; the new flag takes its default.
+
+## Plan (RW-22)
+
+A local switch for testing what each plan unlocks, stored as `plan.tier`. There is no payment,
+billing or subscription of any kind, and nothing is sent anywhere. The tiers are Free, Pro,
+Team, Growth and Enterprise (TM-25). The owner's build defaults to Enterprise, so every feature
+can be tried.
+
+Free keeps:
+
+- the five built-in Rewrites;
+- 3 custom Rewrites;
+- 3 Rewrite shortcuts;
+- Instruct Mode with the Fast model.
+
+Free locks:
+
+- more custom Rewrites and Rewrite shortcuts;
+- auto-apply;
+- Command Mode;
+- the Quality model;
+- Focus Mode.
+
+Pro and every tier above it have everything. Locked controls say "Available on Pro".
+
+Main checks the gates on every action, not only at start (`apps/desktop/src/main/plans/gates.ts` and `planAllows` in `packages/shared/src/plans.ts`):
+
+- **Rewrites:** a fourth custom Rewrite (new or duplicated) is refused. A Rewrite shortcut beyond the third is refused, and only the first three are bound. An auto-apply that is already on is skipped, but it can still be turned off.
+- **Command Mode and Focus Mode:** their keys are not bound, and the key, the wake phrase, the tray and the Focus controller all do nothing.
+- **Quality model:** Instruct Mode uses Fast, and the panel's switch says "Available on Pro". The download itself is still allowed.
+
+A plan change rebinds the keys at once, so switching to Pro unlocks Command Mode without a restart. The full Plans page (trial, student label, Free's weekly word limit) comes in M4 (HB-19).

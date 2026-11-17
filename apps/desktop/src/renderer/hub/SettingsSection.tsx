@@ -5,6 +5,7 @@ import { Selector } from "@astryxdesign/core/Selector";
 import { Switch } from "@astryxdesign/core/Switch";
 import { VStack } from "@astryxdesign/core/VStack";
 import {
+  planAllows,
   SETTINGS_CLEANUP_LEVELS,
   SOUND_NAMES,
   type SettingsPatch,
@@ -12,6 +13,7 @@ import {
 } from "@murmur/shared";
 import { CommandModeSection } from "./CommandModeSection";
 import { FocusSection } from "./FocusSection";
+import { PlanField } from "./PlanField";
 import { ExperimentalSection } from "./ExperimentalSection";
 import { InstructSection } from "./InstructSection";
 import { LanguagesField } from "./LanguagesField";
@@ -185,11 +187,15 @@ export function SettingsSection() {
       <ExperimentalSection
         experimental={settings.experimental}
         onChange={(experimental) => update({ experimental })}
+        plan={settings.plan}
       />
-      {settings.experimental.commandMode ? (
+      {settings.experimental.commandMode && planAllows(settings.plan, "commandMode") ? (
         <CommandModeSection view={view} onSaved={setView} update={update} />
       ) : null}
-      {settings.experimental.focusMode ? <FocusSection view={view} onSaved={setView} /> : null}
+      {settings.experimental.focusMode && planAllows(settings.plan, "focusMode") ? (
+        <FocusSection view={view} onSaved={setView} />
+      ) : null}
+      <PlanField plan={settings.plan} onChange={(plan) => update({ plan })} />
       {problem ? <Banner status="error" title={problem} /> : null}
     </VStack>
   );
