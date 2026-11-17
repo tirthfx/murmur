@@ -12,9 +12,11 @@ import {
   FOCUS_LIMITS,
   focusAppInputSchema,
   focusDurationLabel,
+  focusSiteUnavailableText,
   focusTimeLeft,
   type FocusDuration,
   type FocusRule,
+  type FocusSitesView,
   type FocusState,
   type InstalledApp,
   type SettingsView,
@@ -48,6 +50,94 @@ function statusText(state: FocusState, now: number): string {
 }
 
 /** Focus Mode's shortcut, duration and blocked apps (RW-18, RW-19). */
+/** Blocked sites (RW-20): domains, with subdomains, and an optional path. */
+function BlockedSites() {
+  const [sites, setSites] = useState<FocusSitesView>({ rules: [], unavailableIn: [] });
+  const [entry, setEntry] = useState("");
+  const [problem, setProblem] = useState<string | null>(null);
+
+  const reload = useCallback(async () => {
+    setSites(await window.murmur.focusSites());
+  }, []);
+
+  useEffect(() => {
+    void reload().catch(() => setProblem("Blocked sites could not be read."));
+  }, [reload]);
+
+  async function add() {
+    const site = entry.trim();
+    if (site === "") return;
+    const result = await window.murmur.focusAddSite({ site });
+    if (!result.ok) {
+      setProblem(result.message);
+      return;
+    }
+    setProblem(null);
+    setEntry("");
+    await reload();
+  }
+
+  async function remove(id: string) {
+    await window.murmur.focusRemoveApp(id);
+    await reload();
+  }
+
+  return (
+    <VStack gap={2}>
+      <Text weight="semibold">Blocked sites</Text>
+      <Text size="sm" color="secondary">
+        A site blocks its subdomains too; add a path to block only part of it, like
+        example.com/news. Murmur reads only the address of the page in front, in Safari, Chrome,
+        Edge, Brave, Arc and Firefox, and never keeps it. At most {FOCUS_LIMITS.sites}.
+      </Text>
+      {sites.unavailableIn.map((browser) => (
+        <Banner key={browser} status="warning" title={focusSiteUnavailableText(browser)} />
+      ))}
+      {sites.rules.length === 0 ? (
+        <Text color="secondary">No sites are blocked yet.</Text>
+      ) : (
+        <ul className="hub-dictionary-list" aria-label="Blocked sites">
+          {sites.rules.map((rule) => (
+            <li key={rule.id}>
+              <HStack gap={2} align="center" justify="between">
+                <Text weight="semibold">{rule.label}</Text>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  label={`Stop blocking ${rule.label}`}
+                  onClick={() => void remove(rule.id)}
+                >
+                  Remove
+                </Button>
+              </HStack>
+            </li>
+          ))}
+        </ul>
+      )}
+      {sites.rules.length < FOCUS_LIMITS.sites ? (
+        <HStack gap={2} align="end" wrap="wrap">
+          <TextInput
+            label="Site to block"
+            placeholder="example.com"
+            value={entry}
+            onChange={setEntry}
+            onEnter={() => void add()}
+          />
+          <Button
+            variant="secondary"
+            label="Block this site"
+            isDisabled={entry.trim() === ""}
+            onClick={() => void add()}
+          >
+            Block
+          </Button>
+        </HStack>
+      ) : null}
+      {problem ? <Banner status="error" title={problem} /> : null}
+    </VStack>
+  );
+}
+
 export function FocusSection({ view, onSaved }: FocusSectionProps) {
   const [state, setState] = useState<FocusState>({ status: "off" });
   const [duration, setDuration] = useState<FocusDuration>(view.settings.focus.duration);
@@ -241,6 +331,7 @@ export function FocusSection({ view, onSaved }: FocusSectionProps) {
           </VStack>
         ) : null}
         {problem ? <Banner status="error" title={problem} /> : null}
+        <BlockedSites />
       </VStack>
     </section>
   );

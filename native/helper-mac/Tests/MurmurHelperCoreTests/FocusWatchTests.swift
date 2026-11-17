@@ -6,14 +6,31 @@ import XCTest
 private final class FakeApps: AppsSource, @unchecked Sendable {
     private let lock = NSLock()
     private var front: FrontAppInfo?
+    private var title: String?
+    private var page: SiteRead = .notBrowser
+    private(set) var siteReads = 0
     let installed: [InstalledApp]
     init(front: FrontAppInfo?, installed: [InstalledApp] = []) {
         self.front = front
         self.installed = installed
     }
     func frontApp() -> FrontAppInfo? { lock.withLock { front } }
+    func windowTitle(of app: FrontAppInfo) -> String? { lock.withLock { title } }
+    func site(of app: FrontAppInfo) -> SiteRead {
+        lock.withLock {
+            siteReads += 1
+            return page
+        }
+    }
     func installedApps() -> [InstalledApp] { installed }
     func set(_ app: FrontAppInfo?) { lock.withLock { front = app } }
+    func setPage(_ read: SiteRead, title newTitle: String?) {
+        lock.withLock {
+            page = read
+            title = newTitle
+        }
+    }
+    var reads: Int { lock.withLock { siteReads } }
 }
 
 final class FocusWatchControllerTests: XCTestCase {
@@ -42,6 +59,60 @@ final class FocusWatchControllerTests: XCTestCase {
         waitForReplies(events, count: 2)
         XCTAssertEqual(events.all.last?.payload["name"], .string("Safari"))
         XCTAssertEqual(events.all.last?.payload["pid"], .int(11))
+    }
+
+    func testSendsTheSiteOfABrowserWhenTheTabChanges() {
+        let apps = FakeApps(front: safari)
+        apps.setPage(.site(SiteInfo(host: "news.example.com", path: "/today")), title: "News")
+        let events = EmittedEvents()
+        // A long site interval: only the title change makes it read again.
+        let controller = FocusWatchController(
+            source: apps, emit: { events.append($0) }, pollSeconds: 0.01, sitePolls: 10_000)
+        _ = watch(controller, true)
+        waitForReplies(events, count: 1)
+        XCTAssertEqual(events.all.first?.payload["siteStatus"], .string("ok"))
+        XCTAssertEqual(
+            events.all.first?.payload["site"],
+            .object(["host": .string("news.example.com"), "path": .string("/today")]))
+        apps.setPage(.site(SiteInfo(host: "video.example.com", path: "/")), title: "Video")
+        waitForReplies(events, count: 2)
+        XCTAssertEqual(events.all.last?.payload["site"]?.objectValue?["host"], .string("video.example.com"))
+        _ = watch(controller, false)
+    }
+
+    func testReadsTheSiteAgainOnTheIntervalAndReportsUnreadableBrowsers() {
+        let apps = FakeApps(front: safari)
+        apps.setPage(.unavailable, title: "Same")
+        let events = EmittedEvents()
+        let controller = FocusWatchController(
+            source: apps, emit: { events.append($0) }, pollSeconds: 0.01, sitePolls: 2)
+        _ = watch(controller, true)
+        waitForReplies(events, count: 1)
+        XCTAssertEqual(events.all.first?.payload["siteStatus"], .string("unavailable"))
+        Thread.sleep(forTimeInterval: 0.1)
+        XCTAssertGreaterThan(apps.reads, 2)
+        XCTAssertEqual(events.all.count, 1)
+        _ = watch(controller, false)
+    }
+
+    func testDoesNotReadPagesOutsideBrowsers() {
+        let apps = FakeApps(front: notes)
+        let (controller, events) = make(apps)
+        _ = watch(controller, true)
+        waitForReplies(events, count: 1)
+        Thread.sleep(forTimeInterval: 0.05)
+        XCTAssertEqual(events.all.first?.payload["siteStatus"], .string("none"))
+        XCTAssertEqual(apps.reads, 1)
+        _ = watch(controller, false)
+    }
+
+    func testKeepsOnlyTheHostAndPathOfAnAddress() {
+        XCTAssertEqual(
+            SiteInfo.from(address: "https://WWW.Example.com/watch?v=secret#t=1"),
+            SiteInfo(host: "www.example.com", path: "/watch"))
+        XCTAssertEqual(SiteInfo.from(address: "http://example.com"), SiteInfo(host: "example.com", path: "/"))
+        XCTAssertNil(SiteInfo.from(address: "about:blank"))
+        XCTAssertNil(SiteInfo.from(address: "file:///Users/me/notes.html"))
     }
 
     func testStopsWhenTurnedOff() {

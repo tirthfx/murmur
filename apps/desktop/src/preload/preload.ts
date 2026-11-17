@@ -60,6 +60,8 @@ const api: MurmurApi = {
   focusAddApp: (input) => ipcRenderer.invoke(IPC_CHANNELS.focusAddApp, input),
   focusRemoveApp: (id) => ipcRenderer.invoke(IPC_CHANNELS.focusRemoveApp, id),
   focusInstalledApps: () => ipcRenderer.invoke(IPC_CHANNELS.focusInstalledApps),
+  focusSites: () => ipcRenderer.invoke(IPC_CHANNELS.focusSites),
+  focusAddSite: (input) => ipcRenderer.invoke(IPC_CHANNELS.focusAddSite, input),
   rewritesSetApplyDirectly: (id, applyDirectly) =>
     ipcRenderer.invoke(IPC_CHANNELS.rewritesSetApplyDirectly, id, applyDirectly),
   importPreview: (request) => ipcRenderer.invoke(IPC_CHANNELS.importPreview, request),

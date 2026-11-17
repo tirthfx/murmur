@@ -11,11 +11,25 @@ import { z } from "zod";
 export const focusWatchPayloadSchema = z.object({ enabled: z.boolean() });
 export const focusWatchResultSchema = z.object({ watching: z.boolean() });
 
-/** The app in front, sent when it changes (and once when watching starts). */
+/** A browser's page: host and path only (no scheme, query or fragment). RW-20. */
+export const pageSiteSchema = z.object({
+  host: z.string().min(1).max(253),
+  path: z.string().max(512),
+});
+export type PageSite = z.infer<typeof pageSiteSchema>;
+
+/**
+ * The app in front, sent when it changes (and once when watching starts). In a known browser
+ * (capability `focus.sites`) it also carries the page's site, sent again when that changes:
+ * `siteStatus` is `none` outside browsers, `unavailable` when the browser's page cannot be
+ * read, and `ok` with `site` null for a page that is not http or https.
+ */
 export const frontAppPayloadSchema = z.object({
   bundleId: z.string().max(255).nullable(),
   name: z.string().max(200).nullable(),
   pid: z.number().int().nullable(),
+  site: pageSiteSchema.nullable().optional(),
+  siteStatus: z.enum(["none", "ok", "unavailable"]).optional(),
 });
 export type FrontApp = z.infer<typeof frontAppPayloadSchema>;
 
@@ -52,6 +66,8 @@ export function focusDurationLabel(duration: FocusDuration): string {
 export const FOCUS_LIMITS = {
   /** RW-19. */
   apps: 100,
+  /** RW-20. */
+  sites: 200,
   /** RW-21: Pause Focus for 10 minutes. */
   pauseMs: 10 * 60_000,
 } as const;
@@ -77,8 +93,8 @@ export type FocusState = z.infer<typeof focusStateSchema>;
 
 export const focusRuleSchema = z.strictObject({
   id: z.string(),
-  kind: z.literal("app"),
-  /** The app's bundle id. */
+  kind: z.enum(["app", "site"]),
+  /** The app's bundle id, or a site as `domain` or `domain/path`. */
   value: z.string(),
   label: z.string(),
   createdAt: z.number(),
@@ -96,6 +112,57 @@ export const focusAppInputSchema = z.strictObject({
 });
 export type FocusAppInput = z.infer<typeof focusAppInputSchema>;
 
+/** A site to block as typed: "example.com", "https://www.example.com/shorts", "example.com/news". */
+export const focusSiteInputSchema = z.strictObject({ site: z.string().trim().min(1).max(600) });
+export type FocusSiteInput = z.infer<typeof focusSiteInputSchema>;
+
+const DOMAIN =
+  /^(?=.{1,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/;
+
+/**
+ * A blocked site as stored: the domain in lower case without "www.", and an optional path
+ * prefix without a trailing slash, query or fragment. Null when it is not a web address.
+ */
+export function parseSiteEntry(
+  text: string,
+): { domain: string; path: string | null; value: string } | null {
+  let rest = text.trim().toLowerCase();
+  rest = rest.replace(/^[a-z][a-z0-9+.-]*:\/\//, "");
+  rest = rest.split(/[?#]/)[0] ?? "";
+  const slash = rest.indexOf("/");
+  let domain = slash === -1 ? rest : rest.slice(0, slash);
+  domain = domain
+    .replace(/:\d+$/, "")
+    .replace(/^www\./, "")
+    .replace(/\.$/, "");
+  if (!DOMAIN.test(domain)) return null;
+  let path: string | null = slash === -1 ? null : rest.slice(slash).replace(/\/+$/, "");
+  if (path === "" || path === "/") path = null;
+  return { domain, path, value: path ? `${domain}${path}` : domain };
+}
+
+/**
+ * Whether a page matches a blocked site: the same domain or one of its subdomains, and, when
+ * the entry has a path, the same path or one under it. Paths compare without case.
+ */
+export function siteMatches(entry: string, site: PageSite): boolean {
+  const parsed = parseSiteEntry(entry);
+  if (!parsed) return false;
+  const host = site.host.toLowerCase().replace(/\.$/, "");
+  if (host !== parsed.domain && !host.endsWith(`.${parsed.domain}`)) return false;
+  if (!parsed.path) return true;
+  const path = site.path.toLowerCase().replace(/\/+$/, "");
+  return path === parsed.path || path.startsWith(`${parsed.path}/`);
+}
+
+/** What the Hub shows for blocked sites. */
+export const focusSitesViewSchema = z.strictObject({
+  rules: z.array(focusRuleSchema),
+  /** Browsers seen in front this run whose page could not be read. */
+  unavailableIn: z.array(z.string()),
+});
+export type FocusSitesView = z.infer<typeof focusSitesViewSchema>;
+
 export const focusAddResultSchema = z.discriminatedUnion("ok", [
   z.strictObject({ ok: z.literal(true), rule: focusRuleSchema }),
   z.strictObject({ ok: z.literal(false), message: z.string() }),
@@ -109,8 +176,16 @@ export const FOCUS_MESSAGES = {
   limit: `At most ${FOCUS_LIMITS.apps} blocked apps.`,
   duplicate: "That app is already blocked.",
   self: "Murmur cannot block itself.",
+  sitesLimit: `At most ${FOCUS_LIMITS.sites} blocked sites.`,
+  siteDuplicate: "That site is already blocked.",
+  notASite: "Type a web address, like example.com or example.com/news.",
   off: "Turn on Focus Mode in Experimental first.",
 } as const;
+
+/** RW-20: shown in the blocked sites list for a browser whose page cannot be read. */
+export function focusSiteUnavailableText(browser: string): string {
+  return `Website blocking is not available in ${browser}.`;
+}
 
 /** "Focus is on. Safari is blocked." */
 export function focusBlockedText(name: string): string {

@@ -44,4 +44,15 @@ describe("focus store", () => {
       { planned_ms: null, end_reason: "quit" },
     ]);
   });
+
+  it("keeps blocked sites apart from apps, once each, up to 200", () => {
+    const { store } = setup();
+    store.addApp("com.apple.Safari", "Safari");
+    expect(store.addSite("example.com")).toMatchObject({ kind: "site", label: "example.com" });
+    expect(store.addSite("example.com")).toBe("duplicate");
+    expect(store.sites().map((rule) => rule.value)).toEqual(["example.com"]);
+    expect(store.all().map((rule) => rule.kind)).toEqual(["app", "site"]);
+    for (let index = 1; index < FOCUS_LIMITS.sites; index++) store.addSite(`s${index}.example.org`);
+    expect(store.addSite("full.example.net")).toBe("limit");
+  });
 });

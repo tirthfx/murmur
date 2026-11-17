@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { FOCUS_LIMITS, FOCUS_MESSAGES, type FocusDuration, type FocusRule } from "@murmur/shared";
 import { openDatabase } from "../db/database";
 import { createTestLogger, FakeClock } from "../helper/fakes";
-import { createFocusController } from "./focus-controller";
+import { BACK_WAIT_MS, createFocusController } from "./focus-controller";
 import { createFocusStore } from "./focus-store";
 
 const OWN_PID = 999;
@@ -22,8 +22,9 @@ function setup(options: { enabled?: boolean; duration?: FocusDuration } = {}) {
   const say = vi.fn();
   const watchFrontApp = vi.fn(async () => {});
   const activateApp = vi.fn(async () => {});
+  const pressBack = vi.fn(async () => true);
   const focus = createFocusController({
-    rules: (): FocusRule[] => store.apps(),
+    rules: (): FocusRule[] => store.all(),
     sessions: store,
     enabled: () => enabled,
     lastDuration: () => duration,
@@ -32,6 +33,7 @@ function setup(options: { enabled?: boolean; duration?: FocusDuration } = {}) {
     overlay,
     say,
     activateApp,
+    pressBack,
     ownPid: OWN_PID,
     clock,
     logger: createTestLogger(),
@@ -46,6 +48,7 @@ function setup(options: { enabled?: boolean; duration?: FocusDuration } = {}) {
     say,
     watchFrontApp,
     activateApp,
+    pressBack,
     sessions,
     disable: () => (enabled = false),
     duration: () => duration,
@@ -157,5 +160,74 @@ describe("focus controller", () => {
     store.remove(store.apps()[0]!.id);
     focus.refresh();
     expect(overlay.hide).toHaveBeenCalled();
+  });
+
+  describe("sites", () => {
+    const chrome = (host: string | null, path = "/") => ({
+      bundleId: "com.google.Chrome",
+      name: "Google Chrome",
+      pid: 4,
+      site: host ? { host, path } : null,
+      siteStatus: "ok" as const,
+    });
+
+    it("covers a blocked site and its subdomains, and hides it on another site", () => {
+      const { focus, overlay, store } = setup();
+      store.addSite("example.com");
+      focus.start(25);
+      focus.frontApp(chrome("news.example.com", "/today"));
+      expect(overlay.show).toHaveBeenCalledWith("example.com");
+      focus.frontApp(chrome("www.example.com", "/other"));
+      expect(overlay.show).toHaveBeenCalledTimes(1);
+      focus.frontApp(chrome("docs.murmur.test"));
+      expect(overlay.hide).toHaveBeenCalledTimes(1);
+    });
+
+    it("blocks only under a path when the entry has one", () => {
+      const { focus, overlay, store } = setup();
+      store.addSite("youtube.com/shorts");
+      focus.start(25);
+      focus.frontApp(chrome("www.youtube.com", "/watch"));
+      expect(overlay.show).not.toHaveBeenCalled();
+      focus.frontApp(chrome("www.youtube.com", "/shorts/abc"));
+      expect(overlay.show).toHaveBeenCalledWith("youtube.com/shorts");
+    });
+
+    it("Go back presses Back in the browser, then switches app if the page stays blocked", async () => {
+      const { focus, clock, store, activateApp, pressBack } = setup();
+      store.addSite("example.com");
+      focus.start(25);
+      focus.frontApp(notes);
+      focus.frontApp(chrome("example.com"));
+      const going = focus.goBack();
+      await clock.advance(200);
+      await going;
+      expect(activateApp).toHaveBeenCalledWith("com.google.Chrome");
+      expect(pressBack).toHaveBeenCalledWith("com.google.Chrome");
+      await clock.advance(BACK_WAIT_MS);
+      expect(activateApp).toHaveBeenLastCalledWith("com.apple.Notes");
+    });
+
+    it("Go back stays in the browser when Back left the blocked site", async () => {
+      const { focus, clock, store, activateApp } = setup();
+      store.addSite("example.com");
+      focus.start(25);
+      focus.frontApp(notes);
+      focus.frontApp(chrome("example.com"));
+      const going = focus.goBack();
+      await clock.advance(200);
+      await going;
+      focus.frontApp(chrome("search.murmur.test"));
+      await clock.advance(BACK_WAIT_MS);
+      expect(activateApp).toHaveBeenCalledTimes(1);
+    });
+
+    it("remembers browsers whose page cannot be read, without storing them", () => {
+      const { focus } = setup();
+      focus.start(25);
+      focus.frontApp({ ...safari, site: null, siteStatus: "unavailable" });
+      focus.frontApp({ ...safari, site: null, siteStatus: "unavailable" });
+      expect(focus.unavailableBrowsers()).toEqual(["Safari"]);
+    });
   });
 });

@@ -89,6 +89,8 @@ function setup() {
     focusAddApp: vi.fn(),
     focusRemoveApp: vi.fn(),
     focusInstalledApps: vi.fn(),
+    focusSites: vi.fn(),
+    focusAddSite: vi.fn(),
     importPreview: vi.fn(),
     importApply: vi.fn(),
     voiceProfileView: vi.fn(() => ({
