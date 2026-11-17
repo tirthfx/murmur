@@ -27,6 +27,9 @@ switched off, moved and deleted. A duplicate is placed right after its source an
 "… copy". The instruction always runs after Murmur's own rules (see `generation.md`), so it
 cannot ask the model to drop names or numbers.
 
+Plan (RW-22, see `settings.md`): Free keeps the five built-ins, 3 custom Rewrites and 3
+Rewrite shortcuts, and has no auto-apply. Pro and above have no limit.
+
 ## Storage
 
 Table `rewrites` (migration 0011), with the data model's column names (`prompt`,

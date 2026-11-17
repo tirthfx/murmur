@@ -148,13 +148,13 @@ Text generation for Rewrites, Command Mode and Instruct Mode (prompt rules, stre
 
 Dictation history (database, tables, migrations): see `docs/history.md`.
 
-Settings (shortcuts and their checks, microphone, language, cleanup level): see `docs/settings.md`.
+Settings (shortcuts and their checks, microphone, language, cleanup level, the local plan tier and what it gates): see `docs/settings.md`.
 
 Sounds and output mute (the tones, mute while dictating, crash recovery): see `docs/sounds.md`.
 
 Typing reminder (what is counted, snooze): see `docs/typing-reminder.md`.
 
-Experimental options (split into messages, pause media, headset, ring, phrases, style detection, pronunciation clips): see `docs/experimental.md`.
+Experimental options (split into messages, pause media, headset, ring, phrases, style detection, pronunciation clips, Command Mode, Offer Instruct Mode, Focus Mode): see `docs/experimental.md`.
 
 Tray menu (items, the status dot, when it is rebuilt, manual test): see `docs/tray.md`.
 
