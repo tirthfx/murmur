@@ -33,12 +33,20 @@ export type ModelCheck =
 export class ModelDownloadError extends Error {
   readonly reason: "address" | "http" | "size" | "checksum";
   readonly file: string;
+  /** True for a cut-off body or a temporary server error: worth trying again. */
+  readonly retryable: boolean;
 
-  constructor(reason: ModelDownloadError["reason"], file: string, message: string) {
+  constructor(
+    reason: ModelDownloadError["reason"],
+    file: string,
+    message: string,
+    retryable = false,
+  ) {
     super(message);
     this.name = "ModelDownloadError";
     this.reason = reason;
     this.file = file;
+    this.retryable = retryable;
   }
 }
 
@@ -87,6 +95,26 @@ export async function checkModel(root: string, model: SpeechModel): Promise<Mode
 export interface DownloadOptions {
   fetch?: typeof globalThis.fetch;
   onProgress?: (doneBytes: number, totalBytes: number) => void;
+  /** Called before each new try after a dropped connection (1-based). */
+  onRetry?: (attempt: number, of: number, error: unknown) => void;
+  /** Tries after the first one per file; default {@link RETRY_DELAYS_MS}.length. */
+  retries?: number;
+  sleep?: (ms: number) => Promise<void>;
+}
+
+/** Waits before each new try of a file whose download was cut off. */
+export const RETRY_DELAYS_MS = [1000, 3000, 10_000, 30_000, 60_000];
+
+/** HTTP statuses that usually pass: timeouts, rate limits and server errors. */
+const TEMPORARY_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
+
+/** Disk problems another try will not fix. */
+const LOCAL_ERRORS = new Set(["ENOSPC", "EACCES", "EPERM", "EROFS", "EDQUOT"]);
+
+function isRetryable(error: unknown): boolean {
+  if (error instanceof ModelDownloadError) return error.retryable;
+  const code = (error as { code?: unknown } | null)?.code;
+  return !(typeof code === "string" && LOCAL_ERRORS.has(code));
 }
 
 function checkAddress(file: SpeechModelFile): void {
@@ -104,7 +132,9 @@ function checkAddress(file: SpeechModelFile): void {
  * Makes the model complete and correct on disk. Files already right are kept, others are
  * downloaded into a staging folder, and the folder is moved into place only when every
  * file matches the manifest. A file left part-way by an earlier run is continued with an
- * HTTP range request. Returns the bytes downloaded (0 when nothing was missing).
+ * HTTP range request. A dropped connection, a cut-off body or a temporary server error is
+ * tried again a few times, continuing from the bytes already there. Returns the bytes
+ * downloaded (0 when nothing was missing).
  */
 export async function downloadModel(
   root: string,
@@ -130,16 +160,12 @@ export async function downloadModel(
   let done = 0;
   let downloaded = 0;
   const report = () => options.onProgress?.(done, model.totalBytes);
-  for (const file of model.files) {
-    if ((await checkFile(staging, file)).ok) {
-      done += file.size;
-      report();
-      continue;
-    }
-    checkAddress(file);
-    const target = safeJoin(staging, file.path);
-    const partial = `${target}.download`;
-    await mkdir(path.dirname(target), { recursive: true });
+  const retries = options.retries ?? RETRY_DELAYS_MS.length;
+  const sleep =
+    options.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+
+  /** One try at one file; returns the bytes it fetched. A cut-off try leaves its bytes. */
+  async function fetchInto(file: SpeechModelFile, partial: string): Promise<number> {
     // Continue a file an earlier run left part-way, when the server honours the range.
     const existing = (await sizeOf(partial)) ?? 0;
     const resumeFrom = existing > 0 && existing < file.size ? existing : 0;
@@ -148,7 +174,12 @@ export async function downloadModel(
       ...(resumeFrom > 0 ? { headers: { Range: `bytes=${resumeFrom}-` } } : {}),
     });
     if (!response.ok || !response.body) {
-      throw new ModelDownloadError("http", file.path, `${file.path}: HTTP ${response.status}`);
+      throw new ModelDownloadError(
+        "http",
+        file.path,
+        `${file.path}: HTTP ${response.status}`,
+        TEMPORARY_STATUS.has(response.status),
+      );
     }
     if (response.url && !response.url.startsWith("https://")) {
       throw new ModelDownloadError("address", file.path, `${file.path}: redirected off HTTPS`);
@@ -156,6 +187,7 @@ export async function downloadModel(
     const resumed = resumeFrom > 0 && response.status === 206;
     const hash = createHash("sha256");
     let bytes = 0;
+    let fetched = 0;
     if (resumed) {
       for await (const chunk of createReadStream(partial)) hash.update(chunk as Buffer);
       bytes = resumeFrom;
@@ -167,7 +199,7 @@ export async function downloadModel(
         hash.update(chunk);
         bytes += chunk.length;
         done += chunk.length;
-        downloaded += chunk.length;
+        fetched += chunk.length;
         report();
         callback(null, chunk);
       },
@@ -177,6 +209,15 @@ export async function downloadModel(
       meter,
       createWriteStream(partial, { flags: resumed ? "a" : "w" }),
     );
+    if (bytes < file.size) {
+      // Cut off early: keep what arrived so the next try continues from it.
+      throw new ModelDownloadError(
+        "size",
+        file.path,
+        `${file.path}: got ${bytes} bytes, expected ${file.size}`,
+        true,
+      );
+    }
     if (bytes !== file.size) {
       await rm(partial, { force: true });
       throw new ModelDownloadError(
@@ -192,6 +233,31 @@ export async function downloadModel(
         file.path,
         `${file.path}: SHA-256 does not match the manifest`,
       );
+    }
+    return fetched;
+  }
+
+  for (const file of model.files) {
+    if ((await checkFile(staging, file)).ok) {
+      done += file.size;
+      report();
+      continue;
+    }
+    checkAddress(file);
+    const target = safeJoin(staging, file.path);
+    const partial = `${target}.download`;
+    await mkdir(path.dirname(target), { recursive: true });
+    const before = done;
+    for (let attempt = 0; ; attempt++) {
+      done = before;
+      try {
+        downloaded += await fetchInto(file, partial);
+        break;
+      } catch (error) {
+        if (!isRetryable(error) || attempt >= retries) throw error;
+        options.onRetry?.(attempt + 1, retries, error);
+        await sleep(RETRY_DELAYS_MS[Math.min(attempt, RETRY_DELAYS_MS.length - 1)]!);
+      }
     }
     await rename(partial, target);
   }

@@ -14,7 +14,9 @@ How recorded audio becomes text, on the device.
 npm run model:download -- speech
 ```
 
-Downloads over HTTPS from huggingface.co only, hashes every file while writing, and moves the folder into place only when every file matches the manifest. Files already correct are kept, so the same command repairs a copy that fails its check. It needs Node 22.18 or later, because it runs the app's own TypeScript directly.
+Downloads over HTTPS from huggingface.co only, hashes every file while writing, and moves the folder into place only when every file matches the manifest. Files already correct are kept, so the same command repairs a copy that fails its check.
+
+A dropped connection, a body that ends early, or a temporary server error (408, 425, 429, 5xx) is tried again up to 5 times, waiting 1, 3, 10, 30 and 60 seconds. Each new try asks only for the missing bytes with a range request. A size, checksum or address problem stops at once. If every try fails, the bytes stay in the `.partial` folder and running the command again continues from them. The same applies to downloads started from the app (the speech model and Instruct Mode's Quality model). It needs Node 22.18 or later, because it runs the app's own TypeScript directly.
 
 ## Loading and checking
 

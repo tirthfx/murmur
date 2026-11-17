@@ -5,7 +5,15 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SpeechModel } from "@murmur/shared";
 import { DEFAULT_SPEECH_MODEL } from "@murmur/shared";
-import { checkModel, downloadModel, modelLocation, ModelDownloadError } from "./model-store";
+import {
+  checkModel,
+  downloadModel,
+  modelLocation,
+  ModelDownloadError,
+  RETRY_DELAYS_MS,
+} from "./model-store";
+
+const noWait = async () => {};
 
 const contents: Record<string, string> = {
   "model/config.json": '{"name":"test"}',
@@ -102,9 +110,12 @@ describe("model store", () => {
     expect((await checkModel(root, model)).ok).toBe(false);
   });
 
-  it("refuses a short download", async () => {
+  it("refuses a download that stays short after its retries", async () => {
     const fetch = fakeFetch({ "model/config.json": "{}" });
-    await expect(downloadModel(root, model, { fetch })).rejects.toBeInstanceOf(ModelDownloadError);
+    await expect(downloadModel(root, model, { fetch, sleep: noWait })).rejects.toBeInstanceOf(
+      ModelDownloadError,
+    );
+    expect(fetch).toHaveBeenCalledTimes(RETRY_DELAYS_MS.length + 1);
   });
 
   it("only downloads from https://huggingface.co", async () => {
@@ -114,9 +125,90 @@ describe("model store", () => {
     });
   });
 
-  it("stops on an HTTP error", async () => {
+  it("stops on an HTTP error, after retries for a server error", async () => {
     const fetch = vi.fn(async () => new Response("no", { status: 500 }));
-    await expect(downloadModel(root, model, { fetch })).rejects.toMatchObject({ reason: "http" });
+    await expect(downloadModel(root, model, { fetch, sleep: noWait })).rejects.toMatchObject({
+      reason: "http",
+    });
+    expect(fetch).toHaveBeenCalledTimes(RETRY_DELAYS_MS.length + 1);
+
+    const missing = vi.fn(async () => new Response("no", { status: 404 }));
+    await expect(
+      downloadModel(root, model, { fetch: missing, sleep: noWait }),
+    ).rejects.toMatchObject({ reason: "http" });
+    expect(missing).toHaveBeenCalledTimes(1);
+  });
+
+  describe("dropped connections", () => {
+    const file = "model/AudioEncoder.mlmodelc/weights/weight.bin";
+
+    /** Serves files with ranges; the big file's first `cuts` responses stop part-way. */
+    function flakyFetch(cuts: number, how: "error" | "short") {
+      const ranges: (string | null)[] = [];
+      const fetch = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+        const name = String(url).split("/resolve/abc/")[1]!;
+        const range = new Headers(init?.headers).get("Range");
+        const from = Number(/bytes=(\d+)-/.exec(range ?? "")?.[1] ?? 0);
+        const body = contents[name]!.slice(from);
+        const status = from > 0 ? 206 : 200;
+        if (name !== file) return new Response(body, { status });
+        ranges.push(range);
+        if (cuts-- <= 0) return new Response(body, { status });
+        const half = body.slice(0, 1000);
+        if (how === "short") return new Response(half, { status });
+        const stream = new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode(half));
+          },
+          async pull(controller) {
+            // Let the first bytes reach the disk, as they would on a long download.
+            await new Promise((resolve) => setTimeout(resolve, 20));
+            controller.error(new TypeError("terminated"));
+          },
+        });
+        return new Response(stream, { status });
+      });
+      return { fetch, ranges };
+    }
+
+    it("tries again after a stream error and continues from the bytes it has", async () => {
+      const { fetch, ranges } = flakyFetch(2, "error");
+      const retries: number[] = [];
+      const waits: number[] = [];
+      await downloadModel(root, model, {
+        fetch,
+        sleep: async (ms) => void waits.push(ms),
+        onRetry: (attempt) => retries.push(attempt),
+      });
+      expect(ranges).toEqual([null, "bytes=1000-", "bytes=2000-"]);
+      expect(retries).toEqual([1, 2]);
+      expect(waits).toEqual(RETRY_DELAYS_MS.slice(0, 2));
+      expect((await checkModel(root, model)).ok).toBe(true);
+    });
+
+    it("tries again after a body that ends early", async () => {
+      const { fetch, ranges } = flakyFetch(1, "short");
+      await downloadModel(root, model, { fetch, sleep: noWait });
+      expect(ranges).toEqual([null, "bytes=1000-"]);
+      expect((await checkModel(root, model)).ok).toBe(true);
+    });
+
+    it("gives up after its retries and keeps the bytes for the next run", async () => {
+      const { fetch } = flakyFetch(99, "error");
+      await expect(
+        downloadModel(root, model, { fetch, sleep: noWait, retries: 1 }),
+      ).rejects.toThrow("terminated");
+      const kept = path.join(root, `${model.id}.partial`, `${file}.download`);
+      expect((await readFile(kept, "utf8")).length).toBe(2000);
+    });
+
+    it("does not try a checksum mismatch again", async () => {
+      const fetch = fakeFetch({ "tokenizer/tokenizer.json": '{"version":"2"}' });
+      await expect(downloadModel(root, model, { fetch, sleep: noWait })).rejects.toMatchObject({
+        reason: "checksum",
+      });
+      expect(fetch).toHaveBeenCalledTimes(model.files.length);
+    });
   });
 
   describe("resuming", () => {
