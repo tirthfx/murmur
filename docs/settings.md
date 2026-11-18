@@ -6,16 +6,16 @@ The Hub's Settings page. Every change applies at once; nothing needs a restart.
 
 Settings is split into pages, chosen from a list beside the content. Each page has its own route, for example `#/settings/microphone`.
 
-| Page             | What is on it                                                                      |
-| ---------------- | ---------------------------------------------------------------------------------- |
-| General          | launch at login, show the Hub at start, your name, permissions, setup, the version |
-| System           | cleanup, press enter, context, typing reminder, sounds, mute, Instruct Mode        |
-| Shortcuts        | push to talk, hands-free, Rewrite, the mouse buttons                               |
-| Languages        | dictation languages                                                                |
-| Microphone       | the microphone, whisper mode, microphone check                                     |
-| Experimental     | the experimental switches, and Command Mode and Focus Mode while they are on       |
-| Plans            | the local plan tier                                                                |
-| Data and Privacy | what leaves this Mac                                                               |
+| Page             | What is on it                                                                                  |
+| ---------------- | ---------------------------------------------------------------------------------------------- |
+| General          | launch at login, show the Hub at start, appearance, your name, permissions, setup, the version |
+| System           | cleanup, press enter, context, typing reminder, sounds, mute, Instruct Mode                    |
+| Shortcuts        | push to talk, hands-free, Rewrite, the mouse buttons                                           |
+| Languages        | dictation languages                                                                            |
+| Microphone       | the microphone, whisper mode, microphone check                                                 |
+| Experimental     | the experimental switches, and Command Mode and Focus Mode while they are on                   |
+| Plans            | the local plan tier                                                                            |
+| Data and Privacy | what leaves this Mac                                                                           |
 
 - Every setting is listed once in `SETTINGS_INDEX` (`apps/desktop/src/renderer/hub/settings-pages.ts`), with its page and a `data-setting` row id. A test checks that each indexed row is on its page.
 - The search box matches labels and a few other words. Choosing a result opens the setting's page, scrolls to the setting and highlights it for two seconds.

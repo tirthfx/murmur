@@ -19,6 +19,7 @@ import {
   ClipboardItem,
   dialog,
   nativeImage,
+  nativeTheme,
   ipcMain,
   screen,
   session,
@@ -531,6 +532,7 @@ const settingsStore = createSettingsStore(database, {
   focus: DEFAULT_FOCUS,
   scratchpadShortcut: defaultScratchpadShortcut(process.platform),
   scratchpad: { enabled: true, newTab: true },
+  theme: "system",
   plan: DEFAULT_PLAN,
   inputDevice: "auto",
   languages: [],
@@ -1238,6 +1240,14 @@ helper.onStatusChange((status) => {
   if (status.state === "ready") focus.helperReady();
 });
 settingsStore.onChange(() => focus.refresh());
+// HB-22: one switch for every window. Each page follows prefers-color-scheme (and Astryx's
+// "system" mode), which this sets for all of them at once.
+nativeTheme.themeSource = settingsStore.get().theme;
+settingsStore.onChange(() => {
+  const theme = settingsStore.get().theme;
+  if (nativeTheme.themeSource !== theme) nativeTheme.themeSource = theme;
+});
+
 // HB-34: turning Scratchpad off closes its window; notes stay on disk.
 settingsStore.onChange(() => {
   if (

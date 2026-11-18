@@ -26,6 +26,7 @@ const settings: Settings = {
   profile: { displayName: "", showOnHome: true },
   scratchpadShortcut: null,
   scratchpad: { enabled: true, newTab: true },
+  theme: "system",
   contextAwareness: true,
   mouseButtons: { hold: null, handsFree: null },
   typingReminder: { enabled: true, snoozedUntil: null },

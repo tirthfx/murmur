@@ -159,6 +159,8 @@ export const settingsSchema = z.strictObject({
   scratchpadShortcut: hotkeyTriggerSchema.nullable(),
   /** HB-26, HB-34: Scratchpad on or off, and whether a note opens in a new tab. */
   scratchpad: z.strictObject({ enabled: z.boolean(), newTab: z.boolean() }),
+  /** HB-22: the look of every window; System follows macOS. */
+  theme: z.enum(["system", "light", "dark"]),
   /** HB-51: an optional local display name for the Home greeting; never published. */
   profile: z.strictObject({
     displayName: z.string().trim().max(60),
@@ -196,6 +198,7 @@ export const settingsPatchSchema = settingsSchema
     insights: true,
     profile: true,
     scratchpad: true,
+    theme: true,
   })
   .partial()
   .strict();
@@ -236,6 +239,7 @@ export const SETTING_KEYS: Record<keyof Settings, string> = {
   profile: "profile.settings",
   scratchpadShortcut: "hotkey.scratchpad",
   scratchpad: "scratchpad.settings",
+  theme: "ui.theme",
 };
 
 export const DEFAULT_EXPERIMENTAL: Settings["experimental"] = {

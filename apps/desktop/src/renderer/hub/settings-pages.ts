@@ -29,6 +29,7 @@ export interface SettingEntry {
 export const SETTINGS_INDEX: readonly SettingEntry[] = [
   { id: "launch-at-login", page: "general", label: "Launch at login", words: "start login" },
   { id: "open-hub", page: "general", label: "Show the Hub when Murmur starts", words: "window" },
+  { id: "theme", page: "general", label: "Appearance", words: "theme dark light mode" },
   { id: "display-name", page: "general", label: "Your name", words: "display name greeting" },
   { id: "permissions", page: "general", label: "Permissions", words: "microphone accessibility" },
   { id: "setup", page: "general", label: "Run setup again", words: "onboarding tutorial" },

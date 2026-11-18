@@ -13,12 +13,17 @@ export function GeneralSection({
   onOpenHubOnLaunch,
   profile,
   onProfile,
+  theme,
+  onTheme,
 }: {
   openHubOnLaunch: boolean;
   onOpenHubOnLaunch: (on: boolean) => void;
   /** HB-51: the local display name. */
   profile: { displayName: string; showOnHome: boolean };
   onProfile: (profile: { displayName: string; showOnHome: boolean }) => void;
+  /** HB-22. */
+  theme: "system" | "light" | "dark";
+  onTheme: (theme: "system" | "light" | "dark") => void;
 }) {
   const [name, setName] = useState(profile.displayName);
   useEffect(() => setName(profile.displayName), [profile.displayName]);
@@ -78,6 +83,38 @@ export function GeneralSection({
           value={openHubOnLaunch}
           onChange={onOpenHubOnLaunch}
         />
+      </div>
+      <div data-setting="theme" className="hub-setting-row">
+        <VStack gap={1}>
+          <Text weight="semibold" id="theme-label">
+            Appearance
+          </Text>
+          <HStack gap={1} role="radiogroup" aria-labelledby="theme-label">
+            {(
+              [
+                ["system", "System"],
+                ["light", "Light"],
+                ["dark", "Dark"],
+              ] as const
+            ).map(([value, text]) => (
+              <Button
+                key={value}
+                size="sm"
+                variant={theme === value ? "secondary" : "ghost"}
+                label={text}
+                role="radio"
+                aria-checked={theme === value}
+                onClick={() => onTheme(value)}
+              >
+                {text}
+              </Button>
+            ))}
+          </HStack>
+          <Text size="sm" color="secondary">
+            For the Hub, Scratchpad and the Rewrite and Instruct panels. System follows macOS. The
+            Bar keeps its own dark look so it reads the same over any app.
+          </Text>
+        </VStack>
       </div>
       <div data-setting="display-name" className="hub-setting-row">
         <VStack gap={2}>

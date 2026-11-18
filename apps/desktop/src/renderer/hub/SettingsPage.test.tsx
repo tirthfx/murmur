@@ -108,4 +108,13 @@ describe("Settings page", () => {
     );
     expect(window.murmur.updateSettings).toHaveBeenCalledWith({ openHubOnLaunch: false });
   });
+
+  it("chooses the appearance", async () => {
+    const user = userEvent.setup();
+    render(<SettingsPage onRunSetup={() => {}} />);
+    const dark = await screen.findByRole("radio", { name: "Dark" });
+    expect(screen.getByRole("radio", { name: "System" }).getAttribute("aria-checked")).toBe("true");
+    await user.click(dark);
+    expect(window.murmur.updateSettings).toHaveBeenCalledWith({ theme: "dark" });
+  });
 });
