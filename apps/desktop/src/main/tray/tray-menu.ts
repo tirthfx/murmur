@@ -6,7 +6,12 @@ import {
   type FocusDuration,
   type FocusState,
   type SpeechLanguage,
+  translate,
+  type CatalogueKey,
 } from "@murmur/shared";
+
+/** Tray text in the interface language (HB-23). */
+const tr = (language: string | undefined, key: CatalogueKey) => translate(language ?? "en", key);
 
 /** What the menu bar icon shows next to the microphone. */
 export type TrayStatus = "idle" | "listening" | "warning";
@@ -24,6 +29,8 @@ export interface TrayState {
   /** A failed dictation can be transcribed again. */
   canRetry: boolean;
   typingReminder: "on" | "snoozed" | "off";
+  /** The interface language (HB-23); English when not given. */
+  language?: string;
   /** Focus Mode (RW-18); null while it is off in Experimental. */
   focus?: { state: FocusState; duration: FocusDuration } | null;
 }
@@ -54,9 +61,9 @@ export type TrayItem =
     };
 
 /** Focus Mode: turn it off, or start it for a chosen time (the last one is checked). */
-function focusItems(focus: NonNullable<TrayState["focus"]>): TrayItem[] {
+function focusItems(focus: NonNullable<TrayState["focus"]>, language?: string): TrayItem[] {
   if (focus.state.status !== "off") {
-    return [{ kind: "item", label: "Turn off Focus", action: { type: "focus-off" } }];
+    return [{ kind: "item", label: tr(language, "tray.focus.off"), action: { type: "focus-off" } }];
   }
   return FOCUS_DURATIONS.map((duration) => ({
     kind: "item" as const,
@@ -71,7 +78,7 @@ function microphoneItems(state: TrayState): TrayItem[] {
   const items: TrayItem[] = [
     {
       kind: "item",
-      label: "Auto",
+      label: tr(state.language, "tray.microphone.auto"),
       checked: state.inputDevice === "auto",
       action: { type: "device", id: "auto" },
     },
@@ -88,7 +95,7 @@ function microphoneItems(state: TrayState): TrayItem[] {
   if (state.inputDevice !== "auto" && !devices.some((device) => device.id === state.inputDevice)) {
     items.push({
       kind: "item",
-      label: "Saved microphone (not connected)",
+      label: tr(state.language, "tray.microphone.saved"),
       checked: true,
       enabled: false,
     });
@@ -96,29 +103,43 @@ function microphoneItems(state: TrayState): TrayItem[] {
   return items;
 }
 
-function reminderItems(status: TrayState["typingReminder"]): TrayItem[] {
+function reminderItems(status: TrayState["typingReminder"], language?: string): TrayItem[] {
   if (status === "off") {
-    return [{ kind: "item", label: "Turn on", action: { type: "reminder", choice: "on" } }];
+    return [
+      {
+        kind: "item",
+        label: tr(language, "tray.reminder.on"),
+        action: { type: "reminder", choice: "on" },
+      },
+    ];
   }
   return [
     ...(status === "snoozed"
       ? [
-          { kind: "item" as const, label: "Snoozed", enabled: false },
+          { kind: "item" as const, label: tr(language, "tray.reminder.snoozed"), enabled: false },
           {
             kind: "item" as const,
-            label: "Resume now",
+            label: tr(language, "tray.reminder.resume"),
             action: { type: "reminder" as const, choice: "on" as const },
           },
         ]
       : []),
-    { kind: "item", label: "Snooze for 1 hour", action: { type: "reminder", choice: "hour" } },
     {
       kind: "item",
-      label: "Snooze until tomorrow",
+      label: tr(language, "tray.reminder.hour"),
+      action: { type: "reminder", choice: "hour" },
+    },
+    {
+      kind: "item",
+      label: tr(language, "tray.reminder.tomorrow"),
       action: { type: "reminder", choice: "tomorrow" },
     },
     { kind: "separator" },
-    { kind: "item", label: "Turn off", action: { type: "reminder", choice: "off" } },
+    {
+      kind: "item",
+      label: tr(language, "tray.reminder.off"),
+      action: { type: "reminder", choice: "off" },
+    },
   ];
 }
 
@@ -130,18 +151,18 @@ export function trayMenu(state: TrayState): TrayItem[] {
   return [
     {
       kind: "item",
-      label: state.recording ? "Stop dictation" : "Start dictation",
+      label: tr(state.language, state.recording ? "tray.stop" : "tray.start"),
       action: { type: "toggle" },
     },
     { kind: "separator" },
-    { kind: "item", label: "Microphone", submenu: microphoneItems(state) },
+    { kind: "item", label: tr(state.language, "tray.microphone"), submenu: microphoneItems(state) },
     {
       kind: "item",
-      label: "Languages",
+      label: tr(state.language, "tray.languages"),
       submenu: [
         {
           kind: "item" as const,
-          label: "Detect automatically",
+          label: tr(state.language, "tray.languages.detect"),
           checked: state.languages.length === 0,
           action: { type: "language" as const, code: "auto" as const },
         },
@@ -157,33 +178,40 @@ export function trayMenu(state: TrayState): TrayItem[] {
     { kind: "separator" },
     {
       kind: "item",
-      label: "Copy last transcript",
+      label: tr(state.language, "tray.copyLast"),
       enabled: state.hasLastTranscript,
       action: { type: "copy-last" },
     },
     {
       kind: "item",
-      label: "Retry last dictation",
+      label: tr(state.language, "tray.retryLast"),
       enabled: state.canRetry,
       action: { type: "retry-last" },
     },
-    { kind: "item", label: "Typing reminder", submenu: reminderItems(state.typingReminder) },
+    {
+      kind: "item",
+      label: tr(state.language, "tray.reminder"),
+      submenu: reminderItems(state.typingReminder, state.language),
+    },
     ...(state.focus
       ? [
           {
             kind: "item" as const,
-            label: state.focus.state.status === "off" ? "Start Focus" : "Focus is on",
-            submenu: focusItems(state.focus),
+            label: tr(
+              state.language,
+              state.focus.state.status === "off" ? "tray.focus.start" : "tray.focus.on",
+            ),
+            submenu: focusItems(state.focus, state.language),
           },
         ]
       : []),
     { kind: "separator" },
-    { kind: "item", label: "Quit Murmur", action: { type: "quit" } },
+    { kind: "item", label: tr(state.language, "tray.quit"), action: { type: "quit" } },
   ];
 }
 
-export function trayTooltip(status: TrayStatus): string {
-  if (status === "listening") return "Murmur: listening";
-  if (status === "warning") return "Murmur: the last dictation had a problem";
-  return "Murmur";
+export function trayTooltip(status: TrayStatus, language?: string): string {
+  if (status === "listening") return tr(language, "tray.tooltip.listening");
+  if (status === "warning") return tr(language, "tray.tooltip.warning");
+  return tr(language, "tray.tooltip");
 }

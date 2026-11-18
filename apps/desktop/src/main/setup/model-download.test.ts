@@ -21,17 +21,20 @@ function setup(speech: SpeechState = "missing") {
   const onDownloaded = vi.fn(() => {
     state.speech = "loading";
   });
+  const onFailed = vi.fn();
   const downloader = createModelDownload({
     model,
     download,
     speechState: () => state.speech,
     onDownloaded,
+    onFailed,
     logger: createTestLogger(),
   });
   return {
     downloader,
     download,
     onDownloaded,
+    onFailed,
     state,
     finish: () => finish(),
     fail: (error: Error) => fail(error),
@@ -82,7 +85,7 @@ describe("model download", () => {
   });
 
   it("reports a failed download and can try again", async () => {
-    const { downloader, fail, download, onDownloaded } = setup();
+    const { downloader, fail, download, onDownloaded, onFailed } = setup();
     downloader.start();
     fail(new Error("offline"));
     await downloader.settled();
@@ -91,6 +94,7 @@ describe("model download", () => {
       message: "The download did not finish: offline",
     });
     expect(onDownloaded).not.toHaveBeenCalled();
+    expect(onFailed).toHaveBeenCalledOnce();
     downloader.start();
     expect(download).toHaveBeenCalledTimes(2);
     expect(downloader.status().state).toBe("downloading");

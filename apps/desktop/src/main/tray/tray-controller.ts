@@ -88,6 +88,7 @@ export function createTrayController(deps: TrayControllerDeps): TrayController {
       devices,
       inputDevice: settings.inputDevice,
       languages: settings.languages,
+      language: settings.language,
       hasLastTranscript: deps.lastTranscript() !== null,
       canRetry: deps.canRetry(),
       typingReminder: !settings.typingReminder.enabled
@@ -108,7 +109,7 @@ export function createTrayController(deps: TrayControllerDeps): TrayController {
     return {
       items: trayMenu(current),
       status: current.status,
-      tooltip: trayTooltip(current.status),
+      tooltip: trayTooltip(current.status, current.language),
     };
   }
 

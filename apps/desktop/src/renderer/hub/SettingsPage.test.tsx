@@ -117,4 +117,13 @@ describe("Settings page", () => {
     await user.click(dark);
     expect(window.murmur.updateSettings).toHaveBeenCalledWith({ theme: "dark" });
   });
+
+  it("turns a notification on", async () => {
+    const user = userEvent.setup();
+    render(<SettingsPage onRunSetup={() => {}} />);
+    await user.click(await screen.findByRole("switch", { name: "A milestone was reached" }));
+    expect(window.murmur.updateSettings).toHaveBeenCalledWith({
+      notifications: expect.objectContaining({ milestone: true, dictationFailed: true }),
+    });
+  });
 });

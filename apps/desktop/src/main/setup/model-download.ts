@@ -10,6 +10,8 @@ export interface ModelDownloadDeps {
   speechState(): SpeechState;
   /** Called after a good download so the model is checked and loaded. */
   onDownloaded(): void;
+  /** Called when a download ends without the model. */
+  onFailed?(): void;
   logger: Logger;
 }
 
@@ -75,6 +77,7 @@ export function createModelDownload(deps: ModelDownloadDeps): ModelDownload {
             running = null;
             failure = `The download did not finish: ${errorMessage(error)}`;
             deps.logger.warn(failure);
+            deps.onFailed?.();
           },
         );
     },

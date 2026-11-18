@@ -42,3 +42,4 @@ export * from "./milestones";
 export * from "./home";
 export * from "./notes";
 export * from "./markdown";
+export * from "./catalogue";
