@@ -55,6 +55,7 @@ import {
   type NoteSaveResult,
   type NoteSummary,
 } from "./notes";
+import { planActionSchema, planViewSchema, type PlanAction, type PlanView } from "./plans";
 import {
   dataCountsSchema,
   DELETE_CATEGORIES,
@@ -219,6 +220,8 @@ export const IPC_CHANNELS = {
   homeView: "home:view",
   storageView: "privacy:storage",
   dataExport: "data:export",
+  planView: "plan:view",
+  planAct: "plan:act",
   dataCounts: "data:counts",
   dataDelete: "data:delete",
   dataReset: "data:reset",
@@ -575,6 +578,9 @@ export const IPC_CONTRACT = {
     result: focusAddResultSchema,
   },
   [IPC_CHANNELS.focusRemoveApp]: { args: z.tuple([z.string().min(1)]), result: z.void() },
+  // HB-19.
+  [IPC_CHANNELS.planView]: { args: z.tuple([]), result: planViewSchema },
+  [IPC_CHANNELS.planAct]: { args: z.tuple([planActionSchema]), result: planViewSchema },
   // HB-46, HB-47.
   [IPC_CHANNELS.dataExport]: { args: z.tuple([exportRequestSchema]), result: exportResultSchema },
   [IPC_CHANNELS.dataCounts]: { args: z.tuple([]), result: dataCountsSchema },
@@ -832,6 +838,10 @@ export interface MurmurApi {
   focusAddSite(input: FocusSiteInput): Promise<FocusAddResult>;
   /** Installed apps to choose from; empty when the helper cannot list them. */
   focusInstalledApps(): Promise<InstalledApp[]>;
+  /** The Plans page (HB-19): tier, this week's words against the limit, trial and log. */
+  planView(): Promise<PlanView>;
+  /** Starts, extends or ends the trial, or sets the student label. */
+  planAct(action: PlanAction): Promise<PlanView>;
   /** Exports the chosen categories to a folder the user picks (HB-46). */
   dataExport(request: ExportRequest): Promise<ExportResult>;
   /** Counts and sizes of each category that can be deleted (HB-47). */

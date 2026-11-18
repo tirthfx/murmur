@@ -44,6 +44,7 @@ export const SAMPLE_SETTINGS: SettingsView = {
       weeklySummary: false,
     },
     privacy: { storeHistory: true, audio: "24h", historyDays: null, strictLocal: false },
+    planState: { trial: null, student: false, log: [] },
     contextAwareness: true,
     mouseButtons: { hold: null, handsFree: null },
     typingReminder: { enabled: true, snoozedUntil: null },
@@ -211,6 +212,27 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
   return {
     hubSetPage: vi.fn().mockResolvedValue(undefined),
     insightsView: vi.fn().mockResolvedValue(SAMPLE_INSIGHTS),
+    planView: vi.fn().mockResolvedValue({
+      tier: "free",
+      weekWords: 1234,
+      weeklyLimit: 2000,
+      state: { trial: null, student: false, log: [] },
+    }),
+    planAct: vi.fn().mockResolvedValue({
+      tier: "pro",
+      weekWords: 1234,
+      weeklyLimit: null,
+      state: {
+        trial: {
+          startedAt: Date.now(),
+          endsAt: Date.now() + 14 * 86_400_000,
+          extended: false,
+          previousTier: "free",
+        },
+        student: false,
+        log: [{ at: Date.UTC(2026, 10, 19), text: "Trial of Pro started for 14 days" }],
+      },
+    }),
     dataExport: vi.fn().mockResolvedValue({
       ok: true,
       folder: "/Users/you/Documents/Murmur export 2026-11-19 10-00",
