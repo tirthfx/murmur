@@ -33,6 +33,7 @@ function setup() {
   const getMediaPlayback = vi.fn(() => Promise.resolve(null));
   const handle = createIpcHandler({
     entryUrl,
+    hubSetPage: vi.fn(),
     getAppInfo,
     getHelperStatus,
     getPermissions,

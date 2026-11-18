@@ -48,6 +48,7 @@ describe("Permissions section", () => {
 
   afterEach(() => {
     cleanup();
+    window.history.replaceState(null, "", "#");
     vi.unstubAllGlobals();
   });
 

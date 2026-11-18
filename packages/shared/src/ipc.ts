@@ -124,6 +124,7 @@ import {
 
 export const IPC_CHANNELS = {
   getAppInfo: "app:get-info",
+  hubSetPage: "hub:set-page",
   getHelperStatus: "helper:get-status",
   getPermissions: "permissions:get",
   requestPermission: "permissions:request",
@@ -443,6 +444,11 @@ export const IPC_CONTRACT = {
     result: focusAddResultSchema,
   },
   [IPC_CHANNELS.focusRemoveApp]: { args: z.tuple([z.string().min(1)]), result: z.void() },
+  // HB-01.
+  [IPC_CHANNELS.hubSetPage]: {
+    args: z.tuple([z.string().regex(/^[a-z-]{1,40}$/)]),
+    result: z.void(),
+  },
   [IPC_CHANNELS.focusInstalledApps]: { args: z.tuple([]), result: z.array(installedAppSchema) },
   // RW-20.
   [IPC_CHANNELS.focusSites]: { args: z.tuple([]), result: focusSitesViewSchema },
@@ -572,6 +578,8 @@ export interface MurmurApi {
   focusAddSite(input: FocusSiteInput): Promise<FocusAddResult>;
   /** Installed apps to choose from; empty when the helper cannot list them. */
   focusInstalledApps(): Promise<InstalledApp[]>;
+  /** The page now shown, remembered for the next start (HB-01). */
+  hubSetPage(pageId: string): Promise<void>;
   /** Main asks the Hub to show a page (for example after a Bar prompt). */
   onOpenPage(handler: (pageId: string) => void): () => void;
   /** Input levels during a microphone check, about 20 a second. Returns an unsubscribe. */

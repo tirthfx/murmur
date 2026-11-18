@@ -129,6 +129,7 @@ export const SAMPLE_STYLES: StylesView = {
 /** A mocked preload API for renderer tests. Override any member. */
 export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
   return {
+    hubSetPage: vi.fn().mockResolvedValue(undefined),
     getAppInfo: vi.fn().mockResolvedValue({ name: "Murmur", version: "1.2.3", platform: "darwin" }),
     getHelperStatus: vi
       .fn()
