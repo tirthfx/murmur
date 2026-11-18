@@ -181,3 +181,43 @@ body {
   -webkit-user-select: text;
   margin-top: 4px;
 }
+
+/* Settings (HB-12): the page list beside one page. */
+.hub-settings-layout {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.hub-settings-nav {
+  position: sticky;
+  top: 0;
+}
+
+.hub-settings-nav button {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+.hub-settings-results {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+}
+
+.hub-setting-row {
+  border-radius: 8px;
+  transition: box-shadow 0.2s ease;
+}
+
+/* A setting found by search. */
+.hub-setting-found {
+  box-shadow: 0 0 0 3px var(--color-border-focus, Highlight);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hub-setting-row {
+    transition: none;
+  }
+}

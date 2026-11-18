@@ -150,7 +150,7 @@ Text generation for Rewrites, Command Mode and Instruct Mode (prompt rules, stre
 
 Dictation history (database, tables, migrations): see `docs/history.md`.
 
-Settings (shortcuts and their checks, microphone, language, cleanup level, the local plan tier and what it gates): see `docs/settings.md`.
+Settings (the Settings pages and search, launch at login, shortcuts and their checks, microphone, language, cleanup level, the local plan tier and what it gates): see `docs/settings.md`.
 
 Sounds and output mute (the tones, mute while dictating, crash recovery): see `docs/sounds.md`.
 

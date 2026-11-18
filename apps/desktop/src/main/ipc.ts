@@ -2,6 +2,7 @@ import {
   IPC_CHANNELS,
   parseIpcRequest,
   type AppInfo,
+  type LoginItem,
   type CapturedKey,
   type InstructModelStatus,
   type FocusAddResult,
@@ -57,6 +58,8 @@ import { isTrustedIpcSender } from "../security/guards";
 export interface IpcDeps {
   entryUrl: string;
   getAppInfo: () => AppInfo;
+  loginItemGet: () => LoginItem;
+  loginItemSet: (enabled: boolean) => LoginItem;
   /** The Hub page now shown (HB-01). */
   hubSetPage: (pageId: string) => void;
   getHelperStatus: () => HelperStatus;
@@ -149,6 +152,10 @@ export function createIpcHandler(deps: IpcDeps) {
     switch (channel) {
       case IPC_CHANNELS.getAppInfo:
         return deps.getAppInfo();
+      case IPC_CHANNELS.loginItemGet:
+        return deps.loginItemGet();
+      case IPC_CHANNELS.loginItemSet:
+        return deps.loginItemSet(request.args[0] as boolean);
       case IPC_CHANNELS.hubSetPage:
         return deps.hubSetPage(request.args[0] as string);
       case IPC_CHANNELS.getHelperStatus:

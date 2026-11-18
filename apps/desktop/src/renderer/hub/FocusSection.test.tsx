@@ -41,14 +41,14 @@ function mount(view: SettingsView = ON, overrides: Parameters<typeof createMockA
   });
   vi.stubGlobal("murmur", api);
   window.murmur = api;
-  render(<SettingsSection />);
+  render(<SettingsSection page="experimental" onRunSetup={() => {}} />);
   return api;
 }
 
 describe("Focus Mode section", () => {
   it("is shown only while Focus Mode is on in Experimental", async () => {
     mount(SAMPLE_SETTINGS);
-    await screen.findByTestId("hold-label");
+    await screen.findAllByRole("switch");
     expect(screen.queryByRole("heading", { name: "Focus Mode" })).toBeNull();
   });
 
