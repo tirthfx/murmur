@@ -45,3 +45,11 @@ describe("colour contrast (HB-22)", () => {
     expect(contrast("#f4f4f5", "#1f1f22")).toBeGreaterThanOrEqual(4.5);
   });
 });
+
+describe("reduced motion (HB-25)", () => {
+  it("stops the Bar's spinner", () => {
+    const css = readFileSync(new URL("./bar/bar.css", import.meta.url), "utf8");
+    const reduced = css.slice(css.indexOf("@media (prefers-reduced-motion: reduce)"));
+    expect(reduced).toMatch(/\.bar-spinner\s*\{\s*animation:\s*none/);
+  });
+});

@@ -168,6 +168,8 @@ Experimental options (split into messages, pause media, headset, ring, phrases, 
 
 Notifications and interface text (the five notification types, never any dictated text, the catalogue with English fallback): see `docs/notifications.md`.
 
+Accessibility (the automated page check, Bar announcements, reduced motion, the VoiceOver checklist): see `docs/accessibility.md`.
+
 Tray menu (items, the status dot, when it is rebuilt, manual test): see `docs/tray.md`.
 
 First-run setup (steps, what blocks dictation, a clean profile with `MURMUR_PROFILE_DIR`): see `docs/onboarding.md`.

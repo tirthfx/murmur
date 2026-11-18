@@ -1,6 +1,6 @@
 import type { PointerEvent } from "react";
 import { focusTimeLeft, type BarView } from "@murmur/shared";
-import { describeView, elapsed, meterFill } from "./bar-text";
+import { announcement, describeView, elapsed, meterFill } from "./bar-text";
 import { Icon } from "./icons";
 
 export interface BarPillProps {
@@ -70,14 +70,11 @@ export function BarPill({ view, level, now, onAnswer, ...handlers }: BarPillProp
   const recording = view.state === "listening" || view.state === "locked";
   const fill = meterFill(level);
   return (
-    <div
-      className="bar-pill"
-      data-state={view.state}
-      role="status"
-      aria-live="polite"
-      aria-label={text || "Murmur"}
-      {...handlers}
-    >
+    <div className="bar-pill" data-state={view.state} {...handlers}>
+      {/* HB-25: only state changes are announced, never the meter or the clock. */}
+      <span className="bar-announce" role="status" aria-live="polite" aria-atomic="true">
+        {announcement(view)}
+      </span>
       {icon && <Icon name={icon} />}
       {text && <span className="bar-text">{text}</span>}
       {recording && (
@@ -91,7 +88,11 @@ export function BarPill({ view, level, now, onAnswer, ...handlers }: BarPillProp
           ))}
         </span>
       )}
-      {view.startedAt !== null && <span className="bar-time">{elapsed(view.startedAt, now)}</span>}
+      {view.startedAt !== null && (
+        <span className="bar-time" aria-hidden="true">
+          {elapsed(view.startedAt, now)}
+        </span>
+      )}
     </div>
   );
 }

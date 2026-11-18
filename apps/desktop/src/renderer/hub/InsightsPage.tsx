@@ -125,7 +125,7 @@ function Usage({
       </div>
 
       <VStack gap={2}>
-        <Heading level={3}>Top apps</Heading>
+        <Heading level={2}>Top apps</Heading>
         {view.topApps.length === 0 && !view.other ? (
           <Text color="secondary">No apps yet.</Text>
         ) : (
@@ -237,7 +237,7 @@ function Milestones({ view }: { view: InsightsView }) {
 
   return (
     <VStack gap={2}>
-      <Heading level={3}>Milestones</Heading>
+      <Heading level={2}>Milestones</Heading>
       {reached.length === 0 ? (
         <Text color="secondary">No milestones yet. Your first dictation is the first one.</Text>
       ) : (
@@ -347,7 +347,7 @@ function Voice() {
       )}
       {profile.topPhrases.length > 0 ? (
         <VStack gap={1}>
-          <Heading level={3}>Phrases you use most</Heading>
+          <Heading level={2}>Phrases you use most</Heading>
           <ol aria-label="Top phrases">
             {profile.topPhrases.slice(0, 10).map((phrase) => (
               <li key={phrase}>{phrase}</li>
