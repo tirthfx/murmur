@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { APP_LANGUAGES } from "./catalogue";
+import { privacySettingsSchema } from "./privacy";
 import { audioDeviceSchema } from "./audio";
 import { developerToolsSchema, jargonPacksSchema } from "./developer";
 import { emailSettingsSchema } from "./email";
@@ -170,6 +171,8 @@ export const settingsSchema = z.strictObject({
     milestone: z.boolean(),
     weeklySummary: z.boolean(),
   }),
+  /** HB-48 to HB-52: history, recordings, retention and strict local mode. */
+  privacy: privacySettingsSchema,
   /** HB-22: the look of every window; System follows macOS. */
   theme: z.enum(["system", "light", "dark"]),
   /** HB-51: an optional local display name for the Home greeting; never published. */
@@ -212,6 +215,7 @@ export const settingsPatchSchema = settingsSchema
     theme: true,
     language: true,
     notifications: true,
+    privacy: true,
   })
   .partial()
   .strict();
@@ -255,6 +259,7 @@ export const SETTING_KEYS: Record<keyof Settings, string> = {
   theme: "ui.theme",
   language: "ui.language",
   notifications: "notifications.settings",
+  privacy: "privacy.settings",
 };
 
 /** HB-24 defaults. */

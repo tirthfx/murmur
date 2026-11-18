@@ -90,6 +90,8 @@ export interface HistoryStore {
     appBundleId: string | null;
     appName: string | null;
   } | null;
+  /** HB-50: deletes dictations older than this time, with their recordings. */
+  removeOlderThan(cutoff: number): HistoryDeleteResult;
   /** Puts a retry's text into the same row; it now counts as left on the clipboard. */
   applyRetry(id: string, text: { rawText: string; finalText: string; wordCount: number }): void;
 }
@@ -126,10 +128,19 @@ function cleanupStatus(record: DictationRecord): string {
  * The `history` and `audio_chunks` tables. Audio paths are stored relative to the audio
  * folder (`<appData>/Murmur/audio`), as the data model asks.
  */
+export interface HistoryOptions {
+  /**
+   * HB-48: what happens to a successful dictation's recording: kept a day (the default),
+   * deleted at once, or kept until deleted. Failed ones are always kept for retry.
+   */
+  audioPolicy?: () => "24h" | "never" | "keep";
+}
+
 export function createHistoryStore(
   db: DatabaseSync,
   audioRoot: string,
   id: () => string = randomUUID,
+  options: HistoryOptions = {},
 ): HistoryStore {
   const insertHistory = db.prepare(`INSERT INTO history (
       id, created_at, session_id, source, language, duration_ms, raw_text, final_text, word_count,
@@ -220,15 +231,23 @@ export function createHistoryStore(
     add(record) {
       const rowId = id();
       const failed = record.insertStatus === "failed";
+      const policy = failed ? "24h" : (options.audioPolicy?.() ?? "24h");
+      if (record.audio && policy === "never") {
+        // Deleted right away; only a path inside the audio folder is ever removed.
+        const file = record.audio.path;
+        if (insideRoot(file) && existsSync(file)) rmSync(file, { force: true });
+        record = { ...record, audio: null };
+      }
       const file = record.audio
-        ? failed
+        ? failed || policy === "keep"
           ? keep(record.audio.path, record.sessionId)
           : record.audio.path
         : null;
       const audioPath = file ? relative(file) : null;
-      const expires = record.audio
-        ? record.createdAt + (failed ? FAILED_AUDIO_RETENTION_MS : AUDIO_RETENTION_MS)
-        : null;
+      const expires =
+        record.audio && policy !== "keep"
+          ? record.createdAt + (failed ? FAILED_AUDIO_RETENTION_MS : AUDIO_RETENTION_MS)
+          : null;
       db.exec("BEGIN IMMEDIATE");
       try {
         insertHistory.run(
@@ -498,6 +517,18 @@ export function createHistoryStore(
         if (removeFile(stored)) files++;
       }
       return { rows, files };
+    },
+    removeOlderThan(cutoff) {
+      const ids = (
+        db.prepare("SELECT id FROM history WHERE created_at < ?").all(cutoff) as { id: string }[]
+      ).map((row) => row.id);
+      const total = { rows: 0, files: 0 };
+      for (let start = 0; start < ids.length; start += 500) {
+        const result = store.remove(ids.slice(start, start + 500));
+        total.rows += result.rows;
+        total.files += result.files;
+      }
+      return total;
     },
     retrySource(rowId) {
       const row = db

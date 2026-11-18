@@ -14,6 +14,8 @@ import {
   type DictationState,
   type HistoryRetryResult,
   type HomeView,
+  type RetentionView,
+  type StorageView,
   type Note,
   type NoteCreate,
   type NoteSave,
@@ -86,6 +88,10 @@ import { isTrustedIpcSender } from "../security/guards";
 export interface IpcDeps {
   entryUrl: string;
   getAppInfo: () => AppInfo;
+  storageView: () => StorageView;
+  storageOpen: () => void;
+  retentionView: () => RetentionView;
+  retentionRun: () => RetentionView;
   notesList: (query: string) => NoteSummary[];
   noteGet: (id: string) => Note | null;
   noteCreate: (input: NoteCreate) => { ok: true; note: Note } | { ok: false; message: string };
@@ -212,6 +218,14 @@ export function createIpcHandler(deps: IpcDeps) {
     switch (channel) {
       case IPC_CHANNELS.getAppInfo:
         return deps.getAppInfo();
+      case IPC_CHANNELS.storageView:
+        return deps.storageView();
+      case IPC_CHANNELS.storageOpen:
+        return deps.storageOpen();
+      case IPC_CHANNELS.retentionView:
+        return deps.retentionView();
+      case IPC_CHANNELS.retentionRun:
+        return deps.retentionRun();
       case IPC_CHANNELS.notesList:
         return deps.notesList(request.args[0] as string);
       case IPC_CHANNELS.noteGet:

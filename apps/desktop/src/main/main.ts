@@ -42,6 +42,7 @@ import {
   streaks,
   NOTE_MESSAGES,
   DEFAULT_NOTIFICATIONS,
+  DEFAULT_PRIVACY,
   GENERATION_MESSAGES,
   markdownTitle,
   markdownToRich,
@@ -108,6 +109,9 @@ import { createHistoryStore, type HistoryStore } from "./history/history-store";
 import { createInsightsStore } from "./insights/insights-store";
 import { createMilestonesStore } from "./milestones/milestones-store";
 import { createNotifier } from "./notifications/notifier";
+import { createNetworkGuard } from "./privacy/network-guard";
+import { createRetentionJob, tableRules } from "./privacy/retention";
+import { sizeOf } from "./privacy/storage";
 import { createNotesStore } from "./notes/notes-store";
 import { createNoteImages, type ImageEncoder } from "./notes/note-images";
 import {
@@ -476,6 +480,39 @@ const noteImages = database
   ? createNoteImages(database, path.join(profile.appData, "Murmur", "notes"), encodeNoteImage)
   : null;
 
+// HB-52: the one gate for network use (model downloads and any page request).
+const networkGuard = createNetworkGuard({
+  strict: () => settingsStore.get().privacy.strictLocal,
+  logger: console,
+});
+
+// HB-50: what the daily job removes. Dictionary, Snippets, Styles, Memory and notes are
+// never touched by it.
+const DAY_MS = 24 * 60 * 60_000;
+const retention = database
+  ? createRetentionJob(database, {
+      historyText: (now) => {
+        const days = settingsStore.get().privacy.historyDays;
+        return days && history ? history.removeOlderThan(now - days * DAY_MS).rows : 0;
+      },
+      audio: (now) => history?.pruneAudio(now) ?? 0,
+      instructThreads: () => {
+        const result = instructThreads?.applyRetention();
+        return result ? result.textRemoved + result.deleted : 0;
+      },
+      ...tableRules(database),
+    })
+  : null;
+
+function runRetention(): void {
+  try {
+    const removed = retention?.runIfDue(Date.now());
+    if (removed) console.log(`[retention] ${JSON.stringify(removed)}`);
+  } catch (error) {
+    console.warn(`[retention] could not run: ${String(error)}`);
+  }
+}
+
 // HB-24: macOS notifications. Shown ones are kept until closed, so they are not collected
 // while still on screen.
 const shownNotifications = new Set<Notification>();
@@ -533,7 +570,13 @@ function checkMilestones(announce: boolean): void {
 checkMilestones(false);
 
 const history: HistoryStore | null = database
-  ? createHistoryStore(database, path.join(profile.appData, "Murmur", "audio"))
+  ? createHistoryStore(database, path.join(profile.appData, "Murmur", "audio"), undefined, {
+      // HB-48, HB-52: what is kept of a successful recording; nothing in strict local mode.
+      audioPolicy: () => {
+        const privacy = settingsStore.get().privacy;
+        return privacy.strictLocal ? "never" : privacy.audio;
+      },
+    })
   : null;
 
 // Where the helper writes recordings. A separate profile keeps them inside it too.
@@ -577,6 +620,7 @@ const settingsStore = createSettingsStore(database, {
   theme: "system",
   language: "en",
   notifications: DEFAULT_NOTIFICATIONS,
+  privacy: DEFAULT_PRIVACY,
   plan: DEFAULT_PLAN,
   inputDevice: "auto",
   languages: [],
@@ -654,7 +698,12 @@ const speech = createSpeechService({
 const modelDownload = createModelDownload({
   model: DEFAULT_SPEECH_MODEL,
   download: (onProgress) =>
-    downloadModel(speechModelRoot(profile.modelsAppData), DEFAULT_SPEECH_MODEL, { onProgress }),
+    Promise.resolve().then(() => {
+      networkGuard.check("speech model download");
+      return downloadModel(speechModelRoot(profile.modelsAppData), DEFAULT_SPEECH_MODEL, {
+        onProgress,
+      });
+    }),
   speechState: () => speech.getState(),
   onDownloaded: () => {
     speech.recheck();
@@ -959,15 +1008,17 @@ const recorder = createRecorder({
   // Called only during a dictation, after the auto-rewriter below exists.
   autoRewrite: (text, category, appBundleId) => autoRewrite(text, category, appBundleId),
   record: (dictation) => {
-    const id = history?.add(dictation) ?? null;
+    // HB-48: with Store history off, no dictation row is written; Insights keep counts only.
+    const storeHistory = settingsStore.get().privacy.storeHistory;
+    const id = storeHistory ? (history?.add(dictation) ?? null) : null;
     try {
       insights?.record({
         createdAt: dictation.createdAt,
         words: dictation.wordCount,
         durationMs: dictation.durationMs,
         insertStatus: dictation.insertStatus,
-        appBundleId: dictation.appBundleId ?? null,
-        appName: dictation.appName ?? null,
+        appBundleId: storeHistory ? (dictation.appBundleId ?? null) : null,
+        appName: storeHistory ? (dictation.appName ?? null) : null,
       });
     } catch (error) {
       console.warn(`[insights] could not count a dictation: ${String(error)}`);
@@ -1094,7 +1145,11 @@ let qualityReadyNow = false;
 const qualityModel = createQualityModel({
   model: QUALITY_INSTRUCT_MODEL,
   check: () => checkModel(cleanupRoot, QUALITY_INSTRUCT_MODEL),
-  download: (onProgress) => downloadModel(cleanupRoot, QUALITY_INSTRUCT_MODEL, { onProgress }),
+  download: (onProgress) =>
+    Promise.resolve().then(() => {
+      networkGuard.check("Quality model download");
+      return downloadModel(cleanupRoot, QUALITY_INSTRUCT_MODEL, { onProgress });
+    }),
   remove: async () => {
     qualityLlm.stop();
     await rm(modelLocation(cleanupRoot, QUALITY_INSTRUCT_MODEL).dir, {
@@ -1236,13 +1291,7 @@ const trimRewriteRuns = () => {
   try {
     const trimmed = (rewriteRuns?.trimOld() ?? 0) + (commandRuns?.trimOld() ?? 0);
     if (trimmed > 0) console.log(`[rewrite] trimmed ${trimmed} old runs`);
-    // Instruct threads (RW-14): text gone after 30 days, counts kept; at most 1,000 threads.
-    const threads = instructThreads?.applyRetention();
-    if (threads && threads.textRemoved + threads.deleted > 0) {
-      console.log(
-        `[instruct] removed the text of ${threads.textRemoved} threads, deleted ${threads.deleted}`,
-      );
-    }
+    // Instruct threads (RW-14) are in the daily retention job (HB-50).
   } catch (error) {
     console.warn(`[rewrite] could not trim old runs: ${String(error)}`);
   }
@@ -1292,6 +1341,23 @@ helper.onStatusChange((status) => {
   if (status.state === "ready") focus.helperReady();
 });
 settingsStore.onChange(() => focus.refresh());
+// HB-52: strict local mode keeps learning, the Voice Profile and recordings off.
+settingsStore.onChange(() => {
+  const settings = settingsStore.get();
+  if (!settings.privacy.strictLocal) return;
+  if (
+    settings.learnCorrections ||
+    settings.voiceProfile.enabled ||
+    settings.privacy.audio !== "never"
+  ) {
+    settingsStore.update({
+      learnCorrections: false,
+      voiceProfile: { ...settings.voiceProfile, enabled: false },
+      privacy: { ...settings.privacy, audio: "never" },
+    });
+  }
+});
+
 // HB-22: one switch for every window. Each page follows prefers-color-scheme (and Astryx's
 // "system" mode), which this sets for all of them at once.
 nativeTheme.themeSource = settingsStore.get().theme;
@@ -1769,6 +1835,30 @@ app.on("web-contents-created", (_event, contents) => {
 function registerIpc(): void {
   const handle = createIpcHandler({
     entryUrl: hubEntryUrl,
+    storageView: () => {
+      const root = path.join(profile.appData, "Murmur");
+      const db = databasePath(profile.appData);
+      return {
+        folder: root,
+        parts: [
+          { name: "Database", bytes: sizeOf(db) + sizeOf(`${db}-wal`) + sizeOf(`${db}-shm`) },
+          { name: "Recordings", bytes: sizeOf(path.join(root, "audio")) },
+          { name: "Scratchpad images", bytes: sizeOf(path.join(root, "notes")) },
+          {
+            name: "Models",
+            bytes: sizeOf(speechModelRoot(profile.modelsAppData)) + sizeOf(cleanupRoot),
+          },
+        ],
+      };
+    },
+    storageOpen: () => {
+      void shell.openPath(path.join(profile.appData, "Murmur"));
+    },
+    retentionView: () => retention?.view() ?? { lastRunAt: null, nextRunAt: null, removed: {} },
+    retentionRun: () => {
+      retention?.run(Date.now());
+      return retention?.view() ?? { lastRunAt: null, nextRunAt: null, removed: {} };
+    },
     notesList: (query) => notes?.list(query) ?? [],
     noteGet: (id) => notes?.get(id) ?? null,
     noteCreate: ({ fromLastDictation }) => {
@@ -2212,6 +2302,14 @@ void app.whenReady().then(() => {
     denyPermissionRequest(permission, callback),
   );
   session.defaultSession.setPermissionCheckHandler(denyPermissionCheck);
+  // HB-52: in strict local mode no page may reach the network.
+  session.defaultSession.webRequest.onBeforeRequest(
+    { urls: ["http://*/*", "https://*/*", "ws://*/*", "wss://*/*"] },
+    (details, callback) => callback({ cancel: !networkGuard.allowsUrl(details.url) }),
+  );
+  // HB-50: the daily retention job, at start when due and checked every hour.
+  runRetention();
+  setInterval(runRetention, 60 * 60_000).unref();
 
   registerIpc();
   // Configures the dictation key whenever the helper becomes ready, restarts included.

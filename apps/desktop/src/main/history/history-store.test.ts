@@ -438,3 +438,69 @@ describe("retry from the Hub (HB-03)", () => {
     }
   });
 });
+
+describe("recording policy and text retention (HB-48, HB-50)", () => {
+  function withFile(policy: "24h" | "never" | "keep") {
+    const root = mkdtempSync(path.join(os.tmpdir(), "history-policy-"));
+    const db = openDatabase(":memory:");
+    let n = 0;
+    const store = createHistoryStore(db, root, () => `id-${++n}`, { audioPolicy: () => policy });
+    mkdirSync(path.join(root, "tmp"), { recursive: true });
+    const file = path.join(root, "tmp", "p.pcm");
+    writeFileSync(file, "pcm");
+    return { root, db, store, file };
+  }
+
+  it("deletes a successful recording at once on Never", () => {
+    const { root, db, store, file } = withFile("never");
+    try {
+      store.add(
+        record({ sessionId: "p", audio: { path: file, codec: "pcm_s16le", durationMs: 1 } }),
+      );
+      expect(existsSync(file)).toBe(false);
+      expect(db.prepare("SELECT audio_path FROM history").get()).toEqual({ audio_path: null });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps a successful recording with no expiry on Keep", () => {
+    const { root, db, store, file } = withFile("keep");
+    try {
+      store.add(
+        record({ sessionId: "p", audio: { path: file, codec: "pcm_s16le", durationMs: 1 } }),
+      );
+      expect(existsSync(path.join(root, KEPT_AUDIO_DIR, "p.pcm"))).toBe(true);
+      expect(db.prepare("SELECT audio_expires_at FROM history").get()).toEqual({
+        audio_expires_at: null,
+      });
+      expect(store.pruneAudio(Date.now() + 10 * AUDIO_RETENTION_MS)).toBe(0);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("still keeps a failed recording for retry on Never", () => {
+    const { root, store, file } = withFile("never");
+    try {
+      store.add(
+        record({
+          sessionId: "p",
+          insertStatus: "failed",
+          audio: { path: file, codec: "pcm_s16le", durationMs: 1 },
+        }),
+      );
+      expect(existsSync(path.join(root, KEPT_AUDIO_DIR, "p.pcm"))).toBe(true);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("removes dictations older than a time", () => {
+    const { store } = setup();
+    store.add(record({ sessionId: "old", createdAt: 1_000, audio: null }));
+    store.add(record({ sessionId: "new", createdAt: 9_000, audio: null }));
+    expect(store.removeOlderThan(5_000)).toEqual({ rows: 1, files: 0 });
+    expect(store.page({}).total).toBe(1);
+  });
+});

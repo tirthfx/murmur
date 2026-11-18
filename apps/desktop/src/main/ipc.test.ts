@@ -34,6 +34,10 @@ function setup() {
   const handle = createIpcHandler({
     entryUrl,
     hubSetPage: vi.fn(),
+    storageView: vi.fn(() => ({ folder: "/x", parts: [] })),
+    storageOpen: vi.fn(),
+    retentionView: vi.fn(() => ({ lastRunAt: null, nextRunAt: null, removed: {} })),
+    retentionRun: vi.fn(() => ({ lastRunAt: 1, nextRunAt: 2, removed: {} })),
     notesList: vi.fn(() => []),
     noteGet: vi.fn(() => null),
     noteCreate: vi.fn(() => ({ ok: false as const, message: "no" })),

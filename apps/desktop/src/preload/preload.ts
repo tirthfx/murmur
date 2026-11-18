@@ -10,6 +10,10 @@ import {
 // Only this narrow, typed surface reaches the renderer. ipcRenderer itself is never exposed.
 const api: MurmurApi = {
   getAppInfo: () => ipcRenderer.invoke(IPC_CHANNELS.getAppInfo),
+  storageView: () => ipcRenderer.invoke(IPC_CHANNELS.storageView),
+  storageOpen: () => ipcRenderer.invoke(IPC_CHANNELS.storageOpen),
+  retentionView: () => ipcRenderer.invoke(IPC_CHANNELS.retentionView),
+  retentionRun: () => ipcRenderer.invoke(IPC_CHANNELS.retentionRun),
   notesList: (query) => ipcRenderer.invoke(IPC_CHANNELS.notesList, query),
   noteGet: (id) => ipcRenderer.invoke(IPC_CHANNELS.noteGet, id),
   noteCreate: (input) => ipcRenderer.invoke(IPC_CHANNELS.noteCreate, input),

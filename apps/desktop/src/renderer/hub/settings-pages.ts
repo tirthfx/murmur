@@ -63,6 +63,15 @@ export const SETTINGS_INDEX: readonly SettingEntry[] = [
   { id: "focus-mode", page: "experimental", label: "Focus Mode", words: "block apps sites" },
   { id: "plan", page: "plans", label: "Plan", words: "tier free pro" },
   { id: "privacy", page: "privacy", label: "What leaves this Mac", words: "data network" },
+  {
+    id: "privacy-modes",
+    page: "privacy",
+    label: "Privacy mode",
+    words: "balanced minimal full recordings history",
+  },
+  { id: "retention", page: "privacy", label: "Retention", words: "keep delete days" },
+  { id: "storage", page: "privacy", label: "Local storage", words: "folder size finder" },
+  { id: "strict-local", page: "privacy", label: "Strict local mode", words: "offline network" },
 ];
 
 /** Settings whose label or words contain every typed word, best first. */

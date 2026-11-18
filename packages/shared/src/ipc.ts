@@ -56,6 +56,12 @@ import {
   type NoteSummary,
 } from "./notes";
 import {
+  retentionViewSchema,
+  storageViewSchema,
+  type RetentionView,
+  type StorageView,
+} from "./privacy";
+import {
   DICTATION_STATES,
   historyRetryResultSchema,
   homeViewSchema,
@@ -197,6 +203,10 @@ export const IPC_CHANNELS = {
   insightsView: "insights:view",
   milestonesList: "milestones:list",
   homeView: "home:view",
+  storageView: "privacy:storage",
+  storageOpen: "privacy:storage-open",
+  retentionView: "privacy:retention",
+  retentionRun: "privacy:retention-run",
   notesList: "notes:list",
   noteGet: "notes:get",
   noteCreate: "notes:create",
@@ -546,6 +556,11 @@ export const IPC_CONTRACT = {
     result: focusAddResultSchema,
   },
   [IPC_CHANNELS.focusRemoveApp]: { args: z.tuple([z.string().min(1)]), result: z.void() },
+  // HB-49, HB-50.
+  [IPC_CHANNELS.storageView]: { args: z.tuple([]), result: storageViewSchema },
+  [IPC_CHANNELS.storageOpen]: { args: z.tuple([]), result: z.void() },
+  [IPC_CHANNELS.retentionView]: { args: z.tuple([]), result: retentionViewSchema },
+  [IPC_CHANNELS.retentionRun]: { args: z.tuple([]), result: retentionViewSchema },
   // HB-26, HB-31.
   [IPC_CHANNELS.notesList]: {
     args: z.tuple([z.string().max(200)]),
@@ -789,6 +804,14 @@ export interface MurmurApi {
   focusAddSite(input: FocusSiteInput): Promise<FocusAddResult>;
   /** Installed apps to choose from; empty when the helper cannot list them. */
   focusInstalledApps(): Promise<InstalledApp[]>;
+  /** The data folder and the size of each part (HB-49). */
+  storageView(): Promise<StorageView>;
+  /** Shows the data folder in Finder. */
+  storageOpen(): Promise<void>;
+  /** The retention job's last run and what it removed (HB-50). */
+  retentionView(): Promise<RetentionView>;
+  /** Runs the retention job now. */
+  retentionRun(): Promise<RetentionView>;
   /** Scratchpad notes (HB-26, HB-31): pinned and newest first, or matching a search. */
   notesList(query: string): Promise<NoteSummary[]>;
   noteGet(id: string): Promise<Note | null>;
