@@ -20,6 +20,14 @@ import {
 } from "./insights";
 import { milestoneSchema, progressCardBytesSchema, type Milestone } from "./milestones";
 import {
+  DICTATION_STATES,
+  historyRetryResultSchema,
+  homeViewSchema,
+  type DictationState,
+  type HistoryRetryResult,
+  type HomeView,
+} from "./home";
+import {
   permissionKindSchema,
   permissionsInfoSchema,
   requestablePermissionKindSchema,
@@ -152,6 +160,9 @@ export const IPC_CHANNELS = {
   historyPage: "history:page",
   insightsView: "insights:view",
   milestonesList: "milestones:list",
+  homeView: "home:view",
+  historyRetry: "history:retry",
+  dictationState: "dictation:state",
   milestonesSeen: "milestones:seen",
   progressCardSave: "progress-card:save",
   progressCardCopy: "progress-card:copy",
@@ -480,6 +491,13 @@ export const IPC_CONTRACT = {
     result: focusAddResultSchema,
   },
   [IPC_CHANNELS.focusRemoveApp]: { args: z.tuple([z.string().min(1)]), result: z.void() },
+  // HB-02, HB-03.
+  [IPC_CHANNELS.homeView]: { args: z.tuple([]), result: homeViewSchema },
+  [IPC_CHANNELS.historyRetry]: {
+    args: z.tuple([z.string().min(1).max(64)]),
+    result: historyRetryResultSchema,
+  },
+  [IPC_CHANNELS.dictationState]: { args: z.tuple([]), result: z.enum(DICTATION_STATES) },
   // HB-41, HB-44.
   [IPC_CHANNELS.milestonesList]: { args: z.tuple([]), result: z.array(milestoneSchema) },
   [IPC_CHANNELS.milestonesSeen]: { args: z.tuple([]), result: z.void() },
@@ -642,6 +660,14 @@ export interface MurmurApi {
   focusAddSite(input: FocusSiteInput): Promise<FocusAddResult>;
   /** Installed apps to choose from; empty when the helper cannot list them. */
   focusInstalledApps(): Promise<InstalledApp[]>;
+  /** Home (HB-02): today's counts and the last dictation. */
+  homeView(): Promise<HomeView>;
+  /** Transcribes a failed dictation's recording again and updates its row (HB-03). */
+  historyRetry(id: string): Promise<HistoryRetryResult>;
+  /** The dictation state now, as the Bar shows it. */
+  dictationState(): Promise<DictationState>;
+  /** The dictation state as it changes. Returns an unsubscribe. */
+  onDictationState(handler: (state: DictationState) => void): () => void;
   /** Milestones (HB-41), reached or not; checks for new ones first. */
   milestonesList(): Promise<Milestone[]>;
   /** The Insights page has shown the new milestones. */
@@ -674,5 +700,6 @@ export interface MurmurApi {
 /** Main-to-Hub messages (no reply). */
 export const IPC_EVENTS = {
   micCheckLevel: "mic-check:level",
+  dictationState: "dictation:state-changed",
   openPage: "hub:open-page",
 } as const;

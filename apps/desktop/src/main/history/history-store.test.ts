@@ -404,3 +404,37 @@ describe("history page (HB-35)", () => {
     }
   });
 });
+
+describe("retry from the Hub (HB-03)", () => {
+  it("finds a failed row's recording and updates the same row", () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "history-retry-"));
+    try {
+      const db = openDatabase(":memory:");
+      let n = 0;
+      const store = createHistoryStore(db, root, () => `id-${++n}`);
+      mkdirSync(path.join(root, "tmp"), { recursive: true });
+      const file = path.join(root, "tmp", "r.pcm");
+      writeFileSync(file, "pcm");
+      const id = store.add(
+        record({
+          sessionId: "r",
+          rawText: null,
+          finalText: null,
+          wordCount: 0,
+          insertStatus: "failed",
+          errorCode: "TRANSCRIPTION_FAILED",
+          audio: { path: file, codec: "pcm_s16le", durationMs: 100 },
+        }),
+      );
+      const source = store.retrySource(id);
+      expect(source?.audioPath).toBe(path.join(root, KEPT_AUDIO_DIR, "r.pcm"));
+      store.applyRetry(id, { rawText: "um hi", finalText: "Hi.", wordCount: 1 });
+      const page = store.page({});
+      expect(page.total).toBe(1);
+      expect(page.rows[0]).toMatchObject({ status: "done", finalText: "Hi.", rawText: "um hi" });
+      expect(store.retrySource(id)).toBeNull();
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});

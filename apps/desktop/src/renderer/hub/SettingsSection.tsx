@@ -101,6 +101,8 @@ export function SettingsSection({
         <GeneralSection
           openHubOnLaunch={settings.openHubOnLaunch}
           onOpenHubOnLaunch={(openHubOnLaunch) => update({ openHubOnLaunch })}
+          profile={settings.profile}
+          onProfile={(profile) => update({ profile })}
         />
         <Row id="permissions">
           <PermissionsSection />

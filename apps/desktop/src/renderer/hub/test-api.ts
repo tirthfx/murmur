@@ -31,6 +31,7 @@ export const SAMPLE_SETTINGS: SettingsView = {
     pressEnterCommand: true,
     openHubOnLaunch: true,
     insights: { typingWpm: 40 },
+    profile: { displayName: "", showOnHome: true },
     contextAwareness: true,
     mouseButtons: { hold: null, handsFree: null },
     typingReminder: { enabled: true, snoozedUntil: null },
@@ -197,6 +198,16 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
   return {
     hubSetPage: vi.fn().mockResolvedValue(undefined),
     insightsView: vi.fn().mockResolvedValue(SAMPLE_INSIGHTS),
+    homeView: vi.fn().mockResolvedValue({
+      todayWords: 120,
+      todayDictations: 4,
+      todayTimeSavedMs: 120_000,
+      totalDictations: 40,
+      last: { text: "So we go at three.", appName: "Notes", at: Date.UTC(2026, 10, 18, 9) },
+    }),
+    historyRetry: vi.fn().mockResolvedValue({ ok: true, text: "Retried text." }),
+    dictationState: vi.fn().mockResolvedValue("idle"),
+    onDictationState: vi.fn(() => () => {}),
     milestonesList: vi.fn().mockResolvedValue([
       {
         key: "words-1000",

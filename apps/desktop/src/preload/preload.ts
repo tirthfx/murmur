@@ -1,9 +1,27 @@
 import { contextBridge, ipcRenderer } from "electron";
-import { IPC_CHANNELS, IPC_EVENTS, type MurmurApi } from "@murmur/shared";
+import {
+  DICTATION_STATES,
+  IPC_CHANNELS,
+  IPC_EVENTS,
+  type DictationState,
+  type MurmurApi,
+} from "@murmur/shared";
 
 // Only this narrow, typed surface reaches the renderer. ipcRenderer itself is never exposed.
 const api: MurmurApi = {
   getAppInfo: () => ipcRenderer.invoke(IPC_CHANNELS.getAppInfo),
+  homeView: () => ipcRenderer.invoke(IPC_CHANNELS.homeView),
+  historyRetry: (id) => ipcRenderer.invoke(IPC_CHANNELS.historyRetry, id),
+  dictationState: () => ipcRenderer.invoke(IPC_CHANNELS.dictationState),
+  onDictationState: (handler) => {
+    const listener = (_event: unknown, state: unknown) => {
+      if (typeof state === "string" && (DICTATION_STATES as readonly string[]).includes(state)) {
+        handler(state as DictationState);
+      }
+    };
+    ipcRenderer.on(IPC_EVENTS.dictationState, listener);
+    return () => ipcRenderer.removeListener(IPC_EVENTS.dictationState, listener);
+  },
   milestonesList: () => ipcRenderer.invoke(IPC_CHANNELS.milestonesList),
   milestonesSeen: () => ipcRenderer.invoke(IPC_CHANNELS.milestonesSeen),
   progressCardSave: (png) => ipcRenderer.invoke(IPC_CHANNELS.progressCardSave, png),

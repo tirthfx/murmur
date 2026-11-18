@@ -34,6 +34,9 @@ function setup() {
   const handle = createIpcHandler({
     entryUrl,
     hubSetPage: vi.fn(),
+    homeView: vi.fn(),
+    historyRetry: vi.fn(() => Promise.resolve({ ok: false as const, message: "no" })),
+    dictationState: vi.fn(() => "idle" as const),
     milestonesList: vi.fn(() => []),
     milestonesSeen: vi.fn(),
     progressCardSave: vi.fn(() => Promise.resolve({ saved: false })),

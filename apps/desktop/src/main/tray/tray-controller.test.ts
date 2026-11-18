@@ -33,6 +33,7 @@ function setup() {
     pressEnterCommand: true,
     openHubOnLaunch: true,
     insights: { typingWpm: 40 },
+    profile: { displayName: "", showOnHome: true },
     contextAwareness: true,
     mouseButtons: { hold: null, handsFree: null },
     typingReminder: { enabled: true, snoozedUntil: null },

@@ -11,6 +11,9 @@ import {
   type InsightsRange,
   type InsightsView,
   type Milestone,
+  type DictationState,
+  type HistoryRetryResult,
+  type HomeView,
   type CapturedKey,
   type InstructModelStatus,
   type FocusAddResult,
@@ -66,6 +69,9 @@ import { isTrustedIpcSender } from "../security/guards";
 export interface IpcDeps {
   entryUrl: string;
   getAppInfo: () => AppInfo;
+  homeView: () => HomeView;
+  historyRetry: (id: string) => Promise<HistoryRetryResult>;
+  dictationState: () => DictationState;
   milestonesList: () => Milestone[];
   milestonesSeen: () => void;
   progressCardSave: (png: Uint8Array) => Promise<{ saved: boolean }>;
@@ -170,6 +176,12 @@ export function createIpcHandler(deps: IpcDeps) {
     switch (channel) {
       case IPC_CHANNELS.getAppInfo:
         return deps.getAppInfo();
+      case IPC_CHANNELS.homeView:
+        return deps.homeView();
+      case IPC_CHANNELS.historyRetry:
+        return deps.historyRetry(request.args[0] as string);
+      case IPC_CHANNELS.dictationState:
+        return deps.dictationState();
       case IPC_CHANNELS.milestonesList:
         return deps.milestonesList();
       case IPC_CHANNELS.milestonesSeen:

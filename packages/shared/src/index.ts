@@ -39,3 +39,4 @@ export * from "./plans";
 export * from "./history";
 export * from "./insights";
 export * from "./milestones";
+export * from "./home";
