@@ -15,11 +15,21 @@ import { MyVoicePage } from "./MyVoicePage";
 import { HistoryPage } from "./HistoryPage";
 import { HomePage } from "./HomePage";
 import { ScratchpadPage } from "./ScratchpadPage";
+import { HelpPage } from "./HelpPage";
+import { TourCard } from "./TourCard";
 import { DictationPage } from "./DictationPage";
 import { InsightsPage } from "./InsightsPage";
 import { Onboarding } from "./Onboarding";
 import { SettingsPage } from "./SettingsPage";
-import { pageFromHash, resolvePage, visiblePages, type PageFeatures, type PageId } from "./pages";
+import type { Tour } from "@murmur/shared";
+import {
+  pageFromHash,
+  resolvePage,
+  visiblePages,
+  type Page,
+  type PageFeatures,
+  type PageId,
+} from "./pages";
 
 function useAppInfo(): AppInfo | null {
   const [info, setInfo] = useState<AppInfo | null>(null);
@@ -111,6 +121,26 @@ function HubPages({ onRunSetup }: { onRunSetup: () => void }) {
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
+  // HB-08: the tour in progress, if any; its step is saved so it can be resumed.
+  const [tour, setTour] = useState<{ tour: Tour; step: number } | null>(null);
+  const saveTour = useCallback(async (id: string, step: number, done: boolean) => {
+    try {
+      const view = await window.murmur.getSettings();
+      await window.murmur.updateSettings({
+        help: { tours: { ...view.settings.help.tours, [id]: { step, done } } },
+      });
+    } catch {
+      // Progress is a help; the tour works without it.
+    }
+  }, []);
+  const startTour = useCallback(
+    (next: Tour, step: number) => {
+      setTour({ tour: next, step });
+      void saveTour(next.id, step, false);
+    },
+    [saveTour],
+  );
+
   // Main can ask for a page: the last one at start, or one after a Bar prompt.
   useEffect(() => window.murmur.onOpenPage(setPageId), [setPageId]);
   const page = resolvePage(pageId, features);
@@ -167,6 +197,8 @@ function HubPages({ onRunSetup }: { onRunSetup: () => void }) {
             <MemoryPage />
           ) : page.id === "my-voice" ? (
             <MyVoicePage />
+          ) : page.id === "help" ? (
+            <HelpPage onStartTour={startTour} onRunSetup={onRunSetup} />
           ) : page.id === "scratchpad" ? (
             <ScratchpadPage />
           ) : page.id === "home" ? (
@@ -179,15 +211,30 @@ function HubPages({ onRunSetup }: { onRunSetup: () => void }) {
             <InsightsPage />
           ) : (
             <div className="hub-empty">
+              {/* A page added later shows its empty state until it is built. */}
               <EmptyState
-                title={page.emptyTitle}
-                description={page.emptyDescription}
+                title={(page as Page).emptyTitle}
+                description={(page as Page).emptyDescription}
                 headingLevel={2}
               />
             </div>
           )}
         </div>
       </AppShell>
+      {tour ? (
+        <TourCard
+          tour={tour.tour}
+          step={tour.step}
+          onStep={(step) => {
+            setTour({ tour: tour.tour, step });
+            void saveTour(tour.tour.id, step, false);
+          }}
+          onStop={(finished) => {
+            if (finished) void saveTour(tour.tour.id, 0, true);
+            setTour(null);
+          }}
+        />
+      ) : null}
     </>
   );
 }

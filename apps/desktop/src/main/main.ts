@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import {
   copyFileSync,
   existsSync,
@@ -46,6 +46,7 @@ import {
   DEFAULT_PRIVACY,
   DEFAULT_PLAN_STATE,
   DEFAULT_DEVELOPER,
+  referralCode,
   type TestingTool,
   type TestingToolResult,
   FREE_WEEKLY_WORDS,
@@ -648,6 +649,8 @@ const settingsStore = createSettingsStore(database, {
   privacy: DEFAULT_PRIVACY,
   planState: DEFAULT_PLAN_STATE,
   devMode: DEFAULT_DEVELOPER,
+  help: { tours: {} },
+  referral: { code: "", invites: 0 },
   plan: DEFAULT_PLAN,
   inputDevice: "auto",
   languages: [],
@@ -1394,6 +1397,16 @@ settingsStore.onChange(() => {
   }
 });
 
+// HB-43: the referral code is made once, here, and kept. Nothing is sent.
+if (settingsStore.get().referral.code === "") {
+  settingsStore.update({
+    referral: {
+      ...settingsStore.get().referral,
+      code: referralCode((count) => randomBytes(count)),
+    },
+  });
+}
+
 // HB-19: the trial, the student label and the change log.
 let lastTier = settingsStore.get().plan;
 const plans = createPlanController({
@@ -1414,6 +1427,43 @@ settingsStore.onChange(() => {
 });
 plans.expire();
 setInterval(() => plans.expire(), 60 * 60_000).unref();
+
+/**
+ * HB-53, HB-55, HB-08: a diagnostics bundle in a folder the user picks: versions, settings
+ * with personal fields masked, and counts. Never any text; nothing is sent.
+ */
+async function writeDiagnostics(): Promise<TestingToolResult> {
+  const options = {
+    title: "Choose where to save the diagnostics bundle",
+    buttonLabel: "Save here",
+    defaultPath: app.getPath("documents"),
+    properties: ["openDirectory", "createDirectory"] as ("openDirectory" | "createDirectory")[],
+  };
+  const choice = hubWindow
+    ? await dialog.showOpenDialog(hubWindow, options)
+    : await dialog.showOpenDialog(options);
+  const parent = choice.filePaths[0];
+  if (choice.canceled || !parent) return { ok: false, message: "" };
+  const stamp = new Date().toISOString().slice(0, 16).replace("T", " ").replace(":", "-");
+  const folder = path.join(parent, `Murmur diagnostics ${stamp}`);
+  mkdirSync(folder, { recursive: true });
+  const report = diagnosticsReport({
+    app: {
+      name: app.getName(),
+      version: app.getVersion(),
+      electron: process.versions.electron ?? "",
+      node: process.versions.node,
+    },
+    system: { platform: process.platform, release: os.release(), arch: process.arch },
+    helper: helper.getStatus(),
+    settings: settingsStore.get(),
+    counts: dataDeleter?.counts() ?? { categories: [], failedFiles: 0 },
+    retention: retention?.view() ?? { lastRunAt: null, nextRunAt: null, removed: {} },
+    now: Date.now(),
+  });
+  writeFileSync(path.join(folder, "diagnostics.json"), `${JSON.stringify(report, null, 2)}\n`);
+  return { ok: true, message: `Saved to ${folder}.` };
+}
 
 /** HB-55: the Testing page's tools. Developer mode only; none sends anything anywhere. */
 async function runTestingTool(tool: TestingTool): Promise<TestingToolResult> {
@@ -1457,38 +1507,8 @@ async function runTestingTool(tool: TestingTool): Promise<TestingToolResult> {
       steps.forEach((step, index) => setTimeout(() => bar.dispatch(step), index * 2000));
       return { ok: true, message: "The Bar shows each state for two seconds." };
     }
-    case "diagnostics": {
-      const options = {
-        title: "Choose where to save the diagnostics bundle",
-        buttonLabel: "Save here",
-        defaultPath: app.getPath("documents"),
-        properties: ["openDirectory", "createDirectory"] as ("openDirectory" | "createDirectory")[],
-      };
-      const choice = hubWindow
-        ? await dialog.showOpenDialog(hubWindow, options)
-        : await dialog.showOpenDialog(options);
-      const parent = choice.filePaths[0];
-      if (choice.canceled || !parent) return { ok: false, message: "" };
-      const stamp = new Date().toISOString().slice(0, 16).replace("T", " ").replace(":", "-");
-      const folder = path.join(parent, `Murmur diagnostics ${stamp}`);
-      mkdirSync(folder, { recursive: true });
-      const report = diagnosticsReport({
-        app: {
-          name: app.getName(),
-          version: app.getVersion(),
-          electron: process.versions.electron ?? "",
-          node: process.versions.node,
-        },
-        system: { platform: process.platform, release: os.release(), arch: process.arch },
-        helper: helper.getStatus(),
-        settings: settingsStore.get(),
-        counts: dataDeleter?.counts() ?? { categories: [], failedFiles: 0 },
-        retention: retention?.view() ?? { lastRunAt: null, nextRunAt: null, removed: {} },
-        now: Date.now(),
-      });
-      writeFileSync(path.join(folder, "diagnostics.json"), `${JSON.stringify(report, null, 2)}\n`);
-      return { ok: true, message: `Saved to ${folder}.` };
-    }
+    case "diagnostics":
+      return writeDiagnostics();
   }
 }
 
@@ -1985,6 +2005,7 @@ app.on("web-contents-created", (_event, contents) => {
 function registerIpc(): void {
   const handle = createIpcHandler({
     entryUrl: hubEntryUrl,
+    reportProblem: () => writeDiagnostics(),
     testingTool: (tool) => runTestingTool(tool),
     axInspect: (showValues) => helper.inspectAccessibility(showValues),
     planView: () => planView(),

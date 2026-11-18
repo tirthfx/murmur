@@ -96,7 +96,7 @@ describe("Hub", () => {
     await user.click(screen.getByText("Help"));
 
     expect(screen.getByRole("heading", { level: 1, name: "Help" })).toBeTruthy();
-    expect(screen.getByText("Help is on the way")).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Guided tours" })).toBeTruthy();
     expect(screen.queryByRole("heading", { level: 1, name: "Home" })).toBeNull();
   });
 

@@ -479,3 +479,23 @@ body {
   max-height: 360px;
   overflow: auto;
 }
+
+/* Guided tours (HB-08). */
+.hub-tour {
+  position: fixed;
+  right: var(--spacing-6);
+  bottom: var(--spacing-6);
+  z-index: 50;
+  width: 340px;
+  padding: var(--spacing-4);
+  border: 1px solid var(--color-border-emphasized);
+  border-radius: 10px;
+  background: var(--color-background-body);
+  box-shadow: 0 8px 28px rgb(0 0 0 / 0.18);
+}
+
+.hub-tour-target {
+  outline: 3px solid var(--color-border-emphasized);
+  outline-offset: 4px;
+  border-radius: 6px;
+}

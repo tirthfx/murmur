@@ -46,3 +46,4 @@ export * from "./catalogue";
 export * from "./privacy";
 export * from "./data";
 export * from "./testing";
+export * from "./help";

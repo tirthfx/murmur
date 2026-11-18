@@ -99,6 +99,7 @@ import { isTrustedIpcSender } from "../security/guards";
 export interface IpcDeps {
   entryUrl: string;
   getAppInfo: () => AppInfo;
+  reportProblem: () => Promise<TestingToolResult>;
   testingTool: (tool: TestingTool) => Promise<TestingToolResult>;
   axInspect: (showValues: boolean) => Promise<AxInspectResult | null>;
   planView: () => PlanView;
@@ -238,6 +239,8 @@ export function createIpcHandler(deps: IpcDeps) {
     switch (channel) {
       case IPC_CHANNELS.getAppInfo:
         return deps.getAppInfo();
+      case IPC_CHANNELS.reportProblem:
+        return deps.reportProblem();
       case IPC_CHANNELS.testingTool:
         return deps.testingTool(request.args[0] as TestingTool);
       case IPC_CHANNELS.axInspect:

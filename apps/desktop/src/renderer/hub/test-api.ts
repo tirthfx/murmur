@@ -46,6 +46,8 @@ export const SAMPLE_SETTINGS: SettingsView = {
     privacy: { storeHistory: true, audio: "24h", historyDays: null, strictLocal: false },
     planState: { trial: null, student: false, log: [] },
     devMode: { enabled: false, disableCleanup: false, forceTyped: false, disableContext: false },
+    help: { tours: {} },
+    referral: { code: "ABCD2345", invites: 0 },
     contextAwareness: true,
     mouseButtons: { hold: null, handsFree: null },
     typingReminder: { enabled: true, snoozedUntil: null },
@@ -213,6 +215,7 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
   return {
     hubSetPage: vi.fn().mockResolvedValue(undefined),
     insightsView: vi.fn().mockResolvedValue(SAMPLE_INSIGHTS),
+    reportProblem: vi.fn().mockResolvedValue({ ok: true, message: "Saved to /tmp/x." }),
     testingTool: vi.fn().mockResolvedValue({ ok: true, message: "Done." }),
     axInspect: vi.fn().mockResolvedValue({
       app: "TextEdit",

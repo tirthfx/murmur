@@ -37,6 +37,7 @@ export const SETTINGS_INDEX: readonly SettingEntry[] = [
   { id: "display-name", page: "general", label: "Your name", words: "display name greeting" },
   { id: "app-language", page: "general", label: "App language", words: "interface english" },
   { id: "notifications", page: "general", label: "Notifications", words: "alerts weekly summary" },
+  { id: "referral", page: "general", label: "Referrals", words: "invite code" },
   { id: "permissions", page: "general", label: "Permissions", words: "microphone accessibility" },
   { id: "setup", page: "general", label: "Run setup again", words: "onboarding tutorial" },
   { id: "cleanup", page: "system", label: "Cleanup", words: "fillers punctuation level" },
