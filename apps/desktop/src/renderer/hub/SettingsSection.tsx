@@ -26,6 +26,7 @@ import { ShortcutField } from "./ShortcutField";
 import { MicCheckSection } from "./MicCheckSection";
 import { PermissionsSection } from "./PermissionsSection";
 import { GeneralSection } from "./GeneralSection";
+import { DataPrivacySection } from "./DataPrivacySection";
 import type { SettingsPageId } from "./settings-pages";
 
 const SOUND_LABELS: Record<(typeof SOUND_NAMES)[number], string> = {
@@ -386,22 +387,7 @@ export function SettingsSection({
         <PlanField plan={settings.plan} onChange={(plan) => update({ plan })} />
       </Row>
     ),
-    privacy: () => (
-      <Row id="privacy">
-        <section className="hub-permissions" aria-labelledby="privacy-heading">
-          <VStack gap={2}>
-            <Heading level={3} id="privacy-heading">
-              What leaves this Mac
-            </Heading>
-            <Text>Nothing leaves this Mac.</Text>
-            <Text size="sm" color="secondary">
-              The one exception is a model download that you start, during setup or from these
-              pages. Dictation, cleanup, Rewrites and everything you save stay on this Mac.
-            </Text>
-          </VStack>
-        </section>
-      </Row>
-    ),
+    privacy: () => <DataPrivacySection settings={settings} update={update} />,
   };
 
   return (

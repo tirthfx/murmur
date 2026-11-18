@@ -52,6 +52,7 @@ describe("migrations", () => {
       "notes_fts_idx",
       "pending_sessions",
       "phrase_counts",
+      "retention_jobs",
       "rewrite_runs",
       "rewrites",
       "schema_migrations",

@@ -43,6 +43,7 @@ export const SAMPLE_SETTINGS: SettingsView = {
       milestone: false,
       weeklySummary: false,
     },
+    privacy: { storeHistory: true, audio: "24h", historyDays: null, strictLocal: false },
     contextAwareness: true,
     mouseButtons: { hold: null, handsFree: null },
     typingReminder: { enabled: true, snoozedUntil: null },
@@ -210,6 +211,24 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
   return {
     hubSetPage: vi.fn().mockResolvedValue(undefined),
     insightsView: vi.fn().mockResolvedValue(SAMPLE_INSIGHTS),
+    storageView: vi.fn().mockResolvedValue({
+      folder: "/Users/you/Library/Application Support/Murmur",
+      parts: [
+        { name: "Database", bytes: 2 * 1024 * 1024 },
+        { name: "Recordings", bytes: 512 * 1024 },
+      ],
+    }),
+    storageOpen: vi.fn().mockResolvedValue(undefined),
+    retentionView: vi.fn().mockResolvedValue({
+      lastRunAt: Date.UTC(2026, 10, 18, 8),
+      nextRunAt: Date.UTC(2026, 10, 19, 8),
+      removed: { audio: 3, historyText: 0 },
+    }),
+    retentionRun: vi.fn().mockResolvedValue({
+      lastRunAt: Date.UTC(2026, 10, 19, 9),
+      nextRunAt: Date.UTC(2026, 10, 20, 9),
+      removed: {},
+    }),
     notesList: vi.fn().mockResolvedValue([
       {
         id: "n2",

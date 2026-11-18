@@ -45,6 +45,7 @@ function setup() {
       milestone: false,
       weeklySummary: false,
     },
+    privacy: { storeHistory: true, audio: "24h", historyDays: null, strictLocal: false },
     contextAwareness: true,
     mouseButtons: { hold: null, handsFree: null },
     typingReminder: { enabled: true, snoozedUntil: null },

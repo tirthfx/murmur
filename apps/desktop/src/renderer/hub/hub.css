@@ -446,3 +446,8 @@ body {
   margin: 0;
   white-space: pre-wrap;
 }
+
+.hub-storage-list {
+  margin: 0;
+  padding-left: var(--spacing-4);
+}
