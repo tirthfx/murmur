@@ -2,6 +2,17 @@ import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, renameSync, rmSync, statSync } from "node:fs";
 import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
+import {
+  HISTORY_LIMITS,
+  historyMatchQuery,
+  historyQuerySchema,
+  type HistoryDeleteResult,
+  type HistoryFeedback,
+  type HistoryPage,
+  type HistoryQuery,
+  type HistoryRow,
+  type HistoryStatus,
+} from "@murmur/shared";
 import type { DictationRecord } from "../recorder";
 
 /** How long a recording stays on disk for retry: the helper prunes its temporary audio after a day. */
@@ -63,6 +74,25 @@ export interface HistoryStore {
   recoverInterrupted(tmpDir: string): number;
   /** Deletes audio whose retention has passed and clears its references. Returns files removed. */
   pruneAudio(now: number): number;
+  /** One page of the History page (HB-35), newest first. */
+  page(query: HistoryQuery): HistoryPage;
+  /** Moves rows out of the default list, or back. Returns rows changed. */
+  setArchived(ids: string[], archived: boolean): number;
+  /** Thumbs up or down and a short note, kept only here. */
+  setFeedback(input: HistoryFeedback): void;
+  /** Deletes rows, their audio chunks and their audio files (when nothing else uses them). */
+  remove(ids: string[]): HistoryDeleteResult;
+}
+
+/** SQL for a row's status, matching `HistoryStatus`. */
+const STATUS_SQL = `CASE
+  WHEN h.error_code = 'INTERRUPTED' THEN 'interrupted'
+  WHEN h.insert_status = 'failed' THEN 'failed'
+  WHEN h.insert_status = 'empty' THEN 'empty'
+  ELSE 'done' END`;
+
+function placeholders(count: number): string {
+  return Array.from({ length: count }, () => "?").join(", ");
 }
 
 const FALLBACK: Record<string, string> = {
@@ -167,6 +197,13 @@ export function createHistoryStore(
     } catch {
       return file;
     }
+  }
+
+  function removeFile(stored: string): boolean {
+    const file = absolute(stored);
+    if (!insideRoot(file) || !existsSync(file)) return false;
+    rmSync(file, { force: true });
+    return true;
   }
 
   const store: HistoryStore = {
@@ -330,6 +367,127 @@ export function createHistoryStore(
         audioPath: row.audio_path as string | null,
         retryOf: row.retry_of as string | null,
       }));
+    },
+    page(input) {
+      const query = historyQuerySchema.parse(input);
+      const where: string[] = ["h.archived = ?"];
+      const args: (string | number)[] = [query.archived ? 1 : 0];
+      const match = historyMatchQuery(query.text);
+      if (match) {
+        where.push("h.rowid IN (SELECT rowid FROM history_fts WHERE history_fts MATCH ?)");
+        args.push(match);
+      }
+      if (query.from !== null) {
+        where.push("h.created_at >= ?");
+        args.push(query.from);
+      }
+      if (query.to !== null) {
+        where.push("h.created_at < ?");
+        args.push(query.to);
+      }
+      if (query.app !== null) {
+        where.push("h.app_bundle_id = ?");
+        args.push(query.app);
+      }
+      if (query.language !== null) {
+        where.push("h.language = ?");
+        args.push(query.language);
+      }
+      if (query.status !== null) {
+        where.push(`${STATUS_SQL} = ?`);
+        args.push(query.status);
+      }
+      const clause = where.join(" AND ");
+      const total = (
+        db.prepare(`SELECT COUNT(*) AS n FROM history h WHERE ${clause}`).get(...args) as {
+          n: number;
+        }
+      ).n;
+      const rows = db
+        .prepare(
+          `SELECT h.id, h.created_at, h.app_name, h.app_bundle_id, ${STATUS_SQL} AS status,
+            h.language, h.duration_ms, h.word_count, h.raw_text, h.final_text, h.archived,
+            h.feedback, h.feedback_note, h.audio_path
+          FROM history h WHERE ${clause}
+          ORDER BY h.created_at DESC, h.rowid DESC LIMIT ? OFFSET ?`,
+        )
+        .all(...args, HISTORY_LIMITS.pageSize, query.offset) as Record<string, unknown>[];
+      const apps = db
+        .prepare(
+          `SELECT app_bundle_id AS bundleId, MAX(COALESCE(app_name, app_bundle_id)) AS name
+          FROM history WHERE app_bundle_id IS NOT NULL
+          GROUP BY app_bundle_id ORDER BY name COLLATE NOCASE LIMIT 200`,
+        )
+        .all() as { bundleId: string; name: string }[];
+      const languages = (
+        db
+          .prepare(
+            "SELECT DISTINCT language FROM history WHERE language IS NOT NULL ORDER BY language LIMIT 50",
+          )
+          .all() as { language: string }[]
+      ).map((row) => row.language);
+      return {
+        rows: rows.map((row): HistoryRow => ({
+          id: row.id as string,
+          createdAt: row.created_at as number,
+          appName: (row.app_name as string | null) ?? null,
+          appBundleId: (row.app_bundle_id as string | null) ?? null,
+          status: row.status as HistoryStatus,
+          language: (row.language as string | null) ?? null,
+          durationMs: row.duration_ms as number,
+          wordCount: row.word_count as number,
+          rawText: (row.raw_text as string | null) ?? null,
+          finalText: (row.final_text as string | null) ?? null,
+          archived: row.archived === 1,
+          feedback: (row.feedback as "good" | "bad" | null) ?? null,
+          feedbackNote: (row.feedback_note as string | null) ?? null,
+          hasAudio: row.audio_path !== null,
+        })),
+        total,
+        apps,
+        languages,
+      };
+    },
+    setArchived(ids, archived) {
+      if (ids.length === 0) return 0;
+      const result = db
+        .prepare(`UPDATE history SET archived = ? WHERE id IN (${placeholders(ids.length)})`)
+        .run(archived ? 1 : 0, ...ids);
+      return Number(result.changes);
+    },
+    setFeedback({ id: rowId, feedback, note }) {
+      db.prepare("UPDATE history SET feedback = ?, feedback_note = ? WHERE id = ?").run(
+        feedback,
+        note && note !== "" ? note : null,
+        rowId,
+      );
+    },
+    remove(ids) {
+      if (ids.length === 0) return { rows: 0, files: 0 };
+      const list = placeholders(ids.length);
+      const paths = new Set<string>();
+      for (const row of db
+        .prepare(
+          `SELECT audio_path AS path FROM history WHERE id IN (${list}) AND audio_path IS NOT NULL
+          UNION SELECT path FROM audio_chunks WHERE history_id IN (${list})`,
+        )
+        .all(...ids, ...ids) as { path: string }[]) {
+        paths.add(row.path);
+      }
+      // One statement: audio_chunks rows go with it (ON DELETE CASCADE).
+      const rows = Number(
+        db.prepare(`DELETE FROM history WHERE id IN (${list})`).run(...ids).changes,
+      );
+      // Files after the commit; one still used by another row (a retry) stays.
+      const used = db.prepare(
+        "SELECT 1 FROM history WHERE audio_path = ? UNION SELECT 1 FROM audio_chunks WHERE path = ? LIMIT 1",
+      );
+      let files = 0;
+      for (const stored of paths) {
+        if (used.get(stored, stored) !== undefined) continue;
+        if (removeFile(stored)) files++;
+      }
+      return { rows, files };
     },
     lastText() {
       const row = selectLast.get() as { final_text: string } | undefined;

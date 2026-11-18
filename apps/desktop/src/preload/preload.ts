@@ -4,6 +4,10 @@ import { IPC_CHANNELS, IPC_EVENTS, type MurmurApi } from "@murmur/shared";
 // Only this narrow, typed surface reaches the renderer. ipcRenderer itself is never exposed.
 const api: MurmurApi = {
   getAppInfo: () => ipcRenderer.invoke(IPC_CHANNELS.getAppInfo),
+  historyPage: (query) => ipcRenderer.invoke(IPC_CHANNELS.historyPage, query),
+  historyArchive: (ids, archived) => ipcRenderer.invoke(IPC_CHANNELS.historyArchive, ids, archived),
+  historyFeedback: (input) => ipcRenderer.invoke(IPC_CHANNELS.historyFeedback, input),
+  historyDelete: (ids) => ipcRenderer.invoke(IPC_CHANNELS.historyDelete, ids),
   loginItemGet: () => ipcRenderer.invoke(IPC_CHANNELS.loginItemGet),
   loginItemSet: (enabled) => ipcRenderer.invoke(IPC_CHANNELS.loginItemSet, enabled),
   hubSetPage: (pageId) => ipcRenderer.invoke(IPC_CHANNELS.hubSetPage, pageId),

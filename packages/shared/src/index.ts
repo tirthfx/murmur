@@ -36,3 +36,4 @@ export * from "./instruct";
 export * from "./undo";
 export * from "./focus";
 export * from "./plans";
+export * from "./history";

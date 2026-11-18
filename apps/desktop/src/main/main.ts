@@ -1473,6 +1473,15 @@ app.on("web-contents-created", (_event, contents) => {
 function registerIpc(): void {
   const handle = createIpcHandler({
     entryUrl: hubEntryUrl,
+    historyPage: (query) =>
+      history ? history.page(query) : { rows: [], total: 0, apps: [], languages: [] },
+    historyArchive: (ids, archived) => history?.setArchived(ids, archived) ?? 0,
+    historyFeedback: (input) => history?.setFeedback(input),
+    historyDelete: (ids) => {
+      const result = history?.remove(ids) ?? { rows: 0, files: 0 };
+      console.log(`[history] deleted ${result.rows} rows and ${result.files} audio files`);
+      return result;
+    },
     loginItemGet: () => loginItem(),
     loginItemSet: (enabled) => {
       if (app.isPackaged) app.setLoginItemSettings({ openAtLogin: enabled });

@@ -148,7 +148,7 @@ Undo of Murmur's own edits (what is recorded, the anchor and selection checks, t
 
 Text generation for Rewrites, Command Mode and Instruct Mode (prompt rules, streaming, limits, dictation first, benchmark): see `docs/generation.md`.
 
-Dictation history (database, tables, migrations): see `docs/history.md`.
+Dictation history (database, tables, migrations, the History page with search, archive, delete and feedback): see `docs/history.md`.
 
 Settings (the Settings pages and search, launch at login, shortcuts and their checks, microphone, language, cleanup level, the local plan tier and what it gates): see `docs/settings.md`.
 

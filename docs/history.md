@@ -29,6 +29,13 @@ with its draft and what became of it), kept 30 days, then only counts (see `inst
 Migration 0016 adds `focus_rules` (blocked apps) and `focus_sessions` (each stretch of Focus
 Mode and why it ended). Nothing about which app was in front is stored (see `focus.md`).
 
+Migration 0017 is for the History page:
+
+- `history` gains `archived` (0 or 1) and `feedback_note`.
+- `history_fts` is an FTS5 index over `final_text` and `raw_text`. It is an external-content table: it stores no text of its own and reads it from `history`.
+- Triggers on insert, update and delete keep the index in step.
+- The migration builds the index once for existing rows.
+
 Audio paths are relative to `~/Library/Application Support/Murmur/audio`. Recordings live in `audio/tmp` and expire after 24 hours, when the helper deletes them.
 
 ## Migrations
@@ -37,7 +44,24 @@ Audio paths are relative to `~/Library/Application Support/Murmur/audio`. Record
 
 ## Reading it
 
-The store gives the last 200 dictations, newest first, and the last dictated text. The Hub's history page and the tray's "paste last" use them later (#16 and the Hub work).
+The store gives the last 200 dictations, newest first, and the last dictated text (the tray's "paste last" uses it).
+
+## The History page (HB-35)
+
+The Hub's History page reads the store through `history:page`, 100 rows at a time, newest first.
+
+- **Search:** each typed word becomes a quoted prefix in an FTS5 `MATCH` over the final and raw text, and every word must match. Quotes are doubled and other punctuation is dropped, so nothing typed can change the query syntax.
+- **Filters:** time range (from local midnight), app, language, and status. Status is worked out from the row:
+  - **interrupted:** error `INTERRUPTED`;
+  - **failed:** the insert failed;
+  - **nothing heard:** the result was empty;
+  - **done:** anything else.
+- **Archive:** archived rows are hidden from the default list. "Show archived only" lists them, and they can be moved back.
+- **Delete:** one row, or the selected rows, always after a second confirming click. Deleting removes the rows, their `audio_chunks` and their recordings. A file still used by another row (a retry) is kept, and only files inside the audio folder are ever removed.
+- **Feedback:** Good or Poor, and an optional note of up to 300 characters, kept only in the row. Nothing is sent anywhere.
+- **Row actions:** copy the final or raw text, show the raw text, and View changes (raw against final, using the Rewrite panel's word diff; the colours live in `renderer/diff.css`).
+- **Instruct tab:** points to the Instruct page, which has its own search.
+- **Retry** of a failed row comes with the Dictation page (#151).
 
 ## Retry and recovery
 
