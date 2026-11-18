@@ -103,6 +103,8 @@ export function SettingsSection({
           onOpenHubOnLaunch={(openHubOnLaunch) => update({ openHubOnLaunch })}
           profile={settings.profile}
           onProfile={(profile) => update({ profile })}
+          theme={settings.theme}
+          onTheme={(theme) => update({ theme })}
         />
         <Row id="permissions">
           <PermissionsSection />

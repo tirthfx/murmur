@@ -37,3 +37,11 @@ Pages, in order: Home, Dictation, Dictionary, Snippets, Styles, Rewrites, Instru
   - The recording is transcribed and cleaned again, and the text goes into the same row, so there is no duplicate.
   - The row is then marked as left on the clipboard, and the text is copied there: the Hub has no app to insert into.
   - The retry is counted in Insights on the day of the original dictation.
+
+## Themes (HB-22)
+
+Settings, General, Appearance offers System (the default), Light or Dark. The setting is stored as `ui.theme`.
+
+- **How it applies:** main sets Electron's `nativeTheme.themeSource` to the choice, at start and whenever it changes. Every window follows `prefers-color-scheme` (the Hub and Scratchpad through Astryx's "system" mode; the Rewrite and Instruct panels and the diff colours through their own CSS), so all open windows switch at once with no reload. On System they also follow macOS as it changes.
+- **The Bar and the Focus overlay** stay dark in every theme, so they read the same over any app.
+- **Contrast:** `renderer/contrast.test.ts` checks our own colours outside the Astryx tokens for WCAG AA (4.5:1): the Bar's text and state colours, and the Focus overlay. `rewrite/diff-colors.test.ts` checks the diff colours and the Rewrite card in both themes.
