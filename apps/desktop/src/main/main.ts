@@ -1644,8 +1644,23 @@ function registerIpc(): void {
       checkMilestones(true);
       return { ok: true, note };
     },
-    noteSave: (input) =>
-      notes?.save(input) ?? { ok: false, message: "Notes cannot be saved without the database." },
+    noteSave: (input) => {
+      if (!notes) return { ok: false, message: "Notes cannot be saved without the database." };
+      const result = notes.save(input);
+      // HB-28: a version after five minutes of changes.
+      if (result.ok) notes.saveVersion({ noteId: input.id, label: null, reason: "auto" });
+      return result;
+    },
+    noteVersions: (noteId) => notes?.versions(noteId) ?? [],
+    noteVersionSave: (input) => notes?.saveVersion(input) ?? null,
+    noteVersionText: (id) => notes?.versionText(id) ?? null,
+    noteVersionRestore: (id) => notes?.restore(id) ?? null,
+    notePin: (noteId, pinned) =>
+      notes?.pin(noteId, pinned) ?? {
+        ok: false,
+        message: "Notes cannot be changed without the database.",
+      },
+    notePinMove: (noteId, step) => notes?.movePin(noteId, step),
     noteDelete: (id) => notes?.remove(id),
     scratchpadOpen: (noteId) => openScratchpad(noteId ?? undefined),
     homeView: () => {

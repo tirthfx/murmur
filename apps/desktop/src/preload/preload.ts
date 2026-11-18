@@ -15,6 +15,12 @@ const api: MurmurApi = {
   noteCreate: (input) => ipcRenderer.invoke(IPC_CHANNELS.noteCreate, input),
   noteSave: (input) => ipcRenderer.invoke(IPC_CHANNELS.noteSave, input),
   noteDelete: (id) => ipcRenderer.invoke(IPC_CHANNELS.noteDelete, id),
+  noteVersions: (noteId) => ipcRenderer.invoke(IPC_CHANNELS.noteVersions, noteId),
+  noteVersionSave: (input) => ipcRenderer.invoke(IPC_CHANNELS.noteVersionSave, input),
+  noteVersionText: (id) => ipcRenderer.invoke(IPC_CHANNELS.noteVersionText, id),
+  noteVersionRestore: (id) => ipcRenderer.invoke(IPC_CHANNELS.noteVersionRestore, id),
+  notePin: (noteId, pinned) => ipcRenderer.invoke(IPC_CHANNELS.notePin, noteId, pinned),
+  notePinMove: (noteId, step) => ipcRenderer.invoke(IPC_CHANNELS.notePinMove, noteId, step),
   scratchpadOpen: (noteId) => ipcRenderer.invoke(IPC_CHANNELS.scratchpadOpen, noteId),
   onScratchpadOpenNote: (handler) => {
     const listener = (_event: unknown, noteId: unknown) => {

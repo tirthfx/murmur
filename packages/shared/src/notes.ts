@@ -14,6 +14,12 @@ export const NOTE_LIMITS = {
   autosaveMs: 2000,
   searchDelayMs: 150,
   results: 200,
+  /** HB-28. */
+  versions: 50,
+  versionEveryMs: 5 * 60_000,
+  versionLabel: 60,
+  /** HB-29. */
+  pins: 20,
 } as const;
 
 export const noteSchema = z.strictObject({
@@ -59,10 +65,48 @@ export const noteCreateSchema = z.strictObject({
 });
 export type NoteCreate = z.infer<typeof noteCreateSchema>;
 
+export const noteVersionSchema = z.strictObject({
+  id: z.string(),
+  noteId: z.string(),
+  label: z.string().nullable(),
+  words: z.number(),
+  createdAt: z.number(),
+});
+export type NoteVersion = z.infer<typeof noteVersionSchema>;
+
+/** A version's text, for Compare. */
+export const noteVersionTextSchema = z.strictObject({
+  id: z.string(),
+  title: z.string(),
+  plain: z.string(),
+  createdAt: z.number(),
+});
+export type NoteVersionText = z.infer<typeof noteVersionTextSchema>;
+
+export const noteVersionSaveSchema = z.strictObject({
+  noteId: z.string().min(1).max(64),
+  label: z.string().trim().max(NOTE_LIMITS.versionLabel).nullable(),
+  /** Why it is saved: by the user, when the note is closed, or on the 5-minute rule. */
+  reason: z.enum(["manual", "close", "auto"]),
+});
+export type NoteVersionSave = z.infer<typeof noteVersionSaveSchema>;
+
+export const notePinResultSchema = z.discriminatedUnion("ok", [
+  z.strictObject({ ok: z.literal(true) }),
+  z.strictObject({ ok: z.literal(false), message: z.string() }),
+]);
+export type NotePinResult = z.infer<typeof notePinResultSchema>;
+
+/** Words in plain text. */
+export function wordCount(plain: string): number {
+  return plain.split(/\s+/).filter(Boolean).length;
+}
+
 export const NOTE_MESSAGES = {
   tooBig: "This note is too long to save. Notes hold up to 500 KB of text.",
   noDictation: "There is no dictation to start a note from yet.",
   missing: "This note is no longer there.",
+  pins: `At most ${NOTE_LIMITS.pins} notes can be pinned. Unpin one first.`,
 } as const;
 
 /** The title shown for a note: its own, or its first line, or "Untitled". */

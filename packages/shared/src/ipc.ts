@@ -25,7 +25,15 @@ import {
   noteSaveSchema,
   noteSchema,
   noteSummarySchema,
+  notePinResultSchema,
+  noteVersionSaveSchema,
+  noteVersionSchema,
+  noteVersionTextSchema,
   type Note,
+  type NotePinResult,
+  type NoteVersion,
+  type NoteVersionSave,
+  type NoteVersionText,
   type NoteCreate,
   type NoteSave,
   type NoteSaveResult,
@@ -178,6 +186,12 @@ export const IPC_CHANNELS = {
   noteCreate: "notes:create",
   noteSave: "notes:save",
   noteDelete: "notes:delete",
+  noteVersions: "notes:versions",
+  noteVersionSave: "notes:version-save",
+  noteVersionText: "notes:version-text",
+  noteVersionRestore: "notes:version-restore",
+  notePin: "notes:pin",
+  notePinMove: "notes:pin-move",
   scratchpadOpen: "scratchpad:open",
   historyRetry: "history:retry",
   dictationState: "dictation:state",
@@ -531,6 +545,31 @@ export const IPC_CONTRACT = {
     args: z.tuple([z.string().min(1).max(64).nullable()]),
     result: z.void(),
   },
+  // HB-28, HB-29.
+  [IPC_CHANNELS.noteVersions]: {
+    args: z.tuple([z.string().min(1).max(64)]),
+    result: z.array(noteVersionSchema),
+  },
+  [IPC_CHANNELS.noteVersionSave]: {
+    args: z.tuple([noteVersionSaveSchema]),
+    result: noteVersionSchema.nullable(),
+  },
+  [IPC_CHANNELS.noteVersionText]: {
+    args: z.tuple([z.string().min(1).max(64)]),
+    result: noteVersionTextSchema.nullable(),
+  },
+  [IPC_CHANNELS.noteVersionRestore]: {
+    args: z.tuple([z.string().min(1).max(64)]),
+    result: noteSchema.nullable(),
+  },
+  [IPC_CHANNELS.notePin]: {
+    args: z.tuple([z.string().min(1).max(64), z.boolean()]),
+    result: notePinResultSchema,
+  },
+  [IPC_CHANNELS.notePinMove]: {
+    args: z.tuple([z.string().min(1).max(64), z.union([z.literal(-1), z.literal(1)])]),
+    result: z.void(),
+  },
   // HB-02, HB-03.
   [IPC_CHANNELS.homeView]: { args: z.tuple([]), result: homeViewSchema },
   [IPC_CHANNELS.historyRetry]: {
@@ -706,6 +745,16 @@ export interface MurmurApi {
   noteCreate(input: NoteCreate): Promise<{ ok: true; note: Note } | { ok: false; message: string }>;
   noteSave(input: NoteSave): Promise<NoteSaveResult>;
   noteDelete(id: string): Promise<void>;
+  /** Note versions (HB-28), newest first. */
+  noteVersions(noteId: string): Promise<NoteVersion[]>;
+  /** Saves a version now; null when nothing changed (or too soon, for `auto`). */
+  noteVersionSave(input: NoteVersionSave): Promise<NoteVersion | null>;
+  noteVersionText(id: string): Promise<NoteVersionText | null>;
+  /** Puts a version back, as a new version; returns the note. */
+  noteVersionRestore(id: string): Promise<Note | null>;
+  /** Pins or unpins a note (HB-29). */
+  notePin(noteId: string, pinned: boolean): Promise<NotePinResult>;
+  notePinMove(noteId: string, step: -1 | 1): Promise<void>;
   /** Opens the Scratchpad window, on a note when given. */
   scratchpadOpen(noteId: string | null): Promise<void>;
   /** The Scratchpad window is asked to show a note. Returns an unsubscribe. */

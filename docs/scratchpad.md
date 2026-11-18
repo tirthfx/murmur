@@ -29,6 +29,31 @@ Settings, System has two switches:
 
 The shortcut is on Settings, Shortcuts (`hotkey.scratchpad`) and can be turned off.
 
+## Versions (HB-28)
+
+Versions are kept in `note_versions` (migration 0021): the title, body, word count and an optional label. They are deleted with their note.
+
+**When a version is saved:**
+
+- after a save, once the newest version is more than 5 minutes old;
+- when the note's tab is closed;
+- with "Save version", which takes an optional label of up to 60 characters.
+
+A version that would match the newest one is not saved. The one exception is "Save version" with a label.
+
+**Limit:** the newest 50 versions per note are kept, so the 51st removes the oldest.
+
+**Versions panel:** opened with "Versions". It lists each version's date, label and word count.
+
+- **Compare** shows that version against the text on screen now, word by word, with the same diff colours as View changes.
+- **Restore** first keeps the current text as a version, then puts the old text back and saves it as a new version labelled "Restored from …". No history is lost.
+
+## Pins (HB-29)
+
+- **Pinning:** "Pin" puts a note at the top of the list. At most 20 notes can be pinned; the 21st is refused with a message.
+- **Order:** pinned notes keep their order (`pin_order`), which survives a restart. Up and Down buttons move a pinned note. There is no drag, so reordering also works from the keyboard.
+- **Unpinning:** the note goes back to date order.
+
 ## Storage
 
-`notes`: id, title, body_json (the snippet editor's document), body_plain, created_at, updated_at, pinned, pin_order, archived, deleted_at. Pins and versions come with #153.
+`notes`: id, title, body_json (the snippet editor's document), body_plain, created_at, updated_at, pinned, pin_order, archived, deleted_at. Pins use `pinned` and `pin_order`; versions are in `note_versions`.
