@@ -168,3 +168,22 @@ describe("pinned notes (HB-29)", () => {
     ).toEqual([c.id, b.id]);
   });
 });
+
+describe("imported notes and Rewrite records", () => {
+  it("creates a note from a document and records Rewrite outcomes", () => {
+    const db = openDatabase(":memory:");
+    const store = createNotesStore(db);
+    const note = store.createRich("Imported", {
+      blocks: [{ type: "heading", level: 1, inlines: [{ text: "Imported" }] }],
+    })!;
+    expect(store.get(note.id)?.title).toBe("Imported");
+    store.recordRewrite({
+      noteId: note.id,
+      rewriteId: "r1",
+      scope: "selection",
+      outcome: "replaced",
+    });
+    store.recordRewrite({ noteId: "missing", rewriteId: "r1", scope: "note", outcome: "copied" });
+    expect(db.prepare("SELECT COUNT(*) AS n FROM note_rewrites").get()).toEqual({ n: 1 });
+  });
+});

@@ -75,6 +75,44 @@ A version that would match the newest one is not saved. The one exception is "Sa
 - A 4000×3000 JPEG carrying a GPS EXIF block came out at 2048×1536 with no EXIF block.
 - HEIC and GIF files of the same size came out at 2048×1536 through the same path.
 
+## Headings
+
+Notes have Heading and Text buttons. Headings are kept in the note's document (levels 1 to 3) and survive Markdown both ways. Snippets do not get headings.
+
+## Rewrites in notes (HB-32)
+
+**The Rewrite bar** sits above the editor and says what a Rewrite will work on:
+
+- the selection, when text in the note is selected;
+- otherwise, the whole note.
+
+It shows Clarify, Tighten and Structure first, and More shows every enabled Rewrite.
+
+**Running one:**
+
+- The Rewrite runs through the same engine as a Rewrite of selected text (`notes:rewrite-run`). Only the Rewrite's instruction and example are used: a note is not an app, so no style, Memory or samples go in.
+- The limit is 8,000 characters. A longer note asks you to select a part.
+
+**The result** shows in the bar, with:
+
+- **Replace:** puts the text in place as one edit (Command+Z undoes it), saves the note, and saves a version labelled "<Rewrite> applied";
+- **Copy**;
+- **View changes:** a word diff;
+- **Regenerate:** changes the result in the bar, not the note;
+- **Discard.**
+
+**Records:** `note_rewrites` (migration 0023) stores the Rewrite and what became of it (replaced, copied or discarded), with no text. A replaced or copied result counts toward the "First Rewrite" milestone.
+
+## Markdown and HTML (HB-27, HB-33)
+
+There is no sync and no share link. Instead:
+
+- **Copy as Markdown** puts the note on the clipboard as Markdown: headings, lists, bold, italic and links. Underline has no Markdown form and stays plain text. Images are left out.
+- **Export Markdown** writes `<title>.md` where you pick, starting with the title as a heading. Images are copied to a `<title> images` folder beside it and referenced relatively.
+- **Export HTML** writes one self-contained page with the images inside it.
+- **Import** turns one `.md` file of up to 2 MB into a new note. The title is the first heading, or else the file name. Headings, lists, bold, italic and safe links (http, https, mailto) come through; images in the file are left out.
+- An exported note imports back with its text and headings (tested).
+
 ## Storage
 
 `notes`: id, title, body_json (the snippet editor's document), body_plain, created_at, updated_at, pinned, pin_order, archived, deleted_at. Pins use `pinned` and `pin_order`; versions are in `note_versions`.

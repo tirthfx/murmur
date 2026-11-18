@@ -82,7 +82,10 @@ function imagesIn(node: HTMLElement): string[] {
 }
 
 /** The editor's content as a document. With `images`, stored images are kept as blocks. */
-export function domToRich(root: HTMLElement, options: { images?: boolean } = {}): RichDoc {
+export function domToRich(
+  root: HTMLElement,
+  options: { images?: boolean; headings?: boolean } = {},
+): RichDoc {
   const blocks: RichBlock[] = [];
   const pushImages = (node: HTMLElement) => {
     if (!options.images) return;
@@ -105,6 +108,17 @@ export function domToRich(root: HTMLElement, options: { images?: boolean } = {})
     } else if (child instanceof HTMLElement && child.tagName === "IMG") {
       flush();
       pushImages(child);
+    } else if (
+      options.headings &&
+      child instanceof HTMLElement &&
+      (child.tagName === "H1" || child.tagName === "H2" || child.tagName === "H3")
+    ) {
+      flush();
+      blocks.push({
+        type: "heading",
+        level: Number(child.tagName[1]) as 1 | 2 | 3,
+        inlines: tidy([...child.childNodes].flatMap((node) => inlinesOf(node, {}))),
+      });
     } else if (child instanceof HTMLElement && BLOCK_TAGS.has(child.tagName)) {
       flush();
       const inlines = tidy([...child.childNodes].flatMap((node) => inlinesOf(node, {})));

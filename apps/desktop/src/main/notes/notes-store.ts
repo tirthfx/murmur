@@ -19,6 +19,7 @@ import {
   type NoteSave,
   type NoteSaveResult,
   type NoteSummary,
+  type NoteRewriteRecord,
   type RichDoc,
 } from "@murmur/shared";
 
@@ -28,6 +29,10 @@ export interface NotesStore {
   get(id: string): Note | null;
   /** A new note, empty or holding some text. */
   create(text?: string): Note;
+  /** A new note with a title and a document, such as an imported Markdown file. */
+  createRich(title: string, body: RichDoc): Note | null;
+  /** HB-32: what became of a Rewrite run in a note (no text is kept). */
+  recordRewrite(input: NoteRewriteRecord): void;
   save(input: NoteSave): NoteSaveResult;
   remove(id: string): void;
   count(): number;
@@ -151,6 +156,23 @@ export function createNotesStore(
         VALUES (?, '', ?, ?, ?, ?)`,
       ).run(id, JSON.stringify(body), richToPlain(body), at, at);
       return this.get(id)!;
+    },
+    createRich(title, body) {
+      const plain = clean(richToPlain(body));
+      if (utf8Bytes(plain) > NOTE_LIMITS.bodyBytes) return null;
+      const id = newId();
+      const at = now();
+      db.prepare(
+        `INSERT INTO notes (id, title, body_json, body_plain, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?)`,
+      ).run(id, clean(title).slice(0, NOTE_LIMITS.title), JSON.stringify(body), plain, at, at);
+      return this.get(id);
+    },
+    recordRewrite({ noteId, rewriteId, scope, outcome }) {
+      db.prepare(
+        `INSERT INTO note_rewrites (id, note_id, rewrite_id, scope, outcome, created_at)
+        SELECT ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM notes WHERE id = ?)`,
+      ).run(newId(), noteId, rewriteId, scope, outcome, now(), noteId);
     },
     save({ id, title, body }) {
       const plain = clean(richToPlain(body));

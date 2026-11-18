@@ -28,6 +28,12 @@ export const richBlockSchema = z.discriminatedUnion("type", [
     type: z.enum(["bullet", "numbered"]),
     items: z.array(z.array(richInlineSchema)),
   }),
+  /** A heading in a Scratchpad note (HB-26); snippets never hold one. */
+  z.strictObject({
+    type: z.literal("heading"),
+    level: z.union([z.literal(1), z.literal(2), z.literal(3)]),
+    inlines: z.array(richInlineSchema),
+  }),
   /** A Scratchpad image (HB-30), stored beside the note; snippets never hold one. */
   z.strictObject({ type: z.literal("image"), imageId: z.string().regex(/^[\w-]{1,64}$/) }),
 ]);
@@ -110,6 +116,9 @@ export function richToHtml(doc: RichDoc): string {
   return doc.blocks
     .map((block) => {
       if (block.type === "paragraph") return `<p>${runsHtml(block.inlines) || "<br>"}</p>`;
+      if (block.type === "heading") {
+        return `<h${block.level}>${runsHtml(block.inlines) || "<br>"}</h${block.level}>`;
+      }
       if (block.type === "image") {
         return `<p><img data-image-id="${escapeHtml(block.imageId)}" alt="Image"></p>`;
       }
@@ -134,6 +143,7 @@ export function richToPlain(doc: RichDoc): string {
     .flatMap((block) => {
       if (block.type === "paragraph") return [runs(block.inlines)];
       if (block.type === "image") return [];
+      if (block.type === "heading") return [runs(block.inlines)];
       return block.items.map((item, index) =>
         block.type === "bullet" ? `• ${runs(item)}` : `${index + 1}. ${runs(item)}`,
       );

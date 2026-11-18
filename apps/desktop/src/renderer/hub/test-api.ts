@@ -276,6 +276,27 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
       pinned: false,
     }),
     notePin: vi.fn().mockResolvedValue({ ok: true }),
+    noteRewrites: vi.fn().mockResolvedValue([
+      { id: "rw-clarify", name: "Clarify" },
+      { id: "rw-concise", name: "Tighten" },
+      { id: "rw-structure", name: "Structure" },
+      { id: "rw-mine", name: "Friendly" },
+    ]),
+    noteRewriteRun: vi.fn().mockResolvedValue({ ok: true, text: "Milk and eggs." }),
+    noteRewriteRecord: vi.fn().mockResolvedValue(undefined),
+    noteExport: vi.fn().mockResolvedValue({ saved: true }),
+    noteImport: vi.fn().mockResolvedValue({
+      ok: true,
+      note: {
+        id: "n4",
+        title: "Imported",
+        body: { blocks: [] },
+        plain: "",
+        createdAt: 1,
+        updatedAt: 1,
+        pinned: false,
+      },
+    }),
     noteImageAdd: vi.fn().mockResolvedValue({
       ok: true,
       id: "img-1",

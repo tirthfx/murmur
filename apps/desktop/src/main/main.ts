@@ -36,6 +36,9 @@ import {
   localDate,
   milestoneTitle,
   NOTE_MESSAGES,
+  GENERATION_MESSAGES,
+  markdownTitle,
+  markdownToRich,
   rangeFirstDay,
   MEMORY_LIMITS,
   PRESETS,
@@ -100,6 +103,12 @@ import { createInsightsStore } from "./insights/insights-store";
 import { createMilestonesStore } from "./milestones/milestones-store";
 import { createNotesStore } from "./notes/notes-store";
 import { createNoteImages, type ImageEncoder } from "./notes/note-images";
+import {
+  noteFileName,
+  noteRewriteChoices,
+  writeNoteHtml,
+  writeNoteMarkdown,
+} from "./notes/note-files";
 import { createDictionaryStore } from "./dictionary/dictionary-store";
 import { createCorrectionLearner } from "./dictionary/learn";
 import { createSnippetStore } from "./snippets/snippet-store";
@@ -133,7 +142,7 @@ import {
   setRewriteShortcut,
   withShortcutLabels,
 } from "./rewrites/rewrite-shortcuts";
-import { createGenerationService } from "./generation/service";
+import { createGenerationService, errorCode as generationErrorCode } from "./generation/service";
 import { createAutoRewriter } from "./rewrites/auto-apply";
 import { BROWSERS } from "./styles/app-categories";
 import { createPhraseLearner } from "./dictionary/phrases";
@@ -1736,6 +1745,69 @@ function registerIpc(): void {
         ok: false as const,
         message: "Images cannot be saved without the database.",
       }),
+    noteRewrites: () => noteRewriteChoices(rewrites?.enabled() ?? []),
+    noteRewriteRun: async ({ rewriteId, text }) => {
+      const rewrite = rewrites?.get(rewriteId) ?? null;
+      if (!rewrite || !rewrite.enabled)
+        return { ok: false, message: "That Rewrite is not available." };
+      try {
+        // A note is not an app: no style, Memory or samples go in, only the instruction.
+        const run = generation.generate({
+          kind: "rewrite",
+          instruction: rewrite.instruction,
+          ...(rewrite.example ? { example: rewrite.example } : {}),
+          text,
+        });
+        const result = await run.result;
+        return { ok: true, text: result.text };
+      } catch (error) {
+        return { ok: false, message: GENERATION_MESSAGES[generationErrorCode(error)] };
+      }
+    },
+    noteRewriteRecord: (input) => {
+      if (!notes) return;
+      notes.recordRewrite(input);
+      if (input.outcome === "discarded") return;
+      rewrites?.markUsed(input.rewriteId);
+      if (input.outcome === "replaced") {
+        const name = rewrites?.get(input.rewriteId)?.name ?? "Rewrite";
+        notes.saveVersion({
+          noteId: input.noteId,
+          label: `${name} applied`.slice(0, 60),
+          reason: "manual",
+        });
+      }
+      checkMilestones(true);
+    },
+    noteExport: async ({ noteId, format }) => {
+      const note = notes?.get(noteId) ?? null;
+      if (!note || !noteImages) return { saved: false };
+      const extension = format === "markdown" ? "md" : "html";
+      const options = {
+        title: format === "markdown" ? "Export as Markdown" : "Export as HTML",
+        defaultPath: path.join(app.getPath("documents"), `${noteFileName(note)}.${extension}`),
+        filters: [
+          format === "markdown"
+            ? { name: "Markdown", extensions: ["md"] }
+            : { name: "HTML", extensions: ["html"] },
+        ],
+      };
+      const owner = scratchpadWindow && !scratchpadWindow.isDestroyed() ? scratchpadWindow : null;
+      const choice = owner
+        ? await dialog.showSaveDialog(owner, options)
+        : await dialog.showSaveDialog(options);
+      if (choice.canceled || !choice.filePath) return { saved: false };
+      if (format === "markdown") writeNoteMarkdown(note, choice.filePath, noteImages);
+      else writeNoteHtml(note, choice.filePath, noteImages);
+      return { saved: true };
+    },
+    noteImport: ({ fileName, markdown }) => {
+      if (!notes) return { ok: false, message: "Notes cannot be saved without the database." };
+      const note = notes.createRich(markdownTitle(markdown, fileName), markdownToRich(markdown));
+      if (!note) return { ok: false, message: NOTE_MESSAGES.tooBig };
+      checkMilestones(true);
+      return { ok: true, note };
+    },
     noteImageData: (id) => noteImages?.dataUrl(id) ?? null,
     scratchpadOpen: (noteId) => openScratchpad(noteId ?? undefined),
     homeView: () => {

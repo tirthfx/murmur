@@ -255,4 +255,84 @@ describe("Scratchpad window", () => {
       ),
     );
   });
+
+  it("rewrites the whole note and replaces it, saving a version", async () => {
+    const user = await openFirst();
+    await user.click(await screen.findByRole("button", { name: "Tighten the whole note" }));
+    expect(window.murmur.noteRewriteRun).toHaveBeenCalledWith({
+      noteId: "n2",
+      rewriteId: "rw-concise",
+      text: "milk, eggs",
+    });
+    expect((await screen.findByTestId("rewrite-result")).textContent).toBe("Milk and eggs.");
+    await user.click(screen.getByRole("button", { name: "Replace with the Rewrite" }));
+    await waitFor(() =>
+      expect(window.murmur.noteRewriteRecord).toHaveBeenCalledWith({
+        noteId: "n2",
+        rewriteId: "rw-concise",
+        scope: "note",
+        outcome: "replaced",
+      }),
+    );
+    expect(screen.getByTestId("note-editor").textContent).toBe("Milk and eggs.");
+    expect(window.murmur.noteSave).toHaveBeenCalled();
+  });
+
+  it("rewrites only the selection, and Regenerate changes only the panel", async () => {
+    const user = await openFirst();
+    const editor = screen.getByTestId("note-editor");
+    const text = editor.querySelector("p")!.firstChild!;
+    const range = document.createRange();
+    range.setStart(text, 0);
+    range.setEnd(text, 4);
+    document.getSelection()!.removeAllRanges();
+    document.getSelection()!.addRange(range);
+    document.dispatchEvent(new Event("selectionchange"));
+    await user.click(await screen.findByRole("button", { name: "Clarify the selection" }));
+    expect(window.murmur.noteRewriteRun).toHaveBeenLastCalledWith(
+      expect.objectContaining({ text: "milk" }),
+    );
+    await screen.findByTestId("rewrite-result");
+    window.murmur.noteRewriteRun = vi.fn().mockResolvedValue({ ok: true, text: "Second try." });
+    await user.click(screen.getByRole("button", { name: "Regenerate the Rewrite" }));
+    expect((await screen.findByText("Second try.")).textContent).toBe("Second try.");
+    expect(editor.textContent).toBe("milk, eggs");
+    expect(window.murmur.noteRewriteRecord).not.toHaveBeenCalled();
+  });
+
+  it("shows more Rewrites and records a discard", async () => {
+    const user = await openFirst();
+    await user.click(await screen.findByRole("button", { name: "More Rewrites" }));
+    await user.click(screen.getByRole("button", { name: "Friendly the whole note" }));
+    await screen.findByTestId("rewrite-result");
+    await user.click(screen.getByRole("button", { name: "Discard the Rewrite" }));
+    expect(window.murmur.noteRewriteRecord).toHaveBeenCalledWith(
+      expect.objectContaining({ rewriteId: "rw-mine", outcome: "discarded" }),
+    );
+  });
+
+  it("copies the note as Markdown and exports it", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    const user = await openFirst();
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    await user.click(screen.getByRole("button", { name: "Copy this note as Markdown" }));
+    expect(writeText).toHaveBeenCalledWith("milk, eggs\n");
+    await user.click(screen.getByRole("button", { name: "Export this note as HTML" }));
+    expect(window.murmur.noteExport).toHaveBeenCalledWith({ noteId: "n2", format: "html" });
+    expect(await screen.findByText("Exported as HTML.")).toBeTruthy();
+  });
+
+  it("imports a Markdown file as a new note", async () => {
+    render(<ScratchpadApp />);
+    await screen.findByRole("list", { name: "All notes" });
+    const file = new File(["# Plan\n\n- one\n"], "plan.md", { type: "text/markdown" });
+    fireEvent.change(screen.getByTestId("markdown-picker"), { target: { files: [file] } });
+    await waitFor(() =>
+      expect(window.murmur.noteImport).toHaveBeenCalledWith({
+        fileName: "plan.md",
+        markdown: "# Plan\n\n- one\n",
+      }),
+    );
+    await waitFor(() => expect(window.murmur.noteGet).toHaveBeenCalledWith("n4"));
+  });
 });

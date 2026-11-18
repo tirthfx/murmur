@@ -25,6 +25,8 @@ export interface NoteImages {
   add(input: NoteImageAdd): Promise<NoteImageResult>;
   /** The image as a data URL for the editor, or null. */
   dataUrl(id: string): string | null;
+  /** The stored file of an image and its extension, for export; null if missing. */
+  file(id: string): { path: string; extension: "png" | "jpg" } | null;
   /** Bytes of every stored image. */
   usage(): number;
   /** Removes a note's image files; its rows go with the note. */
@@ -104,6 +106,15 @@ export function createNoteImages(
       const file = path.join(root, row.path);
       if (!inside(file) || !existsSync(file)) return null;
       return `data:${row.mime};base64,${readFileSync(file).toString("base64")}`;
+    },
+    file(id) {
+      if (!ID.test(id)) return null;
+      const row = db.prepare("SELECT path, mime FROM note_images WHERE id = ?").get(id) as
+        { path: string; mime: string } | undefined;
+      if (!row) return null;
+      const file = path.join(root, row.path);
+      if (!inside(file) || !existsSync(file)) return null;
+      return { path: file, extension: row.mime === "image/png" ? "png" : "jpg" };
     },
     usage,
     removeFolder(noteId) {
