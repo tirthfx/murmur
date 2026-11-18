@@ -34,6 +34,8 @@ function setup() {
   const handle = createIpcHandler({
     entryUrl,
     hubSetPage: vi.fn(),
+    insightsView: vi.fn(),
+    insightsExport: vi.fn(() => Promise.resolve({ saved: false, rows: 0 })),
     historyPage: vi.fn(() => ({ rows: [], total: 0, apps: [], languages: [] })),
     historyArchive: vi.fn(() => 0),
     historyFeedback: vi.fn(),

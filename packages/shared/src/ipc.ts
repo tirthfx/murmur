@@ -11,6 +11,14 @@ import {
   type HistoryQuery,
 } from "./history";
 import {
+  insightsExportResultSchema,
+  insightsRangeSchema,
+  insightsViewSchema,
+  type InsightsExportResult,
+  type InsightsRange,
+  type InsightsView,
+} from "./insights";
+import {
   permissionKindSchema,
   permissionsInfoSchema,
   requestablePermissionKindSchema,
@@ -141,6 +149,8 @@ export const IPC_CHANNELS = {
   getAppInfo: "app:get-info",
   hubSetPage: "hub:set-page",
   historyPage: "history:page",
+  insightsView: "insights:view",
+  insightsExport: "insights:export",
   historyArchive: "history:archive",
   historyFeedback: "history:feedback",
   historyDelete: "history:delete",
@@ -465,6 +475,12 @@ export const IPC_CONTRACT = {
     result: focusAddResultSchema,
   },
   [IPC_CHANNELS.focusRemoveApp]: { args: z.tuple([z.string().min(1)]), result: z.void() },
+  // HB-11, HB-36 to HB-39, HB-45.
+  [IPC_CHANNELS.insightsView]: { args: z.tuple([insightsRangeSchema]), result: insightsViewSchema },
+  [IPC_CHANNELS.insightsExport]: {
+    args: z.tuple([insightsRangeSchema]),
+    result: insightsExportResultSchema,
+  },
   // HB-35.
   [IPC_CHANNELS.historyPage]: { args: z.tuple([historyQuerySchema]), result: historyPageSchema },
   [IPC_CHANNELS.historyArchive]: {
@@ -613,6 +629,10 @@ export interface MurmurApi {
   focusAddSite(input: FocusSiteInput): Promise<FocusAddResult>;
   /** Installed apps to choose from; empty when the helper cannot list them. */
   focusInstalledApps(): Promise<InstalledApp[]>;
+  /** Insights (HB-11) for a range, worked out from daily counts. */
+  insightsView(range: InsightsRange): Promise<InsightsView>;
+  /** Saves the range's daily counts as CSV where the user picks (HB-45). */
+  insightsExport(range: InsightsRange): Promise<InsightsExportResult>;
   /** History (HB-35): one page of dictations for a search and filters. */
   historyPage(query: HistoryQuery): Promise<HistoryPage>;
   /** Archives rows, or brings them back; returns rows changed. */

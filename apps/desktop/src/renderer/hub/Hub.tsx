@@ -13,6 +13,7 @@ import { MemoryPage } from "./MemoryPage";
 import { RewritesPage } from "./RewritesPage";
 import { MyVoicePage } from "./MyVoicePage";
 import { HistoryPage } from "./HistoryPage";
+import { InsightsPage } from "./InsightsPage";
 import { Onboarding } from "./Onboarding";
 import { SettingsPage } from "./SettingsPage";
 import { pageFromHash, resolvePage, visiblePages, type PageFeatures, type PageId } from "./pages";
@@ -153,6 +154,8 @@ function HubPages({ onRunSetup }: { onRunSetup: () => void }) {
             <MyVoicePage />
           ) : page.id === "history" ? (
             <HistoryPage />
+          ) : page.id === "insights" ? (
+            <InsightsPage />
           ) : (
             <div className="hub-empty">
               <EmptyState

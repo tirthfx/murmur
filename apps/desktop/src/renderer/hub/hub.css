@@ -242,3 +242,41 @@ body {
   margin: 0;
   line-height: 1.6;
 }
+
+/* Insights (HB-11, HB-36 to HB-39). */
+.hub-insights-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: var(--spacing-3);
+}
+
+.hub-insights-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  padding: var(--spacing-3);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.hub-insights-apps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.hub-insights-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--color-border);
+  overflow: hidden;
+}
+
+.hub-insights-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--color-border-emphasized);
+}

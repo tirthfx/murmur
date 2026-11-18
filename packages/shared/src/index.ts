@@ -37,3 +37,4 @@ export * from "./undo";
 export * from "./focus";
 export * from "./plans";
 export * from "./history";
+export * from "./insights";

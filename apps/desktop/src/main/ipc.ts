@@ -7,6 +7,9 @@ import {
   type HistoryFeedback,
   type HistoryPage,
   type HistoryQuery,
+  type InsightsExportResult,
+  type InsightsRange,
+  type InsightsView,
   type CapturedKey,
   type InstructModelStatus,
   type FocusAddResult,
@@ -62,6 +65,8 @@ import { isTrustedIpcSender } from "../security/guards";
 export interface IpcDeps {
   entryUrl: string;
   getAppInfo: () => AppInfo;
+  insightsView: (range: InsightsRange) => InsightsView;
+  insightsExport: (range: InsightsRange) => Promise<InsightsExportResult>;
   historyPage: (query: HistoryQuery) => HistoryPage;
   historyArchive: (ids: string[], archived: boolean) => number;
   historyFeedback: (input: HistoryFeedback) => void;
@@ -160,6 +165,10 @@ export function createIpcHandler(deps: IpcDeps) {
     switch (channel) {
       case IPC_CHANNELS.getAppInfo:
         return deps.getAppInfo();
+      case IPC_CHANNELS.insightsView:
+        return deps.insightsView(request.args[0] as InsightsRange);
+      case IPC_CHANNELS.insightsExport:
+        return deps.insightsExport(request.args[0] as InsightsRange);
       case IPC_CHANNELS.historyPage:
         return deps.historyPage(request.args[0] as HistoryQuery);
       case IPC_CHANNELS.historyArchive:

@@ -9,6 +9,7 @@ import {
   BrowserWindow,
   clipboard,
   ClipboardItem,
+  dialog,
   ipcMain,
   screen,
   session,
@@ -17,6 +18,11 @@ import {
 } from "electron";
 import {
   BAR_IPC_CHANNELS,
+  buildInsights,
+  INSIGHTS_LIMITS,
+  insightsCsv,
+  localDate,
+  rangeFirstDay,
   MEMORY_LIMITS,
   PRESETS,
   REWRITE_PANEL_BINDING_ID,
@@ -76,6 +82,7 @@ import {
 import { createCleanupService } from "./cleanup/cleanup-service";
 import { databasePath, openDatabase } from "./db/database";
 import { createHistoryStore, type HistoryStore } from "./history/history-store";
+import { createInsightsStore } from "./insights/insights-store";
 import { createDictionaryStore } from "./dictionary/dictionary-store";
 import { createCorrectionLearner } from "./dictionary/learn";
 import { createSnippetStore } from "./snippets/snippet-store";
@@ -334,6 +341,15 @@ function answerBar(choice: "yes" | "no"): void {
   bar.dispatch({ type: "answered" });
   if (saved?.ok) bar.dispatch({ type: "warn", message: "Saved to Memory" });
 }
+// HB-36: daily counts, filled from history once.
+const insights = database ? createInsightsStore(database) : null;
+try {
+  const filled = insights?.backfill() ?? 0;
+  if (filled > 0) console.log(`[insights] counted ${filled} earlier dictations`);
+} catch (error) {
+  console.warn(`[insights] could not fill from history: ${String(error)}`);
+}
+
 const history: HistoryStore | null = database
   ? createHistoryStore(database, path.join(profile.appData, "Murmur", "audio"))
   : null;
@@ -383,6 +399,7 @@ const settingsStore = createSettingsStore(database, {
   setupComplete: false,
   pressEnterCommand: true,
   openHubOnLaunch: true,
+  insights: { typingWpm: INSIGHTS_LIMITS.typingWpm.default },
   contextAwareness: true,
   mouseButtons: { hold: null, handsFree: null },
   typingReminder: { enabled: true, snoozedUntil: null },
@@ -741,6 +758,18 @@ const recorder = createRecorder({
   autoRewrite: (text, category, appBundleId) => autoRewrite(text, category, appBundleId),
   record: (dictation) => {
     const id = history?.add(dictation) ?? null;
+    try {
+      insights?.record({
+        createdAt: dictation.createdAt,
+        words: dictation.wordCount,
+        durationMs: dictation.durationMs,
+        insertStatus: dictation.insertStatus,
+        appBundleId: dictation.appBundleId ?? null,
+        appName: dictation.appName ?? null,
+      });
+    } catch (error) {
+      console.warn(`[insights] could not count a dictation: ${String(error)}`);
+    }
     if (dictation.insertStatus === "inserted" && dictation.finalText) {
       lastDictation = {
         text: dictation.finalText,
@@ -1473,6 +1502,30 @@ app.on("web-contents-created", (_event, contents) => {
 function registerIpc(): void {
   const handle = createIpcHandler({
     entryUrl: hubEntryUrl,
+    insightsView: (range) =>
+      buildInsights(
+        insights?.days(null) ?? [],
+        range,
+        localDate(Date.now()),
+        settingsStore.get().insights.typingWpm,
+      ),
+    insightsExport: async (range) => {
+      const days = insights?.days(rangeFirstDay(range, localDate(Date.now()))) ?? [];
+      const options = {
+        title: "Save Insights",
+        defaultPath: path.join(
+          app.getPath("documents"),
+          `murmur-insights-${localDate(Date.now())}.csv`,
+        ),
+        filters: [{ name: "CSV", extensions: ["csv"] }],
+      };
+      const choice = hubWindow
+        ? await dialog.showSaveDialog(hubWindow, options)
+        : await dialog.showSaveDialog(options);
+      if (choice.canceled || !choice.filePath) return { saved: false, rows: 0 };
+      writeFileSync(choice.filePath, insightsCsv(days));
+      return { saved: true, rows: days.length };
+    },
     historyPage: (query) =>
       history ? history.page(query) : { rows: [], total: 0, apps: [], languages: [] },
     historyArchive: (ids, archived) => history?.setArchived(ids, archived) ?? 0,

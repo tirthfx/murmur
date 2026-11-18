@@ -1,6 +1,7 @@
 import { vi } from "vitest";
 import type {
   HistoryPage,
+  InsightsView,
   MurmurApi,
   PermissionsInfo,
   SettingsView,
@@ -29,6 +30,7 @@ export const SAMPLE_SETTINGS: SettingsView = {
     setupComplete: true,
     pressEnterCommand: true,
     openHubOnLaunch: true,
+    insights: { typingWpm: 40 },
     contextAwareness: true,
     mouseButtons: { hold: null, handsFree: null },
     typingReminder: { enabled: true, snoozedUntil: null },
@@ -129,6 +131,27 @@ export const SAMPLE_STYLES: StylesView = {
 };
 
 /** A mocked preload API for renderer tests. Override any member. */
+/** Insights for a week of use. */
+export const SAMPLE_INSIGHTS: InsightsView = {
+  range: "30",
+  empty: false,
+  words: 1250,
+  dictations: 40,
+  averageWords: 31,
+  speakingMs: 600_000,
+  timeSavedMs: 1_275_000,
+  typingWpm: 40,
+  wpm: 142,
+  bestDay: { date: "2026-11-17", wpm: 160 },
+  topApps: [
+    { bundleId: "com.apple.Notes", name: "Notes", words: 1000, dictations: 30, share: 80 },
+    { bundleId: "com.apple.Safari", name: "Safari", words: 200, dictations: 8, share: 16 },
+  ],
+  other: { words: 50, dictations: 2, share: 4 },
+  daily: { current: 3, longest: 5, counted: true },
+  weekly: { current: 1, longest: 2, counted: false },
+};
+
 /** Two dictations for the History page. */
 export const SAMPLE_HISTORY: HistoryPage = {
   rows: [
@@ -173,6 +196,8 @@ export const SAMPLE_HISTORY: HistoryPage = {
 export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
   return {
     hubSetPage: vi.fn().mockResolvedValue(undefined),
+    insightsView: vi.fn().mockResolvedValue(SAMPLE_INSIGHTS),
+    insightsExport: vi.fn().mockResolvedValue({ saved: true, rows: 7 }),
     historyPage: vi.fn().mockResolvedValue(SAMPLE_HISTORY),
     historyArchive: vi.fn().mockResolvedValue(1),
     historyFeedback: vi.fn().mockResolvedValue(undefined),
