@@ -273,3 +273,134 @@ describe("retry and recovery", () => {
     done();
   });
 });
+
+describe("history page (HB-35)", () => {
+  function seeded() {
+    const { db, store } = setup();
+    const a = store.add(
+      record({
+        sessionId: "a",
+        createdAt: 1_000,
+        rawText: "um the zebra crossing",
+        finalText: "The crossing.",
+        appBundleId: "com.apple.Notes",
+        appName: "Notes",
+        audio: null,
+      }),
+    );
+    const b = store.add(
+      record({
+        sessionId: "b",
+        createdAt: 2_000,
+        rawText: "hello world",
+        finalText: "Hello, world.",
+        language: "fr",
+        appBundleId: "com.apple.Safari",
+        appName: "Safari",
+        audio: null,
+      }),
+    );
+    const c = store.add(
+      record({
+        sessionId: "c",
+        createdAt: 3_000,
+        rawText: null,
+        finalText: null,
+        insertStatus: "failed",
+        errorCode: "INTERRUPTED",
+        audio: null,
+      }),
+    );
+    return { db, store, a, b, c };
+  }
+
+  it("lists newest first with statuses, apps and languages", () => {
+    const { store, a, b, c } = seeded();
+    const page = store.page({});
+    expect(page.rows.map((row) => row.id)).toEqual([c, b, a]);
+    expect(page.total).toBe(3);
+    expect(page.rows[0]!.status).toBe("interrupted");
+    expect(page.rows[1]!.status).toBe("done");
+    expect(page.apps).toEqual([
+      { bundleId: "com.apple.Notes", name: "Notes" },
+      { bundleId: "com.apple.Safari", name: "Safari" },
+    ]);
+    expect(page.languages).toEqual(["en", "fr"]);
+  });
+
+  it("finds a word that is only in the raw text, by prefix", () => {
+    const { store, a } = seeded();
+    expect(store.page({ text: "zeb" }).rows.map((row) => row.id)).toEqual([a]);
+    expect(store.page({ text: "hello zebra" }).total).toBe(0);
+  });
+
+  it("filters by app, language, status and dates", () => {
+    const { store, a, b, c } = seeded();
+    expect(store.page({ app: "com.apple.Safari" }).rows.map((row) => row.id)).toEqual([b]);
+    expect(store.page({ language: "fr" }).rows.map((row) => row.id)).toEqual([b]);
+    expect(store.page({ status: "interrupted" }).rows.map((row) => row.id)).toEqual([c]);
+    expect(store.page({ from: 1_500, to: 3_000 }).rows.map((row) => row.id)).toEqual([b]);
+    expect(
+      store.page({ status: "done", app: "com.apple.Notes" }).rows.map((row) => row.id),
+    ).toEqual([a]);
+  });
+
+  it("hides archived rows by default and shows them with the filter", () => {
+    const { store, a } = seeded();
+    expect(store.setArchived([a], true)).toBe(1);
+    expect(store.page({}).rows.some((row) => row.id === a)).toBe(false);
+    expect(store.page({ archived: true }).rows.map((row) => row.id)).toEqual([a]);
+    store.setArchived([a], false);
+    expect(store.page({}).total).toBe(3);
+  });
+
+  it("keeps feedback and a note, and clears them", () => {
+    const { store, b } = seeded();
+    store.setFeedback({ id: b, feedback: "bad", note: "missed a name" });
+    expect(store.page({}).rows.find((row) => row.id === b)).toMatchObject({
+      feedback: "bad",
+      feedbackNote: "missed a name",
+    });
+    store.setFeedback({ id: b, feedback: null, note: "" });
+    expect(store.page({}).rows.find((row) => row.id === b)).toMatchObject({
+      feedback: null,
+      feedbackNote: null,
+    });
+  });
+
+  it("pages 100 rows at a time", () => {
+    const { store } = setup();
+    for (let i = 0; i < 105; i++) {
+      store.add(record({ sessionId: `s${i}`, createdAt: i, audio: null }));
+    }
+    expect(store.page({}).rows).toHaveLength(100);
+    expect(store.page({ offset: 100 }).rows).toHaveLength(5);
+    expect(store.page({}).total).toBe(105);
+  });
+
+  it("deletes rows from search too, and removes their audio files", () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "history-delete-"));
+    try {
+      const db = openDatabase(":memory:");
+      let n = 0;
+      const store = createHistoryStore(db, root, () => `id-${++n}`);
+      mkdirSync(path.join(root, "tmp"), { recursive: true });
+      const file = path.join(root, "tmp", "d.pcm");
+      writeFileSync(file, "pcm");
+      const id = store.add(
+        record({
+          sessionId: "d",
+          rawText: "zebra",
+          audio: { path: file, codec: "pcm_s16le", durationMs: 100 },
+        }),
+      );
+      expect(store.page({ text: "zebra" }).total).toBe(1);
+      expect(store.remove([id])).toEqual({ rows: 1, files: 1 });
+      expect(existsSync(file)).toBe(false);
+      expect(store.page({ text: "zebra" }).total).toBe(0);
+      expect(db.prepare("SELECT COUNT(*) AS n FROM audio_chunks").get()).toEqual({ n: 0 });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});

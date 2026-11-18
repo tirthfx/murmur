@@ -2,7 +2,16 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 // The diff colours (RW-06) must read clearly in both themes: WCAG AA, 4.5:1 for text.
-const css = readFileSync(new URL("./rewrite.css", import.meta.url), "utf8");
+const diffCss = readFileSync(new URL("../diff.css", import.meta.url), "utf8");
+const cardCss = readFileSync(new URL("./rewrite.css", import.meta.url), "utf8");
+
+function themes(css: string) {
+  const darkStart = css.indexOf("@media (prefers-color-scheme: dark)");
+  return {
+    light: block(css.slice(0, css.indexOf("@media"))),
+    dark: block(css.slice(darkStart, css.indexOf("}\n}", darkStart))),
+  };
+}
 
 function block(source: string): Record<string, string> {
   return Object.fromEntries(
@@ -10,9 +19,8 @@ function block(source: string): Record<string, string> {
   );
 }
 
-const light = block(css.slice(0, css.indexOf("@media")));
-const darkStart = css.indexOf("@media (prefers-color-scheme: dark)");
-const dark = block(css.slice(darkStart, css.indexOf("}\n}", darkStart)));
+const light = { ...themes(diffCss).light, ...themes(cardCss).light };
+const dark = { ...themes(diffCss).dark, ...themes(cardCss).dark };
 
 function luminance(hex: string): number {
   const [r, g, b] = [1, 3, 5].map((index) => {

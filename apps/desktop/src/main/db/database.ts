@@ -17,6 +17,7 @@ import m0013 from "./migrations/0013_history_auto_rewrite.sql?raw";
 import m0014 from "./migrations/0014_command_runs.sql?raw";
 import m0015 from "./migrations/0015_instruct_threads.sql?raw";
 import m0016 from "./migrations/0016_focus.sql?raw";
+import m0017 from "./migrations/0017_history_search.sql?raw";
 import { migrateUp, parseMigration, type Migration } from "./migrate";
 
 /** Every migration, in the order the files are numbered. */
@@ -37,6 +38,7 @@ export const MIGRATIONS: Migration[] = [
   parseMigration("0014_command_runs.sql", m0014),
   parseMigration("0015_instruct_threads.sql", m0015),
   parseMigration("0016_focus.sql", m0016),
+  parseMigration("0017_history_search.sql", m0017),
 ];
 
 /** `<appData>/Murmur/murmur.db`, shared by the dev build and the packaged app. */

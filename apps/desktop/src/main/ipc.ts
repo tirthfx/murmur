@@ -3,6 +3,10 @@ import {
   parseIpcRequest,
   type AppInfo,
   type LoginItem,
+  type HistoryDeleteResult,
+  type HistoryFeedback,
+  type HistoryPage,
+  type HistoryQuery,
   type CapturedKey,
   type InstructModelStatus,
   type FocusAddResult,
@@ -58,6 +62,10 @@ import { isTrustedIpcSender } from "../security/guards";
 export interface IpcDeps {
   entryUrl: string;
   getAppInfo: () => AppInfo;
+  historyPage: (query: HistoryQuery) => HistoryPage;
+  historyArchive: (ids: string[], archived: boolean) => number;
+  historyFeedback: (input: HistoryFeedback) => void;
+  historyDelete: (ids: string[]) => HistoryDeleteResult;
   loginItemGet: () => LoginItem;
   loginItemSet: (enabled: boolean) => LoginItem;
   /** The Hub page now shown (HB-01). */
@@ -152,6 +160,14 @@ export function createIpcHandler(deps: IpcDeps) {
     switch (channel) {
       case IPC_CHANNELS.getAppInfo:
         return deps.getAppInfo();
+      case IPC_CHANNELS.historyPage:
+        return deps.historyPage(request.args[0] as HistoryQuery);
+      case IPC_CHANNELS.historyArchive:
+        return deps.historyArchive(request.args[0] as string[], request.args[1] as boolean);
+      case IPC_CHANNELS.historyFeedback:
+        return deps.historyFeedback(request.args[0] as HistoryFeedback);
+      case IPC_CHANNELS.historyDelete:
+        return deps.historyDelete(request.args[0] as string[]);
       case IPC_CHANNELS.loginItemGet:
         return deps.loginItemGet();
       case IPC_CHANNELS.loginItemSet:

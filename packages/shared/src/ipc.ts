@@ -1,5 +1,16 @@
 import { z } from "zod";
 import {
+  historyDeleteResultSchema,
+  historyFeedbackSchema,
+  historyIdsSchema,
+  historyPageSchema,
+  historyQuerySchema,
+  type HistoryDeleteResult,
+  type HistoryFeedback,
+  type HistoryPage,
+  type HistoryQuery,
+} from "./history";
+import {
   permissionKindSchema,
   permissionsInfoSchema,
   requestablePermissionKindSchema,
@@ -129,6 +140,10 @@ export type LoginItem = z.infer<typeof loginItemSchema>;
 export const IPC_CHANNELS = {
   getAppInfo: "app:get-info",
   hubSetPage: "hub:set-page",
+  historyPage: "history:page",
+  historyArchive: "history:archive",
+  historyFeedback: "history:feedback",
+  historyDelete: "history:delete",
   loginItemGet: "app:login-item-get",
   loginItemSet: "app:login-item-set",
   getHelperStatus: "helper:get-status",
@@ -450,6 +465,17 @@ export const IPC_CONTRACT = {
     result: focusAddResultSchema,
   },
   [IPC_CHANNELS.focusRemoveApp]: { args: z.tuple([z.string().min(1)]), result: z.void() },
+  // HB-35.
+  [IPC_CHANNELS.historyPage]: { args: z.tuple([historyQuerySchema]), result: historyPageSchema },
+  [IPC_CHANNELS.historyArchive]: {
+    args: z.tuple([historyIdsSchema, z.boolean()]),
+    result: z.number(),
+  },
+  [IPC_CHANNELS.historyFeedback]: { args: z.tuple([historyFeedbackSchema]), result: z.void() },
+  [IPC_CHANNELS.historyDelete]: {
+    args: z.tuple([historyIdsSchema]),
+    result: historyDeleteResultSchema,
+  },
   // HB-17.
   [IPC_CHANNELS.loginItemGet]: { args: z.tuple([]), result: loginItemSchema },
   [IPC_CHANNELS.loginItemSet]: { args: z.tuple([z.boolean()]), result: loginItemSchema },
@@ -587,6 +613,13 @@ export interface MurmurApi {
   focusAddSite(input: FocusSiteInput): Promise<FocusAddResult>;
   /** Installed apps to choose from; empty when the helper cannot list them. */
   focusInstalledApps(): Promise<InstalledApp[]>;
+  /** History (HB-35): one page of dictations for a search and filters. */
+  historyPage(query: HistoryQuery): Promise<HistoryPage>;
+  /** Archives rows, or brings them back; returns rows changed. */
+  historyArchive(ids: string[], archived: boolean): Promise<number>;
+  historyFeedback(input: HistoryFeedback): Promise<void>;
+  /** Deletes rows and their audio files. */
+  historyDelete(ids: string[]): Promise<HistoryDeleteResult>;
   /** Launch at login (HB-17): only in a packaged app. */
   loginItemGet(): Promise<LoginItem>;
   loginItemSet(enabled: boolean): Promise<LoginItem>;

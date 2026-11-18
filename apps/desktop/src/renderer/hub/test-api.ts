@@ -1,5 +1,6 @@
 import { vi } from "vitest";
 import type {
+  HistoryPage,
   MurmurApi,
   PermissionsInfo,
   SettingsView,
@@ -128,9 +129,54 @@ export const SAMPLE_STYLES: StylesView = {
 };
 
 /** A mocked preload API for renderer tests. Override any member. */
+/** Two dictations for the History page. */
+export const SAMPLE_HISTORY: HistoryPage = {
+  rows: [
+    {
+      id: "h2",
+      createdAt: Date.UTC(2026, 10, 18, 9, 30),
+      appName: "Notes",
+      appBundleId: "com.apple.Notes",
+      status: "done",
+      language: "en",
+      durationMs: 4200,
+      wordCount: 5,
+      rawText: "um so we go at three",
+      finalText: "So we go at three.",
+      archived: false,
+      feedback: null,
+      feedbackNote: null,
+      hasAudio: true,
+    },
+    {
+      id: "h1",
+      createdAt: Date.UTC(2026, 10, 17, 9, 30),
+      appName: null,
+      appBundleId: null,
+      status: "interrupted",
+      language: null,
+      durationMs: 1000,
+      wordCount: 0,
+      rawText: null,
+      finalText: null,
+      archived: false,
+      feedback: null,
+      feedbackNote: null,
+      hasAudio: false,
+    },
+  ],
+  total: 2,
+  apps: [{ bundleId: "com.apple.Notes", name: "Notes" }],
+  languages: ["en"],
+};
+
 export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
   return {
     hubSetPage: vi.fn().mockResolvedValue(undefined),
+    historyPage: vi.fn().mockResolvedValue(SAMPLE_HISTORY),
+    historyArchive: vi.fn().mockResolvedValue(1),
+    historyFeedback: vi.fn().mockResolvedValue(undefined),
+    historyDelete: vi.fn().mockResolvedValue({ rows: 1, files: 0 }),
     loginItemGet: vi.fn().mockResolvedValue({ available: true, enabled: false }),
     loginItemSet: vi.fn((enabled: boolean) => Promise.resolve({ available: true, enabled })),
     getAppInfo: vi.fn().mockResolvedValue({ name: "Murmur", version: "1.2.3", platform: "darwin" }),

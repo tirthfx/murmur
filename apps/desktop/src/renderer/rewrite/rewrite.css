@@ -1,22 +1,14 @@
 /* The Rewrite panel: a card on a transparent, frameless window. */
 :root {
-  /* View changes (RW-06). Checked for contrast in light and dark by diff-colors.test.ts. */
+  /* Checked for contrast in light and dark by diff-colors.test.ts. */
   --rewrite-card-bg: #ffffff;
   --rewrite-card-fg: #18181b;
-  --diff-added-bg: #dcfce7;
-  --diff-added-fg: #14532d;
-  --diff-removed-bg: #fee2e2;
-  --diff-removed-fg: #7f1d1d;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     --rewrite-card-bg: #1c1c1f;
     --rewrite-card-fg: #f4f4f5;
-    --diff-added-bg: #14532d;
-    --diff-added-fg: #dcfce7;
-    --diff-removed-bg: #7f1d1d;
-    --diff-removed-fg: #fee2e2;
   }
 }
 
@@ -94,17 +86,4 @@ body,
   .rewrite-card {
     border-color: rgba(255, 255, 255, 0.14);
   }
-}
-
-.diff-added {
-  background: var(--diff-added-bg);
-  color: var(--diff-added-fg);
-  border-radius: 3px;
-}
-
-.diff-removed {
-  background: var(--diff-removed-bg);
-  color: var(--diff-removed-fg);
-  text-decoration: line-through;
-  border-radius: 3px;
 }
