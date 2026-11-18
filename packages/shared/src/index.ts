@@ -45,3 +45,4 @@ export * from "./markdown";
 export * from "./catalogue";
 export * from "./privacy";
 export * from "./data";
+export * from "./testing";

@@ -162,6 +162,8 @@ Sounds and output mute (the tones, mute while dictating, crash recovery): see `d
 
 Typing reminder (what is counted, snooze): see `docs/typing-reminder.md`.
 
+Developer mode and the Testing page (the five-click unlock, flag registry, tools, diagnostics bundle, engine switches, the accessibility inspector): see `docs/testing-page.md`.
+
 Experimental options (split into messages, pause media, headset, ring, phrases, style detection, pronunciation clips, Command Mode, Offer Instruct Mode, Focus Mode): see `docs/experimental.md`.
 
 Notifications and interface text (the five notification types, never any dictated text, the catalogue with English fallback): see `docs/notifications.md`.

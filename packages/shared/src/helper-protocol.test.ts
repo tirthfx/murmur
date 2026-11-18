@@ -29,6 +29,7 @@ import {
   focusWatchRequestSchema,
   focusAppEventSchema,
   appsListRequestSchema,
+  axInspectRequestSchema,
   editsWatchRequestSchema,
   typingWatchRequestSchema,
   mediaPlaybackRequestSchema,
@@ -158,6 +159,8 @@ function validateMessage(message: unknown): boolean {
       return focusAppEventSchema.safeParse(message).success;
     case "apps.list":
       return appsListRequestSchema.safeParse(message).success;
+    case "ax.inspect":
+      return axInspectRequestSchema.safeParse(message).success;
     case "response": {
       const response = responseSchema.safeParse(message);
       if (!response.success) return false;

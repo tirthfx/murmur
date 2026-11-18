@@ -146,6 +146,11 @@ describe("View changes", () => {
     const { mock } = api(result);
     render(<RewritePanel api={mock} />);
     await waitFor(() => expect(screen.getByLabelText("Result")).toBeTruthy());
+    // The key listener is added in an effect after the result first shows; let it run, or a
+    // busy machine can press the keys before anything listens.
+    await act(async () => {
+      await Promise.resolve();
+    });
     fireEvent.keyDown(window, { code: "KeyD", key: "∂", ctrlKey: true, altKey: true });
     expect(screen.getByLabelText("Changes")).toBeTruthy();
     fireEvent.keyDown(window, { code: "KeyD", key: "∂", ctrlKey: true, altKey: true });

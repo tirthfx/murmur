@@ -17,6 +17,9 @@ import {
   type RetentionView,
   type DataCounts,
   type PlanAction,
+  type TestingTool,
+  type TestingToolResult,
+  type AxInspectResult,
   type PlanView,
   type DeleteCategory,
   type DeleteResult,
@@ -96,6 +99,8 @@ import { isTrustedIpcSender } from "../security/guards";
 export interface IpcDeps {
   entryUrl: string;
   getAppInfo: () => AppInfo;
+  testingTool: (tool: TestingTool) => Promise<TestingToolResult>;
+  axInspect: (showValues: boolean) => Promise<AxInspectResult | null>;
   planView: () => PlanView;
   planAct: (action: PlanAction) => PlanView;
   dataExport: (request: ExportRequest) => Promise<ExportResult>;
@@ -233,6 +238,10 @@ export function createIpcHandler(deps: IpcDeps) {
     switch (channel) {
       case IPC_CHANNELS.getAppInfo:
         return deps.getAppInfo();
+      case IPC_CHANNELS.testingTool:
+        return deps.testingTool(request.args[0] as TestingTool);
+      case IPC_CHANNELS.axInspect:
+        return deps.axInspect(request.args[0] as boolean);
       case IPC_CHANNELS.planView:
         return deps.planView();
       case IPC_CHANNELS.planAct:

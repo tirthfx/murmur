@@ -13,6 +13,7 @@ import {
 } from "./audio";
 import { contextSnapshotPayloadSchema, focusContextSchema } from "./context";
 import { procForegroundResultSchema } from "./processes";
+import { axInspectPayloadSchema, axInspectResultSchema } from "./testing";
 import {
   keysPressPayloadSchema,
   keysPressResultSchema,
@@ -269,6 +270,10 @@ export const HELPER_REQUESTS = {
     payload: emptyObjectSchema,
     result: appsListResultSchema,
   },
+  "ax.inspect": {
+    payload: axInspectPayloadSchema,
+    result: axInspectResultSchema,
+  },
 } as const;
 
 export type HelperRequestType = keyof typeof HELPER_REQUESTS;
@@ -425,6 +430,7 @@ export const keysPressRequestSchema = requestEnvelope("keys.press", keysPressPay
 export const focusWatchRequestSchema = requestEnvelope("focus.watch", focusWatchPayloadSchema);
 export const focusAppEventSchema = eventEnvelope("focus.app", frontAppPayloadSchema);
 export const appsListRequestSchema = requestEnvelope("apps.list", emptyObjectSchema);
+export const axInspectRequestSchema = requestEnvelope("ax.inspect", axInspectPayloadSchema);
 export const contextSnapshotRequestSchema = requestEnvelope(
   "context.snapshot",
   contextSnapshotPayloadSchema,

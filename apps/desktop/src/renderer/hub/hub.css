@@ -451,3 +451,31 @@ body {
   margin: 0;
   padding-left: var(--spacing-4);
 }
+
+/* The version on Settings, General: a quiet button (five clicks turn developer mode on). */
+.hub-version {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.85em;
+  opacity: 0.75;
+  text-align: left;
+  cursor: default;
+}
+
+.hub-version:focus-visible {
+  outline: 2px solid var(--color-border-emphasized);
+}
+
+/* The accessibility inspector (HB-56). */
+.hub-inspector {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-family: ui-monospace, monospace;
+  font-size: 0.85em;
+  max-height: 360px;
+  overflow: auto;
+}

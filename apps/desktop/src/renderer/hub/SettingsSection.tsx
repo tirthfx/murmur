@@ -27,6 +27,7 @@ import { MicCheckSection } from "./MicCheckSection";
 import { PermissionsSection } from "./PermissionsSection";
 import { GeneralSection } from "./GeneralSection";
 import { DataPrivacySection } from "./DataPrivacySection";
+import { TestingSection } from "./TestingSection";
 import { ExportDeleteSection } from "./ExportDeleteSection";
 import type { SettingsPageId } from "./settings-pages";
 
@@ -69,11 +70,21 @@ function Row({ id, children }: { id: string; children: ReactNode }) {
 export function SettingsSection({
   page,
   onRunSetup,
+  onView,
 }: {
   page: SettingsPageId;
   onRunSetup: () => void;
+  /** Told each time the settings are read or saved (the page list follows developer mode). */
+  onView?: (view: SettingsView) => void;
 }) {
-  const [view, setView] = useState<SettingsView | null>(null);
+  const [view, setViewState] = useState<SettingsView | null>(null);
+  const setView = useCallback(
+    (next: SettingsView) => {
+      setViewState(next);
+      onView?.(next);
+    },
+    [onView],
+  );
   const [problem, setProblem] = useState<string | null>(null);
 
   useEffect(() => {
@@ -85,13 +96,16 @@ export function SettingsSection({
     return () => {
       active = false;
     };
-  }, []);
+  }, [setView]);
 
-  const update = useCallback((patch: SettingsPatch) => {
-    window.murmur
-      .updateSettings(patch)
-      .then(setView, () => setProblem("The setting could not be saved."));
-  }, []);
+  const update = useCallback(
+    (patch: SettingsPatch) => {
+      window.murmur
+        .updateSettings(patch)
+        .then(setView, () => setProblem("The setting could not be saved."));
+    },
+    [setView],
+  );
 
   if (!view) {
     return problem ? <Banner status="error" title={problem} /> : null;
@@ -108,6 +122,7 @@ export function SettingsSection({
   ];
 
   const pages: Record<SettingsPageId, () => ReactNode> = {
+    testing: () => <TestingSection settings={settings} update={update} onRunSetup={onRunSetup} />,
     general: () => (
       <>
         <GeneralSection
@@ -117,6 +132,8 @@ export function SettingsSection({
           onProfile={(profile) => update({ profile })}
           theme={settings.theme}
           onTheme={(theme) => update({ theme })}
+          developerMode={settings.devMode.enabled}
+          onDeveloperMode={() => update({ devMode: { ...settings.devMode, enabled: true } })}
         />
         <Row id="app-language">
           <Selector

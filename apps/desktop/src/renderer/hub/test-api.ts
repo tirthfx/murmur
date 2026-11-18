@@ -45,6 +45,7 @@ export const SAMPLE_SETTINGS: SettingsView = {
     },
     privacy: { storeHistory: true, audio: "24h", historyDays: null, strictLocal: false },
     planState: { trial: null, student: false, log: [] },
+    devMode: { enabled: false, disableCleanup: false, forceTyped: false, disableContext: false },
     contextAwareness: true,
     mouseButtons: { hold: null, handsFree: null },
     typingReminder: { enabled: true, snoozedUntil: null },
@@ -212,6 +213,34 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
   return {
     hubSetPage: vi.fn().mockResolvedValue(undefined),
     insightsView: vi.fn().mockResolvedValue(SAMPLE_INSIGHTS),
+    testingTool: vi.fn().mockResolvedValue({ ok: true, message: "Done." }),
+    axInspect: vi.fn().mockResolvedValue({
+      app: "TextEdit",
+      bundleId: "com.apple.TextEdit",
+      nodes: [
+        {
+          depth: 0,
+          role: "AXWindow",
+          subrole: null,
+          title: "Untitled",
+          editable: false,
+          secure: false,
+          selectedRange: null,
+          value: null,
+        },
+        {
+          depth: 1,
+          role: "AXTextField",
+          subrole: "AXSecureTextField",
+          title: null,
+          editable: true,
+          secure: true,
+          selectedRange: null,
+          value: null,
+        },
+      ],
+      truncated: true,
+    }),
     planView: vi.fn().mockResolvedValue({
       tier: "free",
       weekWords: 1234,

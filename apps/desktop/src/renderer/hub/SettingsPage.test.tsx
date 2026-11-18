@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SettingsPage } from "./SettingsPage";
 import { SETTINGS_INDEX, SETTINGS_PAGES, searchSettings } from "./settings-pages";
-import { createMockApi } from "./test-api";
+import { createMockApi, SAMPLE_SETTINGS } from "./test-api";
 
 beforeEach(() => {
   window.murmur = createMockApi();
@@ -69,6 +69,12 @@ describe("Settings page", () => {
 
   it("every indexed setting has its row on its page", async () => {
     const user = userEvent.setup();
+    const settings = structuredClone(SAMPLE_SETTINGS);
+    settings.settings.devMode = { ...settings.settings.devMode, enabled: true };
+    window.murmur = createMockApi({
+      getSettings: vi.fn().mockResolvedValue(settings),
+      updateSettings: vi.fn().mockResolvedValue(settings),
+    });
     render(<SettingsPage onRunSetup={() => {}} />);
     await screen.findByRole("switch", { name: "Launch at login" });
     // Command Mode and Focus Mode rows show only while their experiment is on.
@@ -125,5 +131,29 @@ describe("Settings page", () => {
     expect(window.murmur.updateSettings).toHaveBeenCalledWith({
       notifications: expect.objectContaining({ milestone: true, dictationFailed: true }),
     });
+  });
+
+  it("hides Testing until the version is clicked five times", async () => {
+    const user = userEvent.setup();
+    render(<SettingsPage onRunSetup={() => {}} />);
+    const nav = await screen.findByRole("navigation", { name: "Settings pages" });
+    await screen.findByRole("switch", { name: "Launch at login" });
+    expect(within(nav).queryByRole("button", { name: "Testing" })).toBeNull();
+    const version = await screen.findByTestId("settings-version");
+    for (let i = 0; i < 4; i++) await user.click(version);
+    expect(window.murmur.updateSettings).not.toHaveBeenCalledWith(
+      expect.objectContaining({ devMode: expect.anything() }),
+    );
+    await user.click(version);
+    expect(window.murmur.updateSettings).toHaveBeenCalledWith({
+      devMode: expect.objectContaining({ enabled: true }),
+    });
+  });
+
+  it("sends the Testing route back to General while developer mode is off", async () => {
+    window.history.replaceState(null, "", "#/settings/testing");
+    render(<SettingsPage onRunSetup={() => {}} />);
+    expect(await screen.findByRole("switch", { name: "Launch at login" })).toBeTruthy();
+    await waitFor(() => expect(window.location.hash).toBe("#/settings/general"));
   });
 });

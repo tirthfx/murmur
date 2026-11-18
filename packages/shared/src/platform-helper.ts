@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { AxInspectResult } from "./testing";
 import type {
   AudioDevice,
   AudioInputs,
@@ -154,6 +155,11 @@ export interface PlatformHelper {
   onFrontApp(handler: (app: FrontApp) => void): Unsubscribe;
   /** Installed apps by name, for the blocked list. Empty when they cannot be read. */
   listApps(): Promise<InstalledApp[]>;
+  /**
+   * HB-56: the focused window of the app in front as rows, or null when the helper cannot
+   * (not running, no Accessibility). Values only with `showValues`, never for secure fields.
+   */
+  inspectAccessibility(showValues: boolean): Promise<AxInspectResult | null>;
   /** The changed words only, at most once per correction. */
   onEditsChanged(handler: (change: EditsChanged) => void): Unsubscribe;
   /** The output's mute switch: null when there is none. */

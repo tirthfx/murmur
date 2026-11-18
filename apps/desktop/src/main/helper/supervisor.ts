@@ -1,6 +1,7 @@
 import {
   PROTOCOL_VERSION,
   type AudioDevice,
+  type AxInspectResult,
   type AudioInputs,
   type AudioLevel,
   type AudioSilent,
@@ -383,6 +384,15 @@ export class HelperSupervisor implements PlatformHelper {
       return (await this.connection.request("apps.list", {})).apps;
     } catch {
       return [];
+    }
+  }
+
+  async inspectAccessibility(showValues: boolean): Promise<AxInspectResult | null> {
+    if (!this.connection || this.status.state !== "ready") return null;
+    try {
+      return await this.connection.request("ax.inspect", { showValues });
+    } catch {
+      return null;
     }
   }
 

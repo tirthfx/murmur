@@ -1,0 +1,47 @@
+{
+  "description": "Accessibility inspector (HB-56): the focused window of the app in front as rows, at most depth 6 and 500 nodes. Values only when asked for, and never for a secure field.",
+  "messages": [
+    {
+      "id": "m-000120",
+      "type": "ax.inspect",
+      "payload": {
+        "showValues": false
+      }
+    },
+    {
+      "id": "m-000120",
+      "type": "response",
+      "payload": {
+        "requestType": "ax.inspect",
+        "ok": true,
+        "result": {
+          "app": "TextEdit",
+          "bundleId": "com.apple.TextEdit",
+          "nodes": [
+            {
+              "depth": 0,
+              "role": "AXWindow",
+              "subrole": "AXStandardWindow",
+              "title": "Untitled",
+              "editable": false,
+              "secure": false,
+              "selectedRange": null,
+              "value": null
+            },
+            {
+              "depth": 1,
+              "role": "AXTextField",
+              "subrole": "AXSecureTextField",
+              "title": null,
+              "editable": true,
+              "secure": true,
+              "selectedRange": null,
+              "value": null
+            }
+          ],
+          "truncated": false
+        }
+      }
+    }
+  ]
+}
