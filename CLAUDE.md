@@ -102,6 +102,8 @@ Run all commands from the repo root.
 - Smoke test: `npm run smoke` (owner's Mac only; see `docs/smoke-test.md`).
 - Helper tests: `npm run test:helper` (runs `swift test`). Not part of CI yet; run it locally when `native/helper-mac` changes.
 
+The Hub (sidebar order, hidden pages, hash routes, the remembered page and window size): see `docs/hub.md`.
+
 Permissions (what each is for, granting in development vs a packaged build, `tccutil reset`): see `docs/permissions.md`.
 
 Hotkeys (the listen-only key listener, default bindings, manual key test): see `docs/hotkeys.md`.

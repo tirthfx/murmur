@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AppShell } from "@astryxdesign/core/AppShell";
 import { EmptyState } from "@astryxdesign/core/EmptyState";
 import { Heading } from "@astryxdesign/core/Heading";
@@ -18,7 +18,7 @@ import { Onboarding } from "./Onboarding";
 import { MicCheckSection } from "./MicCheckSection";
 import { PermissionsSection } from "./PermissionsSection";
 import { SettingsSection } from "./SettingsSection";
-import { PAGES, type PageId } from "./pages";
+import { pageFromHash, resolvePage, visiblePages, type PageFeatures, type PageId } from "./pages";
 
 function useAppInfo(): AppInfo | null {
   const [info, setInfo] = useState<AppInfo | null>(null);
@@ -69,18 +69,36 @@ export function Hub() {
   return <HubPages onRunSetup={() => setRevisit(true)} />;
 }
 
+/** Feature switches that hide pages; none yet have a setting (Scratchpad's comes with #152). */
+const FEATURES: PageFeatures = {};
+
 function HubPages({ onRunSetup }: { onRunSetup: () => void }) {
-  const [pageId, setPageId] = useState<PageId>("home");
-  const info = useAppInfo();
-  // Main can ask for a page, for example after the Bar's voice profile prompt.
-  useEffect(
-    () =>
-      window.murmur.onOpenPage((id) => {
-        if (PAGES.some((candidate) => candidate.id === id)) setPageId(id as PageId);
-      }),
-    [],
+  const [pageId, setPageIdState] = useState<PageId>(
+    () => resolvePage(pageFromHash(window.location.hash) ?? "home", FEATURES).id,
   );
-  const page = PAGES.find((candidate) => candidate.id === pageId) ?? PAGES[0];
+  const info = useAppInfo();
+  const pages = visiblePages(FEATURES);
+
+  // HB-01: the hash names the page; main remembers it for the next start.
+  const setPageId = useCallback((id: string) => {
+    const next = resolvePage(id, FEATURES).id;
+    setPageIdState(next);
+    if (window.location.hash !== `#/${next}`) window.history.replaceState(null, "", `#/${next}`);
+    void window.murmur.hubSetPage(next).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const onHash = () => {
+      const id = pageFromHash(window.location.hash);
+      if (id) setPageIdState(resolvePage(id, FEATURES).id);
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+
+  // Main can ask for a page: the last one at start, or one after a Bar prompt.
+  useEffect(() => window.murmur.onOpenPage(setPageId), [setPageId]);
+  const page = resolvePage(pageId, FEATURES);
 
   const sideNav = (
     <SideNav
@@ -100,7 +118,7 @@ function HubPages({ onRunSetup }: { onRunSetup: () => void }) {
       }
     >
       <SideNavSection title="Pages" isHeaderHidden>
-        {PAGES.map((item) => (
+        {pages.map((item) => (
           <SideNavItem
             key={item.id}
             label={item.title}

@@ -62,11 +62,17 @@ import {
   denyPermissionRequest,
   denyWindowOpen,
 } from "../security/guards";
-import { createHubWindowOptions } from "../security/window-options";
+import { createHubWindowOptions, HUB_MIN_HEIGHT, HUB_MIN_WIDTH } from "../security/window-options";
 import { createBarController } from "./bar/bar-controller";
 import { barEventFor } from "./bar/bar-events";
 import { createBarIpcHandler } from "./bar/bar-ipc";
 import { BarWindow, barPositionFile } from "./bar/bar-window";
+import {
+  createHubStateStore,
+  DEFAULT_HUB_STATE,
+  type HubWindowState,
+  placeOnScreen,
+} from "./hub/hub-window-state";
 import { createCleanupService } from "./cleanup/cleanup-service";
 import { databasePath, openDatabase } from "./db/database";
 import { createHistoryStore, type HistoryStore } from "./history/history-store";
@@ -1400,14 +1406,45 @@ function profileView() {
       };
 }
 
+// HB-01: the Hub's size, place and last page, kept between runs.
+const hubState = createHubStateStore({
+  file: path.join(profile.userData, "hub-window.json"),
+  minWidth: HUB_MIN_WIDTH,
+  minHeight: HUB_MIN_HEIGHT,
+  logger: { warn: (message) => console.warn(`[hub] ${message}`) },
+});
+let hubSaved: HubWindowState = { ...DEFAULT_HUB_STATE };
+
 function createHubWindow(): BrowserWindow {
-  const window = new BrowserWindow(
-    createHubWindowOptions({
+  const place = placeOnScreen(
+    hubSaved,
+    screen.getAllDisplays().map((display) => display.workArea),
+  );
+  const window = new BrowserWindow({
+    ...createHubWindowOptions({
       preloadPath: path.join(__dirname, "preload.cjs"),
       platform: process.platform,
       isDevelopment,
     }),
-  );
+    width: hubSaved.width,
+    height: hubSaved.height,
+    ...(place ?? {}),
+  });
+  const saveBounds = () => {
+    if (window.isDestroyed() || window.isFullScreen() || window.isMinimized()) return;
+    const bounds = window.getNormalBounds();
+    hubSaved = { ...hubSaved, ...bounds };
+    hubState.update(bounds);
+  };
+  window.on("resize", saveBounds);
+  window.on("move", saveBounds);
+  // The last page; a page asked for by openHubPage is sent after this and wins.
+  if (hubSaved.page) {
+    const page = hubSaved.page;
+    window.webContents.once("did-finish-load", () =>
+      window.webContents.send(IPC_EVENTS.openPage, page),
+    );
+  }
   window.once("ready-to-show", () => window.show());
   window.on("closed", () => {
     if (hubWindow === window) hubWindow = null;
@@ -1429,6 +1466,10 @@ app.on("web-contents-created", (_event, contents) => {
 function registerIpc(): void {
   const handle = createIpcHandler({
     entryUrl: hubEntryUrl,
+    hubSetPage: (page) => {
+      hubSaved = { ...hubSaved, page };
+      hubState.update({ page });
+    },
     getAppInfo: () => ({
       name: app.getName(),
       version: app.getVersion(),
@@ -1697,7 +1738,11 @@ void app.whenReady().then(() => {
     },
   );
   if (isSmokeRun) startSmokeRun();
-  else createHubWindow();
+  else
+    void hubState.load().then((saved) => {
+      hubSaved = saved;
+      if (!hubWindow) createHubWindow();
+    });
   createTray();
   // The Bar never takes focus; it shows itself on the first state push.
   void barWindow.open().then(
@@ -1720,6 +1765,7 @@ app.on("window-all-closed", () => {
 // Stop the helper before quitting so no child process outlives the app.
 let helperStopped = false;
 app.on("before-quit", (event) => {
+  void hubState.flush();
   focus.quit();
   focusOverlay.close();
   if (helperStopped) return;

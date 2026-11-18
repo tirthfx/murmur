@@ -38,6 +38,7 @@ describe("Hub", () => {
 
   afterEach(() => {
     cleanup();
+    window.history.replaceState(null, "", "#");
     vi.unstubAllGlobals();
   });
 
@@ -50,19 +51,39 @@ describe("Hub", () => {
     }
     expect(PAGES.map((page) => page.title)).toEqual([
       "Home",
+      "Dictation",
       "Dictionary",
       "Snippets",
       "Styles",
       "Rewrites",
       "Instruct",
-      "Memory",
-      "My Voice",
       "Scratchpad",
-      "Notetaker",
-      "Tasks",
+      "History",
+      "My Voice",
+      "Memory",
       "Insights",
       "Settings",
+      "Help",
     ]);
+  });
+
+  it("opens the page named in the hash and remembers a chosen page", async () => {
+    window.history.replaceState(null, "", "#/insights");
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByRole("navigation", { name: "Hub pages" });
+    expect(screen.getByRole("heading", { level: 1, name: "Insights" })).toBeTruthy();
+
+    await user.click(screen.getByText("History"));
+    expect(window.location.hash).toBe("#/history");
+    expect(window.murmur.hubSetPage).toHaveBeenCalledWith("history");
+  });
+
+  it("shows Home for an unknown page", async () => {
+    window.history.replaceState(null, "", "#/lens");
+    render(<App />);
+    await screen.findByRole("navigation", { name: "Hub pages" });
+    expect(screen.getByRole("heading", { level: 1, name: "Home" })).toBeTruthy();
   });
 
   it("starts on Home and switches page when a navigation item is chosen", async () => {

@@ -70,6 +70,7 @@ describe("Onboarding", () => {
 
   afterEach(() => {
     cleanup();
+    window.history.replaceState(null, "", "#");
     vi.unstubAllGlobals();
   });
 

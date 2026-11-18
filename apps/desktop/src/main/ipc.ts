@@ -57,6 +57,8 @@ import { isTrustedIpcSender } from "../security/guards";
 export interface IpcDeps {
   entryUrl: string;
   getAppInfo: () => AppInfo;
+  /** The Hub page now shown (HB-01). */
+  hubSetPage: (pageId: string) => void;
   getHelperStatus: () => HelperStatus;
   /** Re-checks every permission now. */
   getPermissions: () => Promise<PermissionsInfo>;
@@ -147,6 +149,8 @@ export function createIpcHandler(deps: IpcDeps) {
     switch (channel) {
       case IPC_CHANNELS.getAppInfo:
         return deps.getAppInfo();
+      case IPC_CHANNELS.hubSetPage:
+        return deps.hubSetPage(request.args[0] as string);
       case IPC_CHANNELS.getHelperStatus:
         return deps.getHelperStatus();
       case IPC_CHANNELS.getPermissions:
