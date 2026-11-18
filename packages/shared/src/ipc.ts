@@ -18,6 +18,7 @@ import {
   type InsightsRange,
   type InsightsView,
 } from "./insights";
+import { milestoneSchema, progressCardBytesSchema, type Milestone } from "./milestones";
 import {
   permissionKindSchema,
   permissionsInfoSchema,
@@ -150,6 +151,10 @@ export const IPC_CHANNELS = {
   hubSetPage: "hub:set-page",
   historyPage: "history:page",
   insightsView: "insights:view",
+  milestonesList: "milestones:list",
+  milestonesSeen: "milestones:seen",
+  progressCardSave: "progress-card:save",
+  progressCardCopy: "progress-card:copy",
   insightsExport: "insights:export",
   historyArchive: "history:archive",
   historyFeedback: "history:feedback",
@@ -475,6 +480,14 @@ export const IPC_CONTRACT = {
     result: focusAddResultSchema,
   },
   [IPC_CHANNELS.focusRemoveApp]: { args: z.tuple([z.string().min(1)]), result: z.void() },
+  // HB-41, HB-44.
+  [IPC_CHANNELS.milestonesList]: { args: z.tuple([]), result: z.array(milestoneSchema) },
+  [IPC_CHANNELS.milestonesSeen]: { args: z.tuple([]), result: z.void() },
+  [IPC_CHANNELS.progressCardSave]: {
+    args: z.tuple([progressCardBytesSchema]),
+    result: z.strictObject({ saved: z.boolean() }),
+  },
+  [IPC_CHANNELS.progressCardCopy]: { args: z.tuple([progressCardBytesSchema]), result: z.void() },
   // HB-11, HB-36 to HB-39, HB-45.
   [IPC_CHANNELS.insightsView]: { args: z.tuple([insightsRangeSchema]), result: insightsViewSchema },
   [IPC_CHANNELS.insightsExport]: {
@@ -629,6 +642,13 @@ export interface MurmurApi {
   focusAddSite(input: FocusSiteInput): Promise<FocusAddResult>;
   /** Installed apps to choose from; empty when the helper cannot list them. */
   focusInstalledApps(): Promise<InstalledApp[]>;
+  /** Milestones (HB-41), reached or not; checks for new ones first. */
+  milestonesList(): Promise<Milestone[]>;
+  /** The Insights page has shown the new milestones. */
+  milestonesSeen(): Promise<void>;
+  /** Saves a progress card PNG (HB-44) where the user picks. */
+  progressCardSave(png: Uint8Array): Promise<{ saved: boolean }>;
+  progressCardCopy(png: Uint8Array): Promise<void>;
   /** Insights (HB-11) for a range, worked out from daily counts. */
   insightsView(range: InsightsRange): Promise<InsightsView>;
   /** Saves the range's daily counts as CSV where the user picks (HB-45). */

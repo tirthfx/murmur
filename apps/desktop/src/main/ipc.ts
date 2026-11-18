@@ -10,6 +10,7 @@ import {
   type InsightsExportResult,
   type InsightsRange,
   type InsightsView,
+  type Milestone,
   type CapturedKey,
   type InstructModelStatus,
   type FocusAddResult,
@@ -65,6 +66,10 @@ import { isTrustedIpcSender } from "../security/guards";
 export interface IpcDeps {
   entryUrl: string;
   getAppInfo: () => AppInfo;
+  milestonesList: () => Milestone[];
+  milestonesSeen: () => void;
+  progressCardSave: (png: Uint8Array) => Promise<{ saved: boolean }>;
+  progressCardCopy: (png: Uint8Array) => Promise<void>;
   insightsView: (range: InsightsRange) => InsightsView;
   insightsExport: (range: InsightsRange) => Promise<InsightsExportResult>;
   historyPage: (query: HistoryQuery) => HistoryPage;
@@ -165,6 +170,14 @@ export function createIpcHandler(deps: IpcDeps) {
     switch (channel) {
       case IPC_CHANNELS.getAppInfo:
         return deps.getAppInfo();
+      case IPC_CHANNELS.milestonesList:
+        return deps.milestonesList();
+      case IPC_CHANNELS.milestonesSeen:
+        return deps.milestonesSeen();
+      case IPC_CHANNELS.progressCardSave:
+        return deps.progressCardSave(request.args[0] as Uint8Array);
+      case IPC_CHANNELS.progressCardCopy:
+        return deps.progressCardCopy(request.args[0] as Uint8Array);
       case IPC_CHANNELS.insightsView:
         return deps.insightsView(request.args[0] as InsightsRange);
       case IPC_CHANNELS.insightsExport:

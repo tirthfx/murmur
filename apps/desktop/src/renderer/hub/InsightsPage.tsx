@@ -8,6 +8,8 @@ import { Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
 import {
   formatSpan,
+  progressCardContent,
+  type Milestone,
   INSIGHTS_RANGE_LABELS,
   INSIGHTS_RANGES,
   type InsightsRange,
@@ -15,6 +17,8 @@ import {
   type SettingsView,
   type VoiceProfileView,
 } from "@murmur/shared";
+
+import { renderProgressCard } from "./progress-card";
 
 type Tab = "usage" | "voice" | "leaderboard";
 
@@ -157,6 +161,8 @@ function Usage({
         )}
       </VStack>
 
+      <Milestones view={view} />
+
       <HStack gap={3} align="end" wrap="wrap">
         <Selector
           label="Typing speed for time saved"
@@ -180,6 +186,109 @@ function Usage({
       ) : null}
       <Text size="xsm" color="secondary">
         Worked out on this Mac from daily counts. No dictated text is read for Insights.
+      </Text>
+    </VStack>
+  );
+}
+
+function formatAchieved(epoch: number): string {
+  return new Date(epoch).toLocaleDateString(undefined, { dateStyle: "medium" });
+}
+
+/** Milestones (HB-41) and the progress card (HB-44). */
+function Milestones({ view }: { view: InsightsView }) {
+  const [items, setItems] = useState<Milestone[]>([]);
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void window.murmur.milestonesList().then(
+      (list) => {
+        if (!active) return;
+        setItems(list);
+        if (list.some((item) => item.isNew)) void window.murmur.milestonesSeen();
+      },
+      () => {},
+    );
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const reached = items.filter((item) => item.achievedAt !== null);
+  const ahead = items.filter((item) => item.achievedAt === null);
+
+  async function card(item: Milestone, action: "save" | "copy") {
+    try {
+      const png = await renderProgressCard(
+        progressCardContent(item, { words: view.words, streak: view.daily.current }),
+      );
+      if (action === "copy") {
+        await window.murmur.progressCardCopy(png);
+        setMessage("Progress card copied.");
+      } else {
+        const result = await window.murmur.progressCardSave(png);
+        setMessage(result.saved ? "Progress card saved." : null);
+      }
+    } catch {
+      setMessage("The progress card could not be made.");
+    }
+  }
+
+  return (
+    <VStack gap={2}>
+      <Heading level={3}>Milestones</Heading>
+      {reached.length === 0 ? (
+        <Text color="secondary">No milestones yet. Your first dictation is the first one.</Text>
+      ) : (
+        <ul className="hub-insights-milestones" aria-label="Milestones reached">
+          {reached.map((item) => (
+            <li key={item.key} className="hub-insights-card">
+              <HStack gap={2} align="center" justify="between" wrap="wrap">
+                <VStack gap={0}>
+                  <Text weight="semibold">
+                    {item.title}
+                    {item.isNew ? " · New" : ""}
+                  </Text>
+                  <Text size="sm" color="secondary">
+                    {item.detail} {formatAchieved(item.achievedAt!)}.
+                  </Text>
+                </VStack>
+                <HStack gap={1}>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    label={`Save a progress card for ${item.title}`}
+                    onClick={() => void card(item, "save")}
+                  >
+                    Save card
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    label={`Copy a progress card for ${item.title}`}
+                    onClick={() => void card(item, "copy")}
+                  >
+                    Copy card
+                  </Button>
+                </HStack>
+              </HStack>
+            </li>
+          ))}
+        </ul>
+      )}
+      {ahead.length > 0 ? (
+        <Text size="sm" color="secondary">
+          Still ahead: {ahead.map((item) => item.title).join(", ")}.
+        </Text>
+      ) : null}
+      {message ? (
+        <Text size="sm" color="secondary" role="status">
+          {message}
+        </Text>
+      ) : null}
+      <Text size="xsm" color="secondary">
+        Cards show the milestone, a count and the date. They are made on this Mac and never posted.
       </Text>
     </VStack>
   );
