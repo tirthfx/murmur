@@ -30,6 +30,33 @@ export function describeView(view: BarView): { text: string; icon: BarIcon | nul
   }
 }
 
+/**
+ * HB-25: what a screen reader hears when the state changes. The level meter, the elapsed
+ * time and Focus Mode's countdown are never announced; they would repeat every second.
+ */
+export function announcement(view: BarView): string {
+  switch (view.state) {
+    case "listening":
+      return "Listening";
+    case "locked":
+      return "Hands-free dictation on";
+    case "processing":
+      return "Transcribing";
+    case "done": {
+      const words = view.words ?? 0;
+      return `Done, ${words} ${words === 1 ? "word" : "words"}`;
+    }
+    case "warning":
+    case "error":
+    case "ask":
+      return describeView(view).text;
+    case "cancelled":
+      return "Cancelled";
+    default:
+      return "";
+  }
+}
+
 /** m:ss since `startedAt`. */
 export function elapsed(startedAt: number, now: number): string {
   const seconds = Math.max(0, Math.floor((now - startedAt) / 1000));

@@ -38,8 +38,9 @@ describe("Bar pill", () => {
       const pill = container.querySelector(".bar-pill");
       expect(pill?.getAttribute("data-state")).toBe(current.state);
       expect(container.querySelector(`[data-icon="${icon}"]`)).not.toBeNull();
-      if (text) expect(screen.getByText(text)).toBeTruthy();
-      expect(screen.getByRole("status").getAttribute("aria-label")).toBe(text || "Murmur");
+      if (text) expect(container.querySelector(".bar-text")?.textContent).toBe(text);
+      // The visible text is the state; Focus's countdown is never announced.
+      if (current.state === "idle") expect(screen.getByRole("status").textContent).toBe("");
     });
   }
 
@@ -86,5 +87,35 @@ describe("Bar pill", () => {
     expect(meterFill(0)).toBe(1);
     expect(meterFill(-120)).toBe(0);
     expect(meterFill(null)).toBe(0);
+  });
+});
+
+describe("screen reader announcements (HB-25)", () => {
+  it("announces each state once, without the meter or the clock", () => {
+    const at = Date.now();
+    const states: [Partial<BarView> & { state: BarView["state"] }, string][] = [
+      [{ state: "listening", startedAt: at }, "Listening"],
+      [{ state: "locked", startedAt: at }, "Hands-free dictation on"],
+      [{ state: "processing" }, "Transcribing"],
+      [{ state: "done", words: 12 }, "Done, 12 words"],
+      [{ state: "warning", message: "Check the microphone" }, "Check the microphone"],
+      [
+        { state: "error", message: "Transcription failed. Tap to retry." },
+        "Transcription failed. Tap to retry.",
+      ],
+    ];
+    for (const [change, heard] of states) {
+      const full: BarView = {
+        startedAt: null,
+        words: null,
+        message: null,
+        ...change,
+      };
+      const { unmount } = render(<BarPill view={full} level={-20} now={at + 65_000} />);
+      const status = screen.getByRole("status");
+      expect(status.textContent).toBe(heard);
+      expect(status.textContent).not.toMatch(/\d:\d\d/);
+      unmount();
+    }
   });
 });
