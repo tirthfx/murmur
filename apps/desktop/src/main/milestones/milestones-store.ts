@@ -68,7 +68,13 @@ export function createMilestonesStore(db: DatabaseSync): MilestonesStore {
               db,
               "SELECT COUNT(*) AS n FROM rewrite_runs WHERE outcome IN ('replaced', 'copied')",
             ) +
-            count(db, "SELECT COUNT(*) AS n FROM history WHERE auto_rewrite_status = 'applied'"),
+            count(db, "SELECT COUNT(*) AS n FROM history WHERE auto_rewrite_status = 'applied'") +
+            (tableExists(db, "note_rewrites")
+              ? count(
+                  db,
+                  "SELECT COUNT(*) AS n FROM note_rewrites WHERE outcome IN ('replaced', 'copied')",
+                )
+              : 0),
           customRewrites: count(db, "SELECT COUNT(*) AS n FROM rewrites WHERE builtin_key IS NULL"),
           notes: tableExists(db, "notes") ? count(db, "SELECT COUNT(*) AS n FROM notes") : 0,
           today,

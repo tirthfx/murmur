@@ -27,6 +27,18 @@ import {
   noteSummarySchema,
   notePinResultSchema,
   noteImageAddSchema,
+  noteRewriteChoiceSchema,
+  noteRewriteRunSchema,
+  noteRewriteResultSchema,
+  noteRewriteRecordSchema,
+  noteExportSchema,
+  noteImportSchema,
+  type NoteRewriteChoice,
+  type NoteRewriteRun,
+  type NoteRewriteResult,
+  type NoteRewriteRecord,
+  type NoteExport,
+  type NoteImport,
   noteImageResultSchema,
   type NoteImageAdd,
   type NoteImageResult,
@@ -196,6 +208,11 @@ export const IPC_CHANNELS = {
   noteVersionRestore: "notes:version-restore",
   notePin: "notes:pin",
   noteImageAdd: "notes:image-add",
+  noteRewrites: "notes:rewrites",
+  noteRewriteRun: "notes:rewrite-run",
+  noteRewriteRecord: "notes:rewrite-record",
+  noteExport: "notes:export",
+  noteImport: "notes:import",
   noteImageData: "notes:image-data",
   notePinMove: "notes:pin-move",
   scratchpadOpen: "scratchpad:open",
@@ -576,6 +593,24 @@ export const IPC_CONTRACT = {
     args: z.tuple([z.string().min(1).max(64), z.union([z.literal(-1), z.literal(1)])]),
     result: z.void(),
   },
+  // HB-32, HB-27, HB-33.
+  [IPC_CHANNELS.noteRewrites]: { args: z.tuple([]), result: z.array(noteRewriteChoiceSchema) },
+  [IPC_CHANNELS.noteRewriteRun]: {
+    args: z.tuple([noteRewriteRunSchema]),
+    result: noteRewriteResultSchema,
+  },
+  [IPC_CHANNELS.noteRewriteRecord]: { args: z.tuple([noteRewriteRecordSchema]), result: z.void() },
+  [IPC_CHANNELS.noteExport]: {
+    args: z.tuple([noteExportSchema]),
+    result: z.strictObject({ saved: z.boolean() }),
+  },
+  [IPC_CHANNELS.noteImport]: {
+    args: z.tuple([noteImportSchema]),
+    result: z.discriminatedUnion("ok", [
+      z.strictObject({ ok: z.literal(true), note: noteSchema }),
+      z.strictObject({ ok: z.literal(false), message: z.string() }),
+    ]),
+  },
   // HB-30.
   [IPC_CHANNELS.noteImageAdd]: {
     args: z.tuple([noteImageAddSchema]),
@@ -774,6 +809,16 @@ export interface MurmurApi {
   noteImageAdd(input: NoteImageAdd): Promise<NoteImageResult>;
   /** A stored image as a data URL, or null. */
   noteImageData(id: string): Promise<string | null>;
+  /** Rewrites offered inside a note (HB-32), Clarify, Tighten and Structure first. */
+  noteRewrites(): Promise<NoteRewriteChoice[]>;
+  /** Runs a Rewrite on text from a note; the note itself is not changed. */
+  noteRewriteRun(input: NoteRewriteRun): Promise<NoteRewriteResult>;
+  /** What became of a Rewrite result; Replace also saves a version. */
+  noteRewriteRecord(input: NoteRewriteRecord): Promise<void>;
+  /** Saves a note as Markdown (images in a folder beside it) or HTML, where the user picks. */
+  noteExport(input: NoteExport): Promise<{ saved: boolean }>;
+  /** Makes a note from a Markdown file's text (HB-27). */
+  noteImport(input: NoteImport): Promise<{ ok: true; note: Note } | { ok: false; message: string }>;
   /** Opens the Scratchpad window, on a note when given. */
   scratchpadOpen(noteId: string | null): Promise<void>;
   /** The Scratchpad window is asked to show a note. Returns an unsubscribe. */

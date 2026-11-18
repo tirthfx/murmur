@@ -42,6 +42,7 @@ describe("migrations", () => {
       "memory_items",
       "milestones",
       "note_images",
+      "note_rewrites",
       "note_versions",
       "notes",
       "notes_fts",

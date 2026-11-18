@@ -41,3 +41,4 @@ export * from "./insights";
 export * from "./milestones";
 export * from "./home";
 export * from "./notes";
+export * from "./markdown";

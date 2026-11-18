@@ -141,6 +141,50 @@ export function wordCount(plain: string): number {
   return plain.split(/\s+/).filter(Boolean).length;
 }
 
+/** HB-32: the Rewrites offered in a note; Clarify, Tighten and Structure come first. */
+export const NOTE_REWRITE_FIRST = ["clarify", "concise", "structure"] as const;
+
+export const noteRewriteChoiceSchema = z.strictObject({ id: z.string(), name: z.string() });
+export type NoteRewriteChoice = z.infer<typeof noteRewriteChoiceSchema>;
+
+/** Same limit as a Rewrite of selected text (RW-01). */
+export const NOTE_REWRITE_MAX_CHARS = 8000;
+
+export const noteRewriteRunSchema = z.strictObject({
+  noteId: z.string().min(1).max(64),
+  rewriteId: z.string().min(1).max(64),
+  text: z.string().min(1).max(NOTE_REWRITE_MAX_CHARS),
+});
+export type NoteRewriteRun = z.infer<typeof noteRewriteRunSchema>;
+
+export const noteRewriteResultSchema = z.discriminatedUnion("ok", [
+  z.strictObject({ ok: z.literal(true), text: z.string() }),
+  z.strictObject({ ok: z.literal(false), message: z.string() }),
+]);
+export type NoteRewriteResult = z.infer<typeof noteRewriteResultSchema>;
+
+export const noteRewriteRecordSchema = z.strictObject({
+  noteId: z.string().min(1).max(64),
+  rewriteId: z.string().min(1).max(64),
+  scope: z.enum(["selection", "note"]),
+  outcome: z.enum(["replaced", "copied", "discarded"]),
+});
+export type NoteRewriteRecord = z.infer<typeof noteRewriteRecordSchema>;
+
+/** HB-27: one Markdown file of at most 2 MB becomes a note. */
+export const NOTE_IMPORT_MAX_BYTES = 2 * 1024 * 1024;
+export const noteImportSchema = z.strictObject({
+  fileName: z.string().max(255),
+  markdown: z.string().max(NOTE_IMPORT_MAX_BYTES),
+});
+export type NoteImport = z.infer<typeof noteImportSchema>;
+
+export const noteExportSchema = z.strictObject({
+  noteId: z.string().min(1).max(64),
+  format: z.enum(["markdown", "html"]),
+});
+export type NoteExport = z.infer<typeof noteExportSchema>;
+
 export const NOTE_MESSAGES = {
   tooBig: "This note is too long to save. Notes hold up to 500 KB of text.",
   noDictation: "There is no dictation to start a note from yet.",

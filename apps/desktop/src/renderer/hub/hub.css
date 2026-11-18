@@ -434,3 +434,15 @@ body {
   height: auto;
   border-radius: 6px;
 }
+
+/* Rewrites inside notes (HB-32). */
+.scratchpad-rewrite {
+  padding: var(--spacing-2) var(--spacing-3);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.scratchpad-rewrite-result {
+  margin: 0;
+  white-space: pre-wrap;
+}

@@ -26,6 +26,10 @@ interface EditorProps {
   onImageFiles?: (files: File[], insert: (html: string) => void) => void;
   /** Loads a stored image's data URL when a document with images is shown. */
   resolveImage?: (id: string) => Promise<string | null>;
+  /** Offers heading buttons (Scratchpad notes). */
+  headings?: boolean;
+  /** Receives the editable box, for selection-based tools. */
+  boxRef?: (box: HTMLDivElement | null) => void;
 }
 
 const IMAGE_TYPES = ["image/png", "image/jpeg", "image/heic", "image/heif", "image/gif"];
@@ -40,6 +44,8 @@ export function RichEditor({
   className = "hub-rich-editor",
   onImageFiles,
   resolveImage,
+  headings = false,
+  boxRef,
 }: EditorProps) {
   const box = useRef<HTMLDivElement>(null);
   const labelId = useId();
@@ -92,6 +98,26 @@ export function RichEditor({
         {label}
       </Text>
       <HStack gap={1} wrap="wrap" align="end" role="toolbar" aria-label="Formatting">
+        {headings ? (
+          <>
+            <Button
+              size="sm"
+              variant="secondary"
+              label="Heading"
+              onClick={() => run("formatBlock", "h2")}
+            >
+              Heading
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              label="Normal text"
+              onClick={() => run("formatBlock", "p")}
+            >
+              Text
+            </Button>
+          </>
+        ) : null}
         <Button size="sm" variant="secondary" label="Bold" onClick={() => run("bold")}>
           Bold
         </Button>
@@ -161,7 +187,10 @@ export function RichEditor({
         ) : null}
       </HStack>
       <div
-        ref={box}
+        ref={(element) => {
+          box.current = element;
+          boxRef?.(element);
+        }}
         className={className}
         contentEditable
         role="textbox"

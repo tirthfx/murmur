@@ -12,11 +12,14 @@ import {
   noteTitle,
   richToHtml,
   richToPlain,
+  richToMarkdown,
+  NOTE_IMPORT_MAX_BYTES,
   type Note,
   type NoteSummary,
   type RichDoc,
 } from "@murmur/shared";
 import { domToRich } from "./rich-text";
+import { NoteRewrite } from "./NoteRewrite";
 import { NoteVersions } from "./NoteVersions";
 import { RichEditor } from "./RichEditor";
 
@@ -43,6 +46,9 @@ export function ScratchpadApp() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [showVersions, setShowVersions] = useState(false);
   const drafts = useRef(new Map<string, Draft>());
+  const editorBox = useRef<HTMLDivElement | null>(null);
+  const importer = useRef<HTMLInputElement>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const timer = useRef<number | null>(null);
 
   const active = tabs.find((note) => note.id === activeId) ?? null;
@@ -195,6 +201,44 @@ export function ScratchpadApp() {
     }
   }
 
+  const bodyOf = (note: Note) => drafts.current.get(note.id)?.body ?? note.body;
+
+  /** HB-33: the note as Markdown on the clipboard (images are left out). */
+  async function copyMarkdown(note: Note) {
+    try {
+      await navigator.clipboard.writeText(richToMarkdown(bodyOf(note)));
+      setNotice("Copied as Markdown.");
+    } catch {
+      setProblem("The note could not be copied.");
+    }
+  }
+
+  async function exportNote(note: Note, format: "markdown" | "html") {
+    await flush();
+    const result = await window.murmur.noteExport({ noteId: note.id, format });
+    if (result.saved)
+      setNotice(format === "markdown" ? "Exported as Markdown." : "Exported as HTML.");
+  }
+
+  /** HB-27: one Markdown file of at most 2 MB becomes a new note. */
+  async function importMarkdown(file: File) {
+    if (file.size > NOTE_IMPORT_MAX_BYTES) {
+      setProblem("Markdown files can be up to 2 MB.");
+      return;
+    }
+    const result = await window.murmur.noteImport({
+      fileName: file.name,
+      markdown: await file.text(),
+    });
+    if (!result.ok) {
+      setProblem(result.message);
+      return;
+    }
+    setProblem(null);
+    await refresh(search);
+    await open(result.note.id);
+  }
+
   async function pin(note: Note) {
     const result = await window.murmur.notePin(note.id, !note.pinned);
     if (!result.ok) {
@@ -234,6 +278,25 @@ export function ScratchpadApp() {
               onClick={() => void create(true)}
             >
               From last dictation
+            </Button>
+            <input
+              ref={importer}
+              type="file"
+              accept=".md,.markdown,text/markdown"
+              hidden
+              data-testid="markdown-picker"
+              onChange={(event) => {
+                const file = event.currentTarget.files?.[0];
+                event.currentTarget.value = "";
+                if (file) void importMarkdown(file);
+              }}
+            />
+            <Button
+              variant="ghost"
+              label="Import a Markdown file as a note"
+              onClick={() => importer.current?.click()}
+            >
+              Import
             </Button>
           </HStack>
           <TextInput
@@ -376,6 +439,43 @@ export function ScratchpadApp() {
                 </Button>
               </HStack>
             </HStack>
+            <HStack gap={1} wrap="wrap">
+              <Button
+                size="sm"
+                variant="ghost"
+                label="Copy this note as Markdown"
+                onClick={() => void copyMarkdown(active)}
+              >
+                Copy as Markdown
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                label="Export this note as Markdown"
+                onClick={() => void exportNote(active, "markdown")}
+              >
+                Export Markdown
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                label="Export this note as HTML"
+                onClick={() => void exportNote(active, "html")}
+              >
+                Export HTML
+              </Button>
+            </HStack>
+            {notice ? (
+              <Text size="sm" color="secondary" role="status">
+                {notice}
+              </Text>
+            ) : null}
+            <NoteRewrite
+              noteId={active.id}
+              box={() => editorBox.current}
+              wholeText={() => richToPlain(bodyOf(active))}
+              beforeRecord={flush}
+            />
             {showVersions ? (
               <NoteVersions
                 note={active}
@@ -393,11 +493,15 @@ export function ScratchpadApp() {
               testId="note-editor"
               className="hub-rich-editor scratchpad-editor"
               resolveImage={(id) => window.murmur.noteImageData(id)}
+              headings
+              boxRef={(element) => {
+                editorBox.current = element;
+              }}
               onImageFiles={(files, insert) => void addImages(active.id, files, insert)}
               onInput={(root) =>
                 changed(active.id, {
                   title: drafts.current.get(active.id)?.title ?? active.title,
-                  body: domToRich(root, { images: true }),
+                  body: domToRich(root, { images: true, headings: true }),
                 })
               }
             />

@@ -21,6 +21,12 @@ import {
   type NoteSummary,
   type NotePinResult,
   type NoteImageAdd,
+  type NoteRewriteChoice,
+  type NoteRewriteRun,
+  type NoteRewriteResult,
+  type NoteRewriteRecord,
+  type NoteExport,
+  type NoteImport,
   type NoteImageResult,
   type NoteVersion,
   type NoteVersionSave,
@@ -93,6 +99,11 @@ export interface IpcDeps {
   notePin: (noteId: string, pinned: boolean) => NotePinResult;
   notePinMove: (noteId: string, step: -1 | 1) => void;
   noteImageAdd: (input: NoteImageAdd) => Promise<NoteImageResult>;
+  noteRewrites: () => NoteRewriteChoice[];
+  noteRewriteRun: (input: NoteRewriteRun) => Promise<NoteRewriteResult>;
+  noteRewriteRecord: (input: NoteRewriteRecord) => void;
+  noteExport: (input: NoteExport) => Promise<{ saved: boolean }>;
+  noteImport: (input: NoteImport) => { ok: true; note: Note } | { ok: false; message: string };
   noteImageData: (id: string) => string | null;
   homeView: () => HomeView;
   historyRetry: (id: string) => Promise<HistoryRetryResult>;
@@ -223,6 +234,16 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.notePin(request.args[0] as string, request.args[1] as boolean);
       case IPC_CHANNELS.notePinMove:
         return deps.notePinMove(request.args[0] as string, request.args[1] as -1 | 1);
+      case IPC_CHANNELS.noteRewrites:
+        return deps.noteRewrites();
+      case IPC_CHANNELS.noteRewriteRun:
+        return deps.noteRewriteRun(request.args[0] as NoteRewriteRun);
+      case IPC_CHANNELS.noteRewriteRecord:
+        return deps.noteRewriteRecord(request.args[0] as NoteRewriteRecord);
+      case IPC_CHANNELS.noteExport:
+        return deps.noteExport(request.args[0] as NoteExport);
+      case IPC_CHANNELS.noteImport:
+        return deps.noteImport(request.args[0] as NoteImport);
       case IPC_CHANNELS.noteImageAdd:
         return deps.noteImageAdd(request.args[0] as NoteImageAdd);
       case IPC_CHANNELS.noteImageData:
