@@ -44,3 +44,4 @@ export * from "./notes";
 export * from "./markdown";
 export * from "./catalogue";
 export * from "./privacy";
+export * from "./data";

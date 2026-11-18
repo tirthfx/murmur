@@ -211,6 +211,22 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
   return {
     hubSetPage: vi.fn().mockResolvedValue(undefined),
     insightsView: vi.fn().mockResolvedValue(SAMPLE_INSIGHTS),
+    dataExport: vi.fn().mockResolvedValue({
+      ok: true,
+      folder: "/Users/you/Documents/Murmur export 2026-11-19 10-00",
+      counts: { dictations: 40, dictionary: 3 },
+    }),
+    dataCounts: vi.fn().mockResolvedValue({
+      categories: [
+        { category: "dictations", count: 40, bytes: 0 },
+        { category: "audio", count: 2, bytes: 2 * 1024 * 1024 },
+        { category: "dictionary", count: 3, bytes: 0 },
+      ],
+      failedFiles: 0,
+    }),
+    dataDelete: vi.fn().mockResolvedValue({ rows: 40, files: 0, failedFiles: 0 }),
+    dataReset: vi.fn().mockResolvedValue({ rows: 50, files: 2, failedFiles: 0 }),
+    dataRetryFailed: vi.fn().mockResolvedValue(0),
     storageView: vi.fn().mockResolvedValue({
       folder: "/Users/you/Library/Application Support/Murmur",
       parts: [

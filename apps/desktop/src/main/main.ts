@@ -112,6 +112,8 @@ import { createNotifier } from "./notifications/notifier";
 import { createNetworkGuard } from "./privacy/network-guard";
 import { createRetentionJob, tableRules } from "./privacy/retention";
 import { sizeOf } from "./privacy/storage";
+import { createDataDeleter } from "./privacy/data-delete";
+import { writeExport } from "./privacy/data-export";
 import { createNotesStore } from "./notes/notes-store";
 import { createNoteImages, type ImageEncoder } from "./notes/note-images";
 import {
@@ -600,6 +602,18 @@ if (history) {
     );
   }
 }
+
+// HB-47: delete by category.
+const dataDeleter =
+  database && history
+    ? createDataDeleter({
+        db: database,
+        history,
+        notesRoot: path.join(profile.appData, "Murmur", "notes"),
+        audioRoot: path.join(profile.appData, "Murmur", "audio"),
+        clipsRoot: path.join(profile.appData, "Murmur", "clips"),
+      })
+    : null;
 
 const platformDefaults = defaultHotkeyBindings(process.platform);
 const settingsStore = createSettingsStore(database, {
@@ -1835,6 +1849,86 @@ app.on("web-contents-created", (_event, contents) => {
 function registerIpc(): void {
   const handle = createIpcHandler({
     entryUrl: hubEntryUrl,
+    dataExport: async ({ categories }) => {
+      if (!history || !database) {
+        return {
+          ok: false,
+          message: "Nothing can be exported without the database.",
+          canceled: false,
+        };
+      }
+      const options = {
+        title: "Choose where to save the export",
+        buttonLabel: "Export here",
+        defaultPath: app.getPath("documents"),
+        properties: ["openDirectory", "createDirectory"] as ("openDirectory" | "createDirectory")[],
+      };
+      const choice = hubWindow
+        ? await dialog.showOpenDialog(hubWindow, options)
+        : await dialog.showOpenDialog(options);
+      const parent = choice.filePaths[0];
+      if (choice.canceled || !parent) return { ok: false, message: "", canceled: true };
+      const stamp = new Date().toISOString().slice(0, 16).replace("T", " ").replace(":", "-");
+      const folder = path.join(parent, `Murmur export ${stamp}`);
+      try {
+        const counts = writeExport(
+          folder,
+          categories,
+          {
+            dictations: () => history.allRows(),
+            dictionary: () => dictionary?.list() ?? [],
+            snippets: () => snippets?.list() ?? [],
+            styles: () => styles?.view() ?? { styles: [], overrides: [], recentApps: [] },
+            customRewrites: () =>
+              (rewrites?.list() ?? []).filter((rewrite) => rewrite.builtinKey === null),
+            memory: () => memory?.list() ?? [],
+            notes: () =>
+              (notes?.list() ?? []).flatMap((item) => {
+                const note = notes?.get(item.id);
+                return note ? [note] : [];
+              }),
+            noteImages: noteImages ?? { file: () => null, dataUrl: () => null },
+            instructThreads: () =>
+              (instructThreads?.list("", 1000) ?? []).flatMap((item) => {
+                const thread = instructThreads?.get(item.id);
+                return thread ? [thread] : [];
+              }),
+            insights: () => insights?.days(null) ?? [],
+            audioFiles: () => history.audioFiles(),
+          },
+          Date.now(),
+        );
+        console.log(`[export] wrote ${JSON.stringify(counts)}`);
+        return { ok: true, folder, counts };
+      } catch (error) {
+        return {
+          ok: false,
+          message: `The export could not be written: ${error instanceof Error ? error.message : String(error)}`,
+          canceled: false,
+        };
+      }
+    },
+    dataCounts: () => dataDeleter?.counts() ?? { categories: [], failedFiles: 0 },
+    dataDelete: (category) => {
+      const result = dataDeleter?.delete(category) ?? { rows: 0, files: 0, failedFiles: 0 };
+      console.log(`[data] deleted ${category}: ${result.rows} rows, ${result.files} files`);
+      return result;
+    },
+    dataReset: async ({ includeModels }) => {
+      const result = dataDeleter?.deleteAll() ?? { rows: 0, files: 0, failedFiles: 0 };
+      if (includeModels) {
+        await rm(speechModelRoot(profile.modelsAppData), { recursive: true, force: true });
+        await rm(cleanupRoot, { recursive: true, force: true });
+      }
+      console.log(`[data] reset: ${result.rows} rows, ${result.files} files`);
+      // Back to first run with a clean start.
+      setTimeout(() => {
+        app.relaunch();
+        app.exit(0);
+      }, 300);
+      return result;
+    },
+    dataRetryFailed: () => dataDeleter?.retryFailed() ?? 0,
     storageView: () => {
       const root = path.join(profile.appData, "Murmur");
       const db = databasePath(profile.appData);

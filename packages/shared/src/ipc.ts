@@ -56,6 +56,20 @@ import {
   type NoteSummary,
 } from "./notes";
 import {
+  dataCountsSchema,
+  DELETE_CATEGORIES,
+  deleteResultSchema,
+  exportRequestSchema,
+  exportResultSchema,
+  resetRequestSchema,
+  type DataCounts,
+  type DeleteCategory,
+  type DeleteResult,
+  type ExportRequest,
+  type ExportResult,
+  type ResetRequest,
+} from "./data";
+import {
   retentionViewSchema,
   storageViewSchema,
   type RetentionView,
@@ -204,6 +218,11 @@ export const IPC_CHANNELS = {
   milestonesList: "milestones:list",
   homeView: "home:view",
   storageView: "privacy:storage",
+  dataExport: "data:export",
+  dataCounts: "data:counts",
+  dataDelete: "data:delete",
+  dataReset: "data:reset",
+  dataRetryFailed: "data:retry-failed",
   storageOpen: "privacy:storage-open",
   retentionView: "privacy:retention",
   retentionRun: "privacy:retention-run",
@@ -556,6 +575,15 @@ export const IPC_CONTRACT = {
     result: focusAddResultSchema,
   },
   [IPC_CHANNELS.focusRemoveApp]: { args: z.tuple([z.string().min(1)]), result: z.void() },
+  // HB-46, HB-47.
+  [IPC_CHANNELS.dataExport]: { args: z.tuple([exportRequestSchema]), result: exportResultSchema },
+  [IPC_CHANNELS.dataCounts]: { args: z.tuple([]), result: dataCountsSchema },
+  [IPC_CHANNELS.dataDelete]: {
+    args: z.tuple([z.enum(DELETE_CATEGORIES)]),
+    result: deleteResultSchema,
+  },
+  [IPC_CHANNELS.dataReset]: { args: z.tuple([resetRequestSchema]), result: deleteResultSchema },
+  [IPC_CHANNELS.dataRetryFailed]: { args: z.tuple([]), result: z.number() },
   // HB-49, HB-50.
   [IPC_CHANNELS.storageView]: { args: z.tuple([]), result: storageViewSchema },
   [IPC_CHANNELS.storageOpen]: { args: z.tuple([]), result: z.void() },
@@ -804,6 +832,16 @@ export interface MurmurApi {
   focusAddSite(input: FocusSiteInput): Promise<FocusAddResult>;
   /** Installed apps to choose from; empty when the helper cannot list them. */
   focusInstalledApps(): Promise<InstalledApp[]>;
+  /** Exports the chosen categories to a folder the user picks (HB-46). */
+  dataExport(request: ExportRequest): Promise<ExportResult>;
+  /** Counts and sizes of each category that can be deleted (HB-47). */
+  dataCounts(): Promise<DataCounts>;
+  /** Deletes one category for good. */
+  dataDelete(category: DeleteCategory): Promise<DeleteResult>;
+  /** Deletes every category and the settings, then restarts at first run. */
+  dataReset(request: ResetRequest): Promise<DeleteResult>;
+  /** Tries again to remove files a delete could not; returns how many are left. */
+  dataRetryFailed(): Promise<number>;
   /** The data folder and the size of each part (HB-49). */
   storageView(): Promise<StorageView>;
   /** Shows the data folder in Finder. */

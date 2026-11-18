@@ -27,6 +27,7 @@ import { MicCheckSection } from "./MicCheckSection";
 import { PermissionsSection } from "./PermissionsSection";
 import { GeneralSection } from "./GeneralSection";
 import { DataPrivacySection } from "./DataPrivacySection";
+import { ExportDeleteSection } from "./ExportDeleteSection";
 import type { SettingsPageId } from "./settings-pages";
 
 const SOUND_LABELS: Record<(typeof SOUND_NAMES)[number], string> = {
@@ -387,7 +388,12 @@ export function SettingsSection({
         <PlanField plan={settings.plan} onChange={(plan) => update({ plan })} />
       </Row>
     ),
-    privacy: () => <DataPrivacySection settings={settings} update={update} />,
+    privacy: () => (
+      <>
+        <DataPrivacySection settings={settings} update={update} />
+        <ExportDeleteSection />
+      </>
+    ),
   };
 
   return (

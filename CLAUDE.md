@@ -154,7 +154,7 @@ Insights (daily counts, the cards, streaks, top apps, CSV export, milestones, th
 
 Dictation history (database, tables, migrations, the History page with search, archive, delete and feedback): see `docs/history.md`.
 
-Data and Privacy (what leaves the Mac, presets, recordings and history retention, the daily retention job, storage sizes, strict local mode and the network guard): see `docs/privacy.md`.
+Data and Privacy (what leaves the Mac, export and delete by category, reset, presets, recordings and history retention, the daily retention job, storage sizes, strict local mode and the network guard): see `docs/privacy.md`.
 
 Settings (the Settings pages and search, launch at login, shortcuts and their checks, microphone, language, cleanup level, the local plan tier and what it gates): see `docs/settings.md`.
 

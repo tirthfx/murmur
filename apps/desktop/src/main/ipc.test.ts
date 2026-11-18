@@ -34,6 +34,11 @@ function setup() {
   const handle = createIpcHandler({
     entryUrl,
     hubSetPage: vi.fn(),
+    dataExport: vi.fn(() => Promise.resolve({ ok: false as const, message: "no", canceled: true })),
+    dataCounts: vi.fn(() => ({ categories: [], failedFiles: 0 })),
+    dataDelete: vi.fn(() => ({ rows: 0, files: 0, failedFiles: 0 })),
+    dataReset: vi.fn(() => Promise.resolve({ rows: 0, files: 0, failedFiles: 0 })),
+    dataRetryFailed: vi.fn(() => 0),
     storageView: vi.fn(() => ({ folder: "/x", parts: [] })),
     storageOpen: vi.fn(),
     retentionView: vi.fn(() => ({ lastRunAt: null, nextRunAt: null, removed: {} })),
