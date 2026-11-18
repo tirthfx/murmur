@@ -57,6 +57,14 @@ import {
 } from "./notes";
 import { planActionSchema, planViewSchema, type PlanAction, type PlanView } from "./plans";
 import {
+  axInspectResultSchema,
+  TESTING_TOOLS,
+  testingToolResultSchema,
+  type AxInspectResult,
+  type TestingTool,
+  type TestingToolResult,
+} from "./testing";
+import {
   dataCountsSchema,
   DELETE_CATEGORIES,
   deleteResultSchema,
@@ -221,6 +229,8 @@ export const IPC_CHANNELS = {
   storageView: "privacy:storage",
   dataExport: "data:export",
   planView: "plan:view",
+  testingTool: "testing:tool",
+  axInspect: "testing:ax-inspect",
   planAct: "plan:act",
   dataCounts: "data:counts",
   dataDelete: "data:delete",
@@ -578,6 +588,15 @@ export const IPC_CONTRACT = {
     result: focusAddResultSchema,
   },
   [IPC_CHANNELS.focusRemoveApp]: { args: z.tuple([z.string().min(1)]), result: z.void() },
+  // HB-55, HB-56.
+  [IPC_CHANNELS.testingTool]: {
+    args: z.tuple([z.enum(TESTING_TOOLS)]),
+    result: testingToolResultSchema,
+  },
+  [IPC_CHANNELS.axInspect]: {
+    args: z.tuple([z.boolean()]),
+    result: axInspectResultSchema.nullable(),
+  },
   // HB-19.
   [IPC_CHANNELS.planView]: { args: z.tuple([]), result: planViewSchema },
   [IPC_CHANNELS.planAct]: { args: z.tuple([planActionSchema]), result: planViewSchema },
@@ -838,6 +857,10 @@ export interface MurmurApi {
   focusAddSite(input: FocusSiteInput): Promise<FocusAddResult>;
   /** Installed apps to choose from; empty when the helper cannot list them. */
   focusInstalledApps(): Promise<InstalledApp[]>;
+  /** A Testing page tool (HB-55); developer mode only. */
+  testingTool(tool: TestingTool): Promise<TestingToolResult>;
+  /** The accessibility inspector (HB-56): the app in front now; null when it cannot. */
+  axInspect(showValues: boolean): Promise<AxInspectResult | null>;
   /** The Plans page (HB-19): tier, this week's words against the limit, trial and log. */
   planView(): Promise<PlanView>;
   /** Starts, extends or ends the trial, or sets the student label. */

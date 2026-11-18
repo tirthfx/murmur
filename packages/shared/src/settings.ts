@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { APP_LANGUAGES } from "./catalogue";
 import { privacySettingsSchema } from "./privacy";
+import { developerSettingsSchema } from "./testing";
 import { audioDeviceSchema } from "./audio";
 import { developerToolsSchema, jargonPacksSchema } from "./developer";
 import { emailSettingsSchema } from "./email";
@@ -171,6 +172,8 @@ export const settingsSchema = z.strictObject({
     milestone: z.boolean(),
     weeklySummary: z.boolean(),
   }),
+  /** HB-20, HB-57: developer mode and the engine switches. */
+  devMode: developerSettingsSchema,
   /** HB-19: the trial, the student label and the plan change log. */
   planState: planStateSchema,
   /** HB-48 to HB-52: history, recordings, retention and strict local mode. */
@@ -219,6 +222,7 @@ export const settingsPatchSchema = settingsSchema
     notifications: true,
     privacy: true,
     planState: true,
+    devMode: true,
   })
   .partial()
   .strict();
@@ -264,6 +268,7 @@ export const SETTING_KEYS: Record<keyof Settings, string> = {
   notifications: "notifications.settings",
   privacy: "privacy.settings",
   planState: "plan.state",
+  devMode: "dev.settings",
 };
 
 /** HB-24 defaults. */

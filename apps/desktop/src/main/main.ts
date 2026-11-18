@@ -9,6 +9,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { rm } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { pathToFileURL } from "node:url";
@@ -44,6 +45,9 @@ import {
   DEFAULT_NOTIFICATIONS,
   DEFAULT_PRIVACY,
   DEFAULT_PLAN_STATE,
+  DEFAULT_DEVELOPER,
+  type TestingTool,
+  type TestingToolResult,
   FREE_WEEKLY_WORDS,
   PLAN_MESSAGES,
   weeklyLimitReached,
@@ -98,6 +102,7 @@ import {
 } from "../security/guards";
 import { createHubWindowOptions, HUB_MIN_HEIGHT, HUB_MIN_WIDTH } from "../security/window-options";
 import { createBarController } from "./bar/bar-controller";
+import type { BarEvent } from "./bar/bar-machine";
 import { barEventFor } from "./bar/bar-events";
 import { createBarIpcHandler } from "./bar/bar-ipc";
 import { BarWindow, barPositionFile } from "./bar/bar-window";
@@ -118,6 +123,7 @@ import { createRetentionJob, tableRules } from "./privacy/retention";
 import { sizeOf } from "./privacy/storage";
 import { createDataDeleter } from "./privacy/data-delete";
 import { createPlanController } from "./plans/plan-controller";
+import { diagnosticsReport } from "./testing/diagnostics";
 import { writeExport } from "./privacy/data-export";
 import { createNotesStore } from "./notes/notes-store";
 import { createNoteImages, type ImageEncoder } from "./notes/note-images";
@@ -641,6 +647,7 @@ const settingsStore = createSettingsStore(database, {
   notifications: DEFAULT_NOTIFICATIONS,
   privacy: DEFAULT_PRIVACY,
   planState: DEFAULT_PLAN_STATE,
+  devMode: DEFAULT_DEVELOPER,
   plan: DEFAULT_PLAN,
   inputDevice: "auto",
   languages: [],
@@ -966,14 +973,16 @@ const recorder = createRecorder({
     }
     return context;
   },
-  useContextText: () => settingsStore.get().contextAwareness,
+  useContextText: () =>
+    settingsStore.get().contextAwareness && !settingsStore.get().devMode.disableContext,
   logTranscripts: process.env.MURMUR_LOG_TRANSCRIPTS === "1",
   insert: (text, { pressEnter, html }) => {
     // During a smoke run text may only go into the test box.
     smoke?.assertFieldFocused();
     return helper.insertText({
       text,
-      method: "auto",
+      // HB-57: the Testing page can force typed insertion.
+      method: settingsStore.get().devMode.forceTyped ? "keystrokes" : "auto",
       restoreClipboard: true,
       restoreDelayMs: 350,
       pressEnter,
@@ -997,7 +1006,12 @@ const recorder = createRecorder({
   blocked: dictationBlocked,
   beforeStart: () => effects.beforeStart(),
   afterEnd: () => effects.afterEnd(),
-  clean: (text, options) => cleanup.clean(text, options),
+  // HB-57: with cleanup off on the Testing page, only the deterministic rules run.
+  clean: (text, options) =>
+    cleanup.clean(
+      text,
+      settingsStore.get().devMode.disableCleanup ? { ...options, budgetMs: 0 } : options,
+    ),
   email: { settings: () => settingsStore.get().email, translate: translateEmail },
   developer: {
     vocabulary: () => developerVocabularyNow(),
@@ -1400,6 +1414,83 @@ settingsStore.onChange(() => {
 });
 plans.expire();
 setInterval(() => plans.expire(), 60 * 60_000).unref();
+
+/** HB-55: the Testing page's tools. Developer mode only; none sends anything anywhere. */
+async function runTestingTool(tool: TestingTool): Promise<TestingToolResult> {
+  if (!settingsStore.get().devMode.enabled) {
+    return { ok: false, message: "Developer mode is off." };
+  }
+  switch (tool) {
+    case "restartOnboarding":
+      settingsStore.update({ setupComplete: false });
+      return { ok: true, message: "Setup will run again." };
+    case "resetPersonalisation": {
+      let rows = 0;
+      for (const category of [
+        "dictionary",
+        "snippets",
+        "styles",
+        "memory",
+        "voiceProfile",
+        "learnedCandidates",
+      ] as const) {
+        rows += dataDeleter?.delete(category).rows ?? 0;
+      }
+      return { ok: true, message: `Personalisation reset: ${rows} items deleted.` };
+    }
+    case "testNotification":
+      notifier.test();
+      return { ok: true, message: "A test notification was sent." };
+    case "cycleBar": {
+      if (hubDictationState !== "idle") {
+        return { ok: false, message: "Wait for the dictation to end." };
+      }
+      const steps: BarEvent[] = [
+        { type: "start", at: Date.now() },
+        { type: "lock" },
+        { type: "stop" },
+        { type: "transcribed", words: 12 },
+        { type: "warn", message: "This is how a warning looks." },
+        { type: "failed", message: "This is how an error looks." },
+        { type: "cancel" },
+      ];
+      steps.forEach((step, index) => setTimeout(() => bar.dispatch(step), index * 2000));
+      return { ok: true, message: "The Bar shows each state for two seconds." };
+    }
+    case "diagnostics": {
+      const options = {
+        title: "Choose where to save the diagnostics bundle",
+        buttonLabel: "Save here",
+        defaultPath: app.getPath("documents"),
+        properties: ["openDirectory", "createDirectory"] as ("openDirectory" | "createDirectory")[],
+      };
+      const choice = hubWindow
+        ? await dialog.showOpenDialog(hubWindow, options)
+        : await dialog.showOpenDialog(options);
+      const parent = choice.filePaths[0];
+      if (choice.canceled || !parent) return { ok: false, message: "" };
+      const stamp = new Date().toISOString().slice(0, 16).replace("T", " ").replace(":", "-");
+      const folder = path.join(parent, `Murmur diagnostics ${stamp}`);
+      mkdirSync(folder, { recursive: true });
+      const report = diagnosticsReport({
+        app: {
+          name: app.getName(),
+          version: app.getVersion(),
+          electron: process.versions.electron ?? "",
+          node: process.versions.node,
+        },
+        system: { platform: process.platform, release: os.release(), arch: process.arch },
+        helper: helper.getStatus(),
+        settings: settingsStore.get(),
+        counts: dataDeleter?.counts() ?? { categories: [], failedFiles: 0 },
+        retention: retention?.view() ?? { lastRunAt: null, nextRunAt: null, removed: {} },
+        now: Date.now(),
+      });
+      writeFileSync(path.join(folder, "diagnostics.json"), `${JSON.stringify(report, null, 2)}\n`);
+      return { ok: true, message: `Saved to ${folder}.` };
+    }
+  }
+}
 
 /** Words dictated this week, Monday to now (HB-19). */
 function weekWords(): number {
@@ -1894,6 +1985,8 @@ app.on("web-contents-created", (_event, contents) => {
 function registerIpc(): void {
   const handle = createIpcHandler({
     entryUrl: hubEntryUrl,
+    testingTool: (tool) => runTestingTool(tool),
+    axInspect: (showValues) => helper.inspectAccessibility(showValues),
     planView: () => planView(),
     planAct: (action) => {
       plans.act(action);

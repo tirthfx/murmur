@@ -8,7 +8,11 @@ export const SETTINGS_PAGES = [
   { id: "experimental", title: "Experimental" },
   { id: "plans", title: "Plans" },
   { id: "privacy", title: "Data and Privacy" },
+  { id: "testing", title: "Testing" },
 ] as const;
+
+/** Pages shown only in developer mode (HB-20). */
+export const DEVELOPER_PAGES: readonly string[] = ["testing"];
 
 export type SettingsPageId = (typeof SETTINGS_PAGES)[number]["id"];
 
@@ -73,6 +77,10 @@ export const SETTINGS_INDEX: readonly SettingEntry[] = [
   { id: "storage", page: "privacy", label: "Local storage", words: "folder size finder" },
   { id: "export", page: "privacy", label: "Export", words: "backup save data" },
   { id: "delete", page: "privacy", label: "Delete data", words: "erase reset remove" },
+  { id: "developer-mode", page: "testing", label: "Developer mode", words: "testing" },
+  { id: "flags", page: "testing", label: "Feature flags", words: "experiments override" },
+  { id: "tools", page: "testing", label: "Testing tools", words: "diagnostics notification bar" },
+  { id: "engine", page: "testing", label: "Engine switches", words: "cleanup typed context" },
   { id: "strict-local", page: "privacy", label: "Strict local mode", words: "offline network" },
 ];
 

@@ -5,10 +5,12 @@ import { HStack } from "@astryxdesign/core/HStack";
 import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { VStack } from "@astryxdesign/core/VStack";
+import type { SettingsView } from "@murmur/shared";
 import { HelperStatusLine } from "./HelperStatusLine";
 import { SettingsSection } from "./SettingsSection";
 import {
   SETTINGS_PAGES,
+  DEVELOPER_PAGES,
   searchSettings,
   settingsPageFromHash,
   type SettingEntry,
@@ -25,7 +27,14 @@ export function SettingsPage({ onRunSetup }: { onRunSetup: () => void }) {
   );
   const [query, setQuery] = useState("");
   const [target, setTarget] = useState<string | null>(null);
+  // HB-20: the Testing page shows only in developer mode.
+  const [developer, setDeveloper] = useState(false);
+  const pages = SETTINGS_PAGES.filter((page) => developer || !DEVELOPER_PAGES.includes(page.id));
+  const onView = useCallback((view: SettingsView) => {
+    setDeveloper(view.settings.devMode.enabled);
+  }, []);
   const content = useRef<HTMLDivElement>(null);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
 
   const setPageId = useCallback((id: SettingsPageId) => {
     setPageIdState(id);
@@ -64,7 +73,14 @@ export function SettingsPage({ onRunSetup }: { onRunSetup: () => void }) {
     return () => window.clearTimeout(timer);
   }, [target, pageId]);
 
-  const results = searchSettings(query);
+  const results = searchSettings(query).filter(
+    (entry) => developer || !DEVELOPER_PAGES.includes(entry.page),
+  );
+
+  // Developer mode turned off while on Testing: back to General.
+  useEffect(() => {
+    if (!developer && DEVELOPER_PAGES.includes(pageId) && settingsLoaded) setPageId("general");
+  }, [developer, pageId, setPageId, settingsLoaded]);
   const open = (entry: SettingEntry) => {
     setQuery("");
     setPageId(entry.page);
@@ -75,7 +91,7 @@ export function SettingsPage({ onRunSetup }: { onRunSetup: () => void }) {
     <div className="hub-settings-layout">
       <nav aria-label="Settings pages" className="hub-settings-nav">
         <VStack gap={1}>
-          {SETTINGS_PAGES.map((page) => (
+          {pages.map((page) => (
             <Button
               key={page.id}
               variant={page.id === pageId ? "secondary" : "ghost"}
@@ -125,7 +141,14 @@ export function SettingsPage({ onRunSetup }: { onRunSetup: () => void }) {
             ) : null}
           </div>
           <Heading level={2}>{SETTINGS_PAGES.find((page) => page.id === pageId)?.title}</Heading>
-          <SettingsSection page={pageId} onRunSetup={onRunSetup} />
+          <SettingsSection
+            page={developer || !DEVELOPER_PAGES.includes(pageId) ? pageId : "general"}
+            onRunSetup={onRunSetup}
+            onView={(view) => {
+              setSettingsLoaded(true);
+              onView(view);
+            }}
+          />
           {pageId === "general" ? <HelperStatusLine /> : null}
         </VStack>
       </div>

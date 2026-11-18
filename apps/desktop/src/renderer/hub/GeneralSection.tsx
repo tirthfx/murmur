@@ -5,7 +5,7 @@ import { Switch } from "@astryxdesign/core/Switch";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
-import type { AppInfo, LoginItem } from "@murmur/shared";
+import { DEVELOPER_CLICKS, type AppInfo, type LoginItem } from "@murmur/shared";
 
 /** Settings, General (HB-17): starting with the Mac, the Hub at start, and the version. */
 export function GeneralSection({
@@ -15,6 +15,8 @@ export function GeneralSection({
   onProfile,
   theme,
   onTheme,
+  developerMode,
+  onDeveloperMode,
 }: {
   openHubOnLaunch: boolean;
   onOpenHubOnLaunch: (on: boolean) => void;
@@ -24,7 +26,11 @@ export function GeneralSection({
   /** HB-22. */
   theme: "system" | "light" | "dark";
   onTheme: (theme: "system" | "light" | "dark") => void;
+  /** HB-20: clicking the version five times turns developer mode on. */
+  developerMode: boolean;
+  onDeveloperMode: () => void;
 }) {
+  const [clicks, setClicks] = useState(0);
   const [name, setName] = useState(profile.displayName);
   useEffect(() => setName(profile.displayName), [profile.displayName]);
   const [login, setLogin] = useState<LoginItem | null>(null);
@@ -143,9 +149,25 @@ export function GeneralSection({
         </VStack>
       </div>
       {info ? (
-        <Text size="sm" color="secondary" data-testid="settings-version">
-          {info.name} {info.version}. Murmur never checks for updates by itself.
-        </Text>
+        <VStack gap={1}>
+          <button
+            type="button"
+            className="hub-version"
+            data-testid="settings-version"
+            onClick={() => {
+              const next = clicks + 1;
+              setClicks(next);
+              if (next >= DEVELOPER_CLICKS && !developerMode) onDeveloperMode();
+            }}
+          >
+            {info.name} {info.version}. Murmur never checks for updates by itself.
+          </button>
+          {developerMode ? (
+            <Text size="sm" color="secondary" role="status">
+              Developer mode is on: the Testing page is in the list.
+            </Text>
+          ) : null}
+        </VStack>
       ) : null}
     </VStack>
   );
