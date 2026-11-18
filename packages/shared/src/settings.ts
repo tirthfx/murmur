@@ -155,6 +155,10 @@ export const settingsSchema = z.strictObject({
   openHubOnLaunch: z.boolean(),
   /** Insights (HB-36): the typing speed that time saved is measured against. */
   insights: z.strictObject({ typingWpm: z.number().int().min(10).max(150) }),
+  /** HB-26: opens the Scratchpad window. Null means no shortcut. */
+  scratchpadShortcut: hotkeyTriggerSchema.nullable(),
+  /** HB-26, HB-34: Scratchpad on or off, and whether a note opens in a new tab. */
+  scratchpad: z.strictObject({ enabled: z.boolean(), newTab: z.boolean() }),
   /** HB-51: an optional local display name for the Home greeting; never published. */
   profile: z.strictObject({
     displayName: z.string().trim().max(60),
@@ -191,6 +195,7 @@ export const settingsPatchSchema = settingsSchema
     openHubOnLaunch: true,
     insights: true,
     profile: true,
+    scratchpad: true,
   })
   .partial()
   .strict();
@@ -229,6 +234,8 @@ export const SETTING_KEYS: Record<keyof Settings, string> = {
   openHubOnLaunch: "app.open_hub_on_launch",
   insights: "insights.settings",
   profile: "profile.settings",
+  scratchpadShortcut: "hotkey.scratchpad",
+  scratchpad: "scratchpad.settings",
 };
 
 export const DEFAULT_EXPERIMENTAL: Settings["experimental"] = {
@@ -282,6 +289,7 @@ export const SHORTCUT_SLOTS = [
   "command",
   "instruct",
   "focus",
+  "scratchpad",
 ] as const;
 export type ShortcutSlot = (typeof SHORTCUT_SLOTS)[number];
 
@@ -303,6 +311,7 @@ export const settingsViewSchema = z.strictObject({
     command: z.string(),
     instruct: z.string(),
     focus: z.string(),
+    scratchpad: z.string(),
   }),
   /** Null when the helper could not list devices. */
   devices: z.array(audioDeviceSchema).nullable(),

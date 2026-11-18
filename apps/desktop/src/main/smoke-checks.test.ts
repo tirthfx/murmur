@@ -24,6 +24,8 @@ const settings: Settings = {
   openHubOnLaunch: true,
   insights: { typingWpm: 40 },
   profile: { displayName: "", showOnHome: true },
+  scratchpadShortcut: null,
+  scratchpad: { enabled: true, newTab: true },
   contextAwareness: true,
   mouseButtons: { hold: null, handsFree: null },
   typingReminder: { enabled: true, snoozedUntil: null },

@@ -20,6 +20,18 @@ import {
 } from "./insights";
 import { milestoneSchema, progressCardBytesSchema, type Milestone } from "./milestones";
 import {
+  noteCreateSchema,
+  noteSaveResultSchema,
+  noteSaveSchema,
+  noteSchema,
+  noteSummarySchema,
+  type Note,
+  type NoteCreate,
+  type NoteSave,
+  type NoteSaveResult,
+  type NoteSummary,
+} from "./notes";
+import {
   DICTATION_STATES,
   historyRetryResultSchema,
   homeViewSchema,
@@ -161,6 +173,12 @@ export const IPC_CHANNELS = {
   insightsView: "insights:view",
   milestonesList: "milestones:list",
   homeView: "home:view",
+  notesList: "notes:list",
+  noteGet: "notes:get",
+  noteCreate: "notes:create",
+  noteSave: "notes:save",
+  noteDelete: "notes:delete",
+  scratchpadOpen: "scratchpad:open",
   historyRetry: "history:retry",
   dictationState: "dictation:state",
   milestonesSeen: "milestones:seen",
@@ -491,6 +509,28 @@ export const IPC_CONTRACT = {
     result: focusAddResultSchema,
   },
   [IPC_CHANNELS.focusRemoveApp]: { args: z.tuple([z.string().min(1)]), result: z.void() },
+  // HB-26, HB-31.
+  [IPC_CHANNELS.notesList]: {
+    args: z.tuple([z.string().max(200)]),
+    result: z.array(noteSummarySchema),
+  },
+  [IPC_CHANNELS.noteGet]: {
+    args: z.tuple([z.string().min(1).max(64)]),
+    result: noteSchema.nullable(),
+  },
+  [IPC_CHANNELS.noteCreate]: {
+    args: z.tuple([noteCreateSchema]),
+    result: z.discriminatedUnion("ok", [
+      z.strictObject({ ok: z.literal(true), note: noteSchema }),
+      z.strictObject({ ok: z.literal(false), message: z.string() }),
+    ]),
+  },
+  [IPC_CHANNELS.noteSave]: { args: z.tuple([noteSaveSchema]), result: noteSaveResultSchema },
+  [IPC_CHANNELS.noteDelete]: { args: z.tuple([z.string().min(1).max(64)]), result: z.void() },
+  [IPC_CHANNELS.scratchpadOpen]: {
+    args: z.tuple([z.string().min(1).max(64).nullable()]),
+    result: z.void(),
+  },
   // HB-02, HB-03.
   [IPC_CHANNELS.homeView]: { args: z.tuple([]), result: homeViewSchema },
   [IPC_CHANNELS.historyRetry]: {
@@ -660,6 +700,16 @@ export interface MurmurApi {
   focusAddSite(input: FocusSiteInput): Promise<FocusAddResult>;
   /** Installed apps to choose from; empty when the helper cannot list them. */
   focusInstalledApps(): Promise<InstalledApp[]>;
+  /** Scratchpad notes (HB-26, HB-31): pinned and newest first, or matching a search. */
+  notesList(query: string): Promise<NoteSummary[]>;
+  noteGet(id: string): Promise<Note | null>;
+  noteCreate(input: NoteCreate): Promise<{ ok: true; note: Note } | { ok: false; message: string }>;
+  noteSave(input: NoteSave): Promise<NoteSaveResult>;
+  noteDelete(id: string): Promise<void>;
+  /** Opens the Scratchpad window, on a note when given. */
+  scratchpadOpen(noteId: string | null): Promise<void>;
+  /** The Scratchpad window is asked to show a note. Returns an unsubscribe. */
+  onScratchpadOpenNote(handler: (noteId: string) => void): () => void;
   /** Home (HB-02): today's counts and the last dictation. */
   homeView(): Promise<HomeView>;
   /** Transcribes a failed dictation's recording again and updates its row (HB-03). */
@@ -701,5 +751,6 @@ export interface MurmurApi {
 export const IPC_EVENTS = {
   micCheckLevel: "mic-check:level",
   dictationState: "dictation:state-changed",
+  scratchpadOpenNote: "scratchpad:open-note",
   openPage: "hub:open-page",
 } as const;

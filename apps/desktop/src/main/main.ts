@@ -26,6 +26,7 @@ import {
   type HistoryRetryResult,
   localDate,
   milestoneTitle,
+  NOTE_MESSAGES,
   rangeFirstDay,
   MEMORY_LIMITS,
   PRESETS,
@@ -88,6 +89,7 @@ import { databasePath, openDatabase } from "./db/database";
 import { createHistoryStore, type HistoryStore } from "./history/history-store";
 import { createInsightsStore } from "./insights/insights-store";
 import { createMilestonesStore } from "./milestones/milestones-store";
+import { createNotesStore } from "./notes/notes-store";
 import { createDictionaryStore } from "./dictionary/dictionary-store";
 import { createCorrectionLearner } from "./dictionary/learn";
 import { createSnippetStore } from "./snippets/snippet-store";
@@ -148,6 +150,7 @@ import {
   defaultInstructShortcut,
   defaultFocusShortcut,
   defaultRewriteShortcut,
+  defaultScratchpadShortcut,
   keyPlatform,
 } from "./platform";
 import {
@@ -390,6 +393,9 @@ async function retryFromHub(id: string): Promise<HistoryRetryResult> {
   }
 }
 
+// HB-26: Scratchpad notes.
+const notes = database ? createNotesStore(database) : null;
+
 // HB-41: milestones; the first check records what was reached before, quietly.
 const milestones = database ? createMilestonesStore(database) : null;
 
@@ -450,6 +456,8 @@ const settingsStore = createSettingsStore(database, {
   instruct: DEFAULT_INSTRUCT,
   focusShortcut: defaultFocusShortcut(process.platform),
   focus: DEFAULT_FOCUS,
+  scratchpadShortcut: defaultScratchpadShortcut(process.platform),
+  scratchpad: { enabled: true, newTab: true },
   plan: DEFAULT_PLAN,
   inputDevice: "auto",
   languages: [],
@@ -1157,8 +1165,22 @@ helper.onStatusChange((status) => {
   if (status.state === "ready") focus.helperReady();
 });
 settingsStore.onChange(() => focus.refresh());
+// HB-34: turning Scratchpad off closes its window; notes stay on disk.
+settingsStore.onChange(() => {
+  if (
+    !settingsStore.get().scratchpad.enabled &&
+    scratchpadWindow &&
+    !scratchpadWindow.isDestroyed()
+  ) {
+    scratchpadWindow.close();
+  }
+});
 
 hotkeys.onEvent((event) => {
+  if (event.action === "scratchpad.open") {
+    if (event.state !== "up" && settingsStore.get().scratchpad.enabled) openScratchpad();
+    return;
+  }
   if (event.action === "focus.toggle") {
     if (event.state !== "up") focus.toggle();
     return;
@@ -1560,6 +1582,46 @@ function createHubWindow(): BrowserWindow {
   return window;
 }
 
+let scratchpadWindow: BrowserWindow | null = null;
+
+/**
+ * HB-26: the Scratchpad is its own window showing the Hub page at `#/scratchpad-window`, so
+ * it shares the Hub's preload, CSP and IPC checks. Opens or brings it forward.
+ */
+function openScratchpad(noteId?: string): void {
+  if (isSmokeRun || !settingsStore.get().scratchpad.enabled) return;
+  const existing = scratchpadWindow;
+  if (existing && !existing.isDestroyed()) {
+    if (noteId) existing.webContents.send(IPC_EVENTS.scratchpadOpenNote, noteId);
+    existing.show();
+    existing.focus();
+    return;
+  }
+  const window = new BrowserWindow({
+    ...createHubWindowOptions({
+      preloadPath: path.join(__dirname, "preload.cjs"),
+      platform: process.platform,
+      isDevelopment,
+    }),
+    title: "Scratchpad",
+    width: 900,
+    height: 640,
+    minWidth: 640,
+    minHeight: 420,
+  });
+  window.once("ready-to-show", () => window.show());
+  if (noteId) {
+    window.webContents.once("did-finish-load", () =>
+      window.webContents.send(IPC_EVENTS.scratchpadOpenNote, noteId),
+    );
+  }
+  window.on("closed", () => {
+    if (scratchpadWindow === window) scratchpadWindow = null;
+  });
+  void window.loadURL(`${hubEntryUrl}#/scratchpad-window`);
+  scratchpadWindow = window;
+}
+
 // Applies to every web contents, including any created later.
 app.on("web-contents-created", (_event, contents) => {
   const guardNavigation = createNavigationGuard(hubEntryUrl);
@@ -1572,6 +1634,20 @@ app.on("web-contents-created", (_event, contents) => {
 function registerIpc(): void {
   const handle = createIpcHandler({
     entryUrl: hubEntryUrl,
+    notesList: (query) => notes?.list(query) ?? [],
+    noteGet: (id) => notes?.get(id) ?? null,
+    noteCreate: ({ fromLastDictation }) => {
+      if (!notes) return { ok: false, message: "Notes cannot be saved without the database." };
+      const text = fromLastDictation ? (history?.lastText() ?? null) : "";
+      if (text === null) return { ok: false, message: NOTE_MESSAGES.noDictation };
+      const note = notes.create(text);
+      checkMilestones(true);
+      return { ok: true, note };
+    },
+    noteSave: (input) =>
+      notes?.save(input) ?? { ok: false, message: "Notes cannot be saved without the database." },
+    noteDelete: (id) => notes?.remove(id),
+    scratchpadOpen: (noteId) => openScratchpad(noteId ?? undefined),
     homeView: () => {
       const today = localDate(Date.now());
       const days = insights?.days(null) ?? [];

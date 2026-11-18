@@ -93,10 +93,10 @@ describe("Hub", () => {
 
     expect(screen.getByRole("heading", { level: 1, name: "Home" })).toBeTruthy();
 
-    await user.click(screen.getByText("Scratchpad"));
+    await user.click(screen.getByText("Help"));
 
-    expect(screen.getByRole("heading", { level: 1, name: "Scratchpad" })).toBeTruthy();
-    expect(screen.getByText("The scratchpad is blank")).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 1, name: "Help" })).toBeTruthy();
+    expect(screen.getByText("Help is on the way")).toBeTruthy();
     expect(screen.queryByRole("heading", { level: 1, name: "Home" })).toBeNull();
   });
 

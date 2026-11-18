@@ -34,6 +34,12 @@ function setup() {
   const handle = createIpcHandler({
     entryUrl,
     hubSetPage: vi.fn(),
+    notesList: vi.fn(() => []),
+    noteGet: vi.fn(() => null),
+    noteCreate: vi.fn(() => ({ ok: false as const, message: "no" })),
+    noteSave: vi.fn(() => ({ ok: true as const, updatedAt: 1 })),
+    noteDelete: vi.fn(),
+    scratchpadOpen: vi.fn(),
     homeView: vi.fn(),
     historyRetry: vi.fn(() => Promise.resolve({ ok: false as const, message: "no" })),
     dictationState: vi.fn(() => "idle" as const),
