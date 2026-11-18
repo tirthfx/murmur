@@ -31,6 +31,8 @@ export const SETTINGS_INDEX: readonly SettingEntry[] = [
   { id: "open-hub", page: "general", label: "Show the Hub when Murmur starts", words: "window" },
   { id: "theme", page: "general", label: "Appearance", words: "theme dark light mode" },
   { id: "display-name", page: "general", label: "Your name", words: "display name greeting" },
+  { id: "app-language", page: "general", label: "App language", words: "interface english" },
+  { id: "notifications", page: "general", label: "Notifications", words: "alerts weekly summary" },
   { id: "permissions", page: "general", label: "Permissions", words: "microphone accessibility" },
   { id: "setup", page: "general", label: "Run setup again", words: "onboarding tutorial" },
   { id: "cleanup", page: "system", label: "Cleanup", words: "fillers punctuation level" },

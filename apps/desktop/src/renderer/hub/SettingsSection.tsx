@@ -8,6 +8,8 @@ import { Switch } from "@astryxdesign/core/Switch";
 import { VStack } from "@astryxdesign/core/VStack";
 import {
   planAllows,
+  APP_LANGUAGES,
+  APP_LANGUAGE_NAMES,
   SETTINGS_CLEANUP_LEVELS,
   SOUND_NAMES,
   type SettingsPatch,
@@ -33,6 +35,14 @@ const SOUND_LABELS: Record<(typeof SOUND_NAMES)[number], string> = {
   error: "Error sound",
   cancel: "Cancel sound",
 };
+
+const NOTIFICATION_SWITCHES: [keyof SettingsView["settings"]["notifications"], string][] = [
+  ["dictationFailed", "A dictation did not go in"],
+  ["modelDownload", "The speech model finished or failed to download"],
+  ["focusEnded", "Focus Mode ended"],
+  ["milestone", "A milestone was reached"],
+  ["weeklySummary", "Weekly summary of words and streak"],
+];
 
 const CLEANUP_LABELS: Record<(typeof SETTINGS_CLEANUP_LEVELS)[number], string> = {
   off: "Off: the words as heard",
@@ -106,6 +116,37 @@ export function SettingsSection({
           theme={settings.theme}
           onTheme={(theme) => update({ theme })}
         />
+        <Row id="app-language">
+          <Selector
+            label="App language"
+            description="The language of Murmur's own text. More languages can come later; dictation languages are separate."
+            options={APP_LANGUAGES.map((code) => ({
+              value: code,
+              label: APP_LANGUAGE_NAMES[code],
+            }))}
+            value={settings.language}
+            onChange={(language) => update({ language: language as typeof settings.language })}
+          />
+        </Row>
+        <Row id="notifications">
+          <VStack gap={2}>
+            <Heading level={3}>Notifications</Heading>
+            <Text size="sm" color="secondary">
+              macOS notifications. They never show what you dictated; clicking one opens the Hub.
+              macOS asks once for permission the first time one is shown.
+            </Text>
+            {NOTIFICATION_SWITCHES.map(([key, label]) => (
+              <Switch
+                key={key}
+                label={label}
+                value={settings.notifications[key]}
+                onChange={(on) =>
+                  update({ notifications: { ...settings.notifications, [key]: on } })
+                }
+              />
+            ))}
+          </VStack>
+        </Row>
         <Row id="permissions">
           <PermissionsSection />
         </Row>

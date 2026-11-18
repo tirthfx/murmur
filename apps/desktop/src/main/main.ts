@@ -20,6 +20,7 @@ import {
   dialog,
   nativeImage,
   nativeTheme,
+  Notification,
   ipcMain,
   screen,
   session,
@@ -36,7 +37,11 @@ import {
   type HistoryRetryResult,
   localDate,
   milestoneTitle,
+  addDays,
+  weekStart,
+  streaks,
   NOTE_MESSAGES,
+  DEFAULT_NOTIFICATIONS,
   GENERATION_MESSAGES,
   markdownTitle,
   markdownToRich,
@@ -102,6 +107,7 @@ import { databasePath, openDatabase } from "./db/database";
 import { createHistoryStore, type HistoryStore } from "./history/history-store";
 import { createInsightsStore } from "./insights/insights-store";
 import { createMilestonesStore } from "./milestones/milestones-store";
+import { createNotifier } from "./notifications/notifier";
 import { createNotesStore } from "./notes/notes-store";
 import { createNoteImages, type ImageEncoder } from "./notes/note-images";
 import {
@@ -470,6 +476,41 @@ const noteImages = database
   ? createNoteImages(database, path.join(profile.appData, "Murmur", "notes"), encodeNoteImage)
   : null;
 
+// HB-24: macOS notifications. Shown ones are kept until closed, so they are not collected
+// while still on screen.
+const shownNotifications = new Set<Notification>();
+const notifier = createNotifier({
+  settings: () => settingsStore.get(),
+  show: ({ title, body, target }) => {
+    if (isSmokeRun || !Notification.isSupported()) return;
+    const notification = new Notification({ title, body });
+    shownNotifications.add(notification);
+    notification.on("click", () => openHubPage(target));
+    notification.on("close", () => shownNotifications.delete(notification));
+    notification.show();
+  },
+});
+
+/** HB-24: once a week, last week's words and the streak, if that notification is on. */
+function weeklySummary(): void {
+  if (!insights || !settingsStore.get().notifications.weeklySummary) return;
+  const today = localDate(Date.now());
+  const monday = addDays(weekStart(today), -7);
+  if (insights.meta("weekly.sent") === monday) return;
+  const days = insights.days(monday).filter((day) => day.date < weekStart(today));
+  const words = days.reduce((total, day) => total + day.words, 0);
+  insights.setMeta("weekly.sent", monday);
+  if (words === 0) return;
+  const streak = streaks(
+    insights
+      .days(null)
+      .filter((day) => day.dictations > 0)
+      .map((day) => day.date),
+    today,
+  ).daily.current;
+  notifier.weeklySummary(words, streak);
+}
+
 // HB-41: milestones; the first check records what was reached before, quietly.
 const milestones = database ? createMilestonesStore(database) : null;
 
@@ -484,6 +525,7 @@ function checkMilestones(announce: boolean): void {
     if (!announce) return;
     bar.dispatch({ type: "warn", message: `Milestone: ${milestoneTitle(newest)}` });
     effects.sound("success");
+    notifier.milestone(milestoneTitle(newest));
   } catch (error) {
     console.warn(`[milestones] could not check: ${String(error)}`);
   }
@@ -533,6 +575,8 @@ const settingsStore = createSettingsStore(database, {
   scratchpadShortcut: defaultScratchpadShortcut(process.platform),
   scratchpad: { enabled: true, newTab: true },
   theme: "system",
+  language: "en",
+  notifications: DEFAULT_NOTIFICATIONS,
   plan: DEFAULT_PLAN,
   inputDevice: "auto",
   languages: [],
@@ -612,7 +656,11 @@ const modelDownload = createModelDownload({
   download: (onProgress) =>
     downloadModel(speechModelRoot(profile.modelsAppData), DEFAULT_SPEECH_MODEL, { onProgress }),
   speechState: () => speech.getState(),
-  onDownloaded: () => speech.recheck(),
+  onDownloaded: () => {
+    speech.recheck();
+    notifier.modelDownload(true);
+  },
+  onFailed: () => notifier.modelDownload(false),
   logger: createConsoleLogger("[setup]"),
 });
 let lastPermissions: PermissionSnapshot | null = null;
@@ -925,6 +973,7 @@ const recorder = createRecorder({
       console.warn(`[insights] could not count a dictation: ${String(error)}`);
     }
     checkMilestones(true);
+    if (dictation.insertStatus === "failed") notifier.dictationFailed();
     if (dictation.insertStatus === "inserted" && dictation.finalText) {
       lastDictation = {
         text: dictation.finalText,
@@ -1221,7 +1270,10 @@ const focus = createFocusController({
   saveDuration: (duration) => settingsStore.update({ focus: { duration } }),
   watchFrontApp: (enabled) => helper.watchFrontApp(enabled),
   overlay: focusOverlay,
-  say: (message) => bar.dispatch({ type: "warn", message }),
+  say: (message) => {
+    bar.dispatch({ type: "warn", message });
+    if (message === FOCUS_MESSAGES.ended) notifier.focusEnded();
+  },
   activateApp,
   pressBack: async (bundleId) =>
     (await helper.pressKey({ key: "left_bracket", modifiers: ["command"], onlyInApp: bundleId }))
@@ -2153,6 +2205,9 @@ function registerIpc(): void {
 }
 
 void app.whenReady().then(() => {
+  // HB-24: the weekly summary is checked at start and every hour.
+  weeklySummary();
+  setInterval(weeklySummary, 60 * 60_000).unref();
   session.defaultSession.setPermissionRequestHandler((_contents, permission, callback) =>
     denyPermissionRequest(permission, callback),
   );

@@ -18,6 +18,9 @@ export interface InsightsStore {
   days(first: string | null): InsightsDay[];
   /** Fills the days from history once, for dictations made before Insights existed. */
   backfill(): number;
+  /** A small remembered value, such as the week of the last weekly summary. */
+  meta(key: string): string | null;
+  setMeta(key: string, value: string): void;
 }
 
 /** Only dictations that put words somewhere count (HB-36). */
@@ -108,6 +111,16 @@ export function createInsightsStore(db: DatabaseSync): InsightsStore {
           : db.prepare("SELECT * FROM insights_daily WHERE date >= ? ORDER BY date").all(first)
       ) as Record<string, unknown>[];
       return rows.flatMap((row) => toDay(row) ?? []);
+    },
+    meta(key) {
+      const row = db.prepare("SELECT value FROM insights_meta WHERE key = ?").get(key) as
+        { value: string } | undefined;
+      return row?.value ?? null;
+    },
+    setMeta(key, value) {
+      db.prepare(
+        "INSERT INTO insights_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+      ).run(key, value);
     },
     backfill() {
       if (db.prepare("SELECT 1 FROM insights_meta WHERE key = ?").get(BACKFILLED)) return 0;

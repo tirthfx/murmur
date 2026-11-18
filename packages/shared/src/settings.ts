@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { APP_LANGUAGES } from "./catalogue";
 import { audioDeviceSchema } from "./audio";
 import { developerToolsSchema, jargonPacksSchema } from "./developer";
 import { emailSettingsSchema } from "./email";
@@ -159,6 +160,16 @@ export const settingsSchema = z.strictObject({
   scratchpadShortcut: hotkeyTriggerSchema.nullable(),
   /** HB-26, HB-34: Scratchpad on or off, and whether a note opens in a new tab. */
   scratchpad: z.strictObject({ enabled: z.boolean(), newTab: z.boolean() }),
+  /** HB-23: the interface language; English is the only one shipped so far. */
+  language: z.enum(APP_LANGUAGES),
+  /** HB-24: which macOS notifications Murmur sends. None ever holds dictated text. */
+  notifications: z.strictObject({
+    dictationFailed: z.boolean(),
+    modelDownload: z.boolean(),
+    focusEnded: z.boolean(),
+    milestone: z.boolean(),
+    weeklySummary: z.boolean(),
+  }),
   /** HB-22: the look of every window; System follows macOS. */
   theme: z.enum(["system", "light", "dark"]),
   /** HB-51: an optional local display name for the Home greeting; never published. */
@@ -199,6 +210,8 @@ export const settingsPatchSchema = settingsSchema
     profile: true,
     scratchpad: true,
     theme: true,
+    language: true,
+    notifications: true,
   })
   .partial()
   .strict();
@@ -240,6 +253,17 @@ export const SETTING_KEYS: Record<keyof Settings, string> = {
   scratchpadShortcut: "hotkey.scratchpad",
   scratchpad: "scratchpad.settings",
   theme: "ui.theme",
+  language: "ui.language",
+  notifications: "notifications.settings",
+};
+
+/** HB-24 defaults. */
+export const DEFAULT_NOTIFICATIONS: Settings["notifications"] = {
+  dictationFailed: true,
+  modelDownload: true,
+  focusEnded: true,
+  milestone: false,
+  weeklySummary: false,
 };
 
 export const DEFAULT_EXPERIMENTAL: Settings["experimental"] = {
