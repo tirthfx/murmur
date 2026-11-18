@@ -19,6 +19,10 @@ import {
   type NoteSave,
   type NoteSaveResult,
   type NoteSummary,
+  type NotePinResult,
+  type NoteVersion,
+  type NoteVersionSave,
+  type NoteVersionText,
   type CapturedKey,
   type InstructModelStatus,
   type FocusAddResult,
@@ -80,6 +84,12 @@ export interface IpcDeps {
   noteSave: (input: NoteSave) => NoteSaveResult;
   noteDelete: (id: string) => void;
   scratchpadOpen: (noteId: string | null) => void;
+  noteVersions: (noteId: string) => NoteVersion[];
+  noteVersionSave: (input: NoteVersionSave) => NoteVersion | null;
+  noteVersionText: (id: string) => NoteVersionText | null;
+  noteVersionRestore: (id: string) => Note | null;
+  notePin: (noteId: string, pinned: boolean) => NotePinResult;
+  notePinMove: (noteId: string, step: -1 | 1) => void;
   homeView: () => HomeView;
   historyRetry: (id: string) => Promise<HistoryRetryResult>;
   dictationState: () => DictationState;
@@ -197,6 +207,18 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.noteSave(request.args[0] as NoteSave);
       case IPC_CHANNELS.noteDelete:
         return deps.noteDelete(request.args[0] as string);
+      case IPC_CHANNELS.noteVersions:
+        return deps.noteVersions(request.args[0] as string);
+      case IPC_CHANNELS.noteVersionSave:
+        return deps.noteVersionSave(request.args[0] as NoteVersionSave);
+      case IPC_CHANNELS.noteVersionText:
+        return deps.noteVersionText(request.args[0] as string);
+      case IPC_CHANNELS.noteVersionRestore:
+        return deps.noteVersionRestore(request.args[0] as string);
+      case IPC_CHANNELS.notePin:
+        return deps.notePin(request.args[0] as string, request.args[1] as boolean);
+      case IPC_CHANNELS.notePinMove:
+        return deps.notePinMove(request.args[0] as string, request.args[1] as -1 | 1);
       case IPC_CHANNELS.scratchpadOpen:
         return deps.scratchpadOpen(request.args[0] as string | null);
       case IPC_CHANNELS.homeView:

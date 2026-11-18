@@ -41,6 +41,7 @@ describe("migrations", () => {
       "learn_candidates",
       "memory_items",
       "milestones",
+      "note_versions",
       "notes",
       "notes_fts",
       "notes_fts_config",

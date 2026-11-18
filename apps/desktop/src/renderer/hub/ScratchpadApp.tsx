@@ -9,11 +9,13 @@ import {
   NOTE_LIMITS,
   noteTitle,
   richToHtml,
+  richToPlain,
   type Note,
   type NoteSummary,
   type RichDoc,
 } from "@murmur/shared";
 import { domToRich } from "./rich-text";
+import { NoteVersions } from "./NoteVersions";
 import { RichEditor } from "./RichEditor";
 
 interface Draft {
@@ -37,6 +39,7 @@ export function ScratchpadApp() {
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [problem, setProblem] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [showVersions, setShowVersions] = useState(false);
   const drafts = useRef(new Map<string, Draft>());
   const timer = useRef<number | null>(null);
 
@@ -145,6 +148,10 @@ export function ScratchpadApp() {
 
   async function close(id: string) {
     await flush();
+    // HB-28: closing a note keeps a version of it (when it changed).
+    void window.murmur
+      .noteVersionSave({ noteId: id, label: null, reason: "close" })
+      .catch(() => {});
     setTabs((list) => {
       const next = list.filter((item) => item.id !== id);
       if (activeId === id) setActiveId(next.at(-1)?.id ?? null);
@@ -162,6 +169,24 @@ export function ScratchpadApp() {
     await window.murmur.noteDelete(active.id);
     setConfirmDelete(false);
     await close(active.id);
+    await refresh(search);
+  }
+
+  async function pin(note: Note) {
+    const result = await window.murmur.notePin(note.id, !note.pinned);
+    if (!result.ok) {
+      setProblem(result.message);
+      return;
+    }
+    setProblem(null);
+    setTabs((list) =>
+      list.map((item) => (item.id === note.id ? { ...item, pinned: !note.pinned } : item)),
+    );
+    await refresh(search);
+  }
+
+  async function movePin(id: string, step: -1 | 1) {
+    await window.murmur.notePinMove(id, step);
     await refresh(search);
   }
 
@@ -226,7 +251,28 @@ export function ScratchpadApp() {
                         timeStyle: "short",
                       })}
                     </span>
+                    {item.pinned ? <span className="scratchpad-note-date">Pinned</span> : null}
                   </button>
+                  {item.pinned && !search.trim() ? (
+                    <HStack gap={1}>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        label={`Move ${item.title} up`}
+                        onClick={() => void movePin(item.id, -1)}
+                      >
+                        Up
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        label={`Move ${item.title} down`}
+                        onClick={() => void movePin(item.id, 1)}
+                      >
+                        Down
+                      </Button>
+                    </HStack>
+                  ) : null}
                 </li>
               ))}
             </ul>
@@ -281,6 +327,24 @@ export function ScratchpadApp() {
                 </Text>
                 <Button
                   size="sm"
+                  variant="ghost"
+                  label={active.pinned ? "Unpin this note" : "Pin this note"}
+                  aria-pressed={active.pinned}
+                  onClick={() => void pin(active)}
+                >
+                  {active.pinned ? "Unpin" : "Pin"}
+                </Button>
+                <Button
+                  size="sm"
+                  variant={showVersions ? "secondary" : "ghost"}
+                  label={showVersions ? "Hide versions" : "Show versions"}
+                  aria-pressed={showVersions}
+                  onClick={() => setShowVersions(!showVersions)}
+                >
+                  Versions
+                </Button>
+                <Button
+                  size="sm"
                   variant={confirmDelete ? "destructive" : "ghost"}
                   label={confirmDelete ? "Confirm deleting this note" : "Delete this note"}
                   onClick={() => void remove()}
@@ -289,8 +353,18 @@ export function ScratchpadApp() {
                 </Button>
               </HStack>
             </HStack>
+            {showVersions ? (
+              <NoteVersions
+                note={active}
+                currentPlain={richToPlain(drafts.current.get(active.id)?.body ?? active.body)}
+                beforeChange={flush}
+                onRestored={(note) =>
+                  setTabs((list) => list.map((item) => (item.id === note.id ? note : item)))
+                }
+              />
+            ) : null}
             <RichEditor
-              loadKey={active.id}
+              loadKey={`${active.id}:${active.updatedAt}`}
               initialHtml={richToHtml(active.body)}
               label="Note"
               testId="note-editor"
