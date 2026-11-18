@@ -34,6 +34,8 @@ describe("migrations", () => {
       "history_fts_data",
       "history_fts_docsize",
       "history_fts_idx",
+      "insights_daily",
+      "insights_meta",
       "instruct_history",
       "instruct_threads",
       "learn_candidates",

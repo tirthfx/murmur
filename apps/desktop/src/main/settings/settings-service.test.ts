@@ -29,6 +29,7 @@ const defaults: Settings = {
   setupComplete: true,
   pressEnterCommand: true,
   openHubOnLaunch: true,
+  insights: { typingWpm: 40 },
   contextAwareness: true,
   mouseButtons: { hold: null, handsFree: null },
   typingReminder: { enabled: true, snoozedUntil: null },

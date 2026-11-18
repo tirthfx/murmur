@@ -153,6 +153,8 @@ export const settingsSchema = z.strictObject({
   setupComplete: z.boolean(),
   /** Show the Hub when Murmur starts (HB-17); off starts in the menu bar only. */
   openHubOnLaunch: z.boolean(),
+  /** Insights (HB-36): the typing speed that time saved is measured against. */
+  insights: z.strictObject({ typingWpm: z.number().int().min(10).max(150) }),
 });
 export type Settings = z.infer<typeof settingsSchema>;
 
@@ -182,6 +184,7 @@ export const settingsPatchSchema = settingsSchema
     focus: true,
     plan: true,
     openHubOnLaunch: true,
+    insights: true,
   })
   .partial()
   .strict();
@@ -218,6 +221,7 @@ export const SETTING_KEYS: Record<keyof Settings, string> = {
   developerTools: "developer.tools",
   experimental: "experimental.flags",
   openHubOnLaunch: "app.open_hub_on_launch",
+  insights: "insights.settings",
 };
 
 export const DEFAULT_EXPERIMENTAL: Settings["experimental"] = {
