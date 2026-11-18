@@ -22,6 +22,7 @@ import {
   INSIGHTS_LIMITS,
   insightsCsv,
   localDate,
+  milestoneTitle,
   rangeFirstDay,
   MEMORY_LIMITS,
   PRESETS,
@@ -83,6 +84,7 @@ import { createCleanupService } from "./cleanup/cleanup-service";
 import { databasePath, openDatabase } from "./db/database";
 import { createHistoryStore, type HistoryStore } from "./history/history-store";
 import { createInsightsStore } from "./insights/insights-store";
+import { createMilestonesStore } from "./milestones/milestones-store";
 import { createDictionaryStore } from "./dictionary/dictionary-store";
 import { createCorrectionLearner } from "./dictionary/learn";
 import { createSnippetStore } from "./snippets/snippet-store";
@@ -349,6 +351,26 @@ try {
 } catch (error) {
   console.warn(`[insights] could not fill from history: ${String(error)}`);
 }
+
+// HB-41: milestones; the first check records what was reached before, quietly.
+const milestones = database ? createMilestonesStore(database) : null;
+
+/** Records new milestones; with `announce`, says the newest on the Bar with a sound. */
+function checkMilestones(announce: boolean): void {
+  if (!milestones || !insights) return;
+  try {
+    const reached = milestones.check(insights.days(null), localDate(Date.now()), Date.now());
+    const newest = reached.at(-1);
+    if (newest === undefined) return;
+    console.log(`[milestones] reached: ${reached.join(", ")}`);
+    if (!announce) return;
+    bar.dispatch({ type: "warn", message: `Milestone: ${milestoneTitle(newest)}` });
+    effects.sound("success");
+  } catch (error) {
+    console.warn(`[milestones] could not check: ${String(error)}`);
+  }
+}
+checkMilestones(false);
 
 const history: HistoryStore | null = database
   ? createHistoryStore(database, path.join(profile.appData, "Murmur", "audio"))
@@ -770,6 +792,7 @@ const recorder = createRecorder({
     } catch (error) {
       console.warn(`[insights] could not count a dictation: ${String(error)}`);
     }
+    checkMilestones(true);
     if (dictation.insertStatus === "inserted" && dictation.finalText) {
       lastDictation = {
         text: dictation.finalText,
@@ -1404,12 +1427,8 @@ function learnVoice(dictation: DictationRecord, historyId: string | null): void 
     rawText: dictation.rawText,
     finalText: dictation.finalText,
   });
-  if (reached !== null) {
-    console.log(`[voice] milestone: ${reached} words`);
-    bar.dispatch({ type: "warn", message: `${reached.toLocaleString("en")} words dictated` });
-    effects.sound("success");
-    return;
-  }
+  // Word milestones are announced by the milestone check (HB-41); none is said twice.
+  if (reached !== null) return;
   if (flags.prompts && !offeredFact && voiceProfile.takePrompt(Date.now())) {
     profilePromptShown = true;
     bar.dispatch({
@@ -1502,6 +1521,31 @@ app.on("web-contents-created", (_event, contents) => {
 function registerIpc(): void {
   const handle = createIpcHandler({
     entryUrl: hubEntryUrl,
+    milestonesList: () => {
+      checkMilestones(false);
+      return milestones?.list() ?? [];
+    },
+    milestonesSeen: () => milestones?.markSeen(Date.now()),
+    progressCardSave: async (png) => {
+      const options = {
+        title: "Save progress card",
+        defaultPath: path.join(
+          app.getPath("pictures"),
+          `murmur-progress-${localDate(Date.now())}.png`,
+        ),
+        filters: [{ name: "PNG image", extensions: ["png"] }],
+      };
+      const choice = hubWindow
+        ? await dialog.showSaveDialog(hubWindow, options)
+        : await dialog.showSaveDialog(options);
+      if (choice.canceled || !choice.filePath) return { saved: false };
+      writeFileSync(choice.filePath, png);
+      return { saved: true };
+    },
+    progressCardCopy: async (png) => {
+      const image = new Blob([Buffer.from(png)], { type: "image/png" });
+      await clipboard.write([new ClipboardItem({ "image/png": image })]);
+    },
     insightsView: (range) =>
       buildInsights(
         insights?.days(null) ?? [],

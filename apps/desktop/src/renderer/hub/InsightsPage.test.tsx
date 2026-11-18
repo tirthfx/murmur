@@ -3,6 +3,10 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { InsightsPage } from "./InsightsPage";
+
+vi.mock("./progress-card", () => ({
+  renderProgressCard: vi.fn(() => Promise.resolve(new Uint8Array([0x89, 0x50, 0x4e, 0x47]))),
+}));
 import { createMockApi, SAMPLE_SETTINGS } from "./test-api";
 
 beforeEach(() => {
@@ -88,5 +92,20 @@ describe("Insights page", () => {
     await user.click(screen.getByRole("button", { name: "Leaderboard" }));
     expect(screen.getByText("Leaderboards need a team, which Murmur does not have.")).toBeTruthy();
     expect(screen.queryByRole("table")).toBeNull();
+  });
+
+  it("lists milestones, marks the new ones seen, and makes a progress card", async () => {
+    const user = userEvent.setup();
+    render(<InsightsPage />);
+    const list = await screen.findByRole("list", { name: "Milestones reached" });
+    expect(list.textContent).toContain("1,000 words · New");
+    expect(screen.getByText("Still ahead: 30-day streak.")).toBeTruthy();
+    expect(window.murmur.milestonesSeen).toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Save a progress card for 1,000 words" }));
+    expect(window.murmur.progressCardSave).toHaveBeenCalled();
+    expect(await screen.findByText("Progress card saved.")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Copy a progress card for 1,000 words" }));
+    expect(window.murmur.progressCardCopy).toHaveBeenCalled();
   });
 });

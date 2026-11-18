@@ -197,6 +197,25 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
   return {
     hubSetPage: vi.fn().mockResolvedValue(undefined),
     insightsView: vi.fn().mockResolvedValue(SAMPLE_INSIGHTS),
+    milestonesList: vi.fn().mockResolvedValue([
+      {
+        key: "words-1000",
+        title: "1,000 words",
+        detail: "A thousand words dictated.",
+        achievedAt: Date.UTC(2026, 10, 17),
+        isNew: true,
+      },
+      {
+        key: "streak-30",
+        title: "30-day streak",
+        detail: "Thirty days in a row.",
+        achievedAt: null,
+        isNew: false,
+      },
+    ]),
+    milestonesSeen: vi.fn().mockResolvedValue(undefined),
+    progressCardSave: vi.fn().mockResolvedValue({ saved: true }),
+    progressCardCopy: vi.fn().mockResolvedValue(undefined),
     insightsExport: vi.fn().mockResolvedValue({ saved: true, rows: 7 }),
     historyPage: vi.fn().mockResolvedValue(SAMPLE_HISTORY),
     historyArchive: vi.fn().mockResolvedValue(1),
