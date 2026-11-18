@@ -60,3 +60,41 @@ Turning strict local mode on or off needs a second, confirming click. While it i
 - **Learning:** learning from corrections and the Voice Profile are turned off, and kept off while it stays on.
 
 It is a local behaviour setting, not a certification.
+
+## Export (HB-46)
+
+Tick categories and choose a folder. Murmur writes a new `Murmur export <date time>` folder inside it, through `privacy/data-export.ts`:
+
+| Category                            | Files                                                                             |
+| ----------------------------------- | --------------------------------------------------------------------------------- |
+| Dictations (archived ones too)      | `dictations.json`: date, app, status, language, length, words, raw and final text |
+| Dictionary                          | `dictionary.csv`                                                                  |
+| Snippets                            | `snippets.md`: one heading per trigger                                            |
+| Styles and custom Rewrites          | `styles-and-rewrites.json`                                                        |
+| Memory                              | `memory.json`                                                                     |
+| Scratchpad notes                    | `notes/<title>.md`, each with its images in a folder beside it                    |
+| Instruct threads                    | `instruct.md`                                                                     |
+| Insights                            | `insights.csv`                                                                    |
+| Kept recordings (off unless ticked) | `audio/`                                                                          |
+
+**The index:** a generated `README.md` lists each category's files, its count and a format version (1), so a later import can read them.
+
+**Never exported:** models, keys and settings.
+
+## Delete by category (HB-47)
+
+**What the page shows:** each category with its count and, for recordings, notes and the Dictionary's clips, its size on disk.
+
+**How deleting works:**
+
+- Each delete needs a second click that says it cannot be undone. Categories are deleted one at a time, in `privacy/data-delete.ts`.
+- Each category is one transaction, and its files are removed after it commits. A file that cannot be removed is kept on a list, and the page offers Retry.
+
+**What each category covers:**
+
+- **Dictations:** their recordings, plus Rewrite and command runs. The Dictionary and Snippets stay.
+- **Recordings:** the files only; dictations stay.
+- **Styles:** goes back to the four default styles, and removes your app overrides and writing samples.
+- **Insights and milestones:** also marks history as already counted, so Insights don't refill from it.
+
+**"Delete all data and reset"** deletes every category, plus custom Rewrites, Focus lists, retention records and every setting. With the box ticked, it also deletes downloaded models. Murmur then restarts at first-run setup.

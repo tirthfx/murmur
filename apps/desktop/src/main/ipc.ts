@@ -15,6 +15,12 @@ import {
   type HistoryRetryResult,
   type HomeView,
   type RetentionView,
+  type DataCounts,
+  type DeleteCategory,
+  type DeleteResult,
+  type ExportRequest,
+  type ExportResult,
+  type ResetRequest,
   type StorageView,
   type Note,
   type NoteCreate,
@@ -88,6 +94,11 @@ import { isTrustedIpcSender } from "../security/guards";
 export interface IpcDeps {
   entryUrl: string;
   getAppInfo: () => AppInfo;
+  dataExport: (request: ExportRequest) => Promise<ExportResult>;
+  dataCounts: () => DataCounts;
+  dataDelete: (category: DeleteCategory) => DeleteResult;
+  dataReset: (request: ResetRequest) => Promise<DeleteResult>;
+  dataRetryFailed: () => number;
   storageView: () => StorageView;
   storageOpen: () => void;
   retentionView: () => RetentionView;
@@ -218,6 +229,16 @@ export function createIpcHandler(deps: IpcDeps) {
     switch (channel) {
       case IPC_CHANNELS.getAppInfo:
         return deps.getAppInfo();
+      case IPC_CHANNELS.dataExport:
+        return deps.dataExport(request.args[0] as ExportRequest);
+      case IPC_CHANNELS.dataCounts:
+        return deps.dataCounts();
+      case IPC_CHANNELS.dataDelete:
+        return deps.dataDelete(request.args[0] as DeleteCategory);
+      case IPC_CHANNELS.dataReset:
+        return deps.dataReset(request.args[0] as ResetRequest);
+      case IPC_CHANNELS.dataRetryFailed:
+        return deps.dataRetryFailed();
       case IPC_CHANNELS.storageView:
         return deps.storageView();
       case IPC_CHANNELS.storageOpen:

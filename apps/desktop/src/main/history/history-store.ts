@@ -90,6 +90,12 @@ export interface HistoryStore {
     appBundleId: string | null;
     appName: string | null;
   } | null;
+  /** HB-46: every row, archived ones too, newest first. */
+  allRows(): HistoryRow[];
+  /** Kept recordings on disk, for export. */
+  audioFiles(): string[];
+  /** HB-47: deletes every recording and clears the references; returns files removed. */
+  clearAudio(): HistoryDeleteResult;
   /** HB-50: deletes dictations older than this time, with their recordings. */
   removeOlderThan(cutoff: number): HistoryDeleteResult;
   /** Puts a retry's text into the same row; it now counts as left on the clipboard. */
@@ -517,6 +523,41 @@ export function createHistoryStore(
         if (removeFile(stored)) files++;
       }
       return { rows, files };
+    },
+    allRows() {
+      const rows: HistoryRow[] = [];
+      for (const archived of [false, true]) {
+        for (let offset = 0; ; offset += HISTORY_LIMITS.pageSize) {
+          const page = store.page({ archived, offset });
+          rows.push(...page.rows);
+          if (page.rows.length < HISTORY_LIMITS.pageSize) break;
+        }
+      }
+      return rows.sort((a, b) => b.createdAt - a.createdAt);
+    },
+    audioFiles() {
+      const stored = db
+        .prepare(
+          "SELECT audio_path AS path FROM history WHERE audio_path IS NOT NULL UNION SELECT path FROM audio_chunks",
+        )
+        .all() as { path: string }[];
+      return stored
+        .map((row) => absolute(row.path))
+        .filter((file) => insideRoot(file) && existsSync(file));
+    },
+    clearAudio() {
+      const files = store.audioFiles();
+      const rows = Number(
+        db.prepare("UPDATE history SET audio_path = NULL WHERE audio_path IS NOT NULL").run()
+          .changes,
+      );
+      db.prepare("DELETE FROM audio_chunks").run();
+      let removed = 0;
+      for (const file of files) {
+        rmSync(file, { force: true });
+        removed += 1;
+      }
+      return { rows, files: removed };
     },
     removeOlderThan(cutoff) {
       const ids = (

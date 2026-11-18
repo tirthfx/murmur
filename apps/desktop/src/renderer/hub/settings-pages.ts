@@ -71,6 +71,8 @@ export const SETTINGS_INDEX: readonly SettingEntry[] = [
   },
   { id: "retention", page: "privacy", label: "Retention", words: "keep delete days" },
   { id: "storage", page: "privacy", label: "Local storage", words: "folder size finder" },
+  { id: "export", page: "privacy", label: "Export", words: "backup save data" },
+  { id: "delete", page: "privacy", label: "Delete data", words: "erase reset remove" },
   { id: "strict-local", page: "privacy", label: "Strict local mode", words: "offline network" },
 ];
 

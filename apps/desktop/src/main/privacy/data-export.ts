@@ -1,0 +1,236 @@
+import { copyFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
+import path from "node:path";
+import {
+  csvCell,
+  EXPORT_FORMAT_VERSION,
+  EXPORT_LABELS,
+  insightsCsv,
+  richToMarkdown,
+  type DictionaryEntry,
+  type ExportCategory,
+  type HistoryRow,
+  type InsightsDay,
+  type InstructThread,
+  type MemoryItem,
+  type Note,
+  type Rewrite,
+  type Snippet,
+  type StylesView,
+} from "@murmur/shared";
+import { noteFileName, writeNoteMarkdown, type ImageFiles } from "../notes/note-files";
+
+/** Where each category's data comes from. Each is read only when ticked. */
+export interface ExportSources {
+  dictations(): HistoryRow[];
+  dictionary(): DictionaryEntry[];
+  snippets(): Snippet[];
+  styles(): StylesView;
+  customRewrites(): Rewrite[];
+  memory(): MemoryItem[];
+  notes(): Note[];
+  noteImages: ImageFiles;
+  instructThreads(): InstructThread[];
+  insights(): InsightsDay[];
+  /** Kept recordings: absolute paths inside the audio folder. */
+  audioFiles(): string[];
+}
+
+const iso = (epoch: number) => new Date(epoch).toISOString();
+
+/** A file name that does not clash with one already used in the same folder. */
+function unique(name: string, used: Set<string>): string {
+  let candidate = name;
+  for (let n = 2; used.has(candidate.toLowerCase()); n++) candidate = `${name} ${n}`;
+  used.add(candidate.toLowerCase());
+  return candidate;
+}
+
+/**
+ * HB-46: writes the ticked categories into `folder` and a generated `README.md` index with
+ * each category's files, count and format version. Never writes model files or keys.
+ * Returns the count per category.
+ */
+export function writeExport(
+  folder: string,
+  categories: readonly ExportCategory[],
+  sources: ExportSources,
+  now: number,
+): Record<string, number> {
+  mkdirSync(folder, { recursive: true });
+  const counts: Record<string, number> = {};
+  const files: Record<string, string> = {};
+  const write = (name: string, text: string) => writeFileSync(path.join(folder, name), text);
+
+  for (const category of categories) {
+    switch (category) {
+      case "dictations": {
+        const rows = sources.dictations();
+        write(
+          "dictations.json",
+          `${JSON.stringify(
+            rows.map((row) => ({
+              createdAt: iso(row.createdAt),
+              app: row.appName ?? row.appBundleId,
+              status: row.status,
+              language: row.language,
+              durationMs: row.durationMs,
+              words: row.wordCount,
+              rawText: row.rawText,
+              finalText: row.finalText,
+              archived: row.archived,
+            })),
+            null,
+            2,
+          )}\n`,
+        );
+        counts.dictations = rows.length;
+        files.dictations = "dictations.json";
+        break;
+      }
+      case "dictionary": {
+        const rows = sources.dictionary();
+        const lines = ["term,replacement,starred,source,uses,case_sensitive"];
+        for (const entry of rows) {
+          lines.push(
+            [
+              entry.term,
+              entry.replacement,
+              entry.starred,
+              entry.source,
+              entry.useCount,
+              entry.caseSensitive,
+            ]
+              .map(csvCell)
+              .join(","),
+          );
+        }
+        write("dictionary.csv", `${lines.join("\n")}\n`);
+        counts.dictionary = rows.length;
+        files.dictionary = "dictionary.csv";
+        break;
+      }
+      case "snippets": {
+        const rows = sources.snippets();
+        const parts = rows.map(
+          (snippet) =>
+            `## ${snippet.trigger}\n\n${(snippet.rich ? richToMarkdown(snippet.rich) : `${snippet.plain}\n`).trim()}\n`,
+        );
+        write("snippets.md", `# Snippets\n\n${parts.join("\n")}`);
+        counts.snippets = rows.length;
+        files.snippets = "snippets.md";
+        break;
+      }
+      case "stylesRewrites": {
+        const styles = sources.styles();
+        const rewrites = sources.customRewrites();
+        write(
+          "styles-and-rewrites.json",
+          `${JSON.stringify(
+            {
+              styles: styles.styles,
+              appOverrides: styles.overrides,
+              customRewrites: rewrites.map((rewrite) => ({
+                name: rewrite.name,
+                instruction: rewrite.instruction,
+                example: rewrite.example,
+                enabled: rewrite.enabled,
+              })),
+            },
+            null,
+            2,
+          )}\n`,
+        );
+        counts.stylesRewrites = styles.styles.length + rewrites.length;
+        files.stylesRewrites = "styles-and-rewrites.json";
+        break;
+      }
+      case "memory": {
+        const rows = sources.memory();
+        write(
+          "memory.json",
+          `${JSON.stringify(
+            rows.map((item) => ({
+              text: item.text,
+              keywords: item.keywords,
+              enabled: item.enabled,
+              source: item.source,
+              createdAt: iso(item.createdAt),
+            })),
+            null,
+            2,
+          )}\n`,
+        );
+        counts.memory = rows.length;
+        files.memory = "memory.json";
+        break;
+      }
+      case "notes": {
+        const notesFolder = path.join(folder, "notes");
+        mkdirSync(notesFolder, { recursive: true });
+        const used = new Set<string>();
+        const rows = sources.notes();
+        for (const note of rows) {
+          const name = unique(noteFileName(note), used);
+          writeNoteMarkdown(note, path.join(notesFolder, `${name}.md`), sources.noteImages);
+        }
+        counts.notes = rows.length;
+        files.notes = "notes/ (one Markdown file per note, images in a folder beside each)";
+        break;
+      }
+      case "instruct": {
+        const rows = sources.instructThreads();
+        const parts = rows.map((thread) => {
+          const turns = thread.turns
+            .map(
+              (turn) =>
+                `**Request:** ${turn.instruction || "(removed)"}\n\n${turn.draft ?? "(no draft)"}\n`,
+            )
+            .join("\n");
+          return `## ${thread.title || "(text removed after 30 days)"}\n\n${iso(thread.createdAt)} · ${thread.outcome}\n\n${turns}`;
+        });
+        write("instruct.md", `# Instruct threads\n\n${parts.join("\n")}`);
+        counts.instruct = rows.length;
+        files.instruct = "instruct.md";
+        break;
+      }
+      case "insights": {
+        const days = sources.insights();
+        write("insights.csv", insightsCsv(days));
+        counts.insights = days.length;
+        files.insights = "insights.csv";
+        break;
+      }
+      case "audio": {
+        const audioFolder = path.join(folder, "audio");
+        let copied = 0;
+        for (const file of sources.audioFiles()) {
+          if (!existsSync(file)) continue;
+          mkdirSync(audioFolder, { recursive: true });
+          copyFileSync(file, path.join(audioFolder, path.basename(file)));
+          copied += 1;
+        }
+        counts.audio = copied;
+        files.audio = "audio/ (16 kHz mono PCM, 16-bit)";
+        break;
+      }
+    }
+  }
+
+  const lines = [
+    "# Murmur export",
+    "",
+    `Made on ${iso(now)}. Everything here came from this Mac; nothing was uploaded.`,
+    "",
+    "| What | Files | Count | Format version |",
+    "| --- | --- | --- | --- |",
+    ...categories.map(
+      (category) =>
+        `| ${EXPORT_LABELS[category]} | ${files[category]} | ${counts[category] ?? 0} | ${EXPORT_FORMAT_VERSION} |`,
+    ),
+    "",
+    "Models, keys and settings are not included.",
+    "",
+  ];
+  write("README.md", lines.join("\n"));
+  return counts;
+}
