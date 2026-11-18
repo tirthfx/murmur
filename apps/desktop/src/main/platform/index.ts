@@ -1,4 +1,5 @@
 import type { HotkeyBinding, HotkeyTrigger, PlatformHelper } from "@murmur/shared";
+import { convertMacImageToPng } from "./mac-image";
 import { createConsoleLogger, spawnHelperProcess, systemClock } from "../helper/node-runtime";
 import { HelperSupervisor } from "../helper/supervisor";
 import { createMacHelper, type MacHelperDeps } from "./mac-helper";
@@ -76,6 +77,16 @@ export function defaultInstructShortcut(platform: NodeJS.Platform): HotkeyTrigge
 }
 
 /** Brings an app back to the front by its id, so a paste reaches it. */
+/**
+ * Converts an image the app cannot read itself (HEIC, HEIF, GIF) to PNG, or null on a
+ * platform without a converter (those types are then refused).
+ */
+export function imageToPngConverter(
+  platform: NodeJS.Platform,
+): ((input: string, output: string) => Promise<boolean>) | null {
+  return platform === "darwin" ? (input, output) => convertMacImageToPng(input, output) : null;
+}
+
 export function appActivator(platform: NodeJS.Platform): (appId: string) => Promise<void> {
   return platform === "darwin" ? activateMacApp : async () => {};
 }

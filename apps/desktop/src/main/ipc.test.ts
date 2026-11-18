@@ -46,6 +46,8 @@ function setup() {
     noteVersionRestore: vi.fn(() => null),
     notePin: vi.fn(() => ({ ok: true as const })),
     notePinMove: vi.fn(),
+    noteImageAdd: vi.fn(() => Promise.resolve({ ok: false as const, message: "no" })),
+    noteImageData: vi.fn(() => null),
     homeView: vi.fn(),
     historyRetry: vi.fn(() => Promise.resolve({ ok: false as const, message: "no" })),
     dictationState: vi.fn(() => "idle" as const),

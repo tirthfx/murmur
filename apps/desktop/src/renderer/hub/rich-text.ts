@@ -1,7 +1,8 @@
 import { safeHref, type RichBlock, type RichDoc, type RichInline } from "@murmur/shared";
 
 // Reads what the snippet editor (a contentEditable box) holds into the snippet document
-// model. Anything the model has no place for (fonts, colours, images, scripts) is dropped.
+// model. Anything the model has no place for (fonts, colours, scripts) is dropped. Images
+// are kept only where allowed (Scratchpad notes) and only as stored image ids.
 
 interface Marks {
   bold?: boolean;
@@ -70,9 +71,23 @@ function inlinesOf(node: Node, marks: Marks): RichInline[] {
   return BLOCK_TAGS.has(tag) ? [...inner, withMarks("\n", marks)] : inner;
 }
 
-/** The editor's content as a document. */
-export function domToRich(root: HTMLElement): RichDoc {
+const IMAGE_ID = /^[\w-]{1,64}$/;
+
+/** Stored images inside an element, in order (HB-30). */
+function imagesIn(node: HTMLElement): string[] {
+  const own = node.tagName === "IMG" ? [node] : [...node.querySelectorAll("img")];
+  return own
+    .map((img) => img.getAttribute("data-image-id") ?? "")
+    .filter((id) => IMAGE_ID.test(id));
+}
+
+/** The editor's content as a document. With `images`, stored images are kept as blocks. */
+export function domToRich(root: HTMLElement, options: { images?: boolean } = {}): RichDoc {
   const blocks: RichBlock[] = [];
+  const pushImages = (node: HTMLElement) => {
+    if (!options.images) return;
+    for (const imageId of imagesIn(node)) blocks.push({ type: "image", imageId });
+  };
   let loose: RichInline[] = [];
   const flush = () => {
     if (loose.length > 0) {
@@ -87,12 +102,17 @@ export function domToRich(root: HTMLElement): RichDoc {
         .filter((item) => item.tagName === "LI")
         .map((item) => tidy(inlinesOf(item, {})));
       blocks.push({ type: child.tagName === "UL" ? "bullet" : "numbered", items });
+    } else if (child instanceof HTMLElement && child.tagName === "IMG") {
+      flush();
+      pushImages(child);
     } else if (child instanceof HTMLElement && BLOCK_TAGS.has(child.tagName)) {
       flush();
-      blocks.push({
-        type: "paragraph",
-        inlines: tidy([...child.childNodes].flatMap((node) => inlinesOf(node, {}))),
-      });
+      const inlines = tidy([...child.childNodes].flatMap((node) => inlinesOf(node, {})));
+      // A paragraph holding only an image is just the image.
+      if (inlines.length > 0 || imagesIn(child).length === 0 || !options.images) {
+        blocks.push({ type: "paragraph", inlines });
+      }
+      pushImages(child);
     } else {
       loose.push(...inlinesOf(child, {}));
     }

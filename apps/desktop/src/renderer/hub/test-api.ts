@@ -276,6 +276,14 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
       pinned: false,
     }),
     notePin: vi.fn().mockResolvedValue({ ok: true }),
+    noteImageAdd: vi.fn().mockResolvedValue({
+      ok: true,
+      id: "img-1",
+      dataUrl: "data:image/png;base64,iVBORw0KGgo=",
+      width: 10,
+      height: 10,
+    }),
+    noteImageData: vi.fn().mockResolvedValue("data:image/png;base64,iVBORw0KGgo="),
     notePinMove: vi.fn().mockResolvedValue(undefined),
     onScratchpadOpenNote: vi.fn(() => () => {}),
     homeView: vi.fn().mockResolvedValue({

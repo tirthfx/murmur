@@ -54,6 +54,27 @@ A version that would match the newest one is not saved. The one exception is "Sa
 - **Order:** pinned notes keep their order (`pin_order`), which survives a restart. Up and Down buttons move a pinned note. There is no drag, so reordering also works from the keyboard.
 - **Unpinning:** the note goes back to date order.
 
+## Images (HB-30)
+
+**Adding an image:** paste or drop one into a note, or use the editor's Image button (it works from the keyboard).
+
+**Accepted types:** PNG, JPEG, HEIC, HEIF and GIF (the first frame only). The limits are 10 MB per image and 200 MB for all Scratchpad images together. Going over says how much is already used.
+
+**How main stores it:**
+
+1. HEIC, HEIF and GIF are first converted to PNG with `/usr/bin/sips`, behind `platform/mac-image.ts`. Electron's image reader cannot open those types; it returns an empty image.
+2. The image is read, scaled so its long side is at most 2,048 px, and encoded again: PNG and GIF become PNG, everything else becomes JPEG at quality 85. Only the pixels are kept, so location and every other piece of metadata is gone.
+3. The file is saved as `notes/<noteId>/<imageId>.png|jpg` in the data folder, with a row in `note_images` (migration 0022).
+
+**In the note:** the body holds an image block with the image's id only. The editor loads the picture as a data URL over IPC (`notes:image-data`). The Hub's CSP already allows `data:` images, so there is no new protocol and no file path in the page.
+
+**Deleting:** images are deleted with their note: the rows by cascade, then the note's folder. Images are never sent to a model; Rewrites work on text only.
+
+**Checked by hand:**
+
+- A 4000×3000 JPEG carrying a GPS EXIF block came out at 2048×1536 with no EXIF block.
+- HEIC and GIF files of the same size came out at 2048×1536 through the same path.
+
 ## Storage
 
 `notes`: id, title, body_json (the snippet editor's document), body_plain, created_at, updated_at, pinned, pin_order, archived, deleted_at. Pins use `pinned` and `pin_order`; versions are in `note_versions`.

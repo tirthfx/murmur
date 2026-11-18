@@ -50,3 +50,27 @@ describe("reading the snippet editor", () => {
     expect(read(richToHtml(doc))).toEqual(doc);
   });
 });
+
+describe("images in notes (HB-30)", () => {
+  function box(html: string): HTMLElement {
+    const div = document.createElement("div");
+    div.innerHTML = html;
+    return div;
+  }
+
+  it("keeps stored images as blocks only when allowed", () => {
+    const html =
+      '<p>Before</p><p><img data-image-id="img-1" src="data:image/png;base64,AA"></p><p>After</p>';
+    expect(domToRich(box(html), { images: true }).blocks).toEqual([
+      { type: "paragraph", inlines: [{ text: "Before" }] },
+      { type: "image", imageId: "img-1" },
+      { type: "paragraph", inlines: [{ text: "After" }] },
+    ]);
+    expect(domToRich(box(html)).blocks.some((block) => block.type === "image")).toBe(false);
+  });
+
+  it("drops images that are not stored ones", () => {
+    const html = '<img src="https://example.com/x.png"><img data-image-id="../bad">';
+    expect(domToRich(box(html), { images: true }).blocks).toEqual([]);
+  });
+});

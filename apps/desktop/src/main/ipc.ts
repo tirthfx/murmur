@@ -20,6 +20,8 @@ import {
   type NoteSaveResult,
   type NoteSummary,
   type NotePinResult,
+  type NoteImageAdd,
+  type NoteImageResult,
   type NoteVersion,
   type NoteVersionSave,
   type NoteVersionText,
@@ -90,6 +92,8 @@ export interface IpcDeps {
   noteVersionRestore: (id: string) => Note | null;
   notePin: (noteId: string, pinned: boolean) => NotePinResult;
   notePinMove: (noteId: string, step: -1 | 1) => void;
+  noteImageAdd: (input: NoteImageAdd) => Promise<NoteImageResult>;
+  noteImageData: (id: string) => string | null;
   homeView: () => HomeView;
   historyRetry: (id: string) => Promise<HistoryRetryResult>;
   dictationState: () => DictationState;
@@ -219,6 +223,10 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.notePin(request.args[0] as string, request.args[1] as boolean);
       case IPC_CHANNELS.notePinMove:
         return deps.notePinMove(request.args[0] as string, request.args[1] as -1 | 1);
+      case IPC_CHANNELS.noteImageAdd:
+        return deps.noteImageAdd(request.args[0] as NoteImageAdd);
+      case IPC_CHANNELS.noteImageData:
+        return deps.noteImageData(request.args[0] as string);
       case IPC_CHANNELS.scratchpadOpen:
         return deps.scratchpadOpen(request.args[0] as string | null);
       case IPC_CHANNELS.homeView:
