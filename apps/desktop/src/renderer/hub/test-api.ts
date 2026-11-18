@@ -32,6 +32,8 @@ export const SAMPLE_SETTINGS: SettingsView = {
     openHubOnLaunch: true,
     insights: { typingWpm: 40 },
     profile: { displayName: "", showOnHome: true },
+    scratchpadShortcut: null,
+    scratchpad: { enabled: true, newTab: true },
     contextAwareness: true,
     mouseButtons: { hold: null, handsFree: null },
     typingReminder: { enabled: true, snoozedUntil: null },
@@ -69,6 +71,7 @@ export const SAMPLE_SETTINGS: SettingsView = {
     command: "Off",
     instruct: "Off",
     focus: "Off",
+    scratchpad: "Off",
   },
   devices: [
     {
@@ -198,6 +201,49 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
   return {
     hubSetPage: vi.fn().mockResolvedValue(undefined),
     insightsView: vi.fn().mockResolvedValue(SAMPLE_INSIGHTS),
+    notesList: vi.fn().mockResolvedValue([
+      {
+        id: "n2",
+        title: "Groceries",
+        preview: [{ text: "milk, eggs", hit: false }],
+        updatedAt: Date.UTC(2026, 10, 18, 9),
+        pinned: false,
+      },
+      {
+        id: "n1",
+        title: "Ideas",
+        preview: [{ text: "a talk about streaks", hit: false }],
+        updatedAt: Date.UTC(2026, 10, 17, 9),
+        pinned: false,
+      },
+    ]),
+    noteGet: vi.fn((id: string) =>
+      Promise.resolve({
+        id,
+        title: id === "n2" ? "Groceries" : "Ideas",
+        body: { blocks: [{ type: "paragraph" as const, inlines: [{ text: "milk, eggs" }] }] },
+        plain: "milk, eggs",
+        createdAt: 1,
+        updatedAt: 2,
+        pinned: false,
+      }),
+    ),
+    noteCreate: vi.fn().mockResolvedValue({
+      ok: true,
+      note: {
+        id: "n3",
+        title: "",
+        body: { blocks: [] },
+        plain: "",
+        createdAt: 3,
+        updatedAt: 3,
+        pinned: false,
+      },
+    }),
+    noteSave: vi.fn().mockResolvedValue({ ok: true, updatedAt: 4 }),
+    noteDelete: vi.fn().mockResolvedValue(undefined),
+    scratchpadOpen: vi.fn().mockResolvedValue(undefined),
+    onScratchpadOpenNote: vi.fn(() => () => {}),
     homeView: vi.fn().mockResolvedValue({
       todayWords: 120,
       todayDictations: 4,

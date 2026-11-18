@@ -36,6 +36,15 @@ export const MAC_DEFAULT_FOCUS_TRIGGER: HotkeyTrigger = {
   modifiers: ["control", "option"],
 };
 
+/**
+ * Control+Option+S opens the Scratchpad (HB-26). Not Option+S: on a Mac that types "ß".
+ */
+export const MAC_DEFAULT_SCRATCHPAD_TRIGGER: HotkeyTrigger = {
+  type: "key",
+  keyCode: 1,
+  modifiers: ["control", "option"],
+};
+
 /** Control+Option+I, held while speaking (RW-11). */
 export const MAC_DEFAULT_INSTRUCT_TRIGGER: HotkeyTrigger = {
   type: "key",

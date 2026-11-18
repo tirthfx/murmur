@@ -31,6 +31,8 @@ const defaults: Settings = {
   openHubOnLaunch: true,
   insights: { typingWpm: 40 },
   profile: { displayName: "", showOnHome: true },
+  scratchpadShortcut: null,
+  scratchpad: { enabled: true, newTab: true },
   contextAwareness: true,
   mouseButtons: { hold: null, handsFree: null },
   typingReminder: { enabled: true, snoozedUntil: null },
@@ -91,6 +93,7 @@ describe("settings service", () => {
       command: "Off",
       instruct: "Off",
       focus: "Off",
+      scratchpad: "Off",
     });
     expect(view.devices?.[0]?.name).toBe("Desk Mic");
   });
@@ -276,5 +279,24 @@ describe("settings service", () => {
     ]);
     expect(wantsLatinHindi({ ...defaults, languages: ["en", "hi-Latn"] })).toBe(true);
     expect(wantsLatinHindi({ ...defaults, languages: ["hi"] })).toBe(false);
+  });
+});
+
+describe("Scratchpad shortcut (HB-26, HB-34)", () => {
+  it("binds the shortcut only while Scratchpad is on", () => {
+    const trigger = {
+      type: "key" as const,
+      keyCode: 1,
+      modifiers: ["control" as const, "option" as const],
+    };
+    const on = { ...defaults, scratchpadShortcut: trigger };
+    expect(bindingsFor(on)).toContainEqual({
+      id: "scratchpad-open",
+      action: "scratchpad.open",
+      trigger,
+      mode: "press",
+    });
+    const off = { ...on, scratchpad: { enabled: false, newTab: true } };
+    expect(bindingsFor(off).some((binding) => binding.action === "scratchpad.open")).toBe(false);
   });
 });

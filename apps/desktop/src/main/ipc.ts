@@ -14,6 +14,11 @@ import {
   type DictationState,
   type HistoryRetryResult,
   type HomeView,
+  type Note,
+  type NoteCreate,
+  type NoteSave,
+  type NoteSaveResult,
+  type NoteSummary,
   type CapturedKey,
   type InstructModelStatus,
   type FocusAddResult,
@@ -69,6 +74,12 @@ import { isTrustedIpcSender } from "../security/guards";
 export interface IpcDeps {
   entryUrl: string;
   getAppInfo: () => AppInfo;
+  notesList: (query: string) => NoteSummary[];
+  noteGet: (id: string) => Note | null;
+  noteCreate: (input: NoteCreate) => { ok: true; note: Note } | { ok: false; message: string };
+  noteSave: (input: NoteSave) => NoteSaveResult;
+  noteDelete: (id: string) => void;
+  scratchpadOpen: (noteId: string | null) => void;
   homeView: () => HomeView;
   historyRetry: (id: string) => Promise<HistoryRetryResult>;
   dictationState: () => DictationState;
@@ -176,6 +187,18 @@ export function createIpcHandler(deps: IpcDeps) {
     switch (channel) {
       case IPC_CHANNELS.getAppInfo:
         return deps.getAppInfo();
+      case IPC_CHANNELS.notesList:
+        return deps.notesList(request.args[0] as string);
+      case IPC_CHANNELS.noteGet:
+        return deps.noteGet(request.args[0] as string);
+      case IPC_CHANNELS.noteCreate:
+        return deps.noteCreate(request.args[0] as NoteCreate);
+      case IPC_CHANNELS.noteSave:
+        return deps.noteSave(request.args[0] as NoteSave);
+      case IPC_CHANNELS.noteDelete:
+        return deps.noteDelete(request.args[0] as string);
+      case IPC_CHANNELS.scratchpadOpen:
+        return deps.scratchpadOpen(request.args[0] as string | null);
       case IPC_CHANNELS.homeView:
         return deps.homeView();
       case IPC_CHANNELS.historyRetry:

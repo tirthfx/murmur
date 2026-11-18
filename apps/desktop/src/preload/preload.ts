@@ -10,6 +10,19 @@ import {
 // Only this narrow, typed surface reaches the renderer. ipcRenderer itself is never exposed.
 const api: MurmurApi = {
   getAppInfo: () => ipcRenderer.invoke(IPC_CHANNELS.getAppInfo),
+  notesList: (query) => ipcRenderer.invoke(IPC_CHANNELS.notesList, query),
+  noteGet: (id) => ipcRenderer.invoke(IPC_CHANNELS.noteGet, id),
+  noteCreate: (input) => ipcRenderer.invoke(IPC_CHANNELS.noteCreate, input),
+  noteSave: (input) => ipcRenderer.invoke(IPC_CHANNELS.noteSave, input),
+  noteDelete: (id) => ipcRenderer.invoke(IPC_CHANNELS.noteDelete, id),
+  scratchpadOpen: (noteId) => ipcRenderer.invoke(IPC_CHANNELS.scratchpadOpen, noteId),
+  onScratchpadOpenNote: (handler) => {
+    const listener = (_event: unknown, noteId: unknown) => {
+      if (typeof noteId === "string" && /^[\w-]{1,64}$/.test(noteId)) handler(noteId);
+    };
+    ipcRenderer.on(IPC_EVENTS.scratchpadOpenNote, listener);
+    return () => ipcRenderer.removeListener(IPC_EVENTS.scratchpadOpenNote, listener);
+  },
   homeView: () => ipcRenderer.invoke(IPC_CHANNELS.homeView),
   historyRetry: (id) => ipcRenderer.invoke(IPC_CHANNELS.historyRetry, id),
   dictationState: () => ipcRenderer.invoke(IPC_CHANNELS.dictationState),

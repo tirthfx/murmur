@@ -107,6 +107,15 @@ export function bindingsFor(
       mode: "press",
     });
   }
+  // Scratchpad (HB-26, HB-34): a press opens its window; nothing while Scratchpad is off.
+  if (settings.scratchpad.enabled && settings.scratchpadShortcut) {
+    bindings.push({
+      id: "scratchpad-open",
+      action: "scratchpad.open",
+      trigger: settings.scratchpadShortcut,
+      mode: "press",
+    });
+  }
   if (cancelKeyCode !== null) {
     bindings.push({
       id: "dictate-cancel",
@@ -161,6 +170,9 @@ export function createSettingsService(deps: SettingsServiceDeps): SettingsServic
         command: settings.commandShortcut ? platform.label(settings.commandShortcut) : "Off",
         instruct: settings.instructShortcut ? platform.label(settings.instructShortcut) : "Off",
         focus: settings.focusShortcut ? platform.label(settings.focusShortcut) : "Off",
+        scratchpad: settings.scratchpadShortcut
+          ? platform.label(settings.scratchpadShortcut)
+          : "Off",
       },
       devices,
     };
@@ -189,6 +201,7 @@ export function createSettingsService(deps: SettingsServiceDeps): SettingsServic
           command: settings.commandShortcut,
           instruct: settings.instructShortcut,
           focus: settings.focusShortcut,
+          scratchpad: settings.scratchpadShortcut,
         },
         platform,
         deps.otherShortcuts?.() ?? [],

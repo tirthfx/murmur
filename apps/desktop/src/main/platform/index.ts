@@ -6,6 +6,7 @@ import type { KeyPlatform } from "../settings/shortcuts";
 import {
   MAC_DEFAULT_COMMAND_TRIGGER,
   MAC_DEFAULT_FOCUS_TRIGGER,
+  MAC_DEFAULT_SCRATCHPAD_TRIGGER,
   MAC_DEFAULT_HOTKEY_BINDINGS,
   MAC_DEFAULT_INSTRUCT_TRIGGER,
   MAC_DEFAULT_REWRITE_TRIGGER,
@@ -62,6 +63,11 @@ export function defaultCommandShortcut(platform: NodeJS.Platform): HotkeyTrigger
 /** The default Focus Mode shortcut for this OS, or null when there is none. */
 export function defaultFocusShortcut(platform: NodeJS.Platform): HotkeyTrigger | null {
   return platform === "darwin" ? MAC_DEFAULT_FOCUS_TRIGGER : null;
+}
+
+/** The default Scratchpad shortcut for this OS, or null when there is none. */
+export function defaultScratchpadShortcut(platform: NodeJS.Platform): HotkeyTrigger | null {
+  return platform === "darwin" ? MAC_DEFAULT_SCRATCHPAD_TRIGGER : null;
 }
 
 /** The default Instruct key for this OS, or null when there is none. */

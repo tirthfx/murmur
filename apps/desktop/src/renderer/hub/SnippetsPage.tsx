@@ -9,6 +9,7 @@ import { VStack } from "@astryxdesign/core/VStack";
 import { ImportSection } from "./ImportSection";
 import { plainToRich, richToHtml, type Snippet } from "@murmur/shared";
 import { domToRich } from "./rich-text";
+import { RichEditor } from "./RichEditor";
 
 export function filterSnippets(snippets: readonly Snippet[], query: string): Snippet[] {
   const needle = query.trim().toLowerCase();
@@ -17,100 +18,6 @@ export function filterSnippets(snippets: readonly Snippet[], query: string): Sni
     (snippet) =>
       snippet.trigger.toLowerCase().includes(needle) ||
       snippet.plain.toLowerCase().includes(needle),
-  );
-}
-
-/** Formatting commands of the editor. `execCommand` is what contentEditable offers. */
-function format(command: string, value?: string) {
-  document.execCommand(command, false, value);
-}
-
-interface EditorProps {
-  /** Changes when a different snippet is loaded, so the box is refilled. */
-  loadKey: string;
-  initialHtml: string;
-  onInput: (root: HTMLElement) => void;
-}
-
-/** A small rich-text box: bold, italic, underline, lists and links. */
-function RichEditor({ loadKey, initialHtml, onInput }: EditorProps) {
-  const box = useRef<HTMLDivElement>(null);
-  const [link, setLink] = useState("");
-
-  useEffect(() => {
-    if (box.current) box.current.innerHTML = initialHtml;
-    // Only when a different snippet is loaded; typing must not reset the box.
-  }, [loadKey]);
-
-  const run = (command: string, value?: string) => {
-    box.current?.focus();
-    format(command, value);
-    if (box.current) onInput(box.current);
-  };
-
-  return (
-    <VStack gap={1}>
-      <Text weight="semibold" id="snippet-body-label">
-        Text it inserts
-      </Text>
-      <HStack gap={1} wrap="wrap" align="end" role="toolbar" aria-label="Formatting">
-        <Button size="sm" variant="secondary" label="Bold" onClick={() => run("bold")}>
-          Bold
-        </Button>
-        <Button size="sm" variant="secondary" label="Italic" onClick={() => run("italic")}>
-          Italic
-        </Button>
-        <Button size="sm" variant="secondary" label="Underline" onClick={() => run("underline")}>
-          Underline
-        </Button>
-        <Button
-          size="sm"
-          variant="secondary"
-          label="Bulleted list"
-          onClick={() => run("insertUnorderedList")}
-        >
-          Bullets
-        </Button>
-        <Button
-          size="sm"
-          variant="secondary"
-          label="Numbered list"
-          onClick={() => run("insertOrderedList")}
-        >
-          Numbers
-        </Button>
-        <TextInput
-          label="Link address"
-          size="sm"
-          value={link}
-          onChange={setLink}
-          placeholder="https://"
-        />
-        <Button
-          size="sm"
-          variant="secondary"
-          label="Link the selected text"
-          isDisabled={!/^(https?:|mailto:)/i.test(link.trim())}
-          onClick={() => {
-            run("createLink", link.trim());
-            setLink("");
-          }}
-        >
-          Link
-        </Button>
-      </HStack>
-      <div
-        ref={box}
-        className="hub-rich-editor"
-        contentEditable
-        role="textbox"
-        aria-multiline="true"
-        aria-labelledby="snippet-body-label"
-        data-testid="snippet-editor"
-        suppressContentEditableWarning
-        onInput={(event) => onInput(event.currentTarget)}
-      />
-    </VStack>
   );
 }
 

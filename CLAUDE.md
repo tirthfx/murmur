@@ -148,6 +148,8 @@ Undo of Murmur's own edits (what is recorded, the anchor and selection checks, t
 
 Text generation for Rewrites, Command Mode and Instruct Mode (prompt rules, streaming, limits, dictation first, benchmark): see `docs/generation.md`.
 
+Scratchpad (the window, notes, tabs, autosave, search, the shortcut and the on/off switch): see `docs/scratchpad.md`.
+
 Insights (daily counts, the cards, streaks, top apps, CSV export, milestones, the progress card): see `docs/insights.md`.
 
 Dictation history (database, tables, migrations, the History page with search, archive, delete and feedback): see `docs/history.md`.

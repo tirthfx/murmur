@@ -185,6 +185,23 @@ export function SettingsSection({
             onChange={(muteWhileDictating) => update({ muteWhileDictating })}
           />
         </Row>
+        <Row id="scratchpad">
+          <VStack gap={2}>
+            <Switch
+              label="Scratchpad"
+              description="Notes in their own window. When off, its page and shortcut are hidden; notes are kept."
+              value={settings.scratchpad.enabled}
+              onChange={(enabled) => update({ scratchpad: { ...settings.scratchpad, enabled } })}
+            />
+            <Switch
+              label="Open notes in a new tab"
+              description="When off, a note replaces the one shown."
+              value={settings.scratchpad.newTab}
+              isDisabled={!settings.scratchpad.enabled}
+              onChange={(newTab) => update({ scratchpad: { ...settings.scratchpad, newTab } })}
+            />
+          </VStack>
+        </Row>
         <Row id="instruct">
           <InstructSection view={view} onSaved={setView} update={update} />
         </Row>
@@ -245,6 +262,17 @@ export function SettingsSection({
                 settings.mouseButtons.hold === handsFree ? null : settings.mouseButtons.hold;
               update({ mouseButtons: { hold, handsFree } });
             }}
+          />
+        </Row>
+        <Row id="scratchpad-shortcut">
+          <ShortcutField
+            slot="scratchpad"
+            title="Scratchpad"
+            description="Opens the Scratchpad window."
+            label={view.shortcutLabels.scratchpad}
+            canClear={settings.scratchpadShortcut !== null}
+            clear={{ label: "Turn off the Scratchpad shortcut", text: "Turn off" }}
+            onSaved={setView}
           />
         </Row>
         <Text size="sm" color="secondary">
