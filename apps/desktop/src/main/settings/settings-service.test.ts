@@ -45,6 +45,8 @@ const defaults: Settings = {
   privacy: { storeHistory: true, audio: "24h", historyDays: null, strictLocal: false },
   planState: { trial: null, student: false, log: [] },
   devMode: { enabled: false, disableCleanup: false, forceTyped: false, disableContext: false },
+  help: { tours: {} },
+  referral: { code: "ABCD2345", invites: 0 },
   contextAwareness: true,
   mouseButtons: { hold: null, handsFree: null },
   typingReminder: { enabled: true, snoozedUntil: null },

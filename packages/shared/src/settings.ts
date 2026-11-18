@@ -2,6 +2,7 @@ import { z } from "zod";
 import { APP_LANGUAGES } from "./catalogue";
 import { privacySettingsSchema } from "./privacy";
 import { developerSettingsSchema } from "./testing";
+import { helpSettingsSchema, referralSettingsSchema } from "./help";
 import { audioDeviceSchema } from "./audio";
 import { developerToolsSchema, jargonPacksSchema } from "./developer";
 import { emailSettingsSchema } from "./email";
@@ -172,6 +173,10 @@ export const settingsSchema = z.strictObject({
     milestone: z.boolean(),
     weeklySummary: z.boolean(),
   }),
+  /** HB-08: where each guided tour got to. */
+  help: helpSettingsSchema,
+  /** HB-43: the local referral code and the hand-kept invite count. */
+  referral: referralSettingsSchema,
   /** HB-20, HB-57: developer mode and the engine switches. */
   devMode: developerSettingsSchema,
   /** HB-19: the trial, the student label and the plan change log. */
@@ -223,6 +228,8 @@ export const settingsPatchSchema = settingsSchema
     privacy: true,
     planState: true,
     devMode: true,
+    help: true,
+    referral: true,
   })
   .partial()
   .strict();
@@ -269,6 +276,8 @@ export const SETTING_KEYS: Record<keyof Settings, string> = {
   privacy: "privacy.settings",
   planState: "plan.state",
   devMode: "dev.settings",
+  help: "help.tours",
+  referral: "referral.settings",
 };
 
 /** HB-24 defaults. */

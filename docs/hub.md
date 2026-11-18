@@ -45,3 +45,36 @@ Settings, General, Appearance offers System (the default), Light or Dark. The se
 - **How it applies:** main sets Electron's `nativeTheme.themeSource` to the choice, at start and whenever it changes. Every window follows `prefers-color-scheme` (the Hub and Scratchpad through Astryx's "system" mode; the Rewrite and Instruct panels and the diff colours through their own CSS), so all open windows switch at once with no reload. On System they also follow macOS as it changes.
 - **The Bar and the Focus overlay** stay dark in every theme, so they read the same over any app.
 - **Contrast:** `renderer/contrast.test.ts` checks our own colours outside the Astryx tokens for WCAG AA (4.5:1): the Bar's text and state colours, and the Focus overlay. `rewrite/diff-colors.test.ts` checks the diff colours and the Rewrite card in both themes.
+
+## Help (HB-08)
+
+**Guided tours:** five of them, defined in `packages/shared/src/help.ts`:
+
+- your first dictation;
+- shortcuts;
+- cleanup levels;
+- Dictionary and Snippets;
+- Rewrites and Command Mode. The Command Mode step is shown only while that experiment is on.
+
+**How a tour runs:**
+
+- Each step opens a Hub route and highlights one part of it: a page heading, or a Settings row by its `data-setting` id.
+- A card in the corner explains the step, with Back, Next and Stop.
+- The step is saved in `help.tours`, so Stop and then Resume returns to the same step. A finished tour is marked done and can be run again.
+
+**The rest of the page:**
+
+- **Restart tutorial** runs first-run setup again.
+- **Report a problem** writes a diagnostics folder where you choose. It holds versions, masked settings and counts, never dictated text, and nothing is uploaded.
+- The page also shows the app version.
+- The bundled Markdown guides are not built.
+
+## Referrals (HB-43)
+
+Settings, General has a Referrals card:
+
+- an eight-character code, made once on this Mac from letters and digits that cannot be confused (no I, O, 0 or 1), and kept in `referral.settings`;
+- an invitation count you keep by hand, with + and − buttons;
+- a note that referral rewards are not available in Murmur.
+
+Nothing is sent, and no one is told.

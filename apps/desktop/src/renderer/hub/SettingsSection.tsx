@@ -3,6 +3,7 @@ import { Banner } from "@astryxdesign/core/Banner";
 import { Button } from "@astryxdesign/core/Button";
 import { Text } from "@astryxdesign/core/Text";
 import { Heading } from "@astryxdesign/core/Heading";
+import { HStack } from "@astryxdesign/core/HStack";
 import { Selector } from "@astryxdesign/core/Selector";
 import { Switch } from "@astryxdesign/core/Switch";
 import { VStack } from "@astryxdesign/core/VStack";
@@ -164,6 +165,46 @@ export function SettingsSection({
                 }
               />
             ))}
+          </VStack>
+        </Row>
+        <Row id="referral">
+          <VStack gap={2}>
+            <Heading level={3}>Referrals</Heading>
+            <Text size="sm" color="secondary">
+              Referral rewards are not available in Murmur. The code is made on this Mac and the
+              count is kept by hand; nothing is sent and no one is told.
+            </Text>
+            <Text weight="semibold" data-testid="referral-code">
+              Your code: {settings.referral.code || "…"}
+            </Text>
+            <HStack gap={2} align="center">
+              <Text>Invitations: {settings.referral.invites}</Text>
+              <Button
+                size="sm"
+                variant="ghost"
+                label="One invitation fewer"
+                isDisabled={settings.referral.invites === 0}
+                onClick={() =>
+                  update({
+                    referral: { ...settings.referral, invites: settings.referral.invites - 1 },
+                  })
+                }
+              >
+                −
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                label="One invitation more"
+                onClick={() =>
+                  update({
+                    referral: { ...settings.referral, invites: settings.referral.invites + 1 },
+                  })
+                }
+              >
+                +
+              </Button>
+            </HStack>
           </VStack>
         </Row>
         <Row id="permissions">

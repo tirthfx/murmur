@@ -230,6 +230,7 @@ export const IPC_CHANNELS = {
   dataExport: "data:export",
   planView: "plan:view",
   testingTool: "testing:tool",
+  reportProblem: "help:report-problem",
   axInspect: "testing:ax-inspect",
   planAct: "plan:act",
   dataCounts: "data:counts",
@@ -588,6 +589,8 @@ export const IPC_CONTRACT = {
     result: focusAddResultSchema,
   },
   [IPC_CHANNELS.focusRemoveApp]: { args: z.tuple([z.string().min(1)]), result: z.void() },
+  // HB-08.
+  [IPC_CHANNELS.reportProblem]: { args: z.tuple([]), result: testingToolResultSchema },
   // HB-55, HB-56.
   [IPC_CHANNELS.testingTool]: {
     args: z.tuple([z.enum(TESTING_TOOLS)]),
@@ -857,6 +860,8 @@ export interface MurmurApi {
   focusAddSite(input: FocusSiteInput): Promise<FocusAddResult>;
   /** Installed apps to choose from; empty when the helper cannot list them. */
   focusInstalledApps(): Promise<InstalledApp[]>;
+  /** Help, Report a problem (HB-08): a local diagnostics bundle, sent nowhere. */
+  reportProblem(): Promise<TestingToolResult>;
   /** A Testing page tool (HB-55); developer mode only. */
   testingTool(tool: TestingTool): Promise<TestingToolResult>;
   /** The accessibility inspector (HB-56): the app in front now; null when it cannot. */
