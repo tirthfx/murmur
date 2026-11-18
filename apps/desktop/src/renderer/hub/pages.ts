@@ -120,8 +120,8 @@ export function resolvePage(id: string, features: PageFeatures): Page {
   return visiblePages(features).find((page) => page.id === id) ?? PAGES[0];
 }
 
-/** `#/history` → "history". */
+/** `#/history` → "history"; `#/settings/system` → "settings". */
 export function pageFromHash(hash: string): string | null {
-  const match = /^#\/([a-z-]+)$/.exec(hash);
+  const match = /^#\/([a-z-]+)(?:\/[a-z]+)?$/.exec(hash);
   return match ? match[1]! : null;
 }

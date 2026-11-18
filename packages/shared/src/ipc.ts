@@ -122,9 +122,15 @@ import {
  * preload exposes all live here so main, preload and renderer cannot drift.
  */
 
+/** Launch at login (HB-17). `available` is false outside a packaged app. */
+export const loginItemSchema = z.strictObject({ available: z.boolean(), enabled: z.boolean() });
+export type LoginItem = z.infer<typeof loginItemSchema>;
+
 export const IPC_CHANNELS = {
   getAppInfo: "app:get-info",
   hubSetPage: "hub:set-page",
+  loginItemGet: "app:login-item-get",
+  loginItemSet: "app:login-item-set",
   getHelperStatus: "helper:get-status",
   getPermissions: "permissions:get",
   requestPermission: "permissions:request",
@@ -444,6 +450,9 @@ export const IPC_CONTRACT = {
     result: focusAddResultSchema,
   },
   [IPC_CHANNELS.focusRemoveApp]: { args: z.tuple([z.string().min(1)]), result: z.void() },
+  // HB-17.
+  [IPC_CHANNELS.loginItemGet]: { args: z.tuple([]), result: loginItemSchema },
+  [IPC_CHANNELS.loginItemSet]: { args: z.tuple([z.boolean()]), result: loginItemSchema },
   // HB-01.
   [IPC_CHANNELS.hubSetPage]: {
     args: z.tuple([z.string().regex(/^[a-z-]{1,40}$/)]),
@@ -578,6 +587,9 @@ export interface MurmurApi {
   focusAddSite(input: FocusSiteInput): Promise<FocusAddResult>;
   /** Installed apps to choose from; empty when the helper cannot list them. */
   focusInstalledApps(): Promise<InstalledApp[]>;
+  /** Launch at login (HB-17): only in a packaged app. */
+  loginItemGet(): Promise<LoginItem>;
+  loginItemSet(enabled: boolean): Promise<LoginItem>;
   /** The page now shown, remembered for the next start (HB-01). */
   hubSetPage(pageId: string): Promise<void>;
   /** Main asks the Hub to show a page (for example after a Bar prompt). */

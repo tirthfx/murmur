@@ -151,6 +151,8 @@ export const settingsSchema = z.strictObject({
   plan: planTierSchema,
   /** True once first-run setup was finished (DC-44). */
   setupComplete: z.boolean(),
+  /** Show the Hub when Murmur starts (HB-17); off starts in the menu bar only. */
+  openHubOnLaunch: z.boolean(),
 });
 export type Settings = z.infer<typeof settingsSchema>;
 
@@ -179,6 +181,7 @@ export const settingsPatchSchema = settingsSchema
     instruct: true,
     focus: true,
     plan: true,
+    openHubOnLaunch: true,
   })
   .partial()
   .strict();
@@ -214,6 +217,7 @@ export const SETTING_KEYS: Record<keyof Settings, string> = {
   jargonPacks: "developer.jargon_packs",
   developerTools: "developer.tools",
   experimental: "experimental.flags",
+  openHubOnLaunch: "app.open_hub_on_launch",
 };
 
 export const DEFAULT_EXPERIMENTAL: Settings["experimental"] = {

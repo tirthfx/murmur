@@ -5,7 +5,6 @@ import { Heading } from "@astryxdesign/core/Heading";
 import { SideNav, SideNavHeading, SideNavItem, SideNavSection } from "@astryxdesign/core/SideNav";
 import { Text } from "@astryxdesign/core/Text";
 import type { AppInfo } from "@murmur/shared";
-import { Button } from "@astryxdesign/core/Button";
 import { DictionaryPage } from "./DictionaryPage";
 import { SnippetsPage } from "./SnippetsPage";
 import { StylesPage } from "./StylesPage";
@@ -13,11 +12,8 @@ import { InstructPage } from "./InstructPage";
 import { MemoryPage } from "./MemoryPage";
 import { RewritesPage } from "./RewritesPage";
 import { MyVoicePage } from "./MyVoicePage";
-import { HelperStatusLine } from "./HelperStatusLine";
 import { Onboarding } from "./Onboarding";
-import { MicCheckSection } from "./MicCheckSection";
-import { PermissionsSection } from "./PermissionsSection";
-import { SettingsSection } from "./SettingsSection";
+import { SettingsPage } from "./SettingsPage";
 import { pageFromHash, resolvePage, visiblePages, type PageFeatures, type PageId } from "./pages";
 
 function useAppInfo(): AppInfo | null {
@@ -83,7 +79,9 @@ function HubPages({ onRunSetup }: { onRunSetup: () => void }) {
   const setPageId = useCallback((id: string) => {
     const next = resolvePage(id, FEATURES).id;
     setPageIdState(next);
-    if (window.location.hash !== `#/${next}`) window.history.replaceState(null, "", `#/${next}`);
+    if (pageFromHash(window.location.hash) !== next) {
+      window.history.replaceState(null, "", `#/${next}`);
+    }
     void window.murmur.hubSetPage(next).catch(() => {});
   }, []);
 
@@ -137,25 +135,7 @@ function HubPages({ onRunSetup }: { onRunSetup: () => void }) {
         <div className="hub-page">
           <Heading level={1}>{page.title}</Heading>
           {page.id === "settings" ? (
-            <>
-              <SettingsSection />
-              <MicCheckSection />
-              <PermissionsSection />
-              <section className="hub-permissions" aria-labelledby="setup-heading">
-                <Heading level={2} id="setup-heading">
-                  Setup
-                </Heading>
-                <Text size="sm" color="secondary">
-                  Go through the first-run steps again: permissions, the speech model, the shortcut
-                  and a test dictation.
-                </Text>
-                <div>
-                  <Button variant="secondary" label="Run setup again" onClick={onRunSetup}>
-                    Run setup again
-                  </Button>
-                </div>
-              </section>
-            </>
+            <SettingsPage onRunSetup={onRunSetup} />
           ) : page.id === "dictionary" ? (
             <DictionaryPage />
           ) : page.id === "snippets" ? (
@@ -179,7 +159,6 @@ function HubPages({ onRunSetup }: { onRunSetup: () => void }) {
               />
             </div>
           )}
-          {page.id === "settings" ? <HelperStatusLine /> : null}
         </div>
       </AppShell>
     </>

@@ -27,6 +27,7 @@ export const SAMPLE_SETTINGS: SettingsView = {
     muteWhileDictating: false,
     setupComplete: true,
     pressEnterCommand: true,
+    openHubOnLaunch: true,
     contextAwareness: true,
     mouseButtons: { hold: null, handsFree: null },
     typingReminder: { enabled: true, snoozedUntil: null },
@@ -130,6 +131,8 @@ export const SAMPLE_STYLES: StylesView = {
 export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
   return {
     hubSetPage: vi.fn().mockResolvedValue(undefined),
+    loginItemGet: vi.fn().mockResolvedValue({ available: true, enabled: false }),
+    loginItemSet: vi.fn((enabled: boolean) => Promise.resolve({ available: true, enabled })),
     getAppInfo: vi.fn().mockResolvedValue({ name: "Murmur", version: "1.2.3", platform: "darwin" }),
     getHelperStatus: vi
       .fn()

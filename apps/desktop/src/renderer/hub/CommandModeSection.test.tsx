@@ -28,14 +28,14 @@ function mount(view: SettingsView = ON) {
   });
   vi.stubGlobal("murmur", api);
   window.murmur = api;
-  render(<SettingsSection />);
+  render(<SettingsSection page="experimental" onRunSetup={() => {}} />);
   return api;
 }
 
 describe("Command Mode section", () => {
   it("is shown only while Command Mode is on", async () => {
     mount(SAMPLE_SETTINGS);
-    await screen.findByTestId("hold-label");
+    await screen.findAllByRole("switch");
     expect(screen.queryByText("Command Mode key")).toBeNull();
   });
 

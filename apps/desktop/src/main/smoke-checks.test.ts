@@ -21,6 +21,7 @@ const settings: Settings = {
   muteWhileDictating: false,
   setupComplete: true,
   pressEnterCommand: true,
+  openHubOnLaunch: true,
   contextAwareness: true,
   mouseButtons: { hold: null, handsFree: null },
   typingReminder: { enabled: true, snoozedUntil: null },

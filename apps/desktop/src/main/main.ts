@@ -382,6 +382,7 @@ const settingsStore = createSettingsStore(database, {
   muteWhileDictating: false,
   setupComplete: false,
   pressEnterCommand: true,
+  openHubOnLaunch: true,
   contextAwareness: true,
   mouseButtons: { hold: null, handsFree: null },
   typingReminder: { enabled: true, snoozedUntil: null },
@@ -1406,6 +1407,12 @@ function profileView() {
       };
 }
 
+/** HB-17: launch at login, only for a packaged app (a development run would add Electron). */
+function loginItem(): { available: boolean; enabled: boolean } {
+  if (!app.isPackaged) return { available: false, enabled: false };
+  return { available: true, enabled: app.getLoginItemSettings().openAtLogin };
+}
+
 // HB-01: the Hub's size, place and last page, kept between runs.
 const hubState = createHubStateStore({
   file: path.join(profile.userData, "hub-window.json"),
@@ -1466,6 +1473,11 @@ app.on("web-contents-created", (_event, contents) => {
 function registerIpc(): void {
   const handle = createIpcHandler({
     entryUrl: hubEntryUrl,
+    loginItemGet: () => loginItem(),
+    loginItemSet: (enabled) => {
+      if (app.isPackaged) app.setLoginItemSettings({ openAtLogin: enabled });
+      return loginItem();
+    },
     hubSetPage: (page) => {
       hubSaved = { ...hubSaved, page };
       hubState.update({ page });
@@ -1741,7 +1753,9 @@ void app.whenReady().then(() => {
   else
     void hubState.load().then((saved) => {
       hubSaved = saved;
-      if (!hubWindow) createHubWindow();
+      // HB-17: setup always shows the Hub; afterwards the setting decides.
+      const settings = settingsStore.get();
+      if (!hubWindow && (!settings.setupComplete || settings.openHubOnLaunch)) createHubWindow();
     });
   createTray();
   // The Bar never takes focus; it shows itself on the first state push.

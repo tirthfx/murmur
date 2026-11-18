@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SettingsSection } from "./SettingsSection";
+import type { SettingsPageId } from "./settings-pages";
 import { createMockApi, SAMPLE_SETTINGS } from "./test-api";
 
 afterEach(() => {
@@ -10,11 +11,14 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function mount(overrides: Parameters<typeof createMockApi>[0] = {}) {
+function mount(
+  overrides: Parameters<typeof createMockApi>[0] = {},
+  page: SettingsPageId = "shortcuts",
+) {
   const api = createMockApi(overrides);
   vi.stubGlobal("murmur", api);
   window.murmur = api;
-  render(<SettingsSection />);
+  render(<SettingsSection page={page} onRunSetup={() => {}} />);
   return api;
 }
 
@@ -111,7 +115,7 @@ describe("Settings section", () => {
   });
 
   it("turns a sound off and mute while dictating on", async () => {
-    const api = mount();
+    const api = mount({}, "system");
     await userEvent.click(await screen.findByRole("switch", { name: "Done sound" }));
     expect(api.updateSettings).toHaveBeenCalledWith({
       sounds: { start: true, lock: true, success: false, error: true, cancel: false },

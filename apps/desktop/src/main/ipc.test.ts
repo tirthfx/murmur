@@ -34,6 +34,8 @@ function setup() {
   const handle = createIpcHandler({
     entryUrl,
     hubSetPage: vi.fn(),
+    loginItemGet: vi.fn(() => ({ available: false, enabled: false })),
+    loginItemSet: vi.fn(() => ({ available: false, enabled: false })),
     getAppInfo,
     getHelperStatus,
     getPermissions,
