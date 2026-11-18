@@ -6,7 +6,7 @@ import { developerToolsSchema, jargonPacksSchema } from "./developer";
 import { emailSettingsSchema } from "./email";
 import { focusDurationSchema } from "./focus";
 import { hotkeyTriggerSchema, mouseButtonSchema } from "./hotkeys";
-import { planTierSchema } from "./plans";
+import { planStateSchema, planTierSchema } from "./plans";
 import { languageCodes, SPEECH_LANGUAGES } from "./languages";
 
 export { SPEECH_LANGUAGES, type SpeechLanguage } from "./languages";
@@ -171,6 +171,8 @@ export const settingsSchema = z.strictObject({
     milestone: z.boolean(),
     weeklySummary: z.boolean(),
   }),
+  /** HB-19: the trial, the student label and the plan change log. */
+  planState: planStateSchema,
   /** HB-48 to HB-52: history, recordings, retention and strict local mode. */
   privacy: privacySettingsSchema,
   /** HB-22: the look of every window; System follows macOS. */
@@ -216,6 +218,7 @@ export const settingsPatchSchema = settingsSchema
     language: true,
     notifications: true,
     privacy: true,
+    planState: true,
   })
   .partial()
   .strict();
@@ -260,6 +263,7 @@ export const SETTING_KEYS: Record<keyof Settings, string> = {
   language: "ui.language",
   notifications: "notifications.settings",
   privacy: "privacy.settings",
+  planState: "plan.state",
 };
 
 /** HB-24 defaults. */

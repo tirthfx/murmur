@@ -43,6 +43,10 @@ import {
   NOTE_MESSAGES,
   DEFAULT_NOTIFICATIONS,
   DEFAULT_PRIVACY,
+  DEFAULT_PLAN_STATE,
+  FREE_WEEKLY_WORDS,
+  PLAN_MESSAGES,
+  weeklyLimitReached,
   GENERATION_MESSAGES,
   markdownTitle,
   markdownToRich,
@@ -113,6 +117,7 @@ import { createNetworkGuard } from "./privacy/network-guard";
 import { createRetentionJob, tableRules } from "./privacy/retention";
 import { sizeOf } from "./privacy/storage";
 import { createDataDeleter } from "./privacy/data-delete";
+import { createPlanController } from "./plans/plan-controller";
 import { writeExport } from "./privacy/data-export";
 import { createNotesStore } from "./notes/notes-store";
 import { createNoteImages, type ImageEncoder } from "./notes/note-images";
@@ -635,6 +640,7 @@ const settingsStore = createSettingsStore(database, {
   language: "en",
   notifications: DEFAULT_NOTIFICATIONS,
   privacy: DEFAULT_PRIVACY,
+  planState: DEFAULT_PLAN_STATE,
   plan: DEFAULT_PLAN,
   inputDevice: "auto",
   languages: [],
@@ -738,6 +744,8 @@ const blockersNow = (): DictationBlocker[] =>
   });
 /** Why dictation cannot start, or null. A permission is read again before it counts. */
 async function dictationBlocked(): Promise<string | null> {
+  // HB-19: Free stops at its weekly word limit; any other tier has none.
+  if (weeklyLimitReached(settingsStore.get().plan, weekWords())) return PLAN_MESSAGES.weeklyLimit;
   let blockers = blockersNow();
   if (hasPermissionBlocker(blockers)) {
     await permissions.check("dictation start");
@@ -1372,6 +1380,43 @@ settingsStore.onChange(() => {
   }
 });
 
+// HB-19: the trial, the student label and the change log.
+let lastTier = settingsStore.get().plan;
+const plans = createPlanController({
+  tier: () => settingsStore.get().plan,
+  state: () => settingsStore.get().planState,
+  save: (change) => {
+    if (change.plan) lastTier = change.plan;
+    settingsStore.update(change);
+  },
+  now: () => Date.now(),
+});
+settingsStore.onChange(() => {
+  const tier = settingsStore.get().plan;
+  if (tier === lastTier) return;
+  const from = lastTier;
+  lastTier = tier;
+  plans.tierChanged(from, tier);
+});
+plans.expire();
+setInterval(() => plans.expire(), 60 * 60_000).unref();
+
+/** Words dictated this week, Monday to now (HB-19). */
+function weekWords(): number {
+  const monday = weekStart(localDate(Date.now()));
+  return (insights?.days(monday) ?? []).reduce((total, day) => total + day.words, 0);
+}
+
+function planView() {
+  const settings = settingsStore.get();
+  return {
+    tier: settings.plan,
+    weekWords: weekWords(),
+    weeklyLimit: settings.plan === "free" ? FREE_WEEKLY_WORDS : null,
+    state: settings.planState,
+  };
+}
+
 // HB-22: one switch for every window. Each page follows prefers-color-scheme (and Astryx's
 // "system" mode), which this sets for all of them at once.
 nativeTheme.themeSource = settingsStore.get().theme;
@@ -1849,6 +1894,11 @@ app.on("web-contents-created", (_event, contents) => {
 function registerIpc(): void {
   const handle = createIpcHandler({
     entryUrl: hubEntryUrl,
+    planView: () => planView(),
+    planAct: (action) => {
+      plans.act(action);
+      return planView();
+    },
     dataExport: async ({ categories }) => {
       if (!history || !database) {
         return {

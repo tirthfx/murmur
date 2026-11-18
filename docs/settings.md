@@ -55,6 +55,19 @@ The list comes from the helper (Core Audio, no permission needed). If the chosen
 A group of flags (for example `experimental.flags`) stored before a new flag was added keeps its
 stored values; the new flag takes its default.
 
+## Plans page (HB-19)
+
+Settings, Plans says plainly that nothing is charged and no payment is ever made.
+
+- **Tier:** the switch is the same local tier as before (`plan.tier`).
+- **Free's weekly limit:** 2,000 dictated words a week, with the week starting Monday, counted from Insights' daily counts.
+  - A dictation that would start at or past the limit does not start, and the Bar says "Weekly limit reached. Resets Monday."
+  - History stays open, and every other tier has no limit.
+  - The check happens when a dictation starts, so the dictation that crosses the limit finishes.
+- **Trial:** "Start trial" puts the tier on Pro for 14 days and remembers the tier before; it can be extended once by 7 days. When it ends, early or on time, that tier comes back. The end is checked at start and every hour.
+- **Student:** a label only; it changes nothing else.
+- **Change log:** every change (tier, trial, student) is kept with its date, newest first, at most 50, in `plan.state`.
+
 ## Plan (RW-22)
 
 A local switch for testing what each plan unlocks, stored as `plan.tier`. There is no payment,

@@ -12,10 +12,7 @@ import {
 
 const OPTIONS = PLAN_TIERS.map((tier) => ({ value: tier, label: PLAN_LABELS[tier] }));
 
-/**
- * The local plan switch (RW-22, HB-19): it only unlocks features for testing. The full Plans
- * page comes in M4.
- */
+/** The local plan switch (RW-22, HB-19): it only unlocks features for testing. */
 export function PlanField({
   plan,
   onChange,

@@ -37,6 +37,7 @@ const base: Settings = {
     weeklySummary: false,
   },
   privacy: { storeHistory: true, audio: "24h", historyDays: null, strictLocal: false },
+  planState: { trial: null, student: false, log: [] },
   contextAwareness: true,
   mouseButtons: { hold: null, handsFree: null },
   typingReminder: { enabled: true, snoozedUntil: null },

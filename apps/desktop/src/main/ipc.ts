@@ -16,6 +16,8 @@ import {
   type HomeView,
   type RetentionView,
   type DataCounts,
+  type PlanAction,
+  type PlanView,
   type DeleteCategory,
   type DeleteResult,
   type ExportRequest,
@@ -94,6 +96,8 @@ import { isTrustedIpcSender } from "../security/guards";
 export interface IpcDeps {
   entryUrl: string;
   getAppInfo: () => AppInfo;
+  planView: () => PlanView;
+  planAct: (action: PlanAction) => PlanView;
   dataExport: (request: ExportRequest) => Promise<ExportResult>;
   dataCounts: () => DataCounts;
   dataDelete: (category: DeleteCategory) => DeleteResult;
@@ -229,6 +233,10 @@ export function createIpcHandler(deps: IpcDeps) {
     switch (channel) {
       case IPC_CHANNELS.getAppInfo:
         return deps.getAppInfo();
+      case IPC_CHANNELS.planView:
+        return deps.planView();
+      case IPC_CHANNELS.planAct:
+        return deps.planAct(request.args[0] as PlanAction);
       case IPC_CHANNELS.dataExport:
         return deps.dataExport(request.args[0] as ExportRequest);
       case IPC_CHANNELS.dataCounts:

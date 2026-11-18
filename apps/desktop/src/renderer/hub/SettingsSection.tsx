@@ -17,7 +17,7 @@ import {
 } from "@murmur/shared";
 import { CommandModeSection } from "./CommandModeSection";
 import { FocusSection } from "./FocusSection";
-import { PlanField } from "./PlanField";
+import { PlansSection } from "./PlansSection";
 import { ExperimentalSection } from "./ExperimentalSection";
 import { InstructSection } from "./InstructSection";
 import { LanguagesField } from "./LanguagesField";
@@ -385,7 +385,7 @@ export function SettingsSection({
     ),
     plans: () => (
       <Row id="plan">
-        <PlanField plan={settings.plan} onChange={(plan) => update({ plan })} />
+        <PlansSection tier={settings.plan} onTier={(plan) => update({ plan })} />
       </Row>
     ),
     privacy: () => (

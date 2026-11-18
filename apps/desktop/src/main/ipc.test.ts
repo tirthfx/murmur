@@ -34,6 +34,8 @@ function setup() {
   const handle = createIpcHandler({
     entryUrl,
     hubSetPage: vi.fn(),
+    planView: vi.fn(),
+    planAct: vi.fn(),
     dataExport: vi.fn(() => Promise.resolve({ ok: false as const, message: "no", canceled: true })),
     dataCounts: vi.fn(() => ({ categories: [], failedFiles: 0 })),
     dataDelete: vi.fn(() => ({ rows: 0, files: 0, failedFiles: 0 })),
