@@ -155,6 +155,11 @@ export const settingsSchema = z.strictObject({
   openHubOnLaunch: z.boolean(),
   /** Insights (HB-36): the typing speed that time saved is measured against. */
   insights: z.strictObject({ typingWpm: z.number().int().min(10).max(150) }),
+  /** HB-51: an optional local display name for the Home greeting; never published. */
+  profile: z.strictObject({
+    displayName: z.string().trim().max(60),
+    showOnHome: z.boolean(),
+  }),
 });
 export type Settings = z.infer<typeof settingsSchema>;
 
@@ -185,6 +190,7 @@ export const settingsPatchSchema = settingsSchema
     plan: true,
     openHubOnLaunch: true,
     insights: true,
+    profile: true,
   })
   .partial()
   .strict();
@@ -222,6 +228,7 @@ export const SETTING_KEYS: Record<keyof Settings, string> = {
   experimental: "experimental.flags",
   openHubOnLaunch: "app.open_hub_on_launch",
   insights: "insights.settings",
+  profile: "profile.settings",
 };
 
 export const DEFAULT_EXPERIMENTAL: Settings["experimental"] = {

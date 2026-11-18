@@ -21,6 +21,9 @@ import {
   buildInsights,
   INSIGHTS_LIMITS,
   insightsCsv,
+  dictationStateOf,
+  type DictationState,
+  type HistoryRetryResult,
   localDate,
   milestoneTitle,
   rangeFirstDay,
@@ -352,6 +355,41 @@ try {
   console.warn(`[insights] could not fill from history: ${String(error)}`);
 }
 
+/**
+ * HB-03: a failed dictation retried from the Hub. Its recording is transcribed and cleaned
+ * again; the text goes into the same row and onto the clipboard, as there is no app to put
+ * it in.
+ */
+async function retryFromHub(id: string): Promise<HistoryRetryResult> {
+  const source = history?.retrySource(id) ?? null;
+  if (!history || !source) return { ok: false, message: "This recording is no longer kept." };
+  try {
+    const transcript = await speech.transcribe(source.audioPath);
+    const rawText = transcript.text.trim();
+    if (rawText === "") return { ok: false, message: "Nothing was heard in the recording." };
+    const cleaned = await cleanup.clean(rawText, { terms: [], budgetMs: 1500 });
+    const finalText = cleaned.text.trim() || rawText;
+    const wordCount = finalText.split(/\s+/).filter(Boolean).length;
+    history.applyRetry(id, { rawText, finalText, wordCount });
+    await clipboard.writeText(finalText);
+    insights?.record({
+      createdAt: source.createdAt,
+      words: wordCount,
+      durationMs: source.durationMs,
+      insertStatus: "clipboard_only",
+      appBundleId: source.appBundleId,
+      appName: source.appName,
+    });
+    console.log(`[history] retried a failed dictation from the Hub (${wordCount} words)`);
+    return { ok: true, text: finalText };
+  } catch (error) {
+    console.warn(
+      `[history] retry failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return { ok: false, message: "The recording could not be transcribed. Try again later." };
+  }
+}
+
 // HB-41: milestones; the first check records what was reached before, quietly.
 const milestones = database ? createMilestonesStore(database) : null;
 
@@ -422,6 +460,7 @@ const settingsStore = createSettingsStore(database, {
   pressEnterCommand: true,
   openHubOnLaunch: true,
   insights: { typingWpm: INSIGHTS_LIMITS.typingWpm.default },
+  profile: { displayName: "", showOnHome: true },
   contextAwareness: true,
   mouseButtons: { hold: null, handsFree: null },
   typingReminder: { enabled: true, snoozedUntil: null },
@@ -526,8 +565,18 @@ const barWindow = new BarWindow({
 });
 /** Focus Mode's time left, drawn on the idle Bar (RW-18). */
 let focusBadge: BarView["focus"] = null;
+/** The dictation state the Hub shows (HB-03), following the Bar. */
+let hubDictationState: DictationState = "idle";
+/** The Hub's web contents for pushed events; set when the Hub opens (it may not exist yet). */
+let hubEvents: Electron.WebContents | null = null;
 const barPort = {
-  render: (view: BarView) => barWindow.render({ ...view, focus: focusBadge }),
+  render: (view: BarView) => {
+    barWindow.render({ ...view, focus: focusBadge });
+    const state = dictationStateOf(view.state);
+    if (state === hubDictationState) return;
+    hubDictationState = state;
+    if (hubEvents && !hubEvents.isDestroyed()) hubEvents.send(IPC_EVENTS.dictationState, state);
+  },
   level: (rmsDb: number) => barWindow.level(rmsDb),
 };
 const bar = createBarController(barPort, systemClock);
@@ -1501,8 +1550,10 @@ function createHubWindow(): BrowserWindow {
     );
   }
   window.once("ready-to-show", () => window.show());
+  hubEvents = window.webContents;
   window.on("closed", () => {
     if (hubWindow === window) hubWindow = null;
+    if (hubEvents === window.webContents) hubEvents = null;
   });
   void window.loadURL(hubEntryUrl);
   hubWindow = window;
@@ -1521,6 +1572,26 @@ app.on("web-contents-created", (_event, contents) => {
 function registerIpc(): void {
   const handle = createIpcHandler({
     entryUrl: hubEntryUrl,
+    homeView: () => {
+      const today = localDate(Date.now());
+      const days = insights?.days(null) ?? [];
+      const todayRow = days.find((day) => day.date === today);
+      const typingWpm = settingsStore.get().insights.typingWpm;
+      const last = history?.page({}).rows.find((row) => row.finalText) ?? null;
+      return {
+        todayWords: todayRow?.words ?? 0,
+        todayDictations: todayRow?.dictations ?? 0,
+        todayTimeSavedMs: todayRow
+          ? buildInsights([todayRow], "7", today, typingWpm).timeSavedMs
+          : 0,
+        totalDictations: days.reduce((total, day) => total + day.dictations, 0),
+        last: last
+          ? { text: last.finalText!, appName: last.appName ?? last.appBundleId, at: last.createdAt }
+          : null,
+      };
+    },
+    historyRetry: (id) => retryFromHub(id),
+    dictationState: () => hubDictationState,
     milestonesList: () => {
       checkMilestones(false);
       return milestones?.list() ?? [];

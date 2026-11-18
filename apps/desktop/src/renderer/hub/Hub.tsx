@@ -13,6 +13,8 @@ import { MemoryPage } from "./MemoryPage";
 import { RewritesPage } from "./RewritesPage";
 import { MyVoicePage } from "./MyVoicePage";
 import { HistoryPage } from "./HistoryPage";
+import { HomePage } from "./HomePage";
+import { DictationPage } from "./DictationPage";
 import { InsightsPage } from "./InsightsPage";
 import { Onboarding } from "./Onboarding";
 import { SettingsPage } from "./SettingsPage";
@@ -152,6 +154,10 @@ function HubPages({ onRunSetup }: { onRunSetup: () => void }) {
             <MemoryPage />
           ) : page.id === "my-voice" ? (
             <MyVoicePage />
+          ) : page.id === "home" ? (
+            <HomePage />
+          ) : page.id === "dictation" ? (
+            <DictationPage />
           ) : page.id === "history" ? (
             <HistoryPage />
           ) : page.id === "insights" ? (

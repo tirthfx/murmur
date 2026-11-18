@@ -17,3 +17,23 @@ Pages, in order: Home, Dictation, Dictionary, Snippets, Styles, Rewrites, Instru
 - Main keeps the last page, the window size and the window position in `hub-window.json` in the profile folder. Writes wait half a second, so a drag writes once.
 - On the next start the Hub opens at that size, on that page.
 - A saved position is used only if a connected display still shows the window's top edge. Otherwise the window opens centred.
+
+## Home (HB-02)
+
+- **Greeting:** a greeting for the time of day. The display name (Settings, General, "Your name") is added when "Show my name on Home" is on. The name is optional, local, and never sent anywhere.
+- **Today:** words, dictations and estimated time saved, from Insights' daily counts (`home:view`).
+- **Shortcut and last dictation:** the push-to-talk shortcut, and the last dictation with its app.
+- **Speech model:** while the model is missing or failed, a banner offers the download. While it downloads, the progress shows.
+- **Setup checklist:** permissions, the speech model and a first dictation. It looks again every 1.5 seconds while something is left, and is hidden once everything is done.
+- **Tip of the day:** from a bundled list, the same tip all day.
+
+## Dictation (HB-03)
+
+- **Status cards:** the live state (Ready, Listening, Working on it, or needs a look on the Bar), the microphone, the language mode and the speech model.
+  - Main pushes the state when the Bar changes it (`dictation:state-changed`). The list reads again when the state goes back to idle.
+- **Cleanup:** the same setting as in Settings, System.
+- **Recent dictations:** the 50 most recent. Each has copy, copy raw and delete; delete needs a confirming click.
+- **Retry:** a failed or interrupted dictation whose recording is still kept can be retried (`history:retry`).
+  - The recording is transcribed and cleaned again, and the text goes into the same row, so there is no duplicate.
+  - The row is then marked as left on the clipboard, and the text is copied there: the Hub has no app to insert into.
+  - The retry is counted in Insights on the day of the original dictation.

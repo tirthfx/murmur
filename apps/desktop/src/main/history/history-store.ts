@@ -82,6 +82,16 @@ export interface HistoryStore {
   setFeedback(input: HistoryFeedback): void;
   /** Deletes rows, their audio chunks and their audio files (when nothing else uses them). */
   remove(ids: string[]): HistoryDeleteResult;
+  /** A failed row whose recording is still on disk, for a retry from the Hub (HB-03). */
+  retrySource(id: string): {
+    audioPath: string;
+    createdAt: number;
+    durationMs: number;
+    appBundleId: string | null;
+    appName: string | null;
+  } | null;
+  /** Puts a retry's text into the same row; it now counts as left on the clipboard. */
+  applyRetry(id: string, text: { rawText: string; finalText: string; wordCount: number }): void;
 }
 
 /** SQL for a row's status, matching `HistoryStatus`. */
@@ -488,6 +498,31 @@ export function createHistoryStore(
         if (removeFile(stored)) files++;
       }
       return { rows, files };
+    },
+    retrySource(rowId) {
+      const row = db
+        .prepare(
+          `SELECT audio_path, created_at, duration_ms, app_bundle_id, app_name FROM history
+          WHERE id = ? AND insert_status = 'failed' AND audio_path IS NOT NULL`,
+        )
+        .get(rowId) as Record<string, unknown> | undefined;
+      if (!row) return null;
+      const audioPath = absolute(row.audio_path as string);
+      if (!insideRoot(audioPath) || !existsSync(audioPath)) return null;
+      return {
+        audioPath,
+        createdAt: row.created_at as number,
+        durationMs: row.duration_ms as number,
+        appBundleId: (row.app_bundle_id as string | null) ?? null,
+        appName: (row.app_name as string | null) ?? null,
+      };
+    },
+    applyRetry(rowId, text) {
+      db.prepare(
+        `UPDATE history SET raw_text = ?, final_text = ?, word_count = ?,
+          insert_status = 'clipboard_only', insert_method = 'clipboard', error_code = NULL
+        WHERE id = ?`,
+      ).run(text.rawText, text.finalText, text.wordCount, rowId);
     },
     lastText() {
       const row = selectLast.get() as { final_text: string } | undefined;

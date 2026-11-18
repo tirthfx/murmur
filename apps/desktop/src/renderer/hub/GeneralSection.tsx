@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
+import { Button } from "@astryxdesign/core/Button";
+import { HStack } from "@astryxdesign/core/HStack";
 import { Switch } from "@astryxdesign/core/Switch";
+import { TextInput } from "@astryxdesign/core/TextInput";
 import { Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
 import type { AppInfo, LoginItem } from "@murmur/shared";
@@ -8,10 +11,17 @@ import type { AppInfo, LoginItem } from "@murmur/shared";
 export function GeneralSection({
   openHubOnLaunch,
   onOpenHubOnLaunch,
+  profile,
+  onProfile,
 }: {
   openHubOnLaunch: boolean;
   onOpenHubOnLaunch: (on: boolean) => void;
+  /** HB-51: the local display name. */
+  profile: { displayName: string; showOnHome: boolean };
+  onProfile: (profile: { displayName: string; showOnHome: boolean }) => void;
 }) {
+  const [name, setName] = useState(profile.displayName);
+  useEffect(() => setName(profile.displayName), [profile.displayName]);
   const [login, setLogin] = useState<LoginItem | null>(null);
   const [info, setInfo] = useState<AppInfo | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
@@ -68,6 +78,32 @@ export function GeneralSection({
           value={openHubOnLaunch}
           onChange={onOpenHubOnLaunch}
         />
+      </div>
+      <div data-setting="display-name" className="hub-setting-row">
+        <VStack gap={2}>
+          <HStack gap={2} align="end" wrap="wrap">
+            <TextInput
+              label="Your name"
+              description="Optional. Used only for the greeting on Home; never sent anywhere."
+              value={name}
+              onChange={(value) => setName(value.slice(0, 60))}
+              onEnter={() => onProfile({ ...profile, displayName: name.trim() })}
+            />
+            <Button
+              variant="secondary"
+              label="Save your name"
+              isDisabled={name.trim() === profile.displayName}
+              onClick={() => onProfile({ ...profile, displayName: name.trim() })}
+            >
+              Save
+            </Button>
+          </HStack>
+          <Switch
+            label="Show my name on Home"
+            value={profile.showOnHome}
+            onChange={(showOnHome) => onProfile({ ...profile, showOnHome })}
+          />
+        </VStack>
       </div>
       {info ? (
         <Text size="sm" color="secondary" data-testid="settings-version">
