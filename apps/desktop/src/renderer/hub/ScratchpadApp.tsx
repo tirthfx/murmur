@@ -7,6 +7,8 @@ import { TextInput } from "@astryxdesign/core/TextInput";
 import { VStack } from "@astryxdesign/core/VStack";
 import {
   NOTE_LIMITS,
+  NOTE_MESSAGES,
+  type NoteImageAdd,
   noteTitle,
   richToHtml,
   richToPlain,
@@ -170,6 +172,27 @@ export function ScratchpadApp() {
     setConfirmDelete(false);
     await close(active.id);
     await refresh(search);
+  }
+
+  /** HB-30: each image is stored by main, then shown where the cursor is. */
+  async function addImages(noteId: string, files: File[], insert: (html: string) => void) {
+    for (const file of files) {
+      if (file.size > NOTE_LIMITS.imageBytes) {
+        setProblem(NOTE_MESSAGES.imageTooBig);
+        continue;
+      }
+      const result = await window.murmur.noteImageAdd({
+        noteId,
+        type: file.type as NoteImageAdd["type"],
+        bytes: new Uint8Array(await file.arrayBuffer()),
+      });
+      if (!result.ok) {
+        setProblem(result.message);
+        continue;
+      }
+      setProblem(null);
+      insert(`<p><img data-image-id="${result.id}" src="${result.dataUrl}" alt="Image"></p>`);
+    }
   }
 
   async function pin(note: Note) {
@@ -369,10 +392,12 @@ export function ScratchpadApp() {
               label="Note"
               testId="note-editor"
               className="hub-rich-editor scratchpad-editor"
+              resolveImage={(id) => window.murmur.noteImageData(id)}
+              onImageFiles={(files, insert) => void addImages(active.id, files, insert)}
               onInput={(root) =>
                 changed(active.id, {
                   title: drafts.current.get(active.id)?.title ?? active.title,
-                  body: domToRich(root),
+                  body: domToRich(root, { images: true }),
                 })
               }
             />

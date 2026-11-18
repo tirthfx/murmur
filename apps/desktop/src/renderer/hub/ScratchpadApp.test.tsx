@@ -209,4 +209,50 @@ describe("Scratchpad window", () => {
     await user.click(await screen.findByRole("button", { name: "Move Two up" }));
     expect(window.murmur.notePinMove).toHaveBeenCalledWith("p2", -1);
   });
+
+  it("adds a chosen image to the note", async () => {
+    await openFirst();
+    const file = new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], "photo.png", {
+      type: "image/png",
+    });
+    fireEvent.change(screen.getByTestId("image-picker"), { target: { files: [file] } });
+    await waitFor(() =>
+      expect(window.murmur.noteImageAdd).toHaveBeenCalledWith({
+        noteId: "n2",
+        type: "image/png",
+        bytes: expect.any(Uint8Array),
+      }),
+    );
+  });
+
+  it("shows why an image was refused", async () => {
+    window.murmur = createMockApi({
+      noteImageAdd: vi.fn().mockResolvedValue({ ok: false, message: "200 MB in all." }),
+    });
+    await openFirst();
+    const file = new File([new Uint8Array([1])], "big.jpg", { type: "image/jpeg" });
+    fireEvent.change(screen.getByTestId("image-picker"), { target: { files: [file] } });
+    expect(await screen.findByText("200 MB in all.")).toBeTruthy();
+  });
+
+  it("loads the pictures of a note's stored images", async () => {
+    window.murmur = createMockApi({
+      noteGet: vi.fn().mockResolvedValue({
+        id: "n2",
+        title: "Trip",
+        body: { blocks: [{ type: "image" as const, imageId: "img-7" }] },
+        plain: "",
+        createdAt: 1,
+        updatedAt: 2,
+        pinned: false,
+      }),
+    });
+    await openFirst();
+    await waitFor(() => expect(window.murmur.noteImageData).toHaveBeenCalledWith("img-7"));
+    await waitFor(() =>
+      expect(screen.getByTestId("note-editor").querySelector("img")?.getAttribute("src")).toMatch(
+        /^data:image\/png/,
+      ),
+    );
+  });
 });

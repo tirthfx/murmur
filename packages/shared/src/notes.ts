@@ -20,7 +20,46 @@ export const NOTE_LIMITS = {
   versionLabel: 60,
   /** HB-29. */
   pins: 20,
+  /** HB-30. */
+  imageBytes: 10 * 1024 * 1024,
+  imagesTotalBytes: 200 * 1024 * 1024,
+  imageSide: 2048,
 } as const;
+
+/** Image types a note accepts (HB-30); GIFs keep their first frame. */
+export const NOTE_IMAGE_TYPES = [
+  "image/png",
+  "image/jpeg",
+  "image/heic",
+  "image/heif",
+  "image/gif",
+] as const;
+
+export const noteImageAddSchema = z.strictObject({
+  noteId: z.string().min(1).max(64),
+  type: z.enum(NOTE_IMAGE_TYPES),
+  bytes: z
+    .instanceof(Uint8Array)
+    .refine((bytes) => bytes.byteLength > 0, { message: "Empty image" }),
+});
+export type NoteImageAdd = z.infer<typeof noteImageAddSchema>;
+
+export const noteImageResultSchema = z.discriminatedUnion("ok", [
+  z.strictObject({
+    ok: z.literal(true),
+    id: z.string(),
+    dataUrl: z.string(),
+    width: z.number(),
+    height: z.number(),
+  }),
+  z.strictObject({ ok: z.literal(false), message: z.string() }),
+]);
+export type NoteImageResult = z.infer<typeof noteImageResultSchema>;
+
+/** "12.5 MB". */
+export function formatMegabytes(bytes: number): string {
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 export const noteSchema = z.strictObject({
   id: z.string(),
@@ -107,6 +146,9 @@ export const NOTE_MESSAGES = {
   noDictation: "There is no dictation to start a note from yet.",
   missing: "This note is no longer there.",
   pins: `At most ${NOTE_LIMITS.pins} notes can be pinned. Unpin one first.`,
+  imageTooBig: "Images can be up to 10 MB each.",
+  imageType: "Use a PNG, JPEG, HEIC or GIF image.",
+  imageUnreadable: "That image could not be read.",
 } as const;
 
 /** The title shown for a note: its own, or its first line, or "Untitled". */

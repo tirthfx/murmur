@@ -26,6 +26,10 @@ import {
   noteSchema,
   noteSummarySchema,
   notePinResultSchema,
+  noteImageAddSchema,
+  noteImageResultSchema,
+  type NoteImageAdd,
+  type NoteImageResult,
   noteVersionSaveSchema,
   noteVersionSchema,
   noteVersionTextSchema,
@@ -191,6 +195,8 @@ export const IPC_CHANNELS = {
   noteVersionText: "notes:version-text",
   noteVersionRestore: "notes:version-restore",
   notePin: "notes:pin",
+  noteImageAdd: "notes:image-add",
+  noteImageData: "notes:image-data",
   notePinMove: "notes:pin-move",
   scratchpadOpen: "scratchpad:open",
   historyRetry: "history:retry",
@@ -570,6 +576,15 @@ export const IPC_CONTRACT = {
     args: z.tuple([z.string().min(1).max(64), z.union([z.literal(-1), z.literal(1)])]),
     result: z.void(),
   },
+  // HB-30.
+  [IPC_CHANNELS.noteImageAdd]: {
+    args: z.tuple([noteImageAddSchema]),
+    result: noteImageResultSchema,
+  },
+  [IPC_CHANNELS.noteImageData]: {
+    args: z.tuple([z.string().regex(/^[\w-]{1,64}$/)]),
+    result: z.string().nullable(),
+  },
   // HB-02, HB-03.
   [IPC_CHANNELS.homeView]: { args: z.tuple([]), result: homeViewSchema },
   [IPC_CHANNELS.historyRetry]: {
@@ -755,6 +770,10 @@ export interface MurmurApi {
   /** Pins or unpins a note (HB-29). */
   notePin(noteId: string, pinned: boolean): Promise<NotePinResult>;
   notePinMove(noteId: string, step: -1 | 1): Promise<void>;
+  /** Adds an image to a note (HB-30): scaled, re-encoded without metadata, stored locally. */
+  noteImageAdd(input: NoteImageAdd): Promise<NoteImageResult>;
+  /** A stored image as a data URL, or null. */
+  noteImageData(id: string): Promise<string | null>;
   /** Opens the Scratchpad window, on a note when given. */
   scratchpadOpen(noteId: string | null): Promise<void>;
   /** The Scratchpad window is asked to show a note. Returns an unsubscribe. */

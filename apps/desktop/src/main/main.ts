@@ -1,5 +1,13 @@
 import { randomUUID } from "node:crypto";
-import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { rm } from "node:fs/promises";
 import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
@@ -10,6 +18,7 @@ import {
   clipboard,
   ClipboardItem,
   dialog,
+  nativeImage,
   ipcMain,
   screen,
   session,
@@ -90,6 +99,7 @@ import { createHistoryStore, type HistoryStore } from "./history/history-store";
 import { createInsightsStore } from "./insights/insights-store";
 import { createMilestonesStore } from "./milestones/milestones-store";
 import { createNotesStore } from "./notes/notes-store";
+import { createNoteImages, type ImageEncoder } from "./notes/note-images";
 import { createDictionaryStore } from "./dictionary/dictionary-store";
 import { createCorrectionLearner } from "./dictionary/learn";
 import { createSnippetStore } from "./snippets/snippet-store";
@@ -151,6 +161,7 @@ import {
   defaultFocusShortcut,
   defaultRewriteShortcut,
   defaultScratchpadShortcut,
+  imageToPngConverter,
   keyPlatform,
 } from "./platform";
 import {
@@ -395,6 +406,59 @@ async function retryFromHub(id: string): Promise<HistoryRetryResult> {
 
 // HB-26: Scratchpad notes.
 const notes = database ? createNotesStore(database) : null;
+
+const IMAGE_EXTENSIONS: Record<string, string> = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/heic": "heic",
+  "image/heif": "heif",
+  "image/gif": "gif",
+};
+
+const convertToPng = imageToPngConverter(process.platform);
+
+/**
+ * HB-30: decodes the image (HEIC, HEIF and GIF are first turned into PNG by the platform,
+ * a GIF giving its first frame), scales the long side to at most `maxSide`, and encodes a
+ * new PNG or JPEG. Only pixels survive, so location and every other piece of metadata is gone.
+ */
+const encodeNoteImage: ImageEncoder = async (input, maxSide) => {
+  const folder = mkdtempSync(path.join(app.getPath("temp"), "murmur-image-"));
+  try {
+    let file = path.join(folder, `image.${IMAGE_EXTENSIONS[input.type] ?? "img"}`);
+    writeFileSync(file, input.bytes);
+    if (input.type === "image/heic" || input.type === "image/heif" || input.type === "image/gif") {
+      const png = path.join(folder, "converted.png");
+      if (!convertToPng || !(await convertToPng(file, png))) return null;
+      file = png;
+    }
+    let image = nativeImage.createFromPath(file);
+    if (image.isEmpty()) return null;
+    const { width, height } = image.getSize();
+    const scale = Math.min(1, maxSide / Math.max(width, height));
+    if (scale < 1) {
+      image = image.resize({
+        width: Math.max(1, Math.round(width * scale)),
+        height: Math.max(1, Math.round(height * scale)),
+        quality: "best",
+      });
+    }
+    const size = image.getSize();
+    const png = input.type === "image/png" || input.type === "image/gif";
+    return {
+      data: png ? image.toPNG() : image.toJPEG(85),
+      mime: png ? "image/png" : "image/jpeg",
+      width: size.width,
+      height: size.height,
+    };
+  } finally {
+    rmSync(folder, { recursive: true, force: true });
+  }
+};
+
+const noteImages = database
+  ? createNoteImages(database, path.join(profile.appData, "Murmur", "notes"), encodeNoteImage)
+  : null;
 
 // HB-41: milestones; the first check records what was reached before, quietly.
 const milestones = database ? createMilestonesStore(database) : null;
@@ -1661,7 +1725,18 @@ function registerIpc(): void {
         message: "Notes cannot be changed without the database.",
       },
     notePinMove: (noteId, step) => notes?.movePin(noteId, step),
-    noteDelete: (id) => notes?.remove(id),
+    noteDelete: (id) => {
+      notes?.remove(id);
+      // The rows went with the note; its image files go now.
+      noteImages?.removeFolder(id);
+    },
+    noteImageAdd: (input) =>
+      noteImages?.add(input) ??
+      Promise.resolve({
+        ok: false as const,
+        message: "Images cannot be saved without the database.",
+      }),
+    noteImageData: (id) => noteImages?.dataUrl(id) ?? null,
     scratchpadOpen: (noteId) => openScratchpad(noteId ?? undefined),
     homeView: () => {
       const today = localDate(Date.now());
