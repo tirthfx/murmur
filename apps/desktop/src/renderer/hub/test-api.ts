@@ -34,6 +34,7 @@ export const SAMPLE_SETTINGS: SettingsView = {
     insights: { typingWpm: 40 },
     profile: { displayName: "", showOnHome: true },
     scratchpadShortcut: null,
+    meetingShortcut: null,
     scratchpad: { enabled: true, newTab: true },
     theme: "system",
     language: "en",
@@ -88,6 +89,7 @@ export const SAMPLE_SETTINGS: SettingsView = {
     instruct: "Off",
     focus: "Off",
     scratchpad: "Off",
+    meeting: "Off",
   },
   devices: [
     {

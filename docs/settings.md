@@ -10,7 +10,7 @@ Settings is split into pages, chosen from a list beside the content. Each page h
 | ---------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | General          | launch at login, show the Hub at start, appearance, app language, notifications, your name, permissions, setup, the version |
 | System           | cleanup, press enter, context, typing reminder, sounds, mute, Instruct Mode                                                 |
-| Shortcuts        | push to talk, hands-free, Rewrite, the mouse buttons                                                                        |
+| Shortcuts        | push to talk, hands-free, Rewrite, Scratchpad, meeting recording, the mouse buttons                                         |
 | Languages        | dictation languages                                                                                                         |
 | Microphone       | the microphone, whisper mode, microphone check                                                                              |
 | Experimental     | the experimental switches, and Command Mode and Focus Mode while they are on                                                |

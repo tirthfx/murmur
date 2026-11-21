@@ -83,3 +83,17 @@ A finished recording gets a `transcribe` job in `meeting_jobs`. The queue runs i
 4. In `<data>/Murmur/meetings/<id>/` there are `mic-*.m4a` and `system-*.m4a` files, and no `.partial` files. `afinfo` on one shows AAC, 16000 Hz, 1 channel.
 5. Remove Screen Recording for Murmur in System Settings and record again: only `mic-*` files, and the meeting carries the `system_permission` warning.
 6. Transcription: after stopping, the log shows the job; in the database, `meeting_segments` holds the lines with times on the meeting's timeline and the meeting is `ready`. Move the speech model folder away, record again: the meeting stays `queued`; put the folder back, restart Murmur, and it is transcribed with no action.
+
+## Starting and stopping (NT-03, NT-25)
+
+A recording starts from the Notetaker page, the tray menu or a global shortcut, and all three go through one starter (`meetings/meeting-starter.ts`). The shortcut is **Meeting recording** in Settings, Shortcuts. It is unset by default and is checked like the other shortcuts: it cannot repeat a key Murmur already uses (push to talk included) and a modifier alone is refused. A press starts a recording when none runs and stops it when one does. It is its own binding (`notetaker.start`, a press), so a dictation hold cannot start a recording. With the notice off, the press goes straight to `capture.start`.
+
+Clicking the red recording indicator on the Bar opens the Notetaker page, where Stop is. The Bar never stops a recording by itself.
+
+**Recording notice.** Settings, System, Recording notice: the first time only (default), before every recording, or never. The notice is a native dialog written by Murmur ("Recording this meeting. Tell the other participants ..."), so it also shows when the Hub is closed. With "before every recording", or "the first time" until it has been accepted once, `capture.start` is not sent until the owner presses OK; Cancel starts nothing. The acceptance time is stored on the meeting (`consent_ack_at`). The recording indicators are shown whatever the setting says. Murmur gives no legal advice.
+
+**Titles.** A recording is called "Meeting, <date time>". A rename marks the title as edited; `setGeneratedTitle` (used by the summary, a later issue) never replaces an edited title.
+
+Not built yet: the calendar line in event descriptions (M6), `notetaker.titleFormat`, and the suggested shortcut in first-run setup.
+
+Manual check: set a shortcut, press it with the notice on "Before every recording" and confirm the dialog comes first and nothing records until OK; press it again to stop; click the red dot on the Bar.

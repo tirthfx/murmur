@@ -133,6 +133,7 @@ import { writeExport } from "./privacy/data-export";
 import { createNotesStore } from "./notes/notes-store";
 import { createMeetingsStore } from "./meetings/meetings-store";
 import { createMeetingRecorder } from "./meetings/meeting-recorder";
+import { createMeetingStarter } from "./meetings/meeting-starter";
 import { createMeetingJobs, type MeetingJobs } from "./meetings/meeting-jobs";
 import { createTranscriptStore } from "./meetings/transcript-store";
 import { createLiveTranscriber } from "./meetings/live-transcriber";
@@ -653,6 +654,8 @@ const settingsStore = createSettingsStore(database, {
   focusShortcut: defaultFocusShortcut(process.platform),
   focus: DEFAULT_FOCUS,
   scratchpadShortcut: defaultScratchpadShortcut(process.platform),
+  // NT-03: unset until the owner picks one; the check refuses clashes with dictation keys.
+  meetingShortcut: null,
   scratchpad: { enabled: true, newTab: true },
   theme: "system",
   language: "en",
@@ -1562,6 +1565,11 @@ settingsStore.onChange(() => {
 });
 
 hotkeys.onEvent((event) => {
+  if (event.action === "notetaker.start") {
+    // A press starts a recording, and the next one stops it (NT-03).
+    if (event.state !== "up") void meetingStarter?.toggle();
+    return;
+  }
   if (event.action === "scratchpad.open") {
     if (event.state !== "up" && settingsStore.get().scratchpad.enabled) openScratchpad();
     return;
@@ -1713,10 +1721,45 @@ function deleteMeeting(id: string): void {
   notifyMeetings(null);
 }
 
+// NT-25: the notice is written by Murmur and shown before any audio is captured when asked for.
+const meetingStarter =
+  meetings && meetingsStore
+    ? createMeetingStarter({
+        recorder: meetings,
+        store: meetingsStore,
+        consent: () => settingsStore.get().notetaker.consent,
+        markNoticeSeen: () => {
+          const notetaker = settingsStore.get().notetaker;
+          settingsStore.update({
+            notetaker: { ...notetaker, consent: { ...notetaker.consent, seen: true } },
+          });
+        },
+        confirmNotice: async () => {
+          const options = {
+            type: "info" as const,
+            message: "Recording this meeting",
+            detail:
+              "Tell the other participants that this meeting is being recorded. Murmur records " +
+              "your microphone and the sound of this Mac, and keeps the audio on this Mac. " +
+              "Murmur does not give legal advice: follow the rules where you and the others are.",
+            buttons: ["OK, start recording", "Cancel"],
+            defaultId: 0,
+            cancelId: 1,
+          };
+          const result =
+            hubWindow && !hubWindow.isDestroyed() && hubWindow.isVisible()
+              ? await dialog.showMessageBox(hubWindow, options)
+              : await dialog.showMessageBox(options);
+          return result.response === 0;
+        },
+        now: () => Date.now(),
+        logger: createConsoleLogger("[meetings]"),
+      })
+    : null;
+
 async function startMeeting(): Promise<void> {
-  if (!meetings) return;
-  const result = await meetings.start();
-  if (!result.ok) console.warn(`[meetings] ${result.message}`);
+  const result = await meetingStarter?.start();
+  if (result && !result.ok) console.warn(`[meetings] ${result.message}`);
 }
 
 // The menu bar item. Created once the app is ready; it works with the Hub closed.
@@ -2281,7 +2324,9 @@ function registerIpc(): void {
     meetingDetail,
     meetingRecording: () => meetings?.state() ?? { status: "idle" },
     meetingStart: async () =>
-      meetings ? meetings.start() : { ok: false, message: "Meetings are not available." },
+      meetingStarter
+        ? meetingStarter.start()
+        : { ok: false, message: "Meetings are not available." },
     meetingStop: async () => {
       await meetings?.stop();
     },
@@ -2698,7 +2743,10 @@ function registerIpc(): void {
     dragEnd: () => void barWindow.dragEnd(),
     click: () => {
       // The recorder reports "retrying", which moves the Bar to processing.
-      if (bar.click() === "retry") recorder.retryLast();
+      const action = bar.click();
+      if (action === "retry") recorder.retryLast();
+      // A click on the recording indicator opens the Notetaker page, where Stop is.
+      else if (bar.getView().state === "idle" && meetingBadge) openHubPage("notetaker");
     },
     answer: (choice) => answerBar(choice),
   });

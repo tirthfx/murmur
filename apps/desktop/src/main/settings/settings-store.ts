@@ -25,6 +25,7 @@ const SLOT_FIELD: Record<
   | "instructShortcut"
   | "focusShortcut"
   | "scratchpadShortcut"
+  | "meetingShortcut"
 > = {
   hold: "holdShortcut",
   handsFree: "handsFreeShortcut",
@@ -33,6 +34,7 @@ const SLOT_FIELD: Record<
   instruct: "instructShortcut",
   focus: "focusShortcut",
   scratchpad: "scratchpadShortcut",
+  meeting: "meetingShortcut",
 };
 
 /**

@@ -26,6 +26,7 @@ const defaults: Settings = {
   insights: { typingWpm: 40 },
   profile: { displayName: "", showOnHome: true },
   scratchpadShortcut: null,
+  meetingShortcut: null,
   scratchpad: { enabled: true, newTab: true },
   theme: "system",
   language: "en",
@@ -157,5 +158,29 @@ describe("settings store", () => {
     expect(() => store.update({ languages: ["en", "en"] })).toThrow();
     expect(() => store.setShortcut("hold", null)).toThrow("always needs a key");
     expect(store.setShortcut("handsFree", null).handsFreeShortcut).toBeNull();
+  });
+});
+
+describe("notetaker consent setting (NT-25)", () => {
+  it("defaults to the first time, and a value saved before it existed still reads", () => {
+    const db = openDatabase(":memory:");
+    db.prepare("INSERT INTO settings (key, value_json, updated_at) VALUES (?, ?, 1)").run(
+      "notetaker.settings",
+      JSON.stringify({ captureSystem: false, chunkSeconds: 20, live: true }),
+    );
+    const store = createSettingsStore(db, defaults);
+    expect(store.get().notetaker).toEqual({
+      captureSystem: false,
+      chunkSeconds: 20,
+      live: true,
+      consent: { notice: "first", seen: false },
+    });
+    store.update({
+      notetaker: { ...store.get().notetaker, consent: { notice: "always", seen: true } },
+    });
+    expect(createSettingsStore(db, defaults).get().notetaker.consent).toEqual({
+      notice: "always",
+      seen: true,
+    });
   });
 });

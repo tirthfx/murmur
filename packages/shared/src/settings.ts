@@ -162,6 +162,8 @@ export const settingsSchema = z.strictObject({
   insights: z.strictObject({ typingWpm: z.number().int().min(10).max(150) }),
   /** HB-26: opens the Scratchpad window. Null means no shortcut. */
   scratchpadShortcut: hotkeyTriggerSchema.nullable(),
+  /** NT-03: starts a meeting recording, and stops it when pressed again. Null means none. */
+  meetingShortcut: hotkeyTriggerSchema.nullable(),
   /** HB-26, HB-34: Scratchpad on or off, and whether a note opens in a new tab. */
   scratchpad: z.strictObject({ enabled: z.boolean(), newTab: z.boolean() }),
   /** HB-23: the interface language; English is the only one shipped so far. */
@@ -273,6 +275,7 @@ export const SETTING_KEYS: Record<keyof Settings, string> = {
   insights: "insights.settings",
   profile: "profile.settings",
   scratchpadShortcut: "hotkey.scratchpad",
+  meetingShortcut: "hotkey.meeting",
   scratchpad: "scratchpad.settings",
   theme: "ui.theme",
   language: "ui.language",
@@ -346,6 +349,7 @@ export const SHORTCUT_SLOTS = [
   "instruct",
   "focus",
   "scratchpad",
+  "meeting",
 ] as const;
 export type ShortcutSlot = (typeof SHORTCUT_SLOTS)[number];
 
@@ -368,6 +372,7 @@ export const settingsViewSchema = z.strictObject({
     instruct: z.string(),
     focus: z.string(),
     scratchpad: z.string(),
+    meeting: z.string(),
   }),
   /** Null when the helper could not list devices. */
   devices: z.array(audioDeviceSchema).nullable(),
