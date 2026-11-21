@@ -144,6 +144,9 @@ import { loadMeetingMatchers } from "./meetings/matchers-file";
 import { createDetectionSync } from "./meetings/detection-sync";
 import { createMeetingJobs, type MeetingJobs } from "./meetings/meeting-jobs";
 import { createSkillsService } from "./meetings/skills-service";
+import { createAskIndex } from "./meetings/ask-index";
+import { AskError, createAskRunner } from "./meetings/ask-runner";
+import { createAskStore } from "./meetings/ask-store";
 import { createTaskRunner, TaskError } from "./meetings/tasks-runner";
 import { createTasksService } from "./meetings/tasks-service";
 import { createSkillsStore, createSummariesStore } from "./meetings/summaries-store";
@@ -1714,6 +1717,23 @@ const taskRunner =
         logger: createConsoleLogger("[tasks]"),
       })
     : null;
+// NT-14: Ask across meetings. BM25 over pieces of the meetings, answered by the local model.
+const askStore = database ? createAskStore(database, { now: Date.now, newId: randomUUID }) : null;
+const askRunner =
+  database && askStore
+    ? createAskRunner({
+        index: createAskIndex(database, { now: Date.now }),
+        store: askStore,
+        settings: () => settingsStore.get().notetaker.ask,
+        modelReady: cleanupModelReady,
+        generate: meetingGenerate,
+        dictating: () => hubDictationState !== "idle",
+        generating: () => llm.isGenerating(),
+        wait: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+        now: Date.now,
+        logger: createConsoleLogger("[ask]"),
+      })
+    : null;
 // NT-05: the work queue. Transcription needs only the local model; meetings wait for it.
 const meetingJobs: MeetingJobs | null =
   database && meetingsStore && meetingTranscripts
@@ -2576,6 +2596,21 @@ function registerIpc(): void {
     taskAction: (id, action) => tasksService?.act(id, action) ?? noTasks,
     taskReorder: (id, beforeId) => tasksService?.reorder(id, beforeId) ?? noTasks,
     tasksUndo: () => tasksService?.undo() ?? { ok: false },
+    askThreads: () => askStore?.list() ?? [],
+    askThread: (id) => askStore?.get(id) ?? null,
+    askSend: async (input) => {
+      if (!askRunner) return { ok: false, message: "Ask needs the database." };
+      try {
+        return { ok: true, thread: await askRunner.send(input) };
+      } catch (error) {
+        return {
+          ok: false,
+          message:
+            error instanceof AskError ? error.message : "The question could not be answered.",
+        };
+      }
+    },
+    askDelete: (id) => askStore?.remove(id),
     meetingFindTasks: (id) => {
       if (!meetingJobs || !meetingsStore?.get(id))
         return { ok: false, message: "That meeting is gone." };

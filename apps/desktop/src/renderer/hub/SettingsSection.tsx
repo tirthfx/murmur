@@ -523,6 +523,48 @@ export function SettingsSection({
             />
           </VStack>
         </Row>
+        <Row id="meeting-ask">
+          <VStack gap={2}>
+            <Heading level={3}>Ask across meetings</Heading>
+            <Text size="sm" color="secondary">
+              Questions are answered on this Mac from your own meetings only, and every answer cites
+              its sources. If the meetings do not say, Ask says so.
+            </Text>
+            <Selector
+              label="A new question looks in"
+              options={[
+                { value: "all", label: "All meetings" },
+                { value: "week", label: "The last 7 days" },
+                { value: "month", label: "The last 30 days" },
+              ]}
+              value={settings.notetaker.ask.defaultScope}
+              onChange={(defaultScope) =>
+                update({
+                  notetaker: {
+                    ...settings.notetaker,
+                    ask: {
+                      ...settings.notetaker.ask,
+                      defaultScope:
+                        defaultScope as SettingsView["settings"]["notetaker"]["ask"]["defaultScope"],
+                    },
+                  },
+                })
+              }
+            />
+            <Switch
+              label="Look in my own notes too"
+              value={settings.notetaker.ask.includeNotes}
+              onChange={(includeNotes) =>
+                update({
+                  notetaker: {
+                    ...settings.notetaker,
+                    ask: { ...settings.notetaker.ask, includeNotes },
+                  },
+                })
+              }
+            />
+          </VStack>
+        </Row>
         <Row id="instruct">
           <InstructSection view={view} onSaved={setView} update={update} />
         </Row>

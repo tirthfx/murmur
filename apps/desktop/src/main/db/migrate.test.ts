@@ -23,6 +23,15 @@ describe("migrations", () => {
     expect(schemaVersion(db)).toBe(latest);
     expect(tables(db)).toEqual([
       "app_categories",
+      "ask_chunks",
+      "ask_fts",
+      "ask_fts_config",
+      "ask_fts_data",
+      "ask_fts_docsize",
+      "ask_fts_idx",
+      "ask_index",
+      "ask_messages",
+      "ask_threads",
       "audio_chunks",
       "command_runs",
       "dictionary",

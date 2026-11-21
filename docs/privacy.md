@@ -96,6 +96,6 @@ Tick categories and choose a folder. Murmur writes a new `Murmur export <date ti
 - **Recordings:** the files only; dictations stay.
 - **Styles:** goes back to the four default styles, and removes your app overrides and writing samples.
 - **Insights and milestones:** also marks history as already counted, so Insights don't refill from it.
-- **Meetings and their recordings:** every meeting, its chunk rows and the `meetings` folder (NT-04).
+- **Meetings and their recordings:** every meeting, its chunk rows, transcript, summaries, notes and the `meetings` folder (NT-04), the tasks taken from meetings and the Ask conversations and index about them (NT-26, NT-14). Tasks written by hand stay.
 
 **"Delete all data and reset"** deletes every category, plus custom Rewrites, Focus lists, retention records and every setting. With the box ticked, it also deletes downloaded models. Murmur then restarts at first-run setup.

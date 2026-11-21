@@ -167,8 +167,14 @@ export function createDataDeleter(deps: DataDeleterDeps): DataDeleter {
           failedFiles: failed.size,
         };
       case "meetings": {
-        // Chunk rows go with their meeting (ON DELETE CASCADE).
-        const rows = inTransaction(["DELETE FROM meetings"]);
+        // Chunks, segments, summaries, notes and the Ask index go with their meeting (ON DELETE
+        // CASCADE). Tasks taken from meetings and the Ask conversations about them are removed
+        // here too; tasks the owner wrote by hand stay.
+        const rows = inTransaction([
+          "DELETE FROM meetings",
+          "DELETE FROM tasks WHERE source = 'meeting'",
+          "DELETE FROM ask_threads",
+        ]);
         return { rows, files: emptyFolder(deps.meetingsRoot), failedFiles: failed.size };
       }
     }

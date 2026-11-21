@@ -8,6 +8,7 @@ import {
   summarySettingsSchema,
 } from "./skills";
 import { audioSessionIdSchema } from "./audio";
+import { DEFAULT_ASK_SETTINGS, askSettingsSchema } from "./ask";
 import { DEFAULT_TASKS_SETTINGS, tasksSettingsSchema } from "./tasks";
 import { transcriptSchema } from "./speech";
 
@@ -325,6 +326,8 @@ export const notetakerSettingsSchema = z.strictObject({
   skills: skillsSettingsSchema.default(DEFAULT_SKILLS_SETTINGS),
   /** NT-26: tasks suggested from meetings. */
   tasks: tasksSettingsSchema.default(DEFAULT_TASKS_SETTINGS),
+  /** NT-14: asking across meetings. */
+  ask: askSettingsSchema.default(DEFAULT_ASK_SETTINGS),
 });
 export type NotetakerSettings = z.infer<typeof notetakerSettingsSchema>;
 
@@ -337,4 +340,5 @@ export const DEFAULT_NOTETAKER: NotetakerSettings = {
   summary: DEFAULT_SUMMARY_SETTINGS,
   skills: DEFAULT_SKILLS_SETTINGS,
   tasks: DEFAULT_TASKS_SETTINGS,
+  ask: DEFAULT_ASK_SETTINGS,
 };

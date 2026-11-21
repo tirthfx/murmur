@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SummaryTab } from "./MeetingSummary";
+import { AskPanel, type AskTarget } from "./AskPanel";
 import { SkillsManager } from "./SkillsManager";
 import { TasksPanel } from "./TasksPanel";
 import { Badge } from "@astryxdesign/core/Badge";
@@ -32,6 +33,14 @@ const TAB_LABELS: Record<MeetingTab, string> = {
   brief: "Brief",
   docs: "Docs",
 };
+
+/** Where to open a meeting: on a tab, with a transcript line marked. */
+interface Jump {
+  meetingId: string;
+  tab: MeetingTab;
+  segmentId: string | null;
+  n: number;
+}
 
 /** Level 1 speaker labels (NT-07): the microphone is you, the Mac's sound everyone else. */
 export const CHANNEL_LABELS: Record<MeetingChannel, string> = { mic: "You", system: "Remote" };
@@ -328,23 +337,26 @@ function MeetingView({
   jump,
   onChange,
   onDeleted,
+  onAsk,
 }: {
   detail: MeetingDetail;
+  /** Ask a question about this meeting. */
+  onAsk: (meeting: { id: string; title: string }) => void;
   /** Open at a transcript line (from a task's source). */
-  jump: { meetingId: string; segmentId: string; n: number } | null;
+  jump: Jump | null;
   onChange: () => void;
   onDeleted: () => void;
 }) {
   const { meeting } = detail;
   const jumpHere = jump && jump.meetingId === meeting.id ? jump : null;
-  const [tab, setTab] = useState<MeetingTab>(() => (jumpHere ? "transcript" : firstTab(detail)));
+  const [tab, setTab] = useState<MeetingTab>(() => (jumpHere ? jumpHere.tab : firstTab(detail)));
   const [title, setTitle] = useState(meeting.title);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [highlight, setHighlight] = useState<string | null>(jumpHere?.segmentId ?? null);
   const jumpN = jumpHere?.n;
   useEffect(() => {
     if (!jumpHere) return;
-    setTab("transcript");
+    setTab(jumpHere.tab);
     setHighlight(jumpHere.segmentId);
     // Only a new jump moves the view.
   }, [jumpN]);
@@ -378,6 +390,14 @@ function MeetingView({
             onBlur={() => void rename()}
             onEnter={() => void rename()}
           />
+          <Button
+            size="sm"
+            variant="secondary"
+            label="Ask about this meeting"
+            onClick={() => onAsk({ id: meeting.id, title: meeting.title })}
+          >
+            Ask
+          </Button>
           {confirmDelete ? (
             <HStack gap={1}>
               <Button
@@ -492,10 +512,9 @@ export function NotetakerPage() {
   const [detail, setDetail] = useState<MeetingDetail | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
-  const [page, setPage] = useState<"meetings" | "tasks" | "skills">("meetings");
-  const [jump, setJump] = useState<{ meetingId: string; segmentId: string; n: number } | null>(
-    null,
-  );
+  const [page, setPage] = useState<"meetings" | "ask" | "tasks" | "skills">("meetings");
+  const [jump, setJump] = useState<Jump | null>(null);
+  const [about, setAbout] = useState<{ id: string; title: string; n: number } | null>(null);
   const openRef = useRef<string | null>(null);
   openRef.current = openId;
 
@@ -599,19 +618,32 @@ export function NotetakerPage() {
         value={page}
         role="tablist"
         hasDivider
-        onChange={(value) => setPage(value as "meetings" | "tasks" | "skills")}
+        onChange={(value) => setPage(value as "meetings" | "ask" | "tasks" | "skills")}
       >
         <Tab value="meetings" label="Meetings" panelId="notetaker-meetings" />
+        <Tab value="ask" label="Ask" panelId="notetaker-ask" />
         <Tab value="tasks" label="My Tasks" panelId="notetaker-tasks" />
         <Tab value="skills" label="Skills" panelId="notetaker-skills" />
       </TabList>
 
+      {page === "ask" ? (
+        <div id="notetaker-ask" role="tabpanel" aria-label="Ask">
+          <AskPanel
+            about={about}
+            onOpen={(target: AskTarget) => {
+              setOpenId(target.meetingId);
+              setJump({ ...target, n: Date.now() });
+              setPage("meetings");
+            }}
+          />
+        </div>
+      ) : null}
       {page === "tasks" ? (
         <div id="notetaker-tasks" role="tabpanel" aria-label="My Tasks">
           <TasksPanel
             onOpenSource={(meetingId, segmentId) => {
               setOpenId(meetingId);
-              setJump({ meetingId, segmentId, n: Date.now() });
+              setJump({ meetingId, segmentId, tab: "transcript", n: Date.now() });
               setPage("meetings");
             }}
           />
@@ -665,6 +697,10 @@ export function NotetakerPage() {
               key={detail.meeting.id}
               detail={detail}
               jump={jump}
+              onAsk={(meeting) => {
+                setAbout({ ...meeting, n: Date.now() });
+                setPage("ask");
+              }}
               onChange={() => {
                 void loadList();
                 if (openId) void loadDetail(openId);
