@@ -1,7 +1,7 @@
 /**
  * The Hub's pages in sidebar order (HB-01). `feature` names the switch that hides a page when
  * it is off; pages whose switch lives on the page itself (My Voice, Memory) are never hidden,
- * or the switch could not be turned back on. Notetaker and Tasks come with M5.
+ * or the switch could not be turned back on. Tasks comes with #189.
  */
 export const PAGES = [
   {
@@ -15,6 +15,12 @@ export const PAGES = [
     title: "Dictation",
     emptyTitle: "No dictations yet",
     emptyDescription: "Your recent dictations will be listed here.",
+  },
+  {
+    id: "notetaker",
+    title: "Notetaker",
+    emptyTitle: "No meetings yet",
+    emptyDescription: "Recorded meetings, with their notes and transcripts, will be listed here.",
   },
   {
     id: "dictionary",

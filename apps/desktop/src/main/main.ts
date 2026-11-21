@@ -37,6 +37,7 @@ import {
   insightsCsv,
   dictationStateOf,
   type DictationState,
+  type MeetingDetail,
   type HistoryRetryResult,
   localDate,
   milestoneTitle,
@@ -134,6 +135,8 @@ import { createMeetingsStore } from "./meetings/meetings-store";
 import { createMeetingRecorder } from "./meetings/meeting-recorder";
 import { createMeetingJobs, type MeetingJobs } from "./meetings/meeting-jobs";
 import { createTranscriptStore } from "./meetings/transcript-store";
+import { createLiveTranscriber } from "./meetings/live-transcriber";
+import { createMeetingNotesStore } from "./meetings/meeting-notes-store";
 import { createNoteImages, type ImageEncoder } from "./notes/note-images";
 import {
   noteFileName,
@@ -1584,24 +1587,43 @@ helper.onEditsChanged((change) => {
 
 // NT-04: meeting recordings. The helper writes the chunk files; main keeps the rows.
 const meetingsStore = database ? createMeetingsStore(database) : null;
+const meetingTranscripts = database ? createTranscriptStore(database) : null;
+const meetingNotes = database ? createMeetingNotesStore(database) : null;
+/** Tells the Hub a meeting changed (null: the list or the recording). */
+function notifyMeetings(meetingId: string | null): void {
+  if (hubEvents && !hubEvents.isDestroyed()) hubEvents.send(IPC_EVENTS.meetingsChanged, meetingId);
+}
 // NT-05: the work queue. Transcription needs only the local model; meetings wait for it.
 const meetingJobs: MeetingJobs | null =
-  database && meetingsStore
+  database && meetingsStore && meetingTranscripts
     ? createMeetingJobs({
         db: database,
         meetings: meetingsStore,
-        transcripts: createTranscriptStore(database),
+        transcripts: meetingTranscripts,
         // The meeting language comes with #193; until then it is detected.
         transcribe: (file) => speech.transcribeMeeting(file, []),
         speechReady: () => speech.getState() === "ready",
         dictating: () => hubDictationState !== "idle",
         now: () => Date.now(),
         wait: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
-        // The Notetaker page (#184) follows progress; nothing else needs it yet.
-        onProgress: () => {},
+        onProgress: (meetingId) => notifyMeetings(meetingId),
         logger: createConsoleLogger("[meetings]"),
       })
     : null;
+// NT-06: grey text for the chunk being recorded, decoded again and again.
+const liveTranscriber = createLiveTranscriber({
+  transcribeLive: (input) => speech.transcribeLive(input),
+  state: () => meetings?.state() ?? { status: "idle" },
+  dictating: () => hubDictationState !== "idle",
+  enabled: () => settingsStore.get().notetaker.live,
+  isFinal: (meetingId, channel, seq) =>
+    meetingTranscripts?.isTranscribed(meetingId, channel, seq) ?? false,
+  wait: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  onPartial: (partial) => {
+    if (hubEvents && !hubEvents.isDestroyed()) hubEvents.send(IPC_EVENTS.meetingLive, partial);
+  },
+  logger: createConsoleLogger("[meetings]"),
+});
 let meetingTick: ReturnType<typeof setInterval> | null = null;
 const meetings = meetingsStore
   ? createMeetingRecorder({
@@ -1627,6 +1649,8 @@ const meetings = meetingsStore
           meetingTick = null;
         }
         meetingBadge = state.status === "recording" ? { startedAt: state.startedAt } : null;
+        if (state.status === "recording") liveTranscriber.start(state.meetingId, state.channels);
+        notifyMeetings(null);
         barPort.render(bar.getView());
         tray?.refresh();
       },
@@ -1657,6 +1681,37 @@ setInterval(() => meetingJobs?.kick(), 15_000).unref();
 helper.onStatusChange((status) => {
   if (status.state !== "ready") meetings?.helperDown();
 });
+// Each closed chunk is transcribed while the meeting goes on, so final text follows the
+// grey text by about one chunk. The recorder has stored the chunk row by now.
+helper.onCaptureChunk((chunk) => {
+  if (!meetingsStore?.get(chunk.meetingId)) return;
+  meetingJobs?.enqueue(chunk.meetingId, "transcribe");
+  meetingJobs?.kick();
+});
+
+function meetingDetail(id: string): MeetingDetail | null {
+  const meeting = meetingsStore?.get(id);
+  if (!meeting || !meetingTranscripts || !meetingNotes) return null;
+  const notes = meetingNotes.notes(id);
+  return {
+    meeting,
+    progress: meetingTranscripts.progress(id),
+    segments: meetingTranscripts.segments(id),
+    live: liveTranscriber.partials(id),
+    notes: notes.body,
+    notesUpdatedAt: notes.updatedAt,
+    docs: meetingNotes.docs(id),
+  };
+}
+
+function deleteMeeting(id: string): void {
+  const now = meetings?.state();
+  if (now && now.status !== "idle" && "meetingId" in now && now.meetingId === id) return;
+  const folder = meetingsStore?.folderOf(id);
+  meetingsStore?.remove(id);
+  if (folder) rmSync(folder, { recursive: true, force: true });
+  notifyMeetings(null);
+}
 
 async function startMeeting(): Promise<void> {
   if (!meetings) return;
@@ -2218,6 +2273,51 @@ function registerIpc(): void {
       return retention?.view() ?? { lastRunAt: null, nextRunAt: null, removed: {} };
     },
     notesList: (query) => notes?.list(query) ?? [],
+    meetingsList: () =>
+      (meetingsStore?.list() ?? []).map((meeting) => ({
+        ...meeting,
+        progress: meetingTranscripts?.progress(meeting.id) ?? { chunks: 0, done: 0 },
+      })),
+    meetingDetail,
+    meetingRecording: () => meetings?.state() ?? { status: "idle" },
+    meetingStart: async () =>
+      meetings ? meetings.start() : { ok: false, message: "Meetings are not available." },
+    meetingStop: async () => {
+      await meetings?.stop();
+    },
+    meetingRename: (id, title) => {
+      meetingsStore?.rename(id, title);
+      notifyMeetings(id);
+    },
+    meetingDelete: deleteMeeting,
+    meetingNotesSave: (id, body) => meetingNotes?.saveNotes(id, body) ?? false,
+    meetingDocAddLink: (id, url, title) => {
+      if (!meetingsStore?.get(id) || !meetingNotes) return { ok: false, message: "No meeting." };
+      const result = meetingNotes.addLink(id, url, title);
+      notifyMeetings(id);
+      return result;
+    },
+    meetingDocAddFile: async (id) => {
+      const folder = meetingsStore?.folderOf(id);
+      if (!folder || !meetingNotes) return { ok: false, message: "No meeting." };
+      const options = { title: "Attach a file", properties: ["openFile" as const] };
+      const picked = hubWindow
+        ? await dialog.showOpenDialog(hubWindow, options)
+        : await dialog.showOpenDialog(options);
+      const file = picked.filePaths[0];
+      if (picked.canceled || !file) return { ok: false, message: "", canceled: true };
+      const result = meetingNotes.addFile(id, folder, file);
+      notifyMeetings(id);
+      return result;
+    },
+    meetingDocOpen: async (docId) => {
+      const target = meetingNotes?.target(docId);
+      if (!target) return;
+      // Links were checked to be http or https when they were added.
+      if (target.kind === "link") await shell.openExternal(target.value);
+      else await shell.openPath(target.value);
+    },
+    meetingDocRemove: (docId) => meetingNotes?.removeDoc(docId),
     noteGet: (id) => notes?.get(id) ?? null,
     noteCreate: ({ fromLastDictation }) => {
       if (!notes) return { ok: false, message: "Notes cannot be saved without the database." };

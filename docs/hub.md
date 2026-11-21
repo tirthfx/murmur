@@ -4,11 +4,11 @@ The Hub is Murmur's main window (HB-01). Closing it keeps Murmur running in the 
 
 ## Sidebar
 
-Pages, in order: Home, Dictation, Dictionary, Snippets, Styles, Rewrites, Instruct, Scratchpad, History, My Voice, Memory, Insights, Settings, Help. The list lives in `apps/desktop/src/renderer/hub/pages.ts`.
+Pages, in order: Home, Dictation, Notetaker, Dictionary, Snippets, Styles, Rewrites, Instruct, Scratchpad, History, My Voice, Memory, Insights, Settings, Help. The list lives in `apps/desktop/src/renderer/hub/pages.ts`.
 
 - A page with a `feature` is hidden while that feature is off, and asking for it shows Home instead. Only Scratchpad has one.
 - My Voice and Memory are never hidden, because their on/off switches are on those pages.
-- Notetaker and Tasks are added with M5.
+- Notetaker came with M5 (#184, see `docs/notetaker.md`); Tasks follows (#189).
 
 ## Routes and what is remembered
 

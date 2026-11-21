@@ -28,6 +28,7 @@ function setup(checkResult: ModelCheck = { ok: true }) {
       decodeMs: 300,
       audioMs: 2000,
     })),
+    transcribeLive: vi.fn(),
     onStatusChange: (handler: (status: HelperStatus) => void) => {
       statusHandlers.add(handler);
       return () => statusHandlers.delete(handler);

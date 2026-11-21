@@ -32,11 +32,36 @@ A chunk is written as `<name>.partial.m4a` and renamed when it is closed, then r
 
 **Indicator.** While a meeting records, the menu bar shows a red dot and the time, the tray menu shows "Recording a meeting" with Stop, and the Bar shows a red dot in every state (and "Meeting" with the time when it is otherwise idle).
 
-**Starting and stopping.** For now, from the tray menu: Record a meeting, Stop recording the meeting.
+**Starting and stopping.** From the Notetaker page (Record a meeting, Stop) or the tray menu.
 
 **Sleep.** When the Mac goes to sleep during a recording, the recording is stopped cleanly (its last chunk is closed and stored) and the meeting is marked `sleep`. It is not resumed on wake; start a new recording to carry on.
 
 **Deleting.** Settings, Data and Privacy, Delete data: "Meetings and their recordings" removes every meeting row, its chunk rows and the `meetings` folder. "Delete all data and reset" includes it.
+
+## The Notetaker page (NT-10)
+
+The Hub's Notetaker page (after Dictation in the sidebar) lists meetings newest first with their state: Recording, Waiting for the speech model, Transcribing (parts done of all), Ready, or Transcription failed. Record a meeting starts one and opens it; while it records the page shows the time and Stop.
+
+A meeting opens with its title (renamed in place; a rename is kept from then on), date, length, channels, any warnings (a missing Screen Recording grant has a button to its settings), and six tabs:
+
+| Tab        | Holds                                                                                                       |
+| ---------- | ----------------------------------------------------------------------------------------------------------- |
+| My notes   | Your own Markdown notes, saved 2 s after typing stops and when you leave the box (200 KB limit)             |
+| Summary    | Empty until summaries are built (#187)                                                                      |
+| Transcript | Final lines with time and speaker (You for the microphone, Remote for the Mac's sound), then grey live text |
+| Tasks      | Empty until task extraction is built (#189)                                                                 |
+| Brief      | Explains that briefs need a connected calendar (M6)                                                         |
+| Docs       | Links (http and https only) and files, copied into the meeting's `docs` folder with a SHA-256               |
+
+The tab last used is remembered per meeting in the window's local storage; otherwise My notes opens while recording and Transcript after. Lines from a dictation made during the meeting are not shown (#197 adds the switch). Delete removes the meeting, its transcript, notes, docs and audio folder; a meeting being recorded cannot be deleted. Main tells the page about changes (`meetings:changed`) and new live text (`meetings:live`).
+
+Notes and docs are in `meeting_notes` and `meeting_docs` (migration 0027). A link's title is what you type, or its host; Murmur does not fetch pages.
+
+## Live text (NT-06)
+
+While a meeting records, main asks the helper again and again (`transcribe.live`) to decode the chunk still being written on each channel in turn, with a one-second pause between rounds. The text shows grey and is replaced by the final lines when that chunk closes and is transcribed by the queue (each closed chunk is queued at once, so final text trails the live text by about one chunk). A live decode waits behind any dictation, and none starts while a dictation runs. Under a second of audio is answered at once with no text. `notetaker.live` turns it off.
+
+With 30 s chunks a live decode covers up to 30 s of audio. On an M-series Mac with the default model that takes well under a second, so text appears a few seconds after it is spoken.
 
 ## Transcription (NT-05)
 

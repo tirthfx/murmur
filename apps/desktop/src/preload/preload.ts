@@ -4,6 +4,7 @@ import {
   IPC_CHANNELS,
   IPC_EVENTS,
   type DictationState,
+  type LivePartial,
   type MurmurApi,
 } from "@murmur/shared";
 
@@ -142,6 +143,35 @@ const api: MurmurApi = {
   writingSamplesList: () => ipcRenderer.invoke(IPC_CHANNELS.writingSamplesList),
   writingSamplesSave: (input) => ipcRenderer.invoke(IPC_CHANNELS.writingSamplesSave, input),
   writingSamplesDelete: (id) => ipcRenderer.invoke(IPC_CHANNELS.writingSamplesDelete, id),
+  meetingsList: () => ipcRenderer.invoke(IPC_CHANNELS.meetingsList),
+  meetingDetail: (id) => ipcRenderer.invoke(IPC_CHANNELS.meetingDetail, id),
+  meetingRecording: () => ipcRenderer.invoke(IPC_CHANNELS.meetingRecording),
+  meetingStart: () => ipcRenderer.invoke(IPC_CHANNELS.meetingStart),
+  meetingStop: () => ipcRenderer.invoke(IPC_CHANNELS.meetingStop),
+  meetingRename: (id, title) => ipcRenderer.invoke(IPC_CHANNELS.meetingRename, id, title),
+  meetingDelete: (id) => ipcRenderer.invoke(IPC_CHANNELS.meetingDelete, id),
+  meetingNotesSave: (id, body) => ipcRenderer.invoke(IPC_CHANNELS.meetingNotesSave, id, body),
+  meetingDocAddLink: (id, url, title) =>
+    ipcRenderer.invoke(IPC_CHANNELS.meetingDocAddLink, id, url, title),
+  meetingDocAddFile: (id) => ipcRenderer.invoke(IPC_CHANNELS.meetingDocAddFile, id),
+  meetingDocOpen: (docId) => ipcRenderer.invoke(IPC_CHANNELS.meetingDocOpen, docId),
+  meetingDocRemove: (docId) => ipcRenderer.invoke(IPC_CHANNELS.meetingDocRemove, docId),
+  onMeetingsChanged: (handler) => {
+    const listener = (_event: unknown, meetingId: unknown) => {
+      if (meetingId === null || (typeof meetingId === "string" && meetingId.length <= 64)) {
+        handler(meetingId);
+      }
+    };
+    ipcRenderer.on(IPC_EVENTS.meetingsChanged, listener);
+    return () => ipcRenderer.removeListener(IPC_EVENTS.meetingsChanged, listener);
+  },
+  onMeetingLive: (handler) => {
+    const listener = (_event: unknown, partial: unknown) => {
+      if (partial && typeof partial === "object") handler(partial as LivePartial);
+    };
+    ipcRenderer.on(IPC_EVENTS.meetingLive, listener);
+    return () => ipcRenderer.removeListener(IPC_EVENTS.meetingLive, listener);
+  },
   onOpenPage: (handler) => {
     const listener = (_event: unknown, pageId: unknown) => {
       if (typeof pageId === "string" && /^[a-z-]{1,40}$/.test(pageId)) handler(pageId);

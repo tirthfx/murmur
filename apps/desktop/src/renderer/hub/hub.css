@@ -499,3 +499,82 @@ body {
   outline-offset: 4px;
   border-radius: 6px;
 }
+
+/* Notetaker (NT-06, NT-10): the meeting list beside the open meeting. */
+.hub-notetaker {
+  display: grid;
+  grid-template-columns: minmax(200px, 260px) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.hub-meeting-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hub-meeting-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.hub-meeting-item:hover {
+  background: var(--color-background-secondary, rgba(127, 127, 127, 0.08));
+}
+
+.hub-meeting-item[aria-current="true"] {
+  border-color: var(--color-border, rgba(127, 127, 127, 0.3));
+  background: var(--color-background-secondary, rgba(127, 127, 127, 0.08));
+}
+
+.hub-transcript {
+  max-height: 420px;
+  overflow-y: auto;
+  padding-inline-end: 8px;
+}
+
+.hub-transcript-line {
+  display: grid;
+  grid-template-columns: 4.5em 5em minmax(0, 1fr);
+  gap: 8px;
+  margin: 0 0 6px;
+  line-height: 1.45;
+}
+
+.hub-transcript-time,
+.hub-transcript-speaker {
+  color: var(--color-text-secondary, gray);
+  font-variant-numeric: tabular-nums;
+}
+
+.hub-transcript-partial {
+  color: var(--color-text-secondary, gray);
+  font-style: italic;
+}
+
+.hub-rec-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #dc2626;
+}
+
+@media (max-width: 760px) {
+  .hub-notetaker {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

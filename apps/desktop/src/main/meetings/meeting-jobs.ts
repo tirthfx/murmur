@@ -79,30 +79,36 @@ export function createMeetingJobs(deps: MeetingJobsDeps): MeetingJobs {
     }
     deps.onProgress(meetingId);
     try {
-      for (const chunk of deps.transcripts.pendingChunks(meetingId)) {
-        while (deps.dictating()) await deps.wait(500);
-        let transcript: Transcript;
-        try {
-          transcript = await deps.transcribe(chunk.path);
-        } catch (error) {
-          // A chunk file removed by hand: nothing to read, so move on.
-          if (errorCode(error) !== "NOT_FOUND") throw error;
-          deps.logger.warn(`a chunk of meeting ${meetingId} is missing; skipped`);
-          transcript = { text: "", language: "", segments: [] } as unknown as Transcript;
+      // Chunks keep arriving while a meeting records: drain until none is left.
+      for (
+        let pending = deps.transcripts.pendingChunks(meetingId);
+        pending.length > 0;
+        pending = deps.transcripts.pendingChunks(meetingId)
+      )
+        for (const chunk of pending) {
+          while (deps.dictating()) await deps.wait(500);
+          let transcript: Transcript;
+          try {
+            transcript = await deps.transcribe(chunk.path);
+          } catch (error) {
+            // A chunk file removed by hand: nothing to read, so move on.
+            if (errorCode(error) !== "NOT_FOUND") throw error;
+            deps.logger.warn(`a chunk of meeting ${meetingId} is missing; skipped`);
+            transcript = { text: "", language: "", segments: [] } as unknown as Transcript;
+          }
+          deps.transcripts.addChunkSegments(
+            chunk,
+            transcript.segments.map((segment) => ({
+              channel: chunk.channel,
+              startMs: chunk.startMs + segment.startMs,
+              endMs: chunk.startMs + segment.endMs,
+              text: segment.text,
+              language: transcript.language || null,
+            })),
+            deps.now(),
+          );
+          deps.onProgress(meetingId);
         }
-        deps.transcripts.addChunkSegments(
-          chunk,
-          transcript.segments.map((segment) => ({
-            channel: chunk.channel,
-            startMs: chunk.startMs + segment.startMs,
-            endMs: chunk.startMs + segment.endMs,
-            text: segment.text,
-            language: transcript.language || null,
-          })),
-          deps.now(),
-        );
-        deps.onProgress(meetingId);
-      }
       setJob(meetingId, "transcribe", "done");
       if (deps.meetings.get(meetingId)?.status !== "recording") {
         deps.meetings.setStatus(meetingId, "ready");

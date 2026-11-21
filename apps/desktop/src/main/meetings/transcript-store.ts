@@ -20,6 +20,8 @@ export interface TranscriptStore {
   /** Chunks not transcribed yet, in timeline order across both channels. */
   pendingChunks(meetingId: string): AudioChunkRow[];
   progress(meetingId: string): TranscriptionProgress;
+  /** True once this chunk's final segments are written. */
+  isTranscribed(meetingId: string, channel: MeetingChannel, seq: number): boolean;
   /**
    * Writes one chunk's segments and marks the chunk done, in one transaction. Segment ids
    * come from the chunk, so writing a chunk twice (after a crash) adds nothing.
@@ -86,6 +88,15 @@ export function createTranscriptStore(db: DatabaseSync): TranscriptStore {
         )
         .get(meetingId) as { chunks: number; done: number };
       return { chunks: row.chunks, done: row.done };
+    },
+    isTranscribed(meetingId, channel, seq) {
+      const row = db
+        .prepare(
+          `SELECT transcribed_at FROM meeting_audio_chunks
+           WHERE meeting_id = ? AND channel = ? AND seq = ?`,
+        )
+        .get(meetingId, channel, seq) as { transcribed_at: number | null } | undefined;
+      return row?.transcribed_at != null;
     },
     addChunkSegments(chunk, segments, at) {
       const insert = db.prepare(

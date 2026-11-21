@@ -1,6 +1,11 @@
 import {
   IPC_CHANNELS,
   parseIpcRequest,
+  type MeetingDetail,
+  type MeetingDocResult,
+  type MeetingListItem,
+  type MeetingStartResult,
+  type RecordingState,
   type AppInfo,
   type LoginItem,
   type HistoryDeleteResult,
@@ -97,6 +102,18 @@ import {
 import { isTrustedIpcSender } from "../security/guards";
 
 export interface IpcDeps {
+  meetingsList: () => MeetingListItem[];
+  meetingDetail: (id: string) => MeetingDetail | null;
+  meetingRecording: () => RecordingState;
+  meetingStart: () => Promise<MeetingStartResult>;
+  meetingStop: () => Promise<void>;
+  meetingRename: (id: string, title: string) => void;
+  meetingDelete: (id: string) => void;
+  meetingNotesSave: (id: string, body: string) => boolean;
+  meetingDocAddLink: (id: string, url: string, title: string) => MeetingDocResult;
+  meetingDocAddFile: (id: string) => Promise<MeetingDocResult>;
+  meetingDocOpen: (docId: string) => Promise<void>;
+  meetingDocRemove: (docId: string) => void;
   entryUrl: string;
   getAppInfo: () => AppInfo;
   reportProblem: () => Promise<TestingToolResult>;
@@ -474,6 +491,34 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.voiceProfileView();
       case IPC_CHANNELS.voiceProfileReset:
         return deps.voiceProfileReset();
+      case IPC_CHANNELS.meetingsList:
+        return deps.meetingsList();
+      case IPC_CHANNELS.meetingDetail:
+        return deps.meetingDetail(request.args[0] as string);
+      case IPC_CHANNELS.meetingRecording:
+        return deps.meetingRecording();
+      case IPC_CHANNELS.meetingStart:
+        return deps.meetingStart();
+      case IPC_CHANNELS.meetingStop:
+        return deps.meetingStop();
+      case IPC_CHANNELS.meetingRename:
+        return deps.meetingRename(request.args[0] as string, request.args[1] as string);
+      case IPC_CHANNELS.meetingDelete:
+        return deps.meetingDelete(request.args[0] as string);
+      case IPC_CHANNELS.meetingNotesSave:
+        return deps.meetingNotesSave(request.args[0] as string, request.args[1] as string);
+      case IPC_CHANNELS.meetingDocAddLink:
+        return deps.meetingDocAddLink(
+          request.args[0] as string,
+          request.args[1] as string,
+          request.args[2] as string,
+        );
+      case IPC_CHANNELS.meetingDocAddFile:
+        return deps.meetingDocAddFile(request.args[0] as string);
+      case IPC_CHANNELS.meetingDocOpen:
+        return deps.meetingDocOpen(request.args[0] as string);
+      case IPC_CHANNELS.meetingDocRemove:
+        return deps.meetingDocRemove(request.args[0] as string);
       default:
         throw new Error("IPC rejected: unknown-channel");
     }

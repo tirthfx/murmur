@@ -1,4 +1,11 @@
-import type { PlatformHelper, SpeechModel, Transcript, Unsubscribe } from "@murmur/shared";
+import type {
+  LiveTranscript,
+  PlatformHelper,
+  SpeechModel,
+  TranscribeLiveInput,
+  Transcript,
+  Unsubscribe,
+} from "@murmur/shared";
 import type { Logger } from "../helper/types";
 import { checkModel, modelLocation, type ModelCheck } from "./model-store";
 
@@ -12,7 +19,7 @@ export type SpeechState =
 export interface SpeechServiceDeps {
   helper: Pick<
     PlatformHelper,
-    "loadSpeechModel" | "transcribeFile" | "onStatusChange" | "getStatus"
+    "loadSpeechModel" | "transcribeFile" | "onStatusChange" | "getStatus" | "transcribeLive"
   >;
   model: SpeechModel;
   /** `.../Application Support/Murmur/models/speech/whisperkit`. */
@@ -42,6 +49,8 @@ export interface SpeechService {
    * always goes first: the helper decodes one file at a time.
    */
   transcribeMeeting(path: string, languages: string[]): Promise<Transcript>;
+  /** NT-06: the chunk still being recorded on a channel; waits behind dictation too. */
+  transcribeLive(input: TranscribeLiveInput): Promise<LiveTranscript>;
 }
 
 function errorMessage(error: unknown): string {
@@ -172,6 +181,13 @@ export function createSpeechService(deps: SpeechServiceDeps): SpeechService {
           ...(prompt ? { prompt } : {}),
         }),
       );
+    },
+    transcribeLive(input) {
+      if (state !== "ready") return Promise.reject(notReady());
+      return decode(false, () => {
+        if (state !== "ready") return Promise.reject(notReady());
+        return helper.transcribeLive(input);
+      });
     },
     transcribeMeeting(path, meetingLanguages) {
       if (state !== "ready") return Promise.reject(notReady());
