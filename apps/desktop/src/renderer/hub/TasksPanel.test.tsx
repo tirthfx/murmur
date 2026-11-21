@@ -201,6 +201,38 @@ describe("My Tasks (NT-26)", () => {
     expect(screen.getByRole("button", { name: "Undo" })).toHaveProperty("disabled", true);
   });
 
+  it("filters the tasks by folder (NT-17)", async () => {
+    api.foldersList = vi.fn().mockResolvedValue([
+      {
+        id: "f1",
+        name: "Customer calls",
+        meetings: 2,
+        defaultSkillId: null,
+        autoExportPath: null,
+      },
+    ]);
+    render(<TasksPanel onOpenSource={open} />);
+    await list();
+    fireEvent.click(screen.getByRole("combobox", { name: "Folder" }));
+    fireEvent.click(await screen.findByRole("option", { name: "Customer calls" }));
+    await waitFor(() =>
+      expect(api.tasksList).toHaveBeenLastCalledWith({
+        status: "all",
+        owner: "me-or-named",
+        folder: "f1",
+      }),
+    );
+    fireEvent.click(screen.getByRole("combobox", { name: "Folder" }));
+    fireEvent.click(await screen.findByRole("option", { name: "Inbox" }));
+    await waitFor(() =>
+      expect(api.tasksList).toHaveBeenLastCalledWith({
+        status: "all",
+        owner: "me-or-named",
+        folder: "inbox",
+      }),
+    );
+  });
+
   it("for one meeting, shows its tasks, hides the meeting filter and can look for tasks", async () => {
     api.tasksList = vi.fn().mockResolvedValue({ tasks: [], undo: null });
     render(<TasksPanel meetingId="m-1" taskStatus={{ state: "idle" }} onOpenSource={open} />);

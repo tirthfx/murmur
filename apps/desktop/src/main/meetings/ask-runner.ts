@@ -30,6 +30,8 @@ export class AskError extends Error {
 export interface AskRunnerDeps extends ModelAskDeps {
   index: AskIndex;
   store: AskStore;
+  /** The ids of the meetings in a folder, or in the Inbox for null (NT-17). */
+  folderMeetings?(folderId: string | null): string[];
   settings(): { topK: number; includeNotes: boolean };
   modelReady(): Promise<boolean>;
   now(): number;
@@ -50,8 +52,13 @@ const localDay = (iso: string) => {
 };
 
 /** The meetings a scope covers, as a filter for the index. */
-export function scopeFilter(scope: AskScope): AskFilter {
+export function scopeFilter(
+  scope: AskScope,
+  /** The meetings in a folder now (null: the Inbox). Moving a meeting changes the answer. */
+  folderMeetings: (folderId: string | null) => string[] = () => [],
+): AskFilter {
   if (scope.kind === "meetings") return { meetingIds: scope.ids };
+  if (scope.kind === "folder") return { meetingIds: folderMeetings(scope.folderId) };
   if (scope.kind === "range") {
     const to = new Date(localDay(scope.to));
     return {
@@ -89,7 +96,7 @@ export function createAskRunner(deps: AskRunnerDeps): AskRunner {
         deps.store.addMessage(threadId, { role: "user", text: question });
 
         // The scope, narrowed by dates in the question ("last Tuesday").
-        const filter: AskFilter = scopeFilter(input.scope);
+        const filter: AskFilter = scopeFilter(input.scope, deps.folderMeetings);
         const asked = questionRange(question, deps.now());
         if (asked) {
           filter.from = Math.max(filter.from ?? asked.from, asked.from);

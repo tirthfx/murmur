@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { TASK_UNDO_LIMIT } from "@murmur/shared";
 import { openDatabase } from "../db/database";
+import { createFoldersStore } from "./folders-store";
 import { createMeetingsStore } from "./meetings-store";
 import { createTasksService, type SuggestedTask } from "./tasks-service";
 
@@ -119,6 +120,26 @@ describe("filters", () => {
     expect(titles(t, { status: "open" })).toEqual(["Mine"]);
     expect(titles(t, { status: "all", meetingId: "m-2" })).toEqual(["Other meeting"]);
     expect(titles(t)).toHaveLength(4);
+  });
+});
+
+describe("folder filter (NT-17)", () => {
+  it("shows the tasks of the meetings in a folder, or in the Inbox", () => {
+    const t = setup();
+    const folders = createFoldersStore(t.db, { now: () => 1, newId: () => "f1" });
+    const made = folders.create("Customer calls");
+    if (!made.ok || !made.id) throw new Error("no folder");
+    folders.move("m-2", made.id);
+    t.tasks.addSuggested("m-1", [suggested("In the inbox")]);
+    t.tasks.addSuggested("m-2", [suggested("In the folder")]);
+    t.tasks.addManual(draft("By hand"));
+    expect(titles(t, { folder: made.id })).toEqual(["In the folder"]);
+    expect(titles(t, { folder: "inbox" })).toEqual(["In the inbox"]);
+    expect(titles(t, {})).toHaveLength(3);
+    // Moving the meeting moves its tasks in the filter.
+    folders.move("m-2", null);
+    expect(titles(t, { folder: made.id })).toEqual([]);
+    expect(titles(t, { folder: "inbox" }).sort()).toEqual(["In the folder", "In the inbox"]);
   });
 });
 

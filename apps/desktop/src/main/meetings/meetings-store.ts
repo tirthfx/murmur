@@ -20,6 +20,8 @@ export interface MeetingsStore {
     /** NT-20: null detects the language. */
     language?: string | null;
     translate?: boolean;
+    /** NT-17: null puts it in the Inbox. */
+    folderId?: string | null;
   }): Meeting;
   get(id: string): Meeting | null;
   /** Newest first. */
@@ -67,6 +69,7 @@ interface MeetingRow {
   language: string | null;
   translate: number;
   transcript_version: number;
+  folder_id: string | null;
 }
 
 interface ChunkRow {
@@ -81,7 +84,7 @@ interface ChunkRow {
 }
 
 const COLUMNS =
-  "id, title, started_at, ended_at, source, status, channels, warnings, duration_ms, audio_deleted_at, language, translate, transcript_version";
+  "id, title, started_at, ended_at, source, status, channels, warnings, duration_ms, audio_deleted_at, language, translate, transcript_version, folder_id";
 
 function parseList<T>(text: string): T[] {
   try {
@@ -107,6 +110,7 @@ function toMeeting(row: MeetingRow): Meeting {
     language: row.language,
     translate: row.translate === 1,
     transcriptVersion: row.transcript_version,
+    folderId: row.folder_id,
   };
 }
 
@@ -123,8 +127,8 @@ export function createMeetingsStore(db: DatabaseSync): MeetingsStore {
   return {
     create(input) {
       db.prepare(
-        `INSERT INTO meetings (id, title, started_at, source, status, folder, language, translate)
-         VALUES (?, ?, ?, ?, 'recording', ?, ?, ?)`,
+        `INSERT INTO meetings (id, title, started_at, source, status, folder, language, translate, folder_id)
+         VALUES (?, ?, ?, ?, 'recording', ?, ?, ?, ?)`,
       ).run(
         input.id,
         input.title.slice(0, MEETING_TITLE_MAX),
@@ -133,6 +137,7 @@ export function createMeetingsStore(db: DatabaseSync): MeetingsStore {
         input.folder,
         input.language ?? null,
         input.translate ? 1 : 0,
+        input.folderId ?? null,
       );
       return get(input.id)!;
     },

@@ -44,6 +44,8 @@ describe("migrations", () => {
       "dictionary",
       "focus_rules",
       "focus_sessions",
+      "folder_suggestion_dismissals",
+      "folders",
       "history",
       "history_fts",
       "history_fts_config",

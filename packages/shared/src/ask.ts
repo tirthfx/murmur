@@ -13,6 +13,8 @@ const dateSchema = z.string().refine(isCalendarDate, "A date is written YYYY-MM-
 export const askScopeSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("all") }),
   z.strictObject({ kind: z.literal("range"), from: dateSchema, to: dateSchema }),
+  /** The meetings in a folder now; null is the Inbox. Moving a meeting changes the answer. */
+  z.strictObject({ kind: z.literal("folder"), folderId: z.string().min(1).max(64).nullable() }),
   z.strictObject({
     kind: z.literal("meetings"),
     ids: z.array(z.string().min(1).max(64)).min(1).max(500),

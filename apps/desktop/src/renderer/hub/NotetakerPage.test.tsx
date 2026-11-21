@@ -6,6 +6,7 @@ import type {
   MeetingDetail,
   MeetingListItem,
   AskThread,
+  MeetingFolder,
   MeetingSummary,
   Task,
 } from "@murmur/shared";
@@ -26,6 +27,7 @@ const meeting: MeetingListItem = {
   language: null,
   translate: false,
   transcriptVersion: 1,
+  folderId: null,
   progress: { chunks: 4, done: 4 },
 };
 
@@ -84,6 +86,7 @@ function detail(overrides: Partial<MeetingDetail> = {}): MeetingDetail {
     transcriptVersions: [],
     detectedLanguage: null,
     rerunBlocked: null,
+    folderSuggestion: null,
     speakers: [
       {
         id: "m-1:mic",
@@ -549,6 +552,73 @@ describe("Notetaker page", () => {
       expect(window.murmur.meetingSegmentHistory).toHaveBeenCalledWith("m-1", "s1");
       await act(async () => screen.getByRole("button", { name: "Close the editor" }).click());
       expect(screen.queryByLabelText("Line")).toBeNull();
+    });
+  });
+
+  describe("folders (NT-17)", () => {
+    const calls: MeetingFolder = {
+      id: "f1",
+      name: "Customer calls",
+      meetings: 1,
+      defaultSkillId: null,
+      autoExportPath: null,
+    };
+
+    it("filters the meetings by folder, and shows the Inbox", async () => {
+      window.murmur.foldersList = vi.fn().mockResolvedValue([calls]);
+      window.murmur.meetingsList = vi
+        .fn()
+        .mockResolvedValue([
+          meeting,
+          { ...meeting, id: "m-2", title: "Acme call", folderId: "f1" },
+        ]);
+      render(<NotetakerPage />);
+      await screen.findByRole("button", { name: /Design sync/ });
+      expect(screen.getByRole("button", { name: /Acme call/ })).toBeTruthy();
+      fireEvent.click(screen.getByRole("combobox", { name: "Folder" }));
+      fireEvent.click(await screen.findByRole("option", { name: "Customer calls (1)" }));
+      expect(screen.queryByRole("button", { name: /Design sync/ })).toBeNull();
+      expect(screen.getByRole("button", { name: /Acme call/ })).toBeTruthy();
+      fireEvent.click(screen.getByRole("combobox", { name: "Folder" }));
+      fireEvent.click(await screen.findByRole("option", { name: "Inbox" }));
+      expect(screen.getByRole("button", { name: /Design sync/ })).toBeTruthy();
+      expect(screen.queryByRole("button", { name: /Acme call/ })).toBeNull();
+    });
+
+    it("moves a meeting to a folder from its page", async () => {
+      window.murmur.foldersList = vi.fn().mockResolvedValue([calls]);
+      await openMeeting();
+      const header = screen.getByRole("region", { name: "Meeting" });
+      fireEvent.click(within(header).getByRole("combobox", { name: "Folder" }));
+      fireEvent.click(await screen.findByRole("option", { name: "Customer calls" }));
+      await waitFor(() => expect(window.murmur.meetingMove).toHaveBeenCalledWith("m-1", "f1"));
+    });
+
+    it("offers a folder, moves on a click, and can dismiss it", async () => {
+      window.murmur.foldersList = vi.fn().mockResolvedValue([calls]);
+      window.murmur.meetingDetail = vi
+        .fn()
+        .mockResolvedValue(
+          detail({ folderSuggestion: { folderId: "f1", folderName: "Customer calls" } }),
+        );
+      await openMeeting();
+      expect(screen.getByText("This looks like it belongs in “Customer calls”.")).toBeTruthy();
+      // Nothing moved by itself.
+      expect(window.murmur.meetingMove).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole("button", { name: "Move this meeting to Customer calls" }));
+      await waitFor(() => expect(window.murmur.meetingMove).toHaveBeenCalledWith("m-1", "f1"));
+      fireEvent.click(screen.getByRole("button", { name: /Do not suggest this folder again/ }));
+      await waitFor(() =>
+        expect(window.murmur.meetingFolderDismiss).toHaveBeenCalledWith("m-1", "f1"),
+      );
+    });
+
+    it("opens the folders panel and the export panel", async () => {
+      await openMeeting();
+      fireEvent.click(screen.getByRole("button", { name: "Manage folders" }));
+      expect(screen.getByLabelText("New folder")).toBeTruthy();
+      fireEvent.click(screen.getByRole("button", { name: "Export a shareable file" }));
+      expect(screen.getByText(/The audio is not included/)).toBeTruthy();
     });
   });
 });

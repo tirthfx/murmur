@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SummaryTab } from "./MeetingSummary";
 import { AskPanel, type AskTarget } from "./AskPanel";
+import { ExportPanel } from "./ExportPanel";
+import { FoldersManager } from "./FoldersManager";
 import { LanguagePanel } from "./LanguagePanel";
 import { LineEditor } from "./LineEditor";
 import { SkillsManager } from "./SkillsManager";
@@ -10,6 +12,7 @@ import { Badge } from "@astryxdesign/core/Badge";
 import { Banner } from "@astryxdesign/core/Banner";
 import { Button } from "@astryxdesign/core/Button";
 import { HStack } from "@astryxdesign/core/HStack";
+import { Selector } from "@astryxdesign/core/Selector";
 import { Tab, TabList } from "@astryxdesign/core/TabList";
 import { Text } from "@astryxdesign/core/Text";
 import { TextArea } from "@astryxdesign/core/TextArea";
@@ -17,12 +20,14 @@ import { TextInput } from "@astryxdesign/core/TextInput";
 import { VStack } from "@astryxdesign/core/VStack";
 import {
   formatElapsed,
+  INBOX,
   MEETING_LIMITS,
   MEETING_TABS,
   MEETING_WARNING_TEXT,
   type LivePartial,
   type MeetingChannel,
   type MeetingDetail,
+  type MeetingFolder,
   type MeetingListItem,
   type MeetingTab,
   type RecordingState,
@@ -381,8 +386,11 @@ function MeetingView({
   onChange,
   onDeleted,
   onAsk,
+  folders,
 }: {
   detail: MeetingDetail;
+  /** The personal folders; the Inbox is not in the list. */
+  folders: MeetingFolder[];
   /** Ask a question about this meeting. */
   onAsk: (meeting: { id: string; title: string }) => void;
   /** Open at a transcript line (from a task's source). */
@@ -395,6 +403,7 @@ function MeetingView({
   const [tab, setTab] = useState<MeetingTab>(() => (jumpHere ? jumpHere.tab : firstTab(detail)));
   const [title, setTitle] = useState(meeting.title);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [highlight, setHighlight] = useState<string | null>(jumpHere?.segmentId ?? null);
   const jumpN = jumpHere?.n;
   useEffect(() => {
@@ -441,6 +450,25 @@ function MeetingView({
           >
             Ask
           </Button>
+          <Selector
+            label="Folder"
+            value={meeting.folderId ?? INBOX}
+            options={[
+              { value: INBOX, label: "Inbox" },
+              ...folders.map((folder) => ({ value: folder.id, label: folder.name })),
+            ]}
+            onChange={(value) =>
+              void window.murmur.meetingMove(meeting.id, value === INBOX ? null : value)
+            }
+          />
+          <Button
+            size="sm"
+            variant="secondary"
+            label="Export a shareable file"
+            onClick={() => setExporting((open) => !open)}
+          >
+            Export…
+          </Button>
           {confirmDelete ? (
             <HStack gap={1}>
               <Button
@@ -472,6 +500,42 @@ function MeetingView({
             </Button>
           )}
         </HStack>
+        {detail.folderSuggestion ? (
+          <Banner
+            status="info"
+            title={`This looks like it belongs in “${detail.folderSuggestion.folderName}”.`}
+            endContent={
+              <HStack gap={1}>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  label={`Move this meeting to ${detail.folderSuggestion.folderName}`}
+                  onClick={() =>
+                    void window.murmur.meetingMove(meeting.id, detail.folderSuggestion!.folderId)
+                  }
+                >
+                  Move it
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  label="Do not suggest this folder again for meetings like this one"
+                  onClick={() =>
+                    void window.murmur.meetingFolderDismiss(
+                      meeting.id,
+                      detail.folderSuggestion!.folderId,
+                    )
+                  }
+                >
+                  Dismiss
+                </Button>
+              </HStack>
+            }
+          />
+        ) : null}
+        {exporting ? (
+          <ExportPanel meetingId={meeting.id} onClose={() => setExporting(false)} />
+        ) : null}
         <Text size="sm" color="secondary">
           {whenOf(meeting.startedAt)} · {formatElapsed(meeting.durationMs)} ·{" "}
           {(detail.speakers.length > 0
@@ -559,18 +623,23 @@ export function NotetakerPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [page, setPage] = useState<"meetings" | "ask" | "tasks" | "skills">("meetings");
+  const [folders, setFolders] = useState<MeetingFolder[]>([]);
+  const [folderFilter, setFolderFilter] = useState<string>("all");
+  const [managingFolders, setManagingFolders] = useState(false);
   const [jump, setJump] = useState<Jump | null>(null);
   const [about, setAbout] = useState<{ id: string; title: string; n: number } | null>(null);
   const openRef = useRef<string | null>(null);
   openRef.current = openId;
 
   const loadList = useCallback(async () => {
-    const [items, state] = await Promise.all([
+    const [items, state, folderList] = await Promise.all([
       window.murmur.meetingsList(),
       window.murmur.meetingRecording(),
+      window.murmur.foldersList(),
     ]);
     setList(items);
     setRecording(state);
+    setFolders(folderList);
   }, []);
 
   const loadDetail = useCallback(async (id: string) => {
@@ -614,6 +683,12 @@ export function NotetakerPage() {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, [recording.status]);
+
+  const shownList = (list ?? []).filter(
+    (item) =>
+      folderFilter === "all" ||
+      (folderFilter === INBOX ? item.folderId === null : item.folderId === folderFilter),
+  );
 
   async function start() {
     setMessage(null);
@@ -708,38 +783,69 @@ export function NotetakerPage() {
       >
         <div className="hub-notetaker">
           <section aria-label="Meetings">
-            {list === null ? (
-              <Text color="secondary">Loading…</Text>
-            ) : list.length === 0 ? (
-              <Text color="secondary">No meetings yet. Record one to see it here.</Text>
-            ) : (
-              <ul className="hub-meeting-list" aria-label="Meetings">
-                {list.map((item) => (
-                  <li key={item.id}>
-                    <button
-                      type="button"
-                      className="hub-meeting-item"
-                      aria-current={item.id === openId ? "true" : undefined}
-                      onClick={() => setOpenId(item.id)}
-                    >
-                      <Text weight="semibold">{item.title}</Text>
-                      <Text size="sm" color="secondary">
-                        {whenOf(item.startedAt)} · {formatElapsed(item.durationMs)}
-                      </Text>
-                      <span>
-                        <Badge
-                          variant={item.status === "failed" ? "error" : "neutral"}
-                          label={statusText(item)}
-                        />
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <VStack gap={2}>
+              <HStack gap={2} align="end" wrap="wrap">
+                <Selector
+                  label="Folder"
+                  value={folderFilter}
+                  options={[
+                    { value: "all", label: "All meetings" },
+                    { value: INBOX, label: "Inbox" },
+                    ...folders.map((folder) => ({
+                      value: folder.id,
+                      label: `${folder.name} (${folder.meetings})`,
+                    })),
+                  ]}
+                  onChange={setFolderFilter}
+                />
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  label="Manage folders"
+                  onClick={() => setManagingFolders((open) => !open)}
+                >
+                  Folders…
+                </Button>
+              </HStack>
+              {managingFolders ? (
+                <FoldersManager folders={folders} onChange={() => void loadList()} />
+              ) : null}
+              {list === null ? (
+                <Text color="secondary">Loading…</Text>
+              ) : list.length === 0 ? (
+                <Text color="secondary">No meetings yet. Record one to see it here.</Text>
+              ) : shownList.length === 0 ? (
+                <Text color="secondary">No meetings in this folder.</Text>
+              ) : (
+                <ul className="hub-meeting-list" aria-label="Meetings">
+                  {shownList.map((item) => (
+                    <li key={item.id}>
+                      <button
+                        type="button"
+                        className="hub-meeting-item"
+                        aria-current={item.id === openId ? "true" : undefined}
+                        onClick={() => setOpenId(item.id)}
+                      >
+                        <Text weight="semibold">{item.title}</Text>
+                        <Text size="sm" color="secondary">
+                          {whenOf(item.startedAt)} · {formatElapsed(item.durationMs)}
+                        </Text>
+                        <span>
+                          <Badge
+                            variant={item.status === "failed" ? "error" : "neutral"}
+                            label={statusText(item)}
+                          />
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </VStack>
           </section>
           {detail ? (
             <MeetingView
+              folders={folders}
               key={detail.meeting.id}
               detail={detail}
               jump={jump}

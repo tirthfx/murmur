@@ -36,6 +36,8 @@ export interface SummaryRunnerDeps {
   summaries: Pick<SummariesStore, "add">;
   skills: Pick<SkillsStore, "get">;
   settings(): { skillId: string; length: SkillLength; language?: string };
+  /** The Skill set for the folder a meeting is in (NT-17), or null. */
+  folderSkill?(meetingId: string): string | null;
   modelId: string;
   modelReady(): Promise<boolean>;
   /** One call of the local model. A cancelled or preempted call rejects with `retry: true`. */
@@ -87,7 +89,7 @@ export function createSummaryRunner(deps: SummaryRunnerDeps): SummaryRunner {
       if (!deps.hasMeeting(meetingId)) throw new SummaryError("failed", "That meeting is gone.");
       const settings = deps.settings();
       const skill: Skill | null =
-        deps.skills.get(options.skillId ?? settings.skillId) ??
+        deps.skills.get(options.skillId ?? deps.folderSkill?.(meetingId) ?? settings.skillId) ??
         BUILT_IN_SKILLS.find((candidate) => candidate.id === DEFAULT_SKILL_ID) ??
         null;
       if (!skill) throw new SummaryError("no-skill", "That Skill was not found.");

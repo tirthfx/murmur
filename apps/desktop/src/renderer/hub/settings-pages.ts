@@ -78,6 +78,12 @@ export const SETTINGS_INDEX: readonly SettingEntry[] = [
     words: "notetaker question chat search notes scope",
   },
   {
+    id: "meeting-folders",
+    page: "system",
+    label: "Meeting folders",
+    words: "notetaker inbox suggest default folder",
+  },
+  {
     id: "meeting-language",
     page: "system",
     label: "Meeting languages",

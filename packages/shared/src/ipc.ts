@@ -19,6 +19,15 @@ import {
   type SpeakerRenameResult,
 } from "./meetings";
 import {
+  folderPatchSchema,
+  meetingExportOptionsSchema,
+  type FolderPatch,
+  type FolderResult,
+  type MeetingExportOptions,
+  type MeetingExportResult,
+  type MeetingFolder,
+} from "./folders";
+import {
   askSendSchema,
   type AskSendInput,
   type AskSendResult,
@@ -418,6 +427,16 @@ export const IPC_CHANNELS = {
   meetingSpeakerClip: "meetings:speaker-clip",
   meetingCorrect: "meetings:correct",
   meetingSetLanguage: "meetings:set-language",
+  foldersList: "folders:list",
+  folderCreate: "folders:create",
+  folderRename: "folders:rename",
+  folderDelete: "folders:delete",
+  folderUpdate: "folders:update",
+  folderChooseExport: "folders:choose-export",
+  folderClearExport: "folders:clear-export",
+  meetingMove: "meetings:move",
+  meetingFolderDismiss: "meetings:folder-dismiss",
+  meetingExport: "meetings:export",
   meetingRerun: "meetings:rerun",
   meetingVersionRestore: "meetings:version-restore",
   meetingSegmentHistory: "meetings:segment-history",
@@ -923,6 +942,43 @@ export const IPC_CONTRACT = {
     args: z.tuple([z.string().min(1).max(64), correctionSchema]),
     result: z.custom<CorrectionResult>(),
   },
+  [IPC_CHANNELS.foldersList]: { args: z.tuple([]), result: z.custom<MeetingFolder[]>() },
+  [IPC_CHANNELS.folderCreate]: {
+    args: z.tuple([z.string().max(200)]),
+    result: z.custom<FolderResult>(),
+  },
+  [IPC_CHANNELS.folderRename]: {
+    args: z.tuple([z.string().min(1).max(64), z.string().max(200)]),
+    result: z.custom<FolderResult>(),
+  },
+  [IPC_CHANNELS.folderDelete]: {
+    args: z.tuple([z.string().min(1).max(64)]),
+    result: z.custom<FolderResult>(),
+  },
+  [IPC_CHANNELS.folderUpdate]: {
+    args: z.tuple([z.string().min(1).max(64), folderPatchSchema]),
+    result: z.custom<FolderResult>(),
+  },
+  [IPC_CHANNELS.folderChooseExport]: {
+    args: z.tuple([z.string().min(1).max(64)]),
+    result: z.custom<FolderResult>(),
+  },
+  [IPC_CHANNELS.folderClearExport]: {
+    args: z.tuple([z.string().min(1).max(64)]),
+    result: z.custom<FolderResult>(),
+  },
+  [IPC_CHANNELS.meetingMove]: {
+    args: z.tuple([z.string().min(1).max(64), z.string().min(1).max(64).nullable()]),
+    result: z.custom<FolderResult>(),
+  },
+  [IPC_CHANNELS.meetingFolderDismiss]: {
+    args: z.tuple([z.string().min(1).max(64), z.string().min(1).max(64)]),
+    result: z.void(),
+  },
+  [IPC_CHANNELS.meetingExport]: {
+    args: z.tuple([z.string().min(1).max(64), meetingExportOptionsSchema]),
+    result: z.custom<MeetingExportResult>(),
+  },
   [IPC_CHANNELS.meetingSetLanguage]: {
     args: z.tuple([z.string().min(1).max(64), meetingLanguageSchema]),
     result: z.custom<RerunResult>(),
@@ -1248,6 +1304,22 @@ export interface MurmurApi {
   meetingCorrect(meetingId: string, correction: Correction): Promise<CorrectionResult>;
   /** NT-20: how a meeting still being recorded is transcribed from now on. */
   meetingSetLanguage(meetingId: string, input: MeetingLanguageInput): Promise<RerunResult>;
+  /** NT-17: the personal folders, with how many meetings each has. The Inbox is not listed. */
+  foldersList(): Promise<MeetingFolder[]>;
+  folderCreate(name: string): Promise<FolderResult>;
+  folderRename(id: string, name: string): Promise<FolderResult>;
+  /** The meetings in it go to the Inbox. */
+  folderDelete(id: string): Promise<FolderResult>;
+  folderUpdate(id: string, patch: FolderPatch): Promise<FolderResult>;
+  /** Asks for a folder on disk where a file is written after each meeting of this folder. */
+  folderChooseExport(id: string): Promise<FolderResult>;
+  folderClearExport(id: string): Promise<FolderResult>;
+  /** Puts a meeting in a folder, or in the Inbox (null). */
+  meetingMove(meetingId: string, folderId: string | null): Promise<FolderResult>;
+  /** Stops offering this folder for meetings like this one. */
+  meetingFolderDismiss(meetingId: string, folderId: string): Promise<void>;
+  /** NT-18: asks where to save a shareable HTML file of the meeting and writes it. */
+  meetingExport(meetingId: string, options: MeetingExportOptions): Promise<MeetingExportResult>;
   /** NT-23: transcribes a finished meeting again from its saved audio, as a new version. */
   meetingRerun(meetingId: string, input: MeetingLanguageInput): Promise<RerunResult>;
   /** NT-23: puts a transcript a rerun replaced back. */

@@ -11,12 +11,14 @@ import {
   ASK_LIMITS,
   ASK_SOURCE_TEXT,
   formatElapsed,
+  INBOX,
   isCalendarDate,
   type AskCitation,
   type AskMessage,
   type AskScope,
   type AskThread,
   type AskThreadItem,
+  type MeetingFolder,
   type MeetingTab,
 } from "@murmur/shared";
 
@@ -27,13 +29,14 @@ export interface AskTarget {
   segmentId: string | null;
 }
 
-type Choice = "all" | "week" | "month" | "dates" | "meeting" | "meetings";
+type Choice = "all" | "week" | "month" | "dates" | "folder" | "meeting" | "meetings";
 
 const CHOICE_LABEL: Record<Choice, string> = {
   all: "All meetings",
   week: "Last 7 days",
   month: "Last 30 days",
   dates: "Choose dates",
+  folder: "A folder",
   meeting: "This meeting",
   meetings: "Chosen meetings",
 };
@@ -118,11 +121,17 @@ export function AskPanel({
   const [thread, setThread] = useState<AskThread | null>(null);
   const [choice, setChoice] = useState<Choice>(about ? "meeting" : "all");
   const [meetingIds, setMeetingIds] = useState<string[]>(about ? [about.id] : []);
+  const [folders, setFolders] = useState<MeetingFolder[]>([]);
+  const [folderChoice, setFolderChoice] = useState<string>(INBOX);
   const [from, setFrom] = useState(daysAgo(29));
   const [to, setTo] = useState(daysAgo(0));
   const [question, setQuestion] = useState("");
   const [sending, setSending] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+
+  useEffect(() => {
+    void window.murmur.foldersList().then(setFolders);
+  }, []);
 
   const loadThreads = useCallback(async () => setThreads(await window.murmur.askThreads()), []);
   useEffect(() => {
@@ -152,6 +161,9 @@ export function AskPanel({
       setChoice("dates");
       setFrom(scope.from);
       setTo(scope.to);
+    } else if (scope.kind === "folder") {
+      setChoice("folder");
+      setFolderChoice(scope.folderId ?? INBOX);
     } else {
       setChoice(
         about && scope.ids.length === 1 && scope.ids[0] === about.id ? "meeting" : "meetings",
@@ -176,6 +188,8 @@ export function AskPanel({
       if (from > to) return "The first date comes after the last.";
       return { kind: "range", from, to };
     }
+    if (choice === "folder")
+      return { kind: "folder", folderId: folderChoice === INBOX ? null : folderChoice };
     return meetingIds.length > 0
       ? { kind: "meetings", ids: meetingIds }
       : "Choose a meeting first.";
@@ -213,6 +227,7 @@ export function AskPanel({
     "week",
     "month",
     "dates",
+    "folder",
     ...(about ? (["meeting"] as const) : []),
     ...(choice === "meetings" ? (["meetings"] as const) : []),
   ];
@@ -268,6 +283,17 @@ export function AskPanel({
                 <TextInput label="From" placeholder="YYYY-MM-DD" value={from} onChange={setFrom} />
                 <TextInput label="To" placeholder="YYYY-MM-DD" value={to} onChange={setTo} />
               </>
+            ) : null}
+            {choice === "folder" ? (
+              <Selector
+                label="Folder"
+                value={folderChoice}
+                options={[
+                  { value: INBOX, label: "Inbox" },
+                  ...folders.map((folder) => ({ value: folder.id, label: folder.name })),
+                ]}
+                onChange={setFolderChoice}
+              />
             ) : null}
             {choice === "meeting" && about ? (
               <Text size="sm" color="secondary">

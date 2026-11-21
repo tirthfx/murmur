@@ -39,6 +39,8 @@ import {
   dictationStateOf,
   type DictationState,
   type MeetingDetail,
+  type FolderResult,
+  type MeetingExportOptions,
   type SummaryStatus,
   type TaskRunStatus,
   type HistoryRetryResult,
@@ -59,7 +61,9 @@ import {
   FREE_WEEKLY_WORDS,
   PLAN_MESSAGES,
   weeklyLimitReached,
+  DEFAULT_EXPORT_OPTIONS,
   DEFAULT_SKILL_ID,
+  SPEAKER_DEFAULT_NAMES,
   GENERATION_MESSAGES,
   markdownTitle,
   markdownToRich,
@@ -145,6 +149,9 @@ import { createDetectionSync } from "./meetings/detection-sync";
 import { createMeetingJobs, type MeetingJobs } from "./meetings/meeting-jobs";
 import { createSkillsService } from "./meetings/skills-service";
 import { createAskIndex } from "./meetings/ask-index";
+import { createAutoExport } from "./meetings/auto-export";
+import { createFoldersStore } from "./meetings/folders-store";
+import { exportFileName, renderMeetingHtml } from "./meetings/meeting-export";
 import { suggestFromCorrection } from "./meetings/corrections-learn";
 import { createCorrectionsStore } from "./meetings/corrections-store";
 import { createMeetingRerun } from "./meetings/meeting-rerun";
@@ -1631,6 +1638,10 @@ const meetingTranscripts = database ? createTranscriptStore(database) : null;
 const meetingNotes = database ? createMeetingNotesStore(database) : null;
 const meetingSummaries = database ? createSummariesStore(database) : null;
 const meetingSkills = database ? createSkillsStore(database) : null;
+// NT-17: personal folders for meetings. The Inbox is the meetings in no folder.
+const foldersStore = database
+  ? createFoldersStore(database, { now: Date.now, newId: randomUUID })
+  : null;
 // NT-16: custom Skills. Each is also kept as a `.md` file in the Skills folder.
 const skillsFolder = path.join(profile.appData, "Murmur", "Skills");
 const skillsService = meetingSkills
@@ -1654,6 +1665,14 @@ const skillsService = meetingSkills
       },
     })
   : null;
+/** A folder call's result: the folders as they are now, or why it did not work. */
+function folderResult(
+  outcome: { ok: true; id: string } | { ok: false; message: string } | undefined,
+): FolderResult {
+  if (!foldersStore) return { ok: false, message: "Folders need the database." };
+  if (!outcome) return { ok: false, message: "That folder is gone." };
+  return outcome.ok ? { ok: true, folders: foldersStore.list(), id: outcome.id } : outcome;
+}
 const noTasks = { ok: false as const, message: "Tasks cannot be saved without the database." };
 const noSkills = { ok: false as const, message: "Skills cannot be saved without the database." };
 // One call of the local model for the Notetaker's background work (summaries, tasks).
@@ -1690,6 +1709,7 @@ const summaryRunner =
             language: settings.summary.language,
           };
         },
+        folderSkill: (id) => foldersStore?.defaultSkillOf(id) ?? null,
         modelId: DEFAULT_CLEANUP_MODEL.id,
         modelReady: cleanupModelReady,
         generate: meetingGenerate,
@@ -1754,6 +1774,7 @@ const askRunner =
     ? createAskRunner({
         index: createAskIndex(database, { now: Date.now }),
         store: askStore,
+        folderMeetings: (folderId) => foldersStore?.meetingIds(folderId) ?? [],
         settings: () => settingsStore.get().notetaker.ask,
         modelReady: cleanupModelReady,
         generate: meetingGenerate,
@@ -1791,6 +1812,8 @@ const meetingJobs: MeetingJobs | null =
             meetingJobs?.enqueue(id, "summarise");
             return;
           }
+          // With no summary and no tasks to wait for, the folder's file is written now.
+          if (!notetaker.summary.auto && !notetaker.tasks.extract) autoExport?.run(id);
           if (notetaker.summary.auto) {
             if ((meetingSummaries?.list(id).length ?? 0) > 0) return;
             if (meetingJobs?.jobStatus(id, "summarise") !== null) return;
@@ -1805,11 +1828,14 @@ const meetingJobs: MeetingJobs | null =
         },
         // The tasks are looked for after the summary, once.
         onSummarised: (id) => {
+          autoExport?.run(id);
           const again = rerunExtract.delete(id);
           if (!settingsStore.get().notetaker.tasks.extract) return;
           if (!again && meetingJobs?.jobStatus(id, "extract_tasks") !== null) return;
           meetingJobs?.enqueue(id, "extract_tasks");
         },
+        // The folder's file is written again with the tasks.
+        onTasksExtracted: (id) => void autoExport?.run(id),
         extractTasks: async (id) => {
           if (!taskRunner) throw new TaskError("no-transcript", "No tasks here.");
           const result = await taskRunner.run(id);
@@ -1837,6 +1863,68 @@ const meetingRerun =
       })
     : null;
 transcriptVersions?.purge(Date.now());
+// NT-18: a meeting as one HTML file that opens offline; audio is never in it.
+function buildMeetingExport(
+  meetingId: string,
+  options: MeetingExportOptions,
+): { fileName: string; html: string } | null {
+  const meeting = meetingsStore?.get(meetingId);
+  if (!meeting || !meetingTranscripts || !meetingNotes) return null;
+  const speakers = speakersStore?.list(meetingId) ?? [];
+  const summaries = (meetingSummaries?.list(meetingId) ?? []).filter((summary) => !summary.quick);
+  const summary = summaries.at(-1) ?? null;
+  return {
+    fileName: exportFileName(meeting.title, meeting.startedAt),
+    html: renderMeetingHtml({
+      title: meeting.title,
+      startedAt: meeting.startedAt,
+      durationMs: meeting.durationMs,
+      folderName: meeting.folderId ? (foldersStore?.get(meeting.folderId)?.name ?? null) : null,
+      segments: meetingTranscripts
+        .segments(meetingId)
+        .filter((segment) => !segment.isDictated)
+        .map((segment) => ({
+          id: segment.id,
+          startMs: segment.startMs,
+          speaker:
+            speakers.find((speaker) => speaker.id === segment.speakerId)?.name ??
+            SPEAKER_DEFAULT_NAMES[segment.channel],
+          text: segment.text,
+        })),
+      summary: summary
+        ? { markdown: summary.markdown, skillName: summary.skillName, createdAt: summary.createdAt }
+        : null,
+      tasks: (tasksService?.list({ meetingId }).tasks ?? [])
+        .filter((task) => task.status !== "archived")
+        .map((task) => ({
+          title: task.title,
+          status: task.status,
+          owner: task.owner,
+          ownerIsMe: task.ownerIsMe,
+          dueOn: task.dueOn,
+        })),
+      notes: meetingNotes.notes(meetingId).body,
+      options,
+      exportedAt: Date.now(),
+    }),
+  };
+}
+// After each meeting of a folder with a path is ready, the file is written there (NT-18).
+const autoExport = foldersStore
+  ? createAutoExport({
+      folders: foldersStore,
+      build: (id) => buildMeetingExport(id, DEFAULT_EXPORT_OPTIONS),
+      directoryExists: (dir) => {
+        try {
+          return statSync(dir).isDirectory();
+        } catch {
+          return false;
+        }
+      },
+      write: (file, text) => writeFileSync(file, text),
+      logger: createConsoleLogger("[export]"),
+    })
+  : null;
 // NT-06: grey text for the chunk being recorded, decoded again and again.
 const liveTranscriber = createLiveTranscriber({
   transcribeLive: (input) => speech.transcribeLive(input),
@@ -1878,6 +1966,10 @@ const meetings = meetingsStore
               ? null
               : settings.notetaker.language.default,
           translate: settings.notetaker.translate.transcriptToEnglish,
+          folderId: (() => {
+            const wanted = settings.notetaker.folders.defaultFolder;
+            return wanted !== "inbox" && foldersStore?.get(wanted) ? wanted : null;
+          })(),
         };
       },
       onState: (state) => {
@@ -1949,6 +2041,9 @@ function meetingDetail(id: string): MeetingDetail | null {
     transcriptVersions: transcriptVersions?.list(id, Date.now()) ?? [],
     detectedLanguage: meeting.language ? null : meetingTranscripts.detectedLanguage(id),
     rerunBlocked: meetingRerun?.blocked(id) ?? null,
+    folderSuggestion: settingsStore.get().notetaker.folders.suggest
+      ? (foldersStore?.suggest(id) ?? null)
+      : null,
   };
 }
 
@@ -2692,6 +2787,72 @@ function registerIpc(): void {
           ? suggestFromCorrection(learner, result.before, result.after)
           : null;
       return { ok: true, segmentId: result.segmentId, changed: result.changed, learned };
+    },
+    foldersList: () => foldersStore?.list() ?? [],
+    folderCreate: (name) => folderResult(foldersStore?.create(name)),
+    folderRename: (id, name) => folderResult(foldersStore?.rename(id, name)),
+    folderDelete: (id) => {
+      if (!foldersStore) return folderResult(undefined);
+      foldersStore.remove(id);
+      const current = settingsStore.get().notetaker;
+      if (current.folders.defaultFolder === id)
+        settingsStore.update({
+          notetaker: { ...current, folders: { ...current.folders, defaultFolder: "inbox" } },
+        });
+      notifyMeetings(null);
+      return { ok: true, folders: foldersStore.list() };
+    },
+    folderUpdate: (id, patch) => {
+      if (!foldersStore?.get(id)) return folderResult(undefined);
+      foldersStore.setDefaultSkill(id, patch.defaultSkillId);
+      return { ok: true, folders: foldersStore.list(), id };
+    },
+    folderChooseExport: async (id) => {
+      if (!foldersStore?.get(id)) return folderResult(undefined);
+      const options = {
+        title: "Where should a file of each meeting be written?",
+        properties: ["openDirectory" as const, "createDirectory" as const],
+      };
+      const picked = hubWindow
+        ? await dialog.showOpenDialog(hubWindow, options)
+        : await dialog.showOpenDialog(options);
+      const dir = picked.filePaths[0];
+      if (!picked.canceled && dir) foldersStore.setAutoExport(id, dir);
+      return { ok: true, folders: foldersStore.list(), id };
+    },
+    folderClearExport: (id) => {
+      if (!foldersStore?.get(id)) return folderResult(undefined);
+      foldersStore.setAutoExport(id, null);
+      return { ok: true, folders: foldersStore.list(), id };
+    },
+    meetingMove: (meetingId, folderId) => {
+      if (!foldersStore) return folderResult(undefined);
+      const moved = foldersStore.move(meetingId, folderId);
+      if (moved.ok) notifyMeetings(meetingId);
+      return moved.ok ? { ok: true, folders: foldersStore.list() } : moved;
+    },
+    meetingFolderDismiss: (meetingId, folderId) => {
+      foldersStore?.dismiss(meetingId, folderId);
+      notifyMeetings(meetingId);
+    },
+    meetingExport: async (meetingId, options) => {
+      const file = buildMeetingExport(meetingId, options);
+      if (!file) return { ok: false, message: "That meeting is gone." };
+      const dialogOptions = {
+        title: "Export a shareable file",
+        defaultPath: path.join(app.getPath("documents"), file.fileName),
+        filters: [{ name: "Web page", extensions: ["html"] }],
+      };
+      const choice = hubWindow
+        ? await dialog.showSaveDialog(hubWindow, dialogOptions)
+        : await dialog.showSaveDialog(dialogOptions);
+      if (choice.canceled || !choice.filePath) return { ok: false, cancelled: true };
+      try {
+        writeFileSync(choice.filePath, file.html);
+        return { ok: true, path: choice.filePath };
+      } catch {
+        return { ok: false, message: "The file could not be saved there." };
+      }
     },
     meetingSetLanguage: (meetingId, input) =>
       meetingRerun?.setLanguage(meetingId, input) ?? {
