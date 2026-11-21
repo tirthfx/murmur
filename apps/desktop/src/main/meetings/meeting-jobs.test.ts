@@ -16,7 +16,12 @@ function transcript(text: string, startMs = 1000, endMs = 3000): Transcript {
   } as Transcript;
 }
 
-function setup(summary: { summarise?: (id: string) => Promise<void> } = {}) {
+function setup(
+  summary: {
+    summarise?: (id: string) => Promise<void>;
+    extractTasks?: (id: string) => Promise<{ note?: string } | void>;
+  } = {},
+) {
   const db = openDatabase(":memory:");
   const meetings = createMeetingsStore(db);
   const transcripts = createTranscriptStore(db);
@@ -39,6 +44,10 @@ function setup(summary: { summarise?: (id: string) => Promise<void> } = {}) {
       jobs.enqueue(id, "summarise");
     },
     ...(summary.summarise ? { summarise: summary.summarise } : {}),
+    ...(summary.extractTasks ? { extractTasks: summary.extractTasks } : {}),
+    onSummarised: (id) => {
+      if (summary.extractTasks) jobs.enqueue(id, "extract_tasks");
+    },
     logger: createTestLogger(),
   });
   const meeting = (id: string, chunks: number) => {
@@ -232,6 +241,66 @@ describe("meeting jobs", () => {
         await bad.jobs.idle();
       }
       expect(bad.db.prepare("SELECT status FROM meeting_jobs").get()).toEqual({ status: "failed" });
+    });
+  });
+
+  describe("tasks (NT-26)", () => {
+    const failWith = (code: string) => Object.assign(new Error(code), { code });
+    const jobOf = (t: ReturnType<typeof setup>, kind: string) =>
+      t.db.prepare("SELECT status, last_error FROM meeting_jobs WHERE kind = ?").get(kind);
+
+    it("suggests tasks after the summary, in the same run", async () => {
+      const order: string[] = [];
+      const t = setup({
+        summarise: async () => void order.push("summary"),
+        extractTasks: async (id) => void order.push(`tasks:${id}`),
+      });
+      t.meeting("a", 1);
+      t.jobs.enqueue("a", "transcribe");
+      t.jobs.kick();
+      await t.jobs.idle();
+      expect(order).toEqual(["summary", "tasks:a"]);
+      expect(jobOf(t, "extract_tasks")).toMatchObject({ status: "done" });
+    });
+
+    it("keeps the note when the model gave no valid JSON, and still ends done", async () => {
+      const t = setup({
+        summarise: async () => undefined,
+        extractTasks: async () => ({ note: "The model did not answer in valid JSON twice." }),
+      });
+      t.meeting("a", 1);
+      t.jobs.enqueue("a", "transcribe");
+      t.jobs.kick();
+      await t.jobs.idle();
+      expect(jobOf(t, "extract_tasks")).toEqual({
+        status: "done",
+        last_error: "The model did not answer in valid JSON twice.",
+      });
+    });
+
+    it("waits for the model without a failed try, and gives up after repeated failures", async () => {
+      const wait = setup({
+        summarise: async () => undefined,
+        extractTasks: async () => Promise.reject(failWith("model-missing")),
+      });
+      wait.meeting("a", 1);
+      wait.jobs.enqueue("a", "transcribe");
+      wait.jobs.kick();
+      await wait.jobs.idle();
+      expect(
+        wait.db
+          .prepare("SELECT status, attempts FROM meeting_jobs WHERE kind = 'extract_tasks'")
+          .get(),
+      ).toEqual({ status: "queued", attempts: 0 });
+
+      const bad = setup({ extractTasks: async () => Promise.reject(failWith("failed")) });
+      bad.meeting("a", 1);
+      bad.jobs.enqueue("a", "extract_tasks");
+      for (let i = 0; i < MAX_ATTEMPTS; i++) {
+        bad.jobs.kick();
+        await bad.jobs.idle();
+      }
+      expect(jobOf(bad, "extract_tasks")).toMatchObject({ status: "failed" });
     });
   });
 });

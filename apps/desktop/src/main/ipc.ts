@@ -9,6 +9,12 @@ import {
   type SkillImportResult,
   type SkillResult,
   type SkillVersion,
+  type MeetingFindTasksResult,
+  type TaskAction,
+  type TaskDraft,
+  type TaskFilter,
+  type TaskResult,
+  type TasksView,
   type SummaryFeedback,
   type MeetingDocResult,
   type MeetingListItem,
@@ -129,6 +135,13 @@ export interface IpcDeps {
   skillRestore: (id: string, version: number) => SkillResult;
   skillExport: (id: string) => Promise<SkillExportResult>;
   skillImport: () => Promise<SkillImportResult>;
+  tasksList: (filter: TaskFilter) => TasksView;
+  taskAdd: (draft: TaskDraft) => TaskResult;
+  taskUpdate: (id: string, draft: TaskDraft) => TaskResult;
+  taskAction: (id: string, action: TaskAction) => TaskResult;
+  taskReorder: (id: string, beforeId: string | null) => TaskResult;
+  tasksUndo: () => { ok: true; label: string } | { ok: false };
+  meetingFindTasks: (meetingId: string) => MeetingFindTasksResult;
   meetingDelete: (id: string) => void;
   meetingNotesSave: (id: string, body: string) => boolean;
   meetingDocAddLink: (id: string, url: string, title: string) => MeetingDocResult;
@@ -548,6 +561,20 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.skillExport(request.args[0] as string);
       case IPC_CHANNELS.skillImport:
         return deps.skillImport();
+      case IPC_CHANNELS.tasksList:
+        return deps.tasksList(request.args[0] as TaskFilter);
+      case IPC_CHANNELS.taskAdd:
+        return deps.taskAdd(request.args[0] as TaskDraft);
+      case IPC_CHANNELS.taskUpdate:
+        return deps.taskUpdate(request.args[0] as string, request.args[1] as TaskDraft);
+      case IPC_CHANNELS.taskAction:
+        return deps.taskAction(request.args[0] as string, request.args[1] as TaskAction);
+      case IPC_CHANNELS.taskReorder:
+        return deps.taskReorder(request.args[0] as string, request.args[1] as string | null);
+      case IPC_CHANNELS.tasksUndo:
+        return deps.tasksUndo();
+      case IPC_CHANNELS.meetingFindTasks:
+        return deps.meetingFindTasks(request.args[0] as string);
       case IPC_CHANNELS.meetingRename:
         return deps.meetingRename(request.args[0] as string, request.args[1] as string);
       case IPC_CHANNELS.meetingDelete:

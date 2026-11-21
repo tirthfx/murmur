@@ -68,6 +68,7 @@ describe("migrations", () => {
       "skills",
       "snippets",
       "styles",
+      "tasks",
       "voice_profiles",
       "voice_samples",
       "writing_samples",

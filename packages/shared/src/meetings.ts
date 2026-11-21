@@ -8,6 +8,7 @@ import {
   summarySettingsSchema,
 } from "./skills";
 import { audioSessionIdSchema } from "./audio";
+import { DEFAULT_TASKS_SETTINGS, tasksSettingsSchema } from "./tasks";
 import { transcriptSchema } from "./speech";
 
 /**
@@ -208,7 +209,19 @@ export interface MeetingDetail {
   /** NT-09: every version, oldest first. */
   summaries: MeetingSummary[];
   summaryStatus: SummaryStatus;
+  /** NT-26: whether tasks are being found for this meeting. */
+  taskStatus: TaskRunStatus;
 }
+
+/** What the Tasks tab shows besides the tasks (NT-26). */
+export type TaskRunStatus =
+  | { state: "idle" }
+  /** Queued behind the summary or the language model. */
+  | { state: "waiting" }
+  | { state: "running" }
+  | { state: "failed"; message: string };
+
+export type MeetingFindTasksResult = { ok: true } | { ok: false; message: string };
 
 /** What the Summary tab shows besides the summaries (NT-09). */
 export type SummaryStatus =
@@ -310,6 +323,8 @@ export const notetakerSettingsSchema = z.strictObject({
   summary: summarySettingsSchema.default(DEFAULT_SUMMARY_SETTINGS),
   /** NT-15: which Skill writes the summary. */
   skills: skillsSettingsSchema.default(DEFAULT_SKILLS_SETTINGS),
+  /** NT-26: tasks suggested from meetings. */
+  tasks: tasksSettingsSchema.default(DEFAULT_TASKS_SETTINGS),
 });
 export type NotetakerSettings = z.infer<typeof notetakerSettingsSchema>;
 
@@ -321,4 +336,5 @@ export const DEFAULT_NOTETAKER: NotetakerSettings = {
   detect: DEFAULT_DETECT,
   summary: DEFAULT_SUMMARY_SETTINGS,
   skills: DEFAULT_SKILLS_SETTINGS,
+  tasks: DEFAULT_TASKS_SETTINGS,
 };

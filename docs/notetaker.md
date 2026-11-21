@@ -157,3 +157,24 @@ Manual check: join a Zoom call (the prompt comes within a few seconds); open a M
 Manual check: record or open a meeting with some talk, wait for the summary (or press "Write a summary"), click a time and check the transcript opens at that line, write another version with a different Skill and check both are in the picker, give a thumbs down with a reason, turn the automatic summary off in Settings.
 
 Manual check (Skills): open Notetaker, Skills, duplicate Action review, change the prompt and save, check "Version 2, 1 earlier" and go back to the first; export it, delete it, import the file and check it comes back; edit the exported file to `length: huge` and check the import names that line; look in the Skills folder for the `.md` files.
+
+## Tasks (NT-26)
+
+**What.** After a meeting is summarised, an `extract_tasks` job asks the local model for the tasks in it and adds them to My Tasks as **Suggested**. Nothing is accepted for the owner. With the summary turned off, the job runs after the transcript instead. Settings, System, Tasks from meetings: suggest tasks on or off, and which owners My Tasks shows to begin with (me or a named person, or all). `notetaker.tasks.maxPerMeeting` is 15 and has no control.
+
+**How** (`meetings/tasks-extractor.ts`, `tasks-runner.ts`).
+
+- The transcript goes in as for a summary (`[12:34] Owner: text`, `Remote:`), whole or in parts of about 2,500 tokens with 200 of overlap, with the meeting's date.
+- The model answers JSON only: `{"tasks":[{"title","owner","due","time"}]}`. The answer is **checked**: it must parse, `tasks` must be a list, every task needs a title. An invalid answer is asked for once more, with fewer and shorter tasks (the first may have run out of room); if that is invalid too, the meeting gets **no tasks**, the job ends `done`, and its `last_error` says why. Invalid JSON never creates a row. A meeting is all or nothing.
+- `owner` "me" (the Owner line took it on) becomes "mine"; a name is kept; "someone", "unknown" and the like become nobody. `time` is matched to the nearest transcript line within 10 seconds and kept as the task's source; no match, no source.
+- `due` is the day as it was **said** ("Wednesday", "the 27th", "Nov 27", "tomorrow"). Code works out the date from the meeting's date (`resolveDue`): a weekday is the next one after the meeting's day; a day of the month is the next such day; a time length ("in 3 days") and anything not English give no date. A written `YYYY-MM-DD` is kept if it is not before the meeting. A real-model run showed the model gets weekdays wrong, which is why it does not count days.
+- A task whose title matches one the meeting already has (any state) is skipped, so asking again adds only new ones.
+- The same model queue as summaries (`model-ask.ts`): a dictation first, never cancelling a Rewrite, Command or Instruct generation, a dropped call asked again, waiting for the model with no failed try.
+
+**My Tasks** is a tab on the Notetaker page, and each meeting has the same list on its Tasks tab (with "Look for tasks"). Filters: status (suggested and open, suggested, open, done, archived, all), owner (me or named, me, others, nobody named, everyone) and meeting (a folder filter comes with #194). Per task: Accept (Suggested to Open), Done, Reopen, Dismiss or Archive, Restore, Edit (task, mine or a name, due date as YYYY-MM-DD, notes), Up and Down, and drag to reorder (position is a fraction between neighbours, numbered again when the gaps run out). **Source** opens the meeting at that transcript line; if the line was removed it says "Source removed". Tasks can be added by hand and are open at once.
+
+**Undo** takes back the last 20 actions (accept, edit, done, reopen, archive, restore, add, move), newest first, one click each. It is kept in memory: it starts empty after a restart. Tasks suggested from a meeting are not an action and are not listed. A deleted meeting takes its Suggested tasks with it (a trigger); accepted ones stay without a meeting.
+
+Table `tasks` (migration 0031). `npx vite-node scripts/bench-tasks.mjs` runs the extraction on the real model with a made-up meeting (needs the model).
+
+Manual check: record or open a meeting where two things are agreed (for example "I will send the budget by Friday", "Priya, can you book the room?" "Sure"), wait for the summary and then the tasks (or press Look for tasks on the Tasks tab); check they are Suggested with the right owner and Friday's date, accept one, press Source and check the transcript opens at that line, move one with Down and by dragging, press Undo until it says nothing is left, add a task by hand, and turn the setting off.

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SummaryTab } from "./MeetingSummary";
 import { SkillsManager } from "./SkillsManager";
+import { TasksPanel } from "./TasksPanel";
 import { Badge } from "@astryxdesign/core/Badge";
 import { Banner } from "@astryxdesign/core/Banner";
 import { Button } from "@astryxdesign/core/Button";
@@ -324,18 +325,29 @@ function Docs({ detail, onChange }: { detail: MeetingDetail; onChange: () => voi
 
 function MeetingView({
   detail,
+  jump,
   onChange,
   onDeleted,
 }: {
   detail: MeetingDetail;
+  /** Open at a transcript line (from a task's source). */
+  jump: { meetingId: string; segmentId: string; n: number } | null;
   onChange: () => void;
   onDeleted: () => void;
 }) {
   const { meeting } = detail;
-  const [tab, setTab] = useState<MeetingTab>(() => firstTab(detail));
+  const jumpHere = jump && jump.meetingId === meeting.id ? jump : null;
+  const [tab, setTab] = useState<MeetingTab>(() => (jumpHere ? "transcript" : firstTab(detail)));
   const [title, setTitle] = useState(meeting.title);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [highlight, setHighlight] = useState<string | null>(null);
+  const [highlight, setHighlight] = useState<string | null>(jumpHere?.segmentId ?? null);
+  const jumpN = jumpHere?.n;
+  useEffect(() => {
+    if (!jumpHere) return;
+    setTab("transcript");
+    setHighlight(jumpHere.segmentId);
+    // Only a new jump moves the view.
+  }, [jumpN]);
 
   useEffect(() => setTitle(meeting.title), [meeting.title]);
 
@@ -448,6 +460,17 @@ function MeetingView({
                 rememberTab(meeting.id, "transcript");
               }}
             />
+          ) : tab === "tasks" ? (
+            <TasksPanel
+              key={meeting.id}
+              meetingId={meeting.id}
+              taskStatus={detail.taskStatus}
+              onOpenSource={(_meetingId, segmentId) => {
+                setHighlight(segmentId);
+                setTab("transcript");
+                rememberTab(meeting.id, "transcript");
+              }}
+            />
           ) : tab === "notes" ? (
             <Notes key={meeting.id} detail={detail} />
           ) : tab === "docs" ? (
@@ -469,7 +492,10 @@ export function NotetakerPage() {
   const [detail, setDetail] = useState<MeetingDetail | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
-  const [page, setPage] = useState<"meetings" | "skills">("meetings");
+  const [page, setPage] = useState<"meetings" | "tasks" | "skills">("meetings");
+  const [jump, setJump] = useState<{ meetingId: string; segmentId: string; n: number } | null>(
+    null,
+  );
   const openRef = useRef<string | null>(null);
   openRef.current = openId;
 
@@ -573,12 +599,24 @@ export function NotetakerPage() {
         value={page}
         role="tablist"
         hasDivider
-        onChange={(value) => setPage(value as "meetings" | "skills")}
+        onChange={(value) => setPage(value as "meetings" | "tasks" | "skills")}
       >
         <Tab value="meetings" label="Meetings" panelId="notetaker-meetings" />
+        <Tab value="tasks" label="My Tasks" panelId="notetaker-tasks" />
         <Tab value="skills" label="Skills" panelId="notetaker-skills" />
       </TabList>
 
+      {page === "tasks" ? (
+        <div id="notetaker-tasks" role="tabpanel" aria-label="My Tasks">
+          <TasksPanel
+            onOpenSource={(meetingId, segmentId) => {
+              setOpenId(meetingId);
+              setJump({ meetingId, segmentId, n: Date.now() });
+              setPage("meetings");
+            }}
+          />
+        </div>
+      ) : null}
       {page === "skills" ? (
         <div id="notetaker-skills" role="tabpanel" aria-label="Skills">
           <SkillsManager />
@@ -626,6 +664,7 @@ export function NotetakerPage() {
             <MeetingView
               key={detail.meeting.id}
               detail={detail}
+              jump={jump}
               onChange={() => {
                 void loadList();
                 if (openId) void loadDetail(openId);

@@ -2,11 +2,22 @@ import { z } from "zod";
 import type {
   LivePartial,
   MeetingDetail,
+  MeetingFindTasksResult,
   MeetingSummarizeResult,
   MeetingDoc,
   MeetingListItem,
   RecordingState,
 } from "./meetings";
+import {
+  TASK_ACTIONS,
+  taskDraftSchema,
+  taskFilterSchema,
+  type TaskAction,
+  type TaskDraft,
+  type TaskFilter,
+  type TaskResult,
+  type TasksView,
+} from "./tasks";
 import {
   skillDraftSchema,
   summaryFeedbackSchema,
@@ -375,6 +386,13 @@ export const IPC_CHANNELS = {
   skillRestore: "skills:restore",
   skillExport: "skills:export",
   skillImport: "skills:import",
+  tasksList: "tasks:list",
+  taskAdd: "tasks:add",
+  taskUpdate: "tasks:update",
+  taskAction: "tasks:action",
+  taskReorder: "tasks:reorder",
+  tasksUndo: "tasks:undo",
+  meetingFindTasks: "meetings:find-tasks",
 } as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
@@ -843,6 +861,31 @@ export const IPC_CONTRACT = {
     result: z.custom<SkillExportResult>(),
   },
   [IPC_CHANNELS.skillImport]: { args: z.tuple([]), result: z.custom<SkillImportResult>() },
+  [IPC_CHANNELS.tasksList]: {
+    args: z.tuple([taskFilterSchema]),
+    result: z.custom<TasksView>(),
+  },
+  [IPC_CHANNELS.taskAdd]: { args: z.tuple([taskDraftSchema]), result: z.custom<TaskResult>() },
+  [IPC_CHANNELS.taskUpdate]: {
+    args: z.tuple([z.string().min(1).max(64), taskDraftSchema]),
+    result: z.custom<TaskResult>(),
+  },
+  [IPC_CHANNELS.taskAction]: {
+    args: z.tuple([z.string().min(1).max(64), z.enum(TASK_ACTIONS)]),
+    result: z.custom<TaskResult>(),
+  },
+  [IPC_CHANNELS.taskReorder]: {
+    args: z.tuple([z.string().min(1).max(64), z.string().min(1).max(64).nullable()]),
+    result: z.custom<TaskResult>(),
+  },
+  [IPC_CHANNELS.tasksUndo]: {
+    args: z.tuple([]),
+    result: z.custom<{ ok: true; label: string } | { ok: false }>(),
+  },
+  [IPC_CHANNELS.meetingFindTasks]: {
+    args: z.tuple([z.string().min(1).max(64)]),
+    result: z.custom<MeetingFindTasksResult>(),
+  },
   [IPC_CHANNELS.meetingNotesSave]: {
     args: z.tuple([meetingIdArg, z.string().max(200_000)]),
     result: z.boolean(),
@@ -1108,6 +1151,17 @@ export interface MurmurApi {
   skillExport(id: string): Promise<SkillExportResult>;
   /** Asks for a `.md` file and makes a custom Skill of it; a bad file names the line. */
   skillImport(): Promise<SkillImportResult>;
+  /** NT-26: tasks across meetings, in the owner's order, and what Undo would take back. */
+  tasksList(filter: TaskFilter): Promise<TasksView>;
+  taskAdd(draft: TaskDraft): Promise<TaskResult>;
+  taskUpdate(id: string, draft: TaskDraft): Promise<TaskResult>;
+  taskAction(id: string, action: TaskAction): Promise<TaskResult>;
+  /** Puts a task before another, or last when `beforeId` is null. */
+  taskReorder(id: string, beforeId: string | null): Promise<TaskResult>;
+  /** Takes back the last of up to 20 actions. */
+  tasksUndo(): Promise<{ ok: true; label: string } | { ok: false }>;
+  /** Looks for tasks in a meeting now (the job runs behind the summary and the model). */
+  meetingFindTasks(meetingId: string): Promise<MeetingFindTasksResult>;
   /** NT-10: saves My notes; false when they are too long. */
   meetingNotesSave(id: string, body: string): Promise<boolean>;
   meetingDocAddLink(id: string, url: string, title: string): Promise<MeetingDocResult>;

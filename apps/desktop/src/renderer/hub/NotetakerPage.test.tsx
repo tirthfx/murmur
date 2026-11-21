@@ -1,7 +1,13 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { LivePartial, MeetingDetail, MeetingListItem, MeetingSummary } from "@murmur/shared";
+import type {
+  LivePartial,
+  MeetingDetail,
+  MeetingListItem,
+  MeetingSummary,
+  Task,
+} from "@murmur/shared";
 import { NotetakerPage, statusText } from "./NotetakerPage";
 import { createMockApi } from "./test-api";
 
@@ -67,6 +73,7 @@ function detail(overrides: Partial<MeetingDetail> = {}): MeetingDetail {
     docs: [],
     summaries: [],
     summaryStatus: { state: "idle" },
+    taskStatus: { state: "idle" },
     ...overrides,
   };
 }
@@ -109,8 +116,8 @@ describe("Notetaker page", () => {
 
   it("opens a meeting with six tabs and the transcript, without dictated lines", async () => {
     await openMeeting();
-    // Two tabs for the page (Meetings, Skills) and six for the meeting.
-    expect(screen.getAllByRole("tab")).toHaveLength(8);
+    // Three tabs for the page (Meetings, My Tasks, Skills) and six for the meeting.
+    expect(screen.getAllByRole("tab")).toHaveLength(9);
     for (const name of ["My notes", "Summary", "Transcript", "Tasks", "Brief", "Docs"]) {
       expect(screen.getByRole("tab", { name })).toBeTruthy();
     }
@@ -290,6 +297,66 @@ describe("Notetaker page", () => {
         rating: "down",
         reason: "too_long",
       });
+    });
+  });
+
+  describe("tasks (NT-26)", () => {
+    const suggested: Task = {
+      id: "t1",
+      title: "Review the roadmap",
+      notes: "",
+      owner: null,
+      ownerIsMe: true,
+      dueOn: null,
+      status: "suggested",
+      source: "meeting",
+      meetingId: "m-1",
+      meetingTitle: "Design sync",
+      sourceSegmentId: "s2",
+      sourceState: "ok",
+      position: 1,
+      createdAt: 1,
+      updatedAt: 1,
+      completedAt: null,
+    };
+
+    it("lists a meeting's tasks on its Tasks tab", async () => {
+      window.murmur.tasksList = vi.fn().mockResolvedValue({ tasks: [suggested], undo: null });
+      await openMeeting();
+      await act(async () => screen.getByRole("tab", { name: "Tasks" }).click());
+      expect(await screen.findByText("Review the roadmap")).toBeTruthy();
+      expect(window.murmur.tasksList).toHaveBeenCalledWith(
+        expect.objectContaining({ meetingId: "m-1" }),
+      );
+      // The source opens the transcript at that line.
+      await act(async () =>
+        screen
+          .getByRole("button", { name: /Open the transcript where “Review the roadmap”/ })
+          .click(),
+      );
+      expect(screen.getByRole("tab", { name: "Transcript", selected: true })).toBeTruthy();
+      expect(document.querySelector('[data-segment-id="s2"]')?.getAttribute("data-highlight")).toBe(
+        "true",
+      );
+    });
+
+    it("opens a task's meeting at the source line from My Tasks", async () => {
+      window.murmur.tasksList = vi.fn().mockResolvedValue({ tasks: [suggested], undo: null });
+      render(<NotetakerPage />);
+      await act(async () => screen.getByRole("tab", { name: "My Tasks" }).click());
+      expect(await screen.findByText("From Design sync")).toBeTruthy();
+      await act(async () =>
+        screen
+          .getByRole("button", { name: /Open the transcript where “Review the roadmap”/ })
+          .click(),
+      );
+      await waitFor(() => expect(screen.getByRole("region", { name: "Meeting" })).toBeTruthy());
+      expect(screen.getByRole("tab", { name: "Meetings", selected: true })).toBeTruthy();
+      await waitFor(() =>
+        expect(
+          document.querySelector('[data-segment-id="s2"]')?.getAttribute("data-highlight"),
+        ).toBe("true"),
+      );
     });
   });
 });
