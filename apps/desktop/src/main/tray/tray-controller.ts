@@ -28,6 +28,8 @@ export interface TrayView {
   tooltip: string;
   /** Text next to the icon while a meeting records, such as "12:04". */
   elapsed?: string;
+  /** NT-29: the next meeting next to the icon, such as "Design sync in 12 min". */
+  nextText?: string;
 }
 
 /** Draws the tray. Electron in production, a recorder in tests. */
@@ -58,6 +60,19 @@ export interface TrayControllerDeps {
   meetingState?(): RecordingState;
   startMeeting?(): void;
   stopMeeting?(): void;
+  /**
+   * NT-29: the next calendar meeting, or null when there is none or the setting is off. `text` is
+   * what goes next to the icon.
+   */
+  nextMeeting?(): {
+    eventId: string;
+    title: string;
+    when: string;
+    hasLink: boolean;
+    text: string;
+  } | null;
+  joinMeeting?(eventId: string): void;
+  recordEvent?(eventId: string): void;
 }
 
 export interface TrayController {
@@ -97,12 +112,28 @@ export function createTrayController(deps: TrayControllerDeps): TrayController {
     return { status: now.status === "idle" ? "idle" : "busy" };
   }
 
+  /** The next meeting; none while one is being recorded (the time of that one is shown instead). */
+  function nextMeeting() {
+    return meeting()?.status === "recording" ? null : (deps.nextMeeting?.() ?? null);
+  }
+
   function state(): TrayState {
     const settings = deps.settings();
     const current = meeting();
+    const next = nextMeeting();
     return {
       recording,
       ...(current ? { meeting: current } : {}),
+      ...(next
+        ? {
+            next: {
+              eventId: next.eventId,
+              title: next.title,
+              when: next.when,
+              hasLink: next.hasLink,
+            },
+          }
+        : {}),
       status: recording
         ? "listening"
         : current?.status === "recording"
@@ -136,6 +167,7 @@ export function createTrayController(deps: TrayControllerDeps): TrayController {
       status: current.status,
       tooltip: trayTooltip(current.status, current.language),
       ...(current.meeting?.status === "recording" ? { elapsed: current.meeting.elapsed } : {}),
+      ...(nextMeeting() ? { nextText: nextMeeting()!.text } : {}),
     };
   }
 
@@ -226,6 +258,12 @@ export function createTrayController(deps: TrayControllerDeps): TrayController {
           return;
         case "meeting-stop":
           deps.stopMeeting?.();
+          return;
+        case "meeting-join":
+          deps.joinMeeting?.(action.eventId);
+          return;
+        case "meeting-record-event":
+          deps.recordEvent?.(action.eventId);
           return;
         case "quit":
           deps.quit();

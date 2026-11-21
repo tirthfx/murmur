@@ -57,6 +57,7 @@ import {
   DEFAULT_PLAN_STATE,
   DEFAULT_DEVELOPER,
   CONNECTOR_CATALOGUE,
+  type CalendarEvent,
   MCP_STATUS_OFF,
   DEFAULT_CONNECTOR_SETTINGS,
   DEFAULT_MCP_SETTINGS,
@@ -160,6 +161,13 @@ import { createConnectorService } from "./connectors/connector-service";
 import { createConnectorStore } from "./connectors/connector-store";
 import { buildConnectorsView } from "./connectors/connectors-view";
 import { createMcpService } from "./mcp/mcp-service";
+import { createCalendarReminders } from "./meetings/calendar-reminders";
+import {
+  eventForCall,
+  menuBarText,
+  nextMeeting as upcomingMeeting,
+  untilText,
+} from "./meetings/calendar-upcoming";
 import { createMcpSetup } from "./mcp/mcp-setup";
 import { createHelperKeychain } from "./connectors/helper-keychain";
 import { createConnectorRegistry } from "./connectors/providers";
@@ -444,7 +452,10 @@ let offeredFact: { text: string; until: number } | null = null;
 /** The Bar's question was answered: "Save to Memory?" or the weekly profile prompt. */
 function answerBar(choice: BarAnswer): void {
   // The Record, Not now and Never buttons of a detected call (NT-01).
-  if (bar.getView().actions && meetingDetector?.answer(choice)) {
+  if (
+    bar.getView().actions &&
+    (calendarReminders?.answer(choice) || meetingDetector?.answer(choice))
+  ) {
     bar.dispatch({ type: "answered" });
     return;
   }
@@ -1793,6 +1804,8 @@ const calendarSync =
         settings: () => settingsStore.get().connectors,
         now: Date.now,
         logger: createConsoleLogger("[calendar]"),
+        // New events change the menu bar at once.
+        onChange: () => tray?.refresh(),
       })
     : null;
 calendarSync?.start();
@@ -2402,6 +2415,70 @@ const meetingMatchers = loadMeetingMatchers(() => {
   const file = path.join(profile.appData, "Murmur", "meeting-matchers.json");
   return existsSync(file) ? readFileSync(file, "utf8") : null;
 }, createConsoleLogger("[detect]"));
+// NT-02, NT-29: meetings from the calendar. The events are the ones kept on this Mac; with no
+// calendar connected there are none, and nothing below does anything.
+const calendarEventKey = (event: CalendarEvent) => `${event.accountId}|${event.id}`;
+const upcomingEvents = (from: number, to: number): CalendarEvent[] =>
+  calendarStore?.list({ from, to, includeDeclined: true }) ?? [];
+const eventByKey = (key: string): CalendarEvent | null =>
+  upcomingEvents(Date.now() - 6 * 3_600_000, Date.now() + 24 * 3_600_000).find(
+    (event) => calendarEventKey(event) === key,
+  ) ?? null;
+/** The recording of an event: its title, the people invited (not the owner) and its calendar's folder. */
+function startFromEvent(event: CalendarEvent): void {
+  if (!meetingStarter) return;
+  const wanted = settingsStore.get().notetaker.calendar.defaultFolders[event.accountId];
+  void meetingStarter.start("calendar", {
+    eventId: event.id,
+    title: event.title,
+    attendees: event.attendees
+      .filter((attendee) => !attendee.self)
+      .map((attendee) => ({ name: attendee.name, email: attendee.email })),
+    folderId: wanted && foldersStore?.get(wanted) ? wanted : null,
+  });
+}
+/** The calendar event that a detected call in this app belongs to, or null. */
+function eventForApp(app: { id: string }): CalendarEvent | null {
+  const hosts = meetingMatchers.find((matcher) => matcher.id === app.id)?.web?.hosts ?? [];
+  const now = Date.now();
+  return eventForCall(
+    upcomingEvents(now, now + 600_000),
+    now,
+    hosts,
+    settingsStore.get().notetaker.calendar.skipDeclined,
+  );
+}
+const calendarReminders =
+  calendarStore && meetings
+    ? createCalendarReminders({
+        settings: () => settingsStore.get().notetaker.calendar,
+        events: ({ from, to }) => upcomingEvents(from, to),
+        recording: () => meetings.state().status !== "idle",
+        ask: ({ message, detail }) => {
+          // Only when the Bar is free: a dictation or another question is not interrupted.
+          if (bar.getView().state !== "idle") return false;
+          bar.dispatch({
+            type: "ask",
+            message,
+            detail,
+            actions: [
+              { answer: "yes", label: "Record", primary: true },
+              { answer: "no", label: "Not now" },
+            ],
+            timeoutMs: 60_000,
+          });
+          return bar.getView().state === "ask";
+        },
+        hide: () => {
+          if (bar.getView().actions) bar.dispatch({ type: "answered" });
+        },
+        stillOpen: () => bar.getView().state === "ask",
+        record: startFromEvent,
+        now: Date.now,
+        logger: createConsoleLogger("[calendar]"),
+      })
+    : null;
+calendarReminders?.start();
 if (meetings && meetingStarter) {
   meetingDetector = createMeetingDetector({
     clock: systemClock,
@@ -2425,7 +2502,29 @@ if (meetings && meetingStarter) {
     hidePrompt: () => {
       if (bar.getView().actions) bar.dispatch({ type: "answered" });
     },
-    start: async () => meetingStarter.start(),
+    // A call whose calendar event is on now takes the event's title and people (NT-02).
+    start: async (app) => {
+      const event = eventForApp(app);
+      return meetingStarter.start(
+        "recorded",
+        event
+          ? {
+              eventId: event.id,
+              title: event.title,
+              attendees: event.attendees
+                .filter((attendee) => !attendee.self)
+                .map((attendee) => ({ name: attendee.name, email: attendee.email })),
+              folderId: (() => {
+                const wanted =
+                  settingsStore.get().notetaker.calendar.defaultFolders[event.accountId];
+                return wanted && foldersStore?.get(wanted) ? wanted : null;
+              })(),
+            }
+          : undefined,
+      );
+    },
+    autoRecordFor: (app) =>
+      settingsStore.get().notetaker.calendar.autoStart && eventForApp(app) !== null,
     stop: () => meetings.stop(),
     neverFor: (id) => {
       const notetaker = settingsStore.get().notetaker;
@@ -2485,8 +2584,42 @@ function createTray(): void {
           stopMeeting: () => void meetings.stop(),
         }
       : {}),
+    // NT-29: the next meeting from the calendar kept here; none when it is off or not connected.
+    nextMeeting: () => {
+      const { menubar, calendar } = settingsStore.get().notetaker;
+      if (!menubar.showNextMeeting || !calendarStore) return null;
+      const now = Date.now();
+      const event = upcomingMeeting(
+        upcomingEvents(now - 600_000, now + menubar.lookaheadHours * 3_600_000),
+        now,
+        { lookaheadHours: menubar.lookaheadHours, skipDeclined: calendar.skipDeclined },
+      );
+      return event
+        ? {
+            eventId: calendarEventKey(event),
+            title: event.title,
+            when: untilText(event.startMs, now),
+            hasLink: event.joinUrl !== null,
+            text: menuBarText(event, now),
+          }
+        : null;
+    },
+    joinMeeting: (key) => {
+      const event = eventByKey(key);
+      if (!event?.joinUrl || !/^https?:\/\//i.test(event.joinUrl)) return;
+      void shell.openExternal(event.joinUrl);
+      // With auto record on, joining also starts the recording (NT-03).
+      if (settingsStore.get().notetaker.detect.autoRecord && meetings?.state().status === "idle")
+        startFromEvent(event);
+    },
+    recordEvent: (key) => {
+      const event = eventByKey(key);
+      if (event) startFromEvent(event);
+    },
   });
   tray = controller;
+  // The countdown moves every minute.
+  setInterval(() => controller.refresh(), 60_000).unref();
   controller.refresh();
   settingsStore.onChange(() => controller.refresh());
   // The microphone list is read when the helper comes up and each time the pointer reaches
@@ -3960,6 +4093,7 @@ app.on("before-quit", (event) => {
   void hubState.flush();
   void mcpService?.stop();
   calendarSync?.stop();
+  calendarReminders?.stop();
   focus.quit();
   focusOverlay.close();
   if (helperStopped) return;

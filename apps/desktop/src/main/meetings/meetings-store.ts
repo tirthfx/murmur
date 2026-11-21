@@ -3,6 +3,7 @@ import {
   MEETING_CHANNELS,
   type AudioChunkRow,
   type Meeting,
+  type MeetingAttendee,
   type MeetingChannel,
   type MeetingSource,
   type MeetingStatus,
@@ -22,6 +23,9 @@ export interface MeetingsStore {
     translate?: boolean;
     /** NT-17: null puts it in the Inbox. */
     folderId?: string | null;
+    /** NT-02: the calendar event it is started from, and who was invited. */
+    calendarEventId?: string | null;
+    attendees?: readonly MeetingAttendee[];
   }): Meeting;
   get(id: string): Meeting | null;
   /** Newest first. */
@@ -71,6 +75,8 @@ interface MeetingRow {
   transcript_version: number;
   folder_id: string | null;
   transcript_deleted_at: number | null;
+  calendar_event_id: string | null;
+  attendees_json: string;
 }
 
 interface ChunkRow {
@@ -85,7 +91,7 @@ interface ChunkRow {
 }
 
 const COLUMNS =
-  "id, title, started_at, ended_at, source, status, channels, warnings, duration_ms, audio_deleted_at, language, translate, transcript_version, folder_id, transcript_deleted_at";
+  "id, title, started_at, ended_at, source, status, channels, warnings, duration_ms, audio_deleted_at, language, translate, transcript_version, folder_id, transcript_deleted_at, calendar_event_id, attendees_json";
 
 function parseList<T>(text: string): T[] {
   try {
@@ -113,6 +119,8 @@ function toMeeting(row: MeetingRow): Meeting {
     transcriptVersion: row.transcript_version,
     folderId: row.folder_id,
     transcriptDeletedAt: row.transcript_deleted_at,
+    calendarEventId: row.calendar_event_id,
+    attendees: parseList<MeetingAttendee>(row.attendees_json),
   };
 }
 
@@ -129,8 +137,9 @@ export function createMeetingsStore(db: DatabaseSync): MeetingsStore {
   return {
     create(input) {
       db.prepare(
-        `INSERT INTO meetings (id, title, started_at, source, status, folder, language, translate, folder_id)
-         VALUES (?, ?, ?, ?, 'recording', ?, ?, ?, ?)`,
+        `INSERT INTO meetings (id, title, started_at, source, status, folder, language, translate, folder_id,
+           calendar_event_id, attendees_json)
+         VALUES (?, ?, ?, ?, 'recording', ?, ?, ?, ?, ?, ?)`,
       ).run(
         input.id,
         input.title.slice(0, MEETING_TITLE_MAX),
@@ -140,6 +149,8 @@ export function createMeetingsStore(db: DatabaseSync): MeetingsStore {
         input.language ?? null,
         input.translate ? 1 : 0,
         input.folderId ?? null,
+        input.calendarEventId ?? null,
+        JSON.stringify(input.attendees ?? []),
       );
       return get(input.id)!;
     },

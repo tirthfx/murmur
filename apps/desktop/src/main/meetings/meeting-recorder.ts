@@ -2,6 +2,7 @@ import path from "node:path";
 import {
   defaultMeetingTitle,
   type Meeting,
+  type MeetingAttendee,
   type MeetingChannel,
   type MeetingSource,
   type PlatformHelper,
@@ -43,7 +44,12 @@ export interface MeetingRecorderDeps {
 
 export interface MeetingRecorder {
   state(): RecordingState;
-  start(input?: { title?: string; source?: MeetingSource }): Promise<StartResult>;
+  start(input?: {
+    title?: string;
+    source?: MeetingSource;
+    /** NT-02: started from a calendar event: its id, who was invited, and the folder that calendar uses. */
+    calendar?: { eventId: string; attendees: readonly MeetingAttendee[]; folderId?: string | null };
+  }): Promise<StartResult>;
   /** Stops the recording; resolves with the finished meeting, or null when none ran. */
   stop(): Promise<Meeting | null>;
   /** The helper went away: the recording ends with what was saved. */
@@ -127,7 +133,9 @@ export function createMeetingRecorder(deps: MeetingRecorderDeps): MeetingRecorde
         folder,
         language: options.language ?? null,
         translate: options.translate ?? false,
-        folderId: options.folderId ?? null,
+        folderId: input.calendar?.folderId ?? options.folderId ?? null,
+        calendarEventId: input.calendar?.eventId ?? null,
+        attendees: input.calendar?.attendees ?? [],
       });
       const wanted: MeetingChannel[] = options.captureSystem ? ["mic", "system"] : ["mic"];
       try {

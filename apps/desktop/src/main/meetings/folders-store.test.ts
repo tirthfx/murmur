@@ -188,3 +188,61 @@ describe("folder suggestions (NT-17)", () => {
     });
   });
 });
+
+describe("folder suggestions with the people invited (NT-17, NT-02)", () => {
+  function withPeople() {
+    const t = setup();
+    const calls = id(t.folders.create("Customer calls"));
+    const planning = id(t.folders.create("Planning"));
+    const attend = (meetingId: string, emails: string[]) =>
+      t.db
+        .prepare("UPDATE meetings SET attendees_json = ? WHERE id = ?")
+        .run(JSON.stringify(emails.map((email) => ({ name: null, email }))), meetingId);
+    t.meeting("a1", "Acme renewal", 1_000, calls);
+    attend("a1", ["dana@acme.example", "lee@acme.example"]);
+    t.meeting("p1", "Roadmap planning", 2_000, planning);
+    attend("p1", ["sam@work.example"]);
+    return { ...t, calls, planning, attend };
+  }
+
+  it("suggests the folder where the same people met, even when the title shares no words", () => {
+    const t = withPeople();
+    t.meeting("new", "Quick chat", 5_000);
+    t.attend("new", ["dana@acme.example"]);
+    // Half of the weight is the people: one of one invited was there, so 0.5 >= 0.25.
+    expect(t.folders.suggest("new")).toEqual({ folderId: t.calls, folderName: "Customer calls" });
+  });
+
+  it("weighs the share of the people, and prefers the better match", () => {
+    const t = withPeople();
+    // The meeting just before is in the Inbox, so recency favours no folder.
+    t.meeting("prev", "Lunch", 4_500);
+    t.meeting("new", "Quick chat", 5_000);
+    t.attend("new", ["dana@acme.example", "sam@work.example", "x@example.com", "y@example.com"]);
+    // One of four in each folder: 0.125, below the threshold.
+    expect(t.folders.suggest("new")).toBeNull();
+    t.attend("new", ["dana@acme.example", "lee@acme.example", "sam@work.example"]);
+    expect(t.folders.suggest("new")?.folderId).toBe(t.calls);
+  });
+
+  it("offers nothing for strangers, and does not change a meeting with no people", () => {
+    const t = withPeople();
+    t.meeting("new", "Quick chat", 5_000);
+    t.attend("new", ["stranger@example.com"]);
+    expect(t.folders.suggest("new")).toBeNull();
+    t.meeting("none", "Acme follow up", 6_000);
+    // No people: the title still does it, as before.
+    expect(t.folders.suggest("none")?.folderId).toBe(t.calls);
+  });
+
+  it("stops offering a folder for the same people once dismissed", () => {
+    const t = withPeople();
+    t.meeting("new", "Quick chat", 5_000);
+    t.attend("new", ["dana@acme.example"]);
+    t.folders.dismiss("new", t.calls);
+    expect(t.folders.suggest("new")).toBeNull();
+    t.meeting("again", "Another chat", 6_000);
+    t.attend("again", ["dana@acme.example"]);
+    expect(t.folders.suggest("again")).toBeNull();
+  });
+});

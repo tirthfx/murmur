@@ -42,3 +42,39 @@ describe("meetings store titles and consent", () => {
     expect(store.consentAcknowledgedAt("missing")).toBeNull();
   });
 });
+
+describe("meetings started from a calendar event (NT-02)", () => {
+  it("keeps the event id and who was invited, and has none for any other meeting", () => {
+    const db = openDatabase(":memory:");
+    const store = createMeetingsStore(db);
+    const plain = store.create({
+      id: "m-1",
+      title: "Ad hoc",
+      startedAt: 1,
+      source: "ad_hoc",
+      folder: "/m/1",
+    });
+    expect(plain).toMatchObject({ calendarEventId: null, attendees: [] });
+    const fromEvent = store.create({
+      id: "m-2",
+      title: "Design sync",
+      startedAt: 2,
+      source: "calendar",
+      folder: "/m/2",
+      calendarEventId: "evt-9",
+      attendees: [
+        { name: "Dana", email: "dana@example.com" },
+        { name: null, email: "sam@example.com" },
+      ],
+    });
+    expect(fromEvent).toMatchObject({
+      source: "calendar",
+      calendarEventId: "evt-9",
+      attendees: [
+        { name: "Dana", email: "dana@example.com" },
+        { name: null, email: "sam@example.com" },
+      ],
+    });
+    expect(store.get("m-2")).toEqual(fromEvent);
+  });
+});

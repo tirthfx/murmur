@@ -1,4 +1,4 @@
-import type { MeetingSource, NotetakerSettings } from "@murmur/shared";
+import type { MeetingAttendee, MeetingSource, NotetakerSettings } from "@murmur/shared";
 import type { Logger } from "../helper/types";
 import type { MeetingRecorder, StartResult } from "./meeting-recorder";
 import type { MeetingsStore } from "./meetings-store";
@@ -16,6 +16,15 @@ export interface MeetingStarterDeps {
   logger: Logger;
 }
 
+/** A calendar event a recording is started from (NT-02): it gives the title, the people and the folder. */
+export interface CalendarStart {
+  eventId: string;
+  title: string;
+  attendees: readonly MeetingAttendee[];
+  /** The folder the event's calendar uses; null or missing is the usual folder. */
+  folderId?: string | null;
+}
+
 export type ToggleResult =
   | { ok: true; action: "started"; meetingId: string }
   | { ok: true; action: "stopped" }
@@ -23,7 +32,7 @@ export type ToggleResult =
 
 export interface MeetingStarter {
   /** Starts a recording, after the consent notice when the setting asks for it. */
-  start(source?: MeetingSource): Promise<StartResult>;
+  start(source?: MeetingSource, calendar?: CalendarStart): Promise<StartResult>;
   /** The hotkey (NT-03): starts when idle, stops when recording. */
   toggle(source?: MeetingSource): Promise<ToggleResult>;
 }
@@ -44,7 +53,10 @@ export function createMeetingStarter(deps: MeetingStarterDeps): MeetingStarter {
     return notice === "always" || (notice === "first" && !seen);
   };
 
-  async function start(source: MeetingSource = "ad_hoc"): Promise<StartResult> {
+  async function start(
+    source: MeetingSource = "ad_hoc",
+    calendar?: CalendarStart,
+  ): Promise<StartResult> {
     if (asking) return { ok: false, message: "The recording notice is waiting for an answer." };
     const idle = deps.recorder.state().status === "idle";
     let shown = false;
@@ -61,7 +73,19 @@ export function createMeetingStarter(deps: MeetingStarterDeps): MeetingStarter {
       shown = true;
       deps.markNoticeSeen();
     }
-    const result = await deps.recorder.start({ source });
+    const result = await deps.recorder.start({
+      source: calendar ? "calendar" : source,
+      ...(calendar
+        ? {
+            title: calendar.title,
+            calendar: {
+              eventId: calendar.eventId,
+              attendees: calendar.attendees,
+              folderId: calendar.folderId ?? null,
+            },
+          }
+        : {}),
+    });
     if (result.ok && shown) deps.store.acknowledgeConsent(result.meetingId, deps.now());
     return result;
   }

@@ -38,6 +38,16 @@ export interface TrayState {
    * starting or stopping. Absent where the Notetaker is not wired in.
    */
   meeting?: { status: "idle" } | { status: "busy" } | { status: "recording"; elapsed: string };
+  /** NT-29: the next calendar meeting, or null/absent when there is none or it is turned off. */
+  next?: {
+    eventId: string;
+    /** The full title, for the menu. */
+    title: string;
+    /** "in 12 min", "now". */
+    when: string;
+    /** Whether it has a call link to join. */
+    hasLink: boolean;
+  } | null;
 }
 
 export type TrayAction =
@@ -52,6 +62,10 @@ export type TrayAction =
   | { type: "focus-off" }
   | { type: "meeting-start" }
   | { type: "meeting-stop" }
+  /** NT-29: opens the next meeting's call link. */
+  | { type: "meeting-join"; eventId: string }
+  /** NT-02: records the next meeting with its title and people. */
+  | { type: "meeting-record-event"; eventId: string }
   | { type: "quit" };
 
 /** One menu row, independent of the toolkit that draws it. */
@@ -172,6 +186,38 @@ function meetingItems(meeting: NonNullable<TrayState["meeting"]>, language?: str
   ];
 }
 
+/** NT-29: the next calendar meeting, with a way to join it and to record it. */
+function nextItems(
+  next: NonNullable<TrayState["next"]>,
+  meetingBusy: boolean,
+  language?: string,
+): TrayItem[] {
+  return [
+    {
+      kind: "item",
+      label: tr(language, "tray.meeting.next")
+        .replace("{title}", next.title)
+        .replace("{when}", next.when),
+      enabled: false,
+    },
+    ...(next.hasLink
+      ? [
+          {
+            kind: "item" as const,
+            label: tr(language, "tray.meeting.join"),
+            action: { type: "meeting-join" as const, eventId: next.eventId },
+          },
+        ]
+      : []),
+    {
+      kind: "item",
+      label: tr(language, "tray.meeting.recordEvent"),
+      enabled: !meetingBusy,
+      action: { type: "meeting-record-event", eventId: next.eventId },
+    },
+  ];
+}
+
 /**
  * The tray menu (DC-45, minimal M1 set), in order: start or stop, microphone, languages,
  * copy last transcript, quit. Quit is always present and always enabled.
@@ -184,6 +230,13 @@ export function trayMenu(state: TrayState): TrayItem[] {
       action: { type: "toggle" },
     },
     ...(state.meeting ? meetingItems(state.meeting, state.language) : []),
+    ...(state.next
+      ? nextItems(
+          state.next,
+          state.meeting !== undefined && state.meeting.status !== "idle",
+          state.language,
+        )
+      : []),
     { kind: "separator" },
     { kind: "item", label: tr(state.language, "tray.microphone"), submenu: microphoneItems(state) },
     {

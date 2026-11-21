@@ -98,4 +98,28 @@ describe("meeting starter", () => {
     expect((await first).ok).toBe(true);
     expect(t.confirmNotice).toHaveBeenCalledTimes(1);
   });
+
+  it("started from a calendar event, the recording takes its title, id, people and folder", async () => {
+    const t = setup({ notice: "off", seen: false });
+    const attendees = [{ name: "Dana", email: "dana@example.com" }];
+    expect(
+      await t.starter.start("recorded", {
+        eventId: "evt-1",
+        title: "Design sync",
+        attendees,
+        folderId: "f1",
+      }),
+    ).toEqual({ ok: true, meetingId: "m-1" });
+    expect(t.recorder.start).toHaveBeenCalledWith({
+      source: "calendar",
+      title: "Design sync",
+      calendar: { eventId: "evt-1", attendees, folderId: "f1" },
+    });
+  });
+
+  it("still shows the recording notice before an event's recording starts", async () => {
+    const t = setup({ notice: "always", seen: true });
+    await t.starter.start("ad_hoc", { eventId: "e", title: "T", attendees: [] });
+    expect(t.order).toEqual(["notice", "capture"]);
+  });
 });

@@ -34,8 +34,10 @@ function setup(
     }),
     neverFor: vi.fn(),
   };
+  const autoRecordFor = vi.fn((_app: { id: string; name: string }) => false);
   const detector = createMeetingDetector({
     clock,
+    autoRecordFor,
     matchers: () => matchers,
     settings: () => settings,
     recording: () => state,
@@ -46,6 +48,7 @@ function setup(
     detector,
     clock,
     calls,
+    autoRecordFor,
     setSettings: (next: Partial<DetectSettings>) => (settings = { ...settings, ...next }),
     setState: (next: RecordingState) => (state = next),
     barBusy: () => (shows = false),
@@ -182,5 +185,29 @@ describe("meeting detector", () => {
     t.detector.reset();
     expect(t.calls.hidePrompt).toHaveBeenCalledTimes(1);
     expect(t.detector.answer("yes")).toBe(false);
+  });
+
+  it("tells start which call it is, and Record starts with the same app", async () => {
+    const t = setup();
+    await t.start();
+    t.detector.answer("yes");
+    await t.clock.advance(0);
+    expect(t.calls.start).toHaveBeenCalledWith({ id: "zoom", name: "Zoom" });
+  });
+
+  it("records without asking when the calendar says this call is on now (auto start)", async () => {
+    const t = setup();
+    t.autoRecordFor.mockReturnValue(true);
+    await t.start();
+    expect(t.calls.showPrompt).not.toHaveBeenCalled();
+    expect(t.calls.start).toHaveBeenCalledWith({ id: "zoom", name: "Zoom" });
+    expect(t.autoRecordFor).toHaveBeenCalledWith({ id: "zoom", name: "Zoom" });
+  });
+
+  it("asks as usual when the calendar does not say so", async () => {
+    const t = setup();
+    await t.start();
+    expect(t.calls.showPrompt).toHaveBeenCalled();
+    expect(t.calls.start).not.toHaveBeenCalled();
   });
 });

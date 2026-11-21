@@ -54,7 +54,8 @@ export function createElectronTray(perform: (action: TrayAction) => void): Elect
       tray.setContextMenu(Menu.buildFromTemplate(template(view.items, perform)));
       tray.setToolTip(view.tooltip);
       if (process.platform === "darwin") {
-        tray.setTitle(view.elapsed ? `${DOT[view.status]} ${view.elapsed}` : DOT[view.status]);
+        const text = view.elapsed ?? view.nextText;
+        tray.setTitle(text ? `${DOT[view.status]} ${text}`.trim() : DOT[view.status]);
       }
     },
     onHover(handler) {
