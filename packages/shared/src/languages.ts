@@ -31,3 +31,13 @@ export const languageCodes = SPEECH_LANGUAGES.map((language) => language.code) a
   SpeechLanguage,
   ...SpeechLanguage[],
 ];
+
+/**
+ * The languages a meeting can be transcribed in (NT-20): the speech model's list. The mixed
+ * Hindi-in-Latin-letters profile is for dictation and is not offered.
+ */
+export const MEETING_LANGUAGES = SPEECH_LANGUAGES.filter((language) => language.code !== "hi-Latn");
+export const meetingLanguageCodes = MEETING_LANGUAGES.map((language) => language.code) as [
+  Exclude<SpeechLanguage, "hi-Latn">,
+  ...Exclude<SpeechLanguage, "hi-Latn">[],
+];

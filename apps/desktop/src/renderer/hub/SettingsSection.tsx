@@ -11,6 +11,7 @@ import {
   planAllows,
   CONSENT_NOTICES,
   DEFAULT_MEETING_MATCHERS,
+  MEETING_LANGUAGES,
   type ConsentNotice,
   APP_LANGUAGES,
   APP_LANGUAGE_NAMES,
@@ -559,6 +560,82 @@ export function SettingsSection({
                   notetaker: {
                     ...settings.notetaker,
                     ask: { ...settings.notetaker.ask, includeNotes },
+                  },
+                })
+              }
+            />
+          </VStack>
+        </Row>
+        <Row id="meeting-language">
+          <VStack gap={2}>
+            <Heading level={3}>Meeting languages</Heading>
+            <Text size="sm" color="secondary">
+              A new meeting starts with these. Each meeting can be changed on its Transcript tab,
+              and a finished meeting is then transcribed again from its saved audio.
+            </Text>
+            <Selector
+              label="A new meeting is transcribed in"
+              options={[
+                { value: "auto", label: "Detect automatically" },
+                ...MEETING_LANGUAGES.map((item) => ({ value: item.code, label: item.label })),
+              ]}
+              value={settings.notetaker.language.default}
+              onChange={(value) =>
+                update({
+                  notetaker: {
+                    ...settings.notetaker,
+                    language: {
+                      default:
+                        value as SettingsView["settings"]["notetaker"]["language"]["default"],
+                    },
+                  },
+                })
+              }
+            />
+            <Switch
+              label="Write new transcripts in English"
+              description="Uses the speech model's translate task. The transcript only: a summary has its own language."
+              value={settings.notetaker.translate.transcriptToEnglish}
+              onChange={(transcriptToEnglish) =>
+                update({
+                  notetaker: { ...settings.notetaker, translate: { transcriptToEnglish } },
+                })
+              }
+            />
+            <Selector
+              label="Summaries are written in"
+              options={[
+                { value: "meeting", label: "The language of the meeting" },
+                ...MEETING_LANGUAGES.map((item) => ({ value: item.code, label: item.label })),
+              ]}
+              value={settings.notetaker.summary.language}
+              onChange={(value) =>
+                update({
+                  notetaker: {
+                    ...settings.notetaker,
+                    summary: {
+                      ...settings.notetaker.summary,
+                      language:
+                        value as SettingsView["settings"]["notetaker"]["summary"]["language"],
+                    },
+                  },
+                })
+              }
+            />
+            <Selector
+              label="Keep a transcript that was transcribed again for"
+              options={[
+                { value: "7", label: "7 days" },
+                { value: "30", label: "30 days" },
+                { value: "90", label: "90 days" },
+                { value: "365", label: "A year" },
+              ]}
+              value={String(settings.notetaker.rerun.keepPreviousVersionDays)}
+              onChange={(value) =>
+                update({
+                  notetaker: {
+                    ...settings.notetaker,
+                    rerun: { keepPreviousVersionDays: Number(value) },
                   },
                 })
               }

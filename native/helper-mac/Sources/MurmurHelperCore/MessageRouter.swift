@@ -152,6 +152,7 @@ public struct MessageRouter: Sendable {
                 return [Self.failure(id: id, requestType: type, .invalidPayload, "meetingId and channel are required")]
             }
             let languages = payload["languages"]?.arrayValue?.compactMap(\.stringValue) ?? []
+            let translate = payload["translate"]?.boolValue ?? false
             guard let live = meeting.liveAudio(meetingId: meetingId, channel: channel) else {
                 return [Self.failure(id: id, requestType: type, .notFound, "This channel is not being recorded")]
             }
@@ -167,7 +168,8 @@ public struct MessageRouter: Sendable {
                 ]) { $1 }
                 return [Self.success(id: id, requestType: type, empty)]
             }
-            return speech.transcribeSamples(id: id, samples: live.samples, languages: languages, extra: extra)
+            return speech.transcribeSamples(
+                id: id, samples: live.samples, languages: languages, translate: translate, extra: extra)
                 .map { [$0] } ?? []
         case "media.status", "media.mute":
             guard let media else {

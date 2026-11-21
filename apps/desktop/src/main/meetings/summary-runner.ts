@@ -35,7 +35,7 @@ export interface SummaryRunnerDeps {
   notes(meetingId: string): string;
   summaries: Pick<SummariesStore, "add">;
   skills: Pick<SkillsStore, "get">;
-  settings(): { skillId: string; length: SkillLength };
+  settings(): { skillId: string; length: SkillLength; language?: string };
   modelId: string;
   modelReady(): Promise<boolean>;
   /** One call of the local model. A cancelled or preempted call rejects with `retry: true`. */
@@ -120,6 +120,7 @@ export function createSummaryRunner(deps: SummaryRunnerDeps): SummaryRunner {
             notes: deps.notes(meetingId),
             skill,
             length: skill.length === "medium" ? settings.length : skill.length,
+            ...(settings.language ? { language: settings.language } : {}),
           },
         );
         const summary = deps.summaries.add({

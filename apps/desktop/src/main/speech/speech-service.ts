@@ -48,7 +48,8 @@ export interface SpeechService {
    * NT-05: transcribes a meeting chunk, keeping its timing. Waits behind any dictation, which
    * always goes first: the helper decodes one file at a time.
    */
-  transcribeMeeting(path: string, languages: string[]): Promise<Transcript>;
+  /** `translate` writes the words in English whatever is spoken (NT-20). */
+  transcribeMeeting(path: string, languages: string[], translate?: boolean): Promise<Transcript>;
   /** NT-06: the chunk still being recorded on a channel; waits behind dictation too. */
   transcribeLive(input: TranscribeLiveInput): Promise<LiveTranscript>;
 }
@@ -189,11 +190,16 @@ export function createSpeechService(deps: SpeechServiceDeps): SpeechService {
         return helper.transcribeLive(input);
       });
     },
-    transcribeMeeting(path, meetingLanguages) {
+    transcribeMeeting(path, meetingLanguages, translate = false) {
       if (state !== "ready") return Promise.reject(notReady());
       return decode(false, () => {
         if (state !== "ready") return Promise.reject(notReady());
-        return helper.transcribeFile({ path, languages: meetingLanguages, keepTiming: true });
+        return helper.transcribeFile({
+          path,
+          languages: meetingLanguages,
+          keepTiming: true,
+          ...(translate ? { translate: true } : {}),
+        });
       });
     },
   };

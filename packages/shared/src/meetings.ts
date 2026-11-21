@@ -8,6 +8,7 @@ import {
   summarySettingsSchema,
 } from "./skills";
 import { audioSessionIdSchema } from "./audio";
+import { meetingLanguageCodes } from "./languages";
 import { DEFAULT_ASK_SETTINGS, askSettingsSchema } from "./ask";
 import { DEFAULT_TASKS_SETTINGS, tasksSettingsSchema } from "./tasks";
 import { transcriptSchema } from "./speech";
@@ -98,6 +99,8 @@ export const transcribeLivePayloadSchema = z.object({
   meetingId: audioSessionIdSchema,
   channel: meetingChannelSchema,
   languages: z.array(z.string().min(1)).max(20).optional(),
+  /** NT-20: write the words in English whatever language is spoken. */
+  translate: z.boolean().optional(),
 });
 export type TranscribeLiveInput = z.infer<typeof transcribeLivePayloadSchema>;
 
@@ -130,6 +133,12 @@ export interface Meeting {
   warnings: MeetingWarning[];
   durationMs: number;
   audioDeletedAt: number | null;
+  /** NT-20: null means the language is detected. */
+  language: string | null;
+  /** NT-20: the transcript is written in English whatever is spoken. */
+  translate: boolean;
+  /** NT-23: goes up by one with each rerun; the older transcripts are kept for a while. */
+  transcriptVersion: number;
 }
 
 export interface AudioChunkRow {
@@ -287,6 +296,28 @@ export interface SegmentHistoryItem {
 
 export type RevertResult = { ok: true } | { ok: false; message: string };
 
+/** NT-20: how a meeting is transcribed. `language` null means detect it. */
+export const meetingLanguageSchema = z.strictObject({
+  language: z.enum(meetingLanguageCodes).nullable(),
+  translate: z.boolean(),
+});
+export type MeetingLanguageInput = z.infer<typeof meetingLanguageSchema>;
+
+/** A transcript a rerun replaced, kept for a while so it can be put back (NT-23). */
+export interface TranscriptVersionInfo {
+  id: number;
+  version: number;
+  language: string | null;
+  translate: boolean;
+  lines: number;
+  /** When it was replaced. */
+  replacedAt: number;
+  /** After this day it is deleted. */
+  expiresAt: number;
+}
+
+export type RerunResult = { ok: true } | { ok: false; message: string };
+
 /** Everything the meeting view shows. */
 export interface MeetingDetail {
   meeting: Meeting;
@@ -303,6 +334,12 @@ export interface MeetingDetail {
   taskStatus: TaskRunStatus;
   /** NT-07: who spoke, with their counts and talk time. */
   speakers: MeetingSpeaker[];
+  /** NT-23: the transcripts a rerun replaced and that can still be put back. */
+  transcriptVersions: TranscriptVersionInfo[];
+  /** NT-20: the language most lines were heard in, when the language is detected. */
+  detectedLanguage: string | null;
+  /** NT-23: why the transcript cannot be rerun now (deleted audio, still working), or null. */
+  rerunBlocked: string | null;
 }
 
 /** What the Tasks tab shows besides the tasks (NT-26). */
@@ -419,6 +456,18 @@ export const notetakerSettingsSchema = z.strictObject({
   tasks: tasksSettingsSchema.default(DEFAULT_TASKS_SETTINGS),
   /** NT-14: asking across meetings. */
   ask: askSettingsSchema.default(DEFAULT_ASK_SETTINGS),
+  /** NT-20: the language a new meeting starts with: "auto" or a code. */
+  language: z
+    .strictObject({ default: z.enum(["auto", ...meetingLanguageCodes]) })
+    .default({ default: "auto" }),
+  /** NT-20: write the transcript of a new meeting in English whatever is spoken. */
+  translate: z.strictObject({ transcriptToEnglish: z.boolean() }).default({
+    transcriptToEnglish: false,
+  }),
+  /** NT-23: how many days a transcript a rerun replaced can be put back. */
+  rerun: z
+    .strictObject({ keepPreviousVersionDays: z.number().int().min(1).max(365) })
+    .default({ keepPreviousVersionDays: 30 }),
   /** NT-24: corrections to a transcript. */
   corrections: z
     .strictObject({
@@ -440,4 +489,7 @@ export const DEFAULT_NOTETAKER: NotetakerSettings = {
   tasks: DEFAULT_TASKS_SETTINGS,
   ask: DEFAULT_ASK_SETTINGS,
   corrections: { suggestDictionary: true },
+  language: { default: "auto" },
+  translate: { transcriptToEnglish: false },
+  rerun: { keepPreviousVersionDays: 30 },
 };

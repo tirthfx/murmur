@@ -177,6 +177,12 @@ const api: MurmurApi = {
     ipcRenderer.invoke(IPC_CHANNELS.meetingSpeakerClip, meetingId, speakerId),
   meetingCorrect: (meetingId, correction) =>
     ipcRenderer.invoke(IPC_CHANNELS.meetingCorrect, meetingId, correction),
+  meetingSetLanguage: (meetingId, input) =>
+    ipcRenderer.invoke(IPC_CHANNELS.meetingSetLanguage, meetingId, input),
+  meetingRerun: (meetingId, input) =>
+    ipcRenderer.invoke(IPC_CHANNELS.meetingRerun, meetingId, input),
+  meetingVersionRestore: (meetingId, versionId) =>
+    ipcRenderer.invoke(IPC_CHANNELS.meetingVersionRestore, meetingId, versionId),
   meetingSegmentHistory: (meetingId, segmentId) =>
     ipcRenderer.invoke(IPC_CHANNELS.meetingSegmentHistory, meetingId, segmentId),
   meetingCorrectionRevert: (meetingId, correctionId) =>

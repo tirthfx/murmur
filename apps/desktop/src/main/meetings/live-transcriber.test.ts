@@ -16,7 +16,7 @@ function result(channel: "mic" | "system", seq: number, text: string): LiveTrans
   };
 }
 
-function setup() {
+function setup(how?: { languages: string[]; translate: boolean }) {
   let state: RecordingState = {
     status: "recording",
     meetingId: "m",
@@ -37,6 +37,7 @@ function setup() {
     state: () => state,
     dictating: () => flags.dictating,
     enabled: () => flags.enabled,
+    ...(how ? { options: () => how } : {}),
     isFinal: (_, channel, seq) => finals.has(`${channel}:${seq}`),
     wait: async () => {
       // Each pause is one round; stop after two.
@@ -91,5 +92,24 @@ describe("live transcriber", () => {
     t.live.start("m", ["mic", "system"]);
     await t.live.done();
     expect(t.transcribeLive).not.toHaveBeenCalled();
+  });
+
+  it("decodes in the meeting's language, and translates when asked (NT-20)", async () => {
+    const t = setup({ languages: ["es"], translate: true });
+    t.live.start("m", ["mic"]);
+    await t.live.done();
+    expect(t.transcribeLive).toHaveBeenCalledWith({
+      meetingId: "m",
+      channel: "mic",
+      languages: ["es"],
+      translate: true,
+    });
+  });
+
+  it("leaves the language out when it is detected and nothing is translated", async () => {
+    const t = setup({ languages: [], translate: false });
+    t.live.start("m", ["mic"]);
+    await t.live.done();
+    expect(t.transcribeLive).toHaveBeenCalledWith({ meetingId: "m", channel: "mic" });
   });
 });

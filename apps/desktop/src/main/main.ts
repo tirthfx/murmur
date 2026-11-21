@@ -147,7 +147,9 @@ import { createSkillsService } from "./meetings/skills-service";
 import { createAskIndex } from "./meetings/ask-index";
 import { suggestFromCorrection } from "./meetings/corrections-learn";
 import { createCorrectionsStore } from "./meetings/corrections-store";
+import { createMeetingRerun } from "./meetings/meeting-rerun";
 import { createSpeakerClip } from "./meetings/speaker-clip";
+import { createTranscriptVersions } from "./meetings/transcript-versions";
 import { createSpeakersStore } from "./meetings/speakers-store";
 import { AskError, createAskRunner } from "./meetings/ask-runner";
 import { createAskStore } from "./meetings/ask-store";
@@ -1682,7 +1684,11 @@ const summaryRunner =
         skills: meetingSkills,
         settings: () => {
           const settings = settingsStore.get().notetaker;
-          return { skillId: settings.skills.default, length: settings.summary.length };
+          return {
+            skillId: settings.skills.default,
+            length: settings.summary.length,
+            language: settings.summary.language,
+          };
         },
         modelId: DEFAULT_CLEANUP_MODEL.id,
         modelReady: cleanupModelReady,
@@ -1758,6 +1764,8 @@ const askRunner =
         logger: createConsoleLogger("[ask]"),
       })
     : null;
+// NT-23: meetings whose transcript was just made again: their tasks are looked for again.
+const rerunExtract = new Set<string>();
 // NT-05: the work queue. Transcription needs only the local model; meetings wait for it.
 const meetingJobs: MeetingJobs | null =
   database && meetingsStore && meetingTranscripts
@@ -1765,8 +1773,8 @@ const meetingJobs: MeetingJobs | null =
         db: database,
         meetings: meetingsStore,
         transcripts: meetingTranscripts,
-        // The meeting language comes with #193; until then it is detected.
-        transcribe: (file) => speech.transcribeMeeting(file, []),
+        // The meeting's own language, and whether to write the words in English (NT-20).
+        transcribe: (file, how) => speech.transcribeMeeting(file, how.languages, how.translate),
         speechReady: () => speech.getState() === "ready",
         dictating: () => hubDictationState !== "idle",
         now: () => Date.now(),
@@ -1776,6 +1784,13 @@ const meetingJobs: MeetingJobs | null =
         onTranscribed: (id) => {
           if (meetingsStore.get(id)?.status !== "ready") return;
           const notetaker = settingsStore.get().notetaker;
+          // After a rerun (NT-23) a new summary is always written, and the tasks are looked
+          // for again: a title the meeting already has is skipped, so done tasks stay done.
+          if (meetingsStore.consumeRerun(id)) {
+            rerunExtract.add(id);
+            meetingJobs?.enqueue(id, "summarise");
+            return;
+          }
           if (notetaker.summary.auto) {
             if ((meetingSummaries?.list(id).length ?? 0) > 0) return;
             if (meetingJobs?.jobStatus(id, "summarise") !== null) return;
@@ -1790,9 +1805,10 @@ const meetingJobs: MeetingJobs | null =
         },
         // The tasks are looked for after the summary, once.
         onSummarised: (id) => {
+          const again = rerunExtract.delete(id);
           if (!settingsStore.get().notetaker.tasks.extract) return;
-          if (meetingJobs?.jobStatus(id, "extract_tasks") !== null) return;
-          meetingJobs.enqueue(id, "extract_tasks");
+          if (!again && meetingJobs?.jobStatus(id, "extract_tasks") !== null) return;
+          meetingJobs?.enqueue(id, "extract_tasks");
         },
         extractTasks: async (id) => {
           if (!taskRunner) throw new TaskError("no-transcript", "No tasks here.");
@@ -1806,12 +1822,34 @@ const meetingJobs: MeetingJobs | null =
         logger: createConsoleLogger("[meetings]"),
       })
     : null;
+// NT-23: transcribe a finished meeting again from its saved audio, keeping the old transcript.
+const transcriptVersions = database ? createTranscriptVersions(database) : null;
+const meetingRerun =
+  meetingsStore && transcriptVersions && meetingJobs
+    ? createMeetingRerun({
+        meetings: meetingsStore,
+        versions: transcriptVersions,
+        jobs: meetingJobs,
+        keepDays: () => settingsStore.get().notetaker.rerun.keepPreviousVersionDays,
+        audioPresent: (id) => meetingsStore.chunks(id).every((chunk) => existsSync(chunk.path)),
+        now: Date.now,
+        onChange: (id) => notifyMeetings(id),
+      })
+    : null;
+transcriptVersions?.purge(Date.now());
 // NT-06: grey text for the chunk being recorded, decoded again and again.
 const liveTranscriber = createLiveTranscriber({
   transcribeLive: (input) => speech.transcribeLive(input),
   state: () => meetings?.state() ?? { status: "idle" },
   dictating: () => hubDictationState !== "idle",
   enabled: () => settingsStore.get().notetaker.live,
+  options: (meetingId) => {
+    const meeting = meetingsStore?.get(meetingId);
+    return {
+      languages: meeting?.language ? [meeting.language] : [],
+      translate: meeting?.translate ?? false,
+    };
+  },
   isFinal: (meetingId, channel, seq) =>
     meetingTranscripts?.isTranscribed(meetingId, channel, seq) ?? false,
   wait: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
@@ -1835,6 +1873,11 @@ const meetings = meetingsStore
           captureSystem: settings.notetaker.captureSystem,
           chunkSeconds: settings.notetaker.chunkSeconds,
           micDeviceId: settings.inputDevice === "auto" ? null : settings.inputDevice,
+          language:
+            settings.notetaker.language.default === "auto"
+              ? null
+              : settings.notetaker.language.default,
+          translate: settings.notetaker.translate.transcriptToEnglish,
         };
       },
       onState: (state) => {
@@ -1903,6 +1946,9 @@ function meetingDetail(id: string): MeetingDetail | null {
     summaryStatus: summaryStatus(id),
     taskStatus: taskStatus(id),
     speakers: speakersStore?.list(id) ?? [],
+    transcriptVersions: transcriptVersions?.list(id, Date.now()) ?? [],
+    detectedLanguage: meeting.language ? null : meetingTranscripts.detectedLanguage(id),
+    rerunBlocked: meetingRerun?.blocked(id) ?? null,
   };
 }
 
@@ -2647,6 +2693,18 @@ function registerIpc(): void {
           : null;
       return { ok: true, segmentId: result.segmentId, changed: result.changed, learned };
     },
+    meetingSetLanguage: (meetingId, input) =>
+      meetingRerun?.setLanguage(meetingId, input) ?? {
+        ok: false,
+        message: "Languages need the database.",
+      },
+    meetingRerun: (meetingId, input) =>
+      meetingRerun?.rerun(meetingId, input) ?? { ok: false, message: "Rerun needs the database." },
+    meetingVersionRestore: (meetingId, versionId) =>
+      meetingRerun?.restore(meetingId, versionId) ?? {
+        ok: false,
+        message: "Rerun needs the database.",
+      },
     meetingSegmentHistory: (meetingId, segmentId) =>
       correctionsStore?.history(meetingId, segmentId) ?? [],
     meetingCorrectionRevert: (meetingId, correctionId) => {

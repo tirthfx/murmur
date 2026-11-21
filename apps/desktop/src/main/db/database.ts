@@ -35,6 +35,7 @@ import m0031 from "./migrations/0031_tasks.sql?raw";
 import m0032 from "./migrations/0032_ask.sql?raw";
 import m0033 from "./migrations/0033_meeting_speakers.sql?raw";
 import m0034 from "./migrations/0034_transcript_corrections.sql?raw";
+import m0035 from "./migrations/0035_transcript_versions.sql?raw";
 import { migrateUp, parseMigration, type Migration } from "./migrate";
 
 /** Every migration, in the order the files are numbered. */
@@ -73,6 +74,7 @@ export const MIGRATIONS: Migration[] = [
   parseMigration("0032_ask.sql", m0032),
   parseMigration("0033_meeting_speakers.sql", m0033),
   parseMigration("0034_transcript_corrections.sql", m0034),
+  parseMigration("0035_transcript_versions.sql", m0035),
 ];
 
 /** `<appData>/Murmur/murmur.db`, shared by the dev build and the packaged app. */

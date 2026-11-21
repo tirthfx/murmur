@@ -23,6 +23,9 @@ const meeting: MeetingListItem = {
   warnings: ["system_permission"],
   durationMs: 30 * 60_000,
   audioDeletedAt: null,
+  language: null,
+  translate: false,
+  transcriptVersion: 1,
   progress: { chunks: 4, done: 4 },
 };
 
@@ -78,6 +81,9 @@ function detail(overrides: Partial<MeetingDetail> = {}): MeetingDetail {
     summaries: [],
     summaryStatus: { state: "idle" },
     taskStatus: { state: "idle" },
+    transcriptVersions: [],
+    detectedLanguage: null,
+    rerunBlocked: null,
     speakers: [
       {
         id: "m-1:mic",

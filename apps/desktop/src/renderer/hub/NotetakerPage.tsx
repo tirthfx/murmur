@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SummaryTab } from "./MeetingSummary";
 import { AskPanel, type AskTarget } from "./AskPanel";
+import { LanguagePanel } from "./LanguagePanel";
 import { LineEditor } from "./LineEditor";
 import { SkillsManager } from "./SkillsManager";
 import { SpeakersPanel } from "./SpeakersPanel";
@@ -146,6 +147,7 @@ function Transcript({ detail, highlight }: { detail: MeetingDetail; highlight: s
 
   return (
     <VStack gap={2}>
+      <LanguagePanel detail={detail} />
       <SpeakersPanel detail={detail} />
       {waiting ? (
         <Text size="sm" color="secondary" role="status">

@@ -1,15 +1,18 @@
 import { z } from "zod";
 import {
   correctionSchema,
+  meetingLanguageSchema,
   type Correction,
   type CorrectionResult,
   type LivePartial,
   type MeetingDetail,
   type MeetingDoc,
   type MeetingFindTasksResult,
+  type MeetingLanguageInput,
   type MeetingListItem,
   type MeetingSummarizeResult,
   type RecordingState,
+  type RerunResult,
   type RevertResult,
   type SegmentHistoryItem,
   type SpeakerClipResult,
@@ -414,6 +417,9 @@ export const IPC_CHANNELS = {
   meetingSpeakerRename: "meetings:speaker-rename",
   meetingSpeakerClip: "meetings:speaker-clip",
   meetingCorrect: "meetings:correct",
+  meetingSetLanguage: "meetings:set-language",
+  meetingRerun: "meetings:rerun",
+  meetingVersionRestore: "meetings:version-restore",
   meetingSegmentHistory: "meetings:segment-history",
   meetingCorrectionRevert: "meetings:correction-revert",
 } as const;
@@ -917,6 +923,18 @@ export const IPC_CONTRACT = {
     args: z.tuple([z.string().min(1).max(64), correctionSchema]),
     result: z.custom<CorrectionResult>(),
   },
+  [IPC_CHANNELS.meetingSetLanguage]: {
+    args: z.tuple([z.string().min(1).max(64), meetingLanguageSchema]),
+    result: z.custom<RerunResult>(),
+  },
+  [IPC_CHANNELS.meetingRerun]: {
+    args: z.tuple([z.string().min(1).max(64), meetingLanguageSchema]),
+    result: z.custom<RerunResult>(),
+  },
+  [IPC_CHANNELS.meetingVersionRestore]: {
+    args: z.tuple([z.string().min(1).max(64), z.number().int().min(1)]),
+    result: z.custom<RerunResult>(),
+  },
   [IPC_CHANNELS.meetingSegmentHistory]: {
     args: z.tuple([z.string().min(1).max(64), z.string().min(1).max(200)]),
     result: z.custom<SegmentHistoryItem[]>(),
@@ -1228,6 +1246,12 @@ export interface MurmurApi {
   meetingSpeakerClip(meetingId: string, speakerId: string): Promise<SpeakerClipResult>;
   /** NT-24: edits a line's text or speaker, splits it, or merges it with the next one. */
   meetingCorrect(meetingId: string, correction: Correction): Promise<CorrectionResult>;
+  /** NT-20: how a meeting still being recorded is transcribed from now on. */
+  meetingSetLanguage(meetingId: string, input: MeetingLanguageInput): Promise<RerunResult>;
+  /** NT-23: transcribes a finished meeting again from its saved audio, as a new version. */
+  meetingRerun(meetingId: string, input: MeetingLanguageInput): Promise<RerunResult>;
+  /** NT-23: puts a transcript a rerun replaced back. */
+  meetingVersionRestore(meetingId: string, versionId: number): Promise<RerunResult>;
   /** The corrections a line has been through, newest first. */
   meetingSegmentHistory(meetingId: string, segmentId: string): Promise<SegmentHistoryItem[]>;
   /** Takes back one correction, the newest of its lines. */

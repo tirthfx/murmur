@@ -49,7 +49,7 @@ public actor WhisperKitRecognizer: SpeechRecognizer {
         guard let pipe else { throw SpeechRecognizerError.notLoaded }
         var decode = DecodingOptions()
         decode.verbose = false
-        decode.task = .transcribe
+        decode.task = options.translate ? .translate : .transcribe
         if options.languages.count == 1, let language = options.languages.first {
             decode.language = LanguageChoice.base(language)
             decode.detectLanguage = false

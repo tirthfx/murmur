@@ -14,6 +14,8 @@ import {
   type AskThread,
   type AskThreadItem,
   type MeetingFindTasksResult,
+  type MeetingLanguageInput,
+  type RerunResult,
   type Correction,
   type CorrectionResult,
   type RevertResult,
@@ -159,6 +161,9 @@ export interface IpcDeps {
   meetingSpeakerRename: (meetingId: string, speakerId: string, name: string) => SpeakerRenameResult;
   meetingSpeakerClip: (meetingId: string, speakerId: string) => SpeakerClipResult;
   meetingCorrect: (meetingId: string, correction: Correction) => CorrectionResult;
+  meetingSetLanguage: (meetingId: string, input: MeetingLanguageInput) => RerunResult;
+  meetingRerun: (meetingId: string, input: MeetingLanguageInput) => RerunResult;
+  meetingVersionRestore: (meetingId: string, versionId: number) => RerunResult;
   meetingSegmentHistory: (meetingId: string, segmentId: string) => SegmentHistoryItem[];
   meetingCorrectionRevert: (meetingId: string, correctionId: number) => RevertResult;
   meetingDelete: (id: string) => void;
@@ -604,6 +609,18 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.meetingSpeakerClip(request.args[0] as string, request.args[1] as string);
       case IPC_CHANNELS.meetingCorrect:
         return deps.meetingCorrect(request.args[0] as string, request.args[1] as Correction);
+      case IPC_CHANNELS.meetingSetLanguage:
+        return deps.meetingSetLanguage(
+          request.args[0] as string,
+          request.args[1] as MeetingLanguageInput,
+        );
+      case IPC_CHANNELS.meetingRerun:
+        return deps.meetingRerun(
+          request.args[0] as string,
+          request.args[1] as MeetingLanguageInput,
+        );
+      case IPC_CHANNELS.meetingVersionRestore:
+        return deps.meetingVersionRestore(request.args[0] as string, request.args[1] as number);
       case IPC_CHANNELS.meetingSegmentHistory:
         return deps.meetingSegmentHistory(request.args[0] as string, request.args[1] as string);
       case IPC_CHANNELS.meetingCorrectionRevert:
