@@ -35,6 +35,14 @@ export interface MeetingsStore {
   setStatus(id: string, status: MeetingStatus): void;
   /** A rename by the owner; marks the title as edited. */
   rename(id: string, title: string): void;
+  /**
+   * A title made from the summary (NT-03). It never replaces a title the owner chose:
+   * returns false when it did not change the title.
+   */
+  setGeneratedTitle(id: string, title: string): boolean;
+  /** NT-25: the owner accepted the recording notice for this meeting. */
+  acknowledgeConsent(id: string, at: number): void;
+  consentAcknowledgedAt(id: string): number | null;
   remove(id: string): void;
 }
 
@@ -195,6 +203,25 @@ export function createMeetingsStore(db: DatabaseSync): MeetingsStore {
       const clean = title.trim().slice(0, MEETING_TITLE_MAX);
       if (!clean) return;
       db.prepare("UPDATE meetings SET title = ?, title_edited = 1 WHERE id = ?").run(clean, id);
+    },
+    setGeneratedTitle(id, title) {
+      const clean = title.trim().slice(0, MEETING_TITLE_MAX);
+      if (!clean) return false;
+      return (
+        Number(
+          db
+            .prepare("UPDATE meetings SET title = ? WHERE id = ? AND title_edited = 0")
+            .run(clean, id).changes,
+        ) > 0
+      );
+    },
+    acknowledgeConsent(id, at) {
+      db.prepare("UPDATE meetings SET consent_ack_at = ? WHERE id = ?").run(at, id);
+    },
+    consentAcknowledgedAt(id) {
+      const row = db.prepare("SELECT consent_ack_at FROM meetings WHERE id = ?").get(id) as
+        { consent_ack_at: number | null } | undefined;
+      return row?.consent_ack_at ?? null;
     },
     remove(id) {
       db.prepare("DELETE FROM meetings WHERE id = ?").run(id);

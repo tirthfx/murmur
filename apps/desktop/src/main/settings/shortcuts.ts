@@ -20,6 +20,7 @@ export const SLOT_NAMES: Record<ShortcutSlot, string> = {
   instruct: "Instruct Mode",
   focus: "Focus Mode",
   scratchpad: "Scratchpad",
+  meeting: "Meeting recording",
 };
 
 export function sameTrigger(a: HotkeyTrigger, b: HotkeyTrigger): boolean {
@@ -112,6 +113,6 @@ export function checkShortcut(
     key,
     [...used, ...extra],
     platform,
-    slot === "rewrite" || slot === "focus" || slot === "scratchpad",
+    slot === "rewrite" || slot === "focus" || slot === "scratchpad" || slot === "meeting",
   );
 }

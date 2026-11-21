@@ -259,6 +259,9 @@ export function formatElapsed(ms: number): string {
 
 // ------------------------------------------------------------------- settings
 
+export const CONSENT_NOTICES = ["first", "always", "off"] as const;
+export type ConsentNotice = (typeof CONSENT_NOTICES)[number];
+
 /**
  * Notetaker settings (`notetaker.settings`). Fields added after the first release carry a
  * default, so a value stored by an older build still reads.
@@ -270,6 +273,16 @@ export const notetakerSettingsSchema = z.strictObject({
   chunkSeconds: z.number().int().min(5).max(120),
   /** NT-06: show text while the meeting records. */
   live: z.boolean().default(true),
+  /**
+   * NT-25: the recording-consent notice. `first` shows it for the first recording on this
+   * install (`seen` records that), `always` before every recording, `off` never.
+   */
+  consent: z
+    .strictObject({
+      notice: z.enum(CONSENT_NOTICES),
+      seen: z.boolean(),
+    })
+    .default({ notice: "first", seen: false }),
 });
 export type NotetakerSettings = z.infer<typeof notetakerSettingsSchema>;
 
@@ -277,4 +290,5 @@ export const DEFAULT_NOTETAKER: NotetakerSettings = {
   captureSystem: true,
   chunkSeconds: 30,
   live: true,
+  consent: { notice: "first", seen: false },
 };

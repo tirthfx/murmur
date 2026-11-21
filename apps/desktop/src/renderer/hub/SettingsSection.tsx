@@ -9,6 +9,8 @@ import { Switch } from "@astryxdesign/core/Switch";
 import { VStack } from "@astryxdesign/core/VStack";
 import {
   planAllows,
+  CONSENT_NOTICES,
+  type ConsentNotice,
   APP_LANGUAGES,
   APP_LANGUAGE_NAMES,
   SETTINGS_CLEANUP_LEVELS,
@@ -31,6 +33,12 @@ import { DataPrivacySection } from "./DataPrivacySection";
 import { TestingSection } from "./TestingSection";
 import { ExportDeleteSection } from "./ExportDeleteSection";
 import type { SettingsPageId } from "./settings-pages";
+
+const CONSENT_LABELS: Record<ConsentNotice, string> = {
+  first: "The first time only",
+  always: "Before every recording",
+  off: "Never",
+};
 
 const SOUND_LABELS: Record<(typeof SOUND_NAMES)[number], string> = {
   start: "Start sound",
@@ -305,6 +313,31 @@ export function SettingsSection({
             />
           </VStack>
         </Row>
+        <Row id="meeting-notice">
+          <VStack gap={2}>
+            <Selector
+              label="Recording notice"
+              options={CONSENT_NOTICES.map((value) => ({
+                value,
+                label: CONSENT_LABELS[value],
+              }))}
+              value={settings.notetaker.consent.notice}
+              onChange={(notice) =>
+                update({
+                  notetaker: {
+                    ...settings.notetaker,
+                    consent: { ...settings.notetaker.consent, notice: notice as ConsentNotice },
+                  },
+                })
+              }
+            />
+            <Text size="sm" color="secondary">
+              A reminder to tell the other people when you record a meeting. With “Before every
+              recording”, nothing is recorded until you press OK. The red recording dot is always
+              shown. Murmur does not give legal advice.
+            </Text>
+          </VStack>
+        </Row>
         <Row id="instruct">
           <InstructSection view={view} onSaved={setView} update={update} />
         </Row>
@@ -375,6 +408,17 @@ export function SettingsSection({
             label={view.shortcutLabels.scratchpad}
             canClear={settings.scratchpadShortcut !== null}
             clear={{ label: "Turn off the Scratchpad shortcut", text: "Turn off" }}
+            onSaved={setView}
+          />
+        </Row>
+        <Row id="meeting-shortcut">
+          <ShortcutField
+            slot="meeting"
+            title="Meeting recording"
+            description="Starts recording a meeting. Press it again to stop."
+            label={view.shortcutLabels.meeting}
+            canClear={settings.meetingShortcut !== null}
+            clear={{ label: "Turn off the meeting recording shortcut", text: "Turn off" }}
             onSaved={setView}
           />
         </Row>

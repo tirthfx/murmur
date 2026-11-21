@@ -116,6 +116,15 @@ export function bindingsFor(
       mode: "press",
     });
   }
+  // Notetaker (NT-03): a press starts a meeting recording, and the next one stops it.
+  if (settings.meetingShortcut) {
+    bindings.push({
+      id: "meeting-toggle",
+      action: "notetaker.start",
+      trigger: settings.meetingShortcut,
+      mode: "press",
+    });
+  }
   if (cancelKeyCode !== null) {
     bindings.push({
       id: "dictate-cancel",
@@ -173,6 +182,7 @@ export function createSettingsService(deps: SettingsServiceDeps): SettingsServic
         scratchpad: settings.scratchpadShortcut
           ? platform.label(settings.scratchpadShortcut)
           : "Off",
+        meeting: settings.meetingShortcut ? platform.label(settings.meetingShortcut) : "Off",
       },
       devices,
     };
@@ -202,6 +212,7 @@ export function createSettingsService(deps: SettingsServiceDeps): SettingsServic
           instruct: settings.instructShortcut,
           focus: settings.focusShortcut,
           scratchpad: settings.scratchpadShortcut,
+          meeting: settings.meetingShortcut,
         },
         platform,
         deps.otherShortcuts?.() ?? [],

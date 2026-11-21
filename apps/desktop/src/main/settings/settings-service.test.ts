@@ -33,6 +33,7 @@ const defaults: Settings = {
   insights: { typingWpm: 40 },
   profile: { displayName: "", showOnHome: true },
   scratchpadShortcut: null,
+  meetingShortcut: null,
   scratchpad: { enabled: true, newTab: true },
   theme: "system",
   language: "en",
@@ -110,6 +111,7 @@ describe("settings service", () => {
       instruct: "Off",
       focus: "Off",
       scratchpad: "Off",
+      meeting: "Off",
     });
     expect(view.devices?.[0]?.name).toBe("Desk Mic");
   });
@@ -314,5 +316,45 @@ describe("Scratchpad shortcut (HB-26, HB-34)", () => {
     });
     const off = { ...on, scratchpad: { enabled: false, newTab: true } };
     expect(bindingsFor(off).some((binding) => binding.action === "scratchpad.open")).toBe(false);
+  });
+});
+
+describe("Meeting recording shortcut (NT-03)", () => {
+  it("is not bound until it is set, then a press starts or stops a recording", () => {
+    expect(bindingsFor(defaults).some((binding) => binding.action === "notetaker.start")).toBe(
+      false,
+    );
+    const trigger = {
+      type: "key" as const,
+      keyCode: 15,
+      modifiers: ["control" as const, "option" as const],
+    };
+    expect(bindingsFor({ ...defaults, meetingShortcut: trigger })).toContainEqual({
+      id: "meeting-toggle",
+      action: "notetaker.start",
+      trigger,
+      mode: "press",
+    });
+  });
+
+  it("is checked against the dictation keys and the other shortcuts", async () => {
+    const { service, store } = setup();
+    const saved = await service.setShortcut("meeting", {
+      code: "KeyM",
+      modifiers: ["control", "option"],
+    });
+    expect(saved.ok && saved.view.shortcutLabels.meeting).toBe("Control+Option+M");
+    expect(store.get().meetingShortcut).not.toBeNull();
+    expect(
+      await service.setShortcut("handsFree", { code: "KeyM", modifiers: ["control", "option"] }),
+    ).toEqual({ ok: false, message: "Control+Option+M is already used for Meeting recording." });
+    // The dictation key itself cannot be taken.
+    const hold = await service.setShortcut("meeting", { code: "AltRight", modifiers: [] });
+    expect(hold.ok).toBe(false);
+    // A modifier on its own is refused: it would fire as a hold.
+    const lone = await service.setShortcut("meeting", { code: "ShiftLeft", modifiers: [] });
+    expect(lone.ok).toBe(false);
+    const off = await service.setShortcut("meeting", null);
+    expect(off.ok && off.view.shortcutLabels.meeting).toBe("Off");
   });
 });
