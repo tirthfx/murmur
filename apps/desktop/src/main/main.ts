@@ -38,6 +38,7 @@ import {
   dictationStateOf,
   type DictationState,
   type MeetingDetail,
+  type SummaryStatus,
   type HistoryRetryResult,
   localDate,
   milestoneTitle,
@@ -139,6 +140,8 @@ import { createMeetingDetector, type MeetingDetector } from "./meetings/meeting-
 import { loadMeetingMatchers } from "./meetings/matchers-file";
 import { createDetectionSync } from "./meetings/detection-sync";
 import { createMeetingJobs, type MeetingJobs } from "./meetings/meeting-jobs";
+import { createSkillsStore, createSummariesStore } from "./meetings/summaries-store";
+import { createSummaryRunner, SummaryError } from "./meetings/summary-runner";
 import { createTranscriptStore } from "./meetings/transcript-store";
 import { createLiveTranscriber } from "./meetings/live-transcriber";
 import { createMeetingNotesStore } from "./meetings/meeting-notes-store";
@@ -195,7 +198,12 @@ import { createWorkspaceIndexer, findWorkspace, TAG_EDITORS } from "./developer/
 import { chooseAutoDevice } from "./settings/auto-device";
 import { createImporter } from "./imports/importer";
 import { createVoiceProfile, recentExamples } from "./voice/voice-profile";
-import { createLlmClient, type LlmReply } from "./cleanup/llm-client";
+import {
+  createLlmClient,
+  LlmCancelledError,
+  LlmPreemptedError,
+  type LlmReply,
+} from "./cleanup/llm-client";
 import { createConsoleLogger, systemClock } from "./helper/node-runtime";
 import { HelperError } from "./helper/types";
 import { createHotkeyService } from "./hotkeys";
@@ -1606,6 +1614,44 @@ helper.onEditsChanged((change) => {
 const meetingsStore = database ? createMeetingsStore(database) : null;
 const meetingTranscripts = database ? createTranscriptStore(database) : null;
 const meetingNotes = database ? createMeetingNotesStore(database) : null;
+const meetingSummaries = database ? createSummariesStore(database) : null;
+const meetingSkills = database ? createSkillsStore(database) : null;
+// NT-09: summaries on the local model. A dictation or a Rewrite always goes first.
+const summaryRunner =
+  meetingsStore && meetingTranscripts && meetingNotes && meetingSummaries && meetingSkills
+    ? createSummaryRunner({
+        hasMeeting: (id) => meetingsStore.get(id) !== null,
+        segments: (id) => meetingTranscripts.segments(id),
+        notes: (id) => meetingNotes.notes(id).body,
+        summaries: meetingSummaries,
+        skills: meetingSkills,
+        settings: () => {
+          const settings = settingsStore.get().notetaker;
+          return { skillId: settings.skills.default, length: settings.summary.length };
+        },
+        modelId: DEFAULT_CLEANUP_MODEL.id,
+        modelReady: cleanupModelReady,
+        generate: async (request) => {
+          const job = llm.generate(request, { timeoutMs: 180_000, onChunk: () => {} });
+          try {
+            return await job.result;
+          } catch (error) {
+            // Another request took the model: the step is asked again later.
+            if (error instanceof LlmCancelledError || error instanceof LlmPreemptedError) {
+              throw Object.assign(error, { retry: true });
+            }
+            throw error;
+          }
+        },
+        dictating: () => hubDictationState !== "idle",
+        generating: () => llm.isGenerating(),
+        wait: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+        now: () => Date.now(),
+        newId: randomUUID,
+        onChange: (id) => notifyMeetings(id),
+        logger: createConsoleLogger("[summary]"),
+      })
+    : null;
 /** Tells the Hub a meeting changed (null: the list or the recording). */
 function notifyMeetings(meetingId: string | null): void {
   if (hubEvents && !hubEvents.isDestroyed()) hubEvents.send(IPC_EVENTS.meetingsChanged, meetingId);
@@ -1624,6 +1670,18 @@ const meetingJobs: MeetingJobs | null =
         now: () => Date.now(),
         wait: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
         onProgress: (meetingId) => notifyMeetings(meetingId),
+        // The summary is written once the transcript is complete, unless it is off.
+        onTranscribed: (id) => {
+          if (!settingsStore.get().notetaker.summary.auto) return;
+          if (meetingsStore.get(id)?.status !== "ready") return;
+          if ((meetingSummaries?.list(id).length ?? 0) > 0) return;
+          if (meetingJobs?.jobStatus(id, "summarise") !== null) return;
+          meetingJobs.enqueue(id, "summarise");
+        },
+        summarise: async (id) => {
+          if (!summaryRunner) throw new SummaryError("no-transcript", "No summaries here.");
+          await summaryRunner.run(id);
+        },
         logger: createConsoleLogger("[meetings]"),
       })
     : null;
@@ -1720,7 +1778,19 @@ function meetingDetail(id: string): MeetingDetail | null {
     notes: notes.body,
     notesUpdatedAt: notes.updatedAt,
     docs: meetingNotes.docs(id),
+    summaries: meetingSummaries?.list(id) ?? [],
+    summaryStatus: summaryStatus(id),
   };
+}
+
+function summaryStatus(id: string): SummaryStatus {
+  const running = summaryRunner?.status(id) ?? { state: "idle" as const };
+  if (running.state !== "idle") return running;
+  const job = meetingJobs?.jobStatus(id, "summarise");
+  if (job === "queued" || job === "running") return { state: "waiting" };
+  if (job === "failed")
+    return { state: "failed", message: "The summary could not be written. Try again." };
+  return { state: "idle" };
 }
 
 function deleteMeeting(id: string): void {
@@ -2396,6 +2466,23 @@ function registerIpc(): void {
     meetingStop: async () => {
       await meetings?.stop();
     },
+    meetingSummarize: async (id, options) => {
+      if (!summaryRunner) return { ok: false, message: "Summaries are not available." };
+      try {
+        await summaryRunner.run(id, options);
+        return { ok: true };
+      } catch (error) {
+        return {
+          ok: false,
+          message:
+            error instanceof SummaryError ? error.message : "The summary could not be written.",
+        };
+      }
+    },
+    meetingSummaryFeedback: (summaryId, feedback) => {
+      meetingSummaries?.setFeedback(summaryId, feedback);
+    },
+    skillsList: () => meetingSkills?.list() ?? [],
     meetingRename: (id, title) => {
       meetingsStore?.rename(id, title);
       notifyMeetings(id);

@@ -122,6 +122,8 @@ export interface LlmClient {
    * not produced anything yet, and otherwise waits for it only within its own budget.
    */
   generate(request: GenerateRequest, options: GenerateOptions): GenerationJob;
+  /** True while a generation is running: a new one would cancel it. */
+  isGenerating(): boolean;
   stop(): void;
 }
 
@@ -340,6 +342,7 @@ export function createLlmClient(deps: LlmClientDeps): LlmClient {
         );
       });
     },
+    isGenerating: () => active !== null,
     generate(request, options) {
       // One generation at a time: the newest wins.
       active?.stop(new LlmCancelledError());

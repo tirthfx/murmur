@@ -115,3 +115,22 @@ Murmur can notice a call in Zoom, Google Meet or Microsoft Teams and ask if you 
 Needs the Accessibility permission (the same one dictation uses). Detection reads window titles and pages only for the call apps and only on this Mac.
 
 Manual check: join a Zoom call (the prompt comes within a few seconds); open a Meet call in a background tab (no prompt), then show the tab (prompt); choose Never and check Settings; turn detection off and check nothing prompts; leave the call and check the recording stops within a minute.
+
+## Skills and summaries (NT-09, NT-15)
+
+**Skills.** A Skill is a name, a description, the sections of its output, a length and a prompt (`packages/shared/src/skills.ts`). Murmur ships 12 built-in Skills, written for Murmur: Meeting summary (the default), Action review, Follow-up note, Customer call notes, Product spec draft, Decision record, One-to-one prep, Interview debrief, Stand-up update, Weekly digest, Email reply draft and Next meeting agenda. Built-ins are read-only. The store can duplicate any Skill into a custom copy ("Name (copy)", table `skills`); editing, importing and exporting come with #188.
+
+**Summaries.** Once a recording has been transcribed, a `summarise` job in the meeting queue writes a summary with the default Skill (Settings, System, Meeting summaries: on or off, length, which Skill). The Summary tab shows the newest version, a version picker, a Skill picker with "Write a new version" (another Skill, or the same again, adds a version and keeps the old ones), and thumbs with a reason (missed points, wrong names, too long, too short). While a meeting records, "Quick summary so far" summarises what is transcribed; it is labelled Quick and the final summary replaces it. A summary row keeps the Skill and the model.
+
+**How it is written** (`meetings/summarizer.ts`).
+
+- The transcript is lines `[12:34] Owner: text` and `[12:34] Remote: text`. The owner's notes go in too (up to 6,000 characters).
+- About 3,000 tokens or less (counting 3.5 characters to a token) goes to the model once. A longer meeting is cut into parts of about 2,500 tokens with 200 tokens of overlap, each part is noted on its own (map), the notes are merged, and merged again while they are too long (reduce), and then the sections are written. Every call stays within the smallest model context (4,096 tokens). A 60-minute fixture is a test.
+- The model is asked to end each bullet with the time in square brackets. The answer is then **checked**: the Skill's sections are kept in order and anything else is dropped; a time that matches a transcript line (the nearest within 10 seconds) becomes a link `[12:34](seg:<segment id>)`; a time that matches nothing is dropped; a bullet with no link at all ends in "(No source)". A section the model left empty reads "Not discussed". If the answer filled the whole token room it is asked again with fewer bullets, and sections it still never reached read "Not written: the summary ran out of room" and not "Not discussed".
+- Clicking a link opens the Transcript tab at that line. The page renders only text, headings, bullets, bold and these links: no HTML from the model is shown.
+
+**The model is shared.** A summary never starts while a dictation is recording or being transcribed, and never while a Rewrite, Command or Instruct generation is running (the newest generation would cancel it). A step the model dropped for another request is asked again (up to 8 times). Without the language model, the job waits and runs when it is downloaded, with no action from the owner.
+
+`npx vite-node scripts/bench-summary.mjs` runs the summary on the real model with a made-up meeting (short and long) and reports time, links and sections. Needs the model.
+
+Manual check: record or open a meeting with some talk, wait for the summary (or press "Write a summary"), click a time and check the transcript opens at that line, write another version with a different Skill and check both are in the picker, give a thumbs down with a reason, turn the automatic summary off in Settings.

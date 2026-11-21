@@ -9,6 +9,7 @@ function setup(
 ) {
   const llm: LlmClient = {
     prepare: vi.fn(),
+    isGenerating: vi.fn(() => false),
     clean: vi.fn(answer),
     translate: vi.fn(),
     generate: vi.fn(),

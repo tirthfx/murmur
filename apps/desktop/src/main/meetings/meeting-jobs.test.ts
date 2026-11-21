@@ -16,7 +16,7 @@ function transcript(text: string, startMs = 1000, endMs = 3000): Transcript {
   } as Transcript;
 }
 
-function setup() {
+function setup(summary: { summarise?: (id: string) => Promise<void> } = {}) {
   const db = openDatabase(":memory:");
   const meetings = createMeetingsStore(db);
   const transcripts = createTranscriptStore(db);
@@ -35,6 +35,10 @@ function setup() {
       state.dictating = false;
     },
     onProgress: (id) => progress.push(id),
+    onTranscribed: (id) => {
+      jobs.enqueue(id, "summarise");
+    },
+    ...(summary.summarise ? { summarise: summary.summarise } : {}),
     logger: createTestLogger(),
   });
   const meeting = (id: string, chunks: number) => {
@@ -167,5 +171,67 @@ describe("meeting jobs", () => {
     await t.jobs.idle();
     expect(t.meetings.get("a")!.status).toBe("ready");
     expect(t.meetings.get("b")!.status).toBe("ready");
+  });
+
+  describe("summaries", () => {
+    const failWith = (code: string) => Object.assign(new Error(code), { code });
+
+    it("writes the summary after the transcript, in the same run", async () => {
+      const summarise = vi.fn(async () => {});
+      const t = setup({ summarise });
+      t.meeting("a", 1);
+      t.jobs.enqueue("a", "transcribe");
+      t.jobs.kick();
+      await t.jobs.idle();
+      expect(summarise).toHaveBeenCalledWith("a");
+      expect(
+        t.db.prepare("SELECT status FROM meeting_jobs WHERE kind = 'summarise'").get(),
+      ).toEqual({
+        status: "done",
+      });
+    });
+
+    it("waits for the language model without holding back transcription or counting a try", async () => {
+      const summarise = vi
+        .fn()
+        .mockRejectedValueOnce(failWith("model-missing"))
+        .mockResolvedValue(undefined);
+      const t = setup({ summarise });
+      t.meeting("a", 1);
+      t.meeting("b", 1);
+      t.jobs.enqueue("a", "transcribe");
+      t.jobs.kick();
+      await t.jobs.idle();
+      // a's summary waits; b, queued after it, is still transcribed.
+      t.jobs.enqueue("b", "transcribe");
+      t.jobs.kick();
+      await t.jobs.idle();
+      expect(t.meetings.get("b")!.status).toBe("ready");
+      expect(
+        t.db
+          .prepare(
+            "SELECT status, attempts FROM meeting_jobs WHERE meeting_id = 'a' AND kind = 'summarise'",
+          )
+          .get(),
+      ).toMatchObject({ status: "done" });
+    });
+
+    it("treats a meeting with no transcript as done, and gives up after repeated failures", async () => {
+      const none = setup({ summarise: async () => Promise.reject(failWith("no-transcript")) });
+      none.meeting("a", 1);
+      none.jobs.enqueue("a", "summarise");
+      none.jobs.kick();
+      await none.jobs.idle();
+      expect(none.db.prepare("SELECT status FROM meeting_jobs").get()).toEqual({ status: "done" });
+
+      const bad = setup({ summarise: async () => Promise.reject(failWith("failed")) });
+      bad.meeting("a", 1);
+      bad.jobs.enqueue("a", "summarise");
+      for (let i = 0; i < MAX_ATTEMPTS; i++) {
+        bad.jobs.kick();
+        await bad.jobs.idle();
+      }
+      expect(bad.db.prepare("SELECT status FROM meeting_jobs").get()).toEqual({ status: "failed" });
+    });
   });
 });

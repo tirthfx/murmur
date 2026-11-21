@@ -1,4 +1,4 @@
-import { DEFAULT_DETECT, DEFAULT_NOTETAKER } from "@murmur/shared";
+import { DEFAULT_NOTETAKER } from "@murmur/shared";
 import { describe, expect, it, vi } from "vitest";
 import type { Settings } from "@murmur/shared";
 import { openDatabase } from "../db/database";
@@ -169,12 +169,11 @@ describe("notetaker consent setting (NT-25)", () => {
       JSON.stringify({ captureSystem: false, chunkSeconds: 20, live: true }),
     );
     const store = createSettingsStore(db, defaults);
+    // Fields added later take their defaults.
     expect(store.get().notetaker).toEqual({
+      ...DEFAULT_NOTETAKER,
       captureSystem: false,
       chunkSeconds: 20,
-      live: true,
-      consent: { notice: "first", seen: false },
-      detect: DEFAULT_DETECT,
     });
     store.update({
       notetaker: { ...store.get().notetaker, consent: { notice: "always", seen: true } },

@@ -49,3 +49,4 @@ export * from "./data";
 export * from "./testing";
 export * from "./help";
 export * from "./meetings";
+export * from "./skills";

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { SummaryTab } from "./MeetingSummary";
 import { Badge } from "@astryxdesign/core/Badge";
 import { Banner } from "@astryxdesign/core/Banner";
 import { Button } from "@astryxdesign/core/Button";
@@ -79,7 +80,7 @@ function rememberTab(meetingId: string, tab: MeetingTab): void {
   }
 }
 
-function Transcript({ detail }: { detail: MeetingDetail }) {
+function Transcript({ detail, highlight }: { detail: MeetingDetail; highlight: string | null }) {
   const box = useRef<HTMLDivElement>(null);
   const [following, setFollowing] = useState(true);
   const lines = detail.segments.filter((segment) => !segment.isDictated);
@@ -91,6 +92,16 @@ function Transcript({ detail }: { detail: MeetingDetail }) {
     })),
   );
   const count = lines.length + live.length;
+
+  // A link in the summary opens the transcript at its line.
+  useEffect(() => {
+    if (!highlight) return;
+    setFollowing(false);
+    const line = [...(box.current?.querySelectorAll("[data-segment-id]") ?? [])].find(
+      (element) => element.getAttribute("data-segment-id") === highlight,
+    );
+    line?.scrollIntoView?.({ block: "center" });
+  }, [highlight, count]);
 
   // Follow the newest text unless the owner scrolled up.
   useEffect(() => {
@@ -133,7 +144,13 @@ function Transcript({ detail }: { detail: MeetingDetail }) {
           }}
         >
           {lines.map((segment) => (
-            <p key={segment.id} className="hub-transcript-line" data-channel={segment.channel}>
+            <p
+              key={segment.id}
+              className="hub-transcript-line"
+              data-channel={segment.channel}
+              data-segment-id={segment.id}
+              {...(segment.id === highlight ? { "data-highlight": "true" } : {})}
+            >
               <span className="hub-transcript-time">{formatElapsed(segment.startMs)}</span>
               <span className="hub-transcript-speaker">{CHANNEL_LABELS[segment.channel]}</span>
               <span>{segment.text}</span>
@@ -317,6 +334,7 @@ function MeetingView({
   const [tab, setTab] = useState<MeetingTab>(() => firstTab(detail));
   const [title, setTitle] = useState(meeting.title);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [highlight, setHighlight] = useState<string | null>(null);
 
   useEffect(() => setTitle(meeting.title), [meeting.title]);
 
@@ -331,10 +349,6 @@ function MeetingView({
   }
 
   const empty: Partial<Record<MeetingTab, string>> = {
-    summary:
-      meeting.status === "recording"
-        ? "A summary is written after the meeting ends."
-        : "A summary of this meeting will be shown here once it is written.",
     tasks: "To-dos found in the meeting will be listed here for you to accept.",
     brief:
       "A brief is prepared before meetings on your calendar. It needs a connected calendar, which comes with connectors.",
@@ -422,7 +436,17 @@ function MeetingView({
         </TabList>
         <div id={`meeting-${tab}`} role="tabpanel" aria-label={TAB_LABELS[tab]}>
           {tab === "transcript" ? (
-            <Transcript detail={detail} />
+            <Transcript detail={detail} highlight={highlight} />
+          ) : tab === "summary" ? (
+            <SummaryTab
+              detail={detail}
+              onChange={onChange}
+              onOpenSegment={(segmentId) => {
+                setHighlight(segmentId);
+                setTab("transcript");
+                rememberTab(meeting.id, "transcript");
+              }}
+            />
           ) : tab === "notes" ? (
             <Notes key={meeting.id} detail={detail} />
           ) : tab === "docs" ? (

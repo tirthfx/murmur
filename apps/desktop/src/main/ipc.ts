@@ -2,6 +2,9 @@ import {
   IPC_CHANNELS,
   parseIpcRequest,
   type MeetingDetail,
+  type MeetingSummarizeResult,
+  type Skill,
+  type SummaryFeedback,
   type MeetingDocResult,
   type MeetingListItem,
   type MeetingStartResult,
@@ -108,6 +111,12 @@ export interface IpcDeps {
   meetingStart: () => Promise<MeetingStartResult>;
   meetingStop: () => Promise<void>;
   meetingRename: (id: string, title: string) => void;
+  meetingSummarize: (
+    id: string,
+    options: { skillId?: string; quick?: boolean },
+  ) => Promise<MeetingSummarizeResult>;
+  meetingSummaryFeedback: (summaryId: string, feedback: SummaryFeedback | null) => void;
+  skillsList: () => Skill[];
   meetingDelete: (id: string) => void;
   meetingNotesSave: (id: string, body: string) => boolean;
   meetingDocAddLink: (id: string, url: string, title: string) => MeetingDocResult;
@@ -501,6 +510,18 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.meetingStart();
       case IPC_CHANNELS.meetingStop:
         return deps.meetingStop();
+      case IPC_CHANNELS.meetingSummarize:
+        return deps.meetingSummarize(
+          request.args[0] as string,
+          request.args[1] as { skillId?: string; quick?: boolean },
+        );
+      case IPC_CHANNELS.meetingSummaryFeedback:
+        return deps.meetingSummaryFeedback(
+          request.args[0] as string,
+          request.args[1] as SummaryFeedback | null,
+        );
+      case IPC_CHANNELS.skillsList:
+        return deps.skillsList();
       case IPC_CHANNELS.meetingRename:
         return deps.meetingRename(request.args[0] as string, request.args[1] as string);
       case IPC_CHANNELS.meetingDelete:

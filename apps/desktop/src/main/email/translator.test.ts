@@ -6,6 +6,7 @@ import { createTranslator } from "./translator";
 function llmWith(translate: LlmClient["translate"]): LlmClient {
   return {
     prepare: vi.fn(),
+    isGenerating: vi.fn(() => false),
     clean: vi.fn(),
     generate: vi.fn(),
     stop: vi.fn(),
