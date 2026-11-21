@@ -1,0 +1,16 @@
+#!/bin/sh
+# murmur-mcp: lets an MCP client (Claude desktop, Cursor, ...) talk to Murmur over stdio.
+#
+# The client starts this command and speaks JSON-RPC, one message per line, on stdin and stdout.
+# It is passed on to the running Murmur app through its local socket, which only this user can
+# open. Murmur must be running, with the local MCP server turned on (Connectors, Local MCP server).
+#
+# The socket is named by the first argument, or MURMUR_MCP_SOCKET, or is the default one.
+socket="${1:-${MURMUR_MCP_SOCKET:-$HOME/Library/Application Support/Murmur/mcp.sock}}"
+
+if [ ! -S "$socket" ]; then
+  echo "murmur-mcp: Murmur is not running, or its local MCP server is off ($socket is not there)." >&2
+  exit 1
+fi
+
+exec /usr/bin/nc -U "$socket"

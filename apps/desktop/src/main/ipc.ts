@@ -136,6 +136,7 @@ import {
   type RequestablePermissionKind,
   type ConnectorActionResult,
   type ConnectorsView,
+  type McpStatus,
 } from "@murmur/shared";
 import { isTrustedIpcSender } from "../security/guards";
 
@@ -182,6 +183,7 @@ export interface IpcDeps {
   folderChooseExport: (id: string) => Promise<FolderResult>;
   folderClearExport: (id: string) => FolderResult;
   connectorsView: () => Promise<ConnectorsView>;
+  mcpStatus: () => Promise<McpStatus>;
   connectorConnect: (id: string, loginHint?: string) => Promise<ConnectorActionResult>;
   connectorCancel: (id: string) => void;
   connectorDisconnect: (accountId: string) => Promise<ConnectorActionResult>;
@@ -657,6 +659,8 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.folderChooseExport(request.args[0] as string);
       case IPC_CHANNELS.folderClearExport:
         return deps.folderClearExport(request.args[0] as string);
+      case IPC_CHANNELS.mcpStatus:
+        return deps.mcpStatus();
       case IPC_CHANNELS.connectorsView:
         return deps.connectorsView();
       case IPC_CHANNELS.connectorConnect:

@@ -1,4 +1,8 @@
-import { DEFAULT_CONNECTOR_SETTINGS, DEFAULT_NOTETAKER } from "@murmur/shared";
+import {
+  DEFAULT_CONNECTOR_SETTINGS,
+  DEFAULT_MCP_SETTINGS,
+  DEFAULT_NOTETAKER,
+} from "@murmur/shared";
 import { describe, expect, it, vi } from "vitest";
 import type { Settings } from "@murmur/shared";
 import { keyPlatform } from "../platform";
@@ -51,6 +55,7 @@ const defaults: Settings = {
   referral: { code: "ABCD2345", invites: 0 },
   notetaker: DEFAULT_NOTETAKER,
   connectors: DEFAULT_CONNECTOR_SETTINGS,
+  mcp: DEFAULT_MCP_SETTINGS,
   contextAwareness: true,
   mouseButtons: { hold: null, handsFree: null },
   typingReminder: { enabled: true, snoozedUntil: null },

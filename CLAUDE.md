@@ -154,6 +154,8 @@ Notetaker (meeting recording of the microphone and the Mac's sound in chunk file
 
 Connectors (the framework for calendars, mail and chat: accounts, OAuth with PKCE in the system browser, tokens in the Keychain through the helper, refresh, disconnect, the client-id file, strict local mode, the Connectors page and its feature notices): see `docs/connectors.md`.
 
+Local MCP server (the six read tools for AI clients, the socket and the `murmur-mcp` command, HTTP on 127.0.0.1 with a bearer token, limits, what is never returned): see `docs/mcp.md`.
+
 Insights (daily counts, the cards, streaks, top apps, CSV export, milestones, the progress card): see `docs/insights.md`.
 
 Dictation history (database, tables, migrations, the History page with search, archive, delete and feedback): see `docs/history.md`.

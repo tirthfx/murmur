@@ -20,6 +20,7 @@ import {
   type ConnectorsView,
   type ConnectorView,
 } from "@murmur/shared";
+import { McpSection } from "./McpSection";
 
 type BadgeVariant = "neutral" | "info" | "success" | "warning" | "error";
 
@@ -478,6 +479,7 @@ export function ConnectorsPage() {
           </ul>
         </VStack>
       </section>
+      <McpSection />
     </VStack>
   );
 }

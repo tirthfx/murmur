@@ -56,7 +56,9 @@ import {
   DEFAULT_PLAN_STATE,
   DEFAULT_DEVELOPER,
   CONNECTOR_CATALOGUE,
+  MCP_STATUS_OFF,
   DEFAULT_CONNECTOR_SETTINGS,
+  DEFAULT_MCP_SETTINGS,
   DEFAULT_NOTETAKER,
   isClientCredential,
   referralCode,
@@ -156,6 +158,7 @@ import { createConnectorConfig } from "./connectors/connector-config";
 import { createConnectorService } from "./connectors/connector-service";
 import { createConnectorStore } from "./connectors/connector-store";
 import { buildConnectorsView } from "./connectors/connectors-view";
+import { createMcpService } from "./mcp/mcp-service";
 import { createHelperKeychain } from "./connectors/helper-keychain";
 import { createConnectorRegistry } from "./connectors/providers";
 import { createAskIndex } from "./meetings/ask-index";
@@ -725,6 +728,7 @@ const settingsStore = createSettingsStore(database, {
   referral: { code: "", invites: 0 },
   notetaker: DEFAULT_NOTETAKER,
   connectors: DEFAULT_CONNECTOR_SETTINGS,
+  mcp: DEFAULT_MCP_SETTINGS,
   plan: DEFAULT_PLAN,
   inputDevice: "auto",
   languages: [],
@@ -1888,6 +1892,42 @@ const askRunner =
         logger: createConsoleLogger("[ask]"),
       })
     : null;
+// CN-11: the local MCP server. Off until turned on; AI clients read meeting notes, summaries,
+// transcripts and tasks through it, and nothing else.
+const mcpService =
+  database &&
+  meetingsStore &&
+  meetingTranscripts &&
+  speakersStore &&
+  meetingSummaries &&
+  tasksService &&
+  foldersStore
+    ? createMcpService({
+        settings: () => settingsStore.get().mcp,
+        data: {
+          meetings: meetingsStore,
+          transcript: meetingTranscripts,
+          speakers: speakersStore,
+          summaries: meetingSummaries,
+          tasks: tasksService,
+          folders: foldersStore,
+          ask: createAskIndex(database, { now: Date.now }),
+        },
+        keychain: connectorKeychain,
+        socketPath: path.join(profile.appData, "Murmur", "mcp.sock"),
+        serverVersion: app.getVersion(),
+        logger: createConsoleLogger("[mcp]"),
+        now: Date.now,
+      })
+    : null;
+if (mcpService) {
+  settingsStore.onChange(() => void mcpService.apply());
+  // The token is in the Keychain, which the helper reaches: try again once it is ready.
+  helper.onStatusChange((status) => {
+    if (status.state === "ready") void mcpService.apply();
+  });
+  void mcpService.apply();
+}
 // NT-23: meetings whose transcript was just made again: their tasks are looked for again.
 const rerunExtract = new Set<string>();
 // NT-05: the work queue. Transcription needs only the local model; meetings wait for it.
@@ -3022,6 +3062,8 @@ function registerIpc(): void {
       foldersStore.setAutoExport(id, null);
       return { ok: true, folders: foldersStore.list(), id };
     },
+    // Waits for any change of setting to be applied, so the page sees where things are now.
+    mcpStatus: () => mcpService?.apply() ?? Promise.resolve(MCP_STATUS_OFF),
     connectorsView: () =>
       buildConnectorsView({
         available: new Set(connectorRegistry.list().map((provider) => provider.id)),
@@ -3804,6 +3846,7 @@ app.on("window-all-closed", () => {
 let helperStopped = false;
 app.on("before-quit", (event) => {
   void hubState.flush();
+  void mcpService?.stop();
   focus.quit();
   focusOverlay.close();
   if (helperStopped) return;

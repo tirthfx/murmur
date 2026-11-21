@@ -12,6 +12,7 @@ export * from "./llm-models";
 export * from "./insert";
 export * from "./bar";
 export * from "./settings";
+export * from "./mcp";
 export * from "./media";
 export * from "./setup";
 export * from "./connectors";
