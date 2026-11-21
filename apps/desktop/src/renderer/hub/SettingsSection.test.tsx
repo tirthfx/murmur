@@ -187,6 +187,19 @@ describe("Settings section", () => {
     });
   });
 
+  it("sets how imported transcripts are handled (NT-21)", async () => {
+    const api = mount({}, "system");
+    expect(await screen.findByText("Importing transcripts")).toBeTruthy();
+    await userEvent.click(
+      screen.getByRole("switch", { name: "Write a summary for an imported meeting" }),
+    );
+    expect(api.updateSettings).toHaveBeenLastCalledWith({
+      notetaker: expect.objectContaining({
+        import: expect.objectContaining({ regenerateSummary: false }),
+      }),
+    });
+  });
+
   it("says when nothing is due", async () => {
     mount({}, "system");
     expect(await screen.findByText("Nothing is due in the next 24 hours.")).toBeTruthy();

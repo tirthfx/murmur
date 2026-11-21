@@ -8,6 +8,7 @@ import {
   summarySettingsSchema,
 } from "./skills";
 import { audioSessionIdSchema } from "./audio";
+import { DEFAULT_IMPORT_SETTINGS, importSettingsSchema } from "./transcript-import";
 import { DEFAULT_MEETING_RETENTION, meetingRetentionSettingsSchema } from "./meeting-retention";
 import { meetingLanguageCodes } from "./languages";
 import { DEFAULT_ASK_SETTINGS, askSettingsSchema } from "./ask";
@@ -476,6 +477,8 @@ export const notetakerSettingsSchema = z.strictObject({
   rerun: z
     .strictObject({ keepPreviousVersionDays: z.number().int().min(1).max(365) })
     .default({ keepPreviousVersionDays: 30 }),
+  /** NT-21: importing transcript files. */
+  import: importSettingsSchema.default(DEFAULT_IMPORT_SETTINGS),
   /** NT-22: how long audio and transcripts are kept. */
   retention: meetingRetentionSettingsSchema.default(DEFAULT_MEETING_RETENTION),
   /** NT-17: folders. */
@@ -506,4 +509,5 @@ export const DEFAULT_NOTETAKER: NotetakerSettings = {
   rerun: { keepPreviousVersionDays: 30 },
   folders: DEFAULT_FOLDERS_SETTINGS,
   retention: DEFAULT_MEETING_RETENTION,
+  import: DEFAULT_IMPORT_SETTINGS,
 };

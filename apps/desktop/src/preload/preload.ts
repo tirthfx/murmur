@@ -188,6 +188,9 @@ const api: MurmurApi = {
     ipcRenderer.invoke(IPC_CHANNELS.meetingMove, meetingId, folderId),
   meetingFolderDismiss: (meetingId, folderId) =>
     ipcRenderer.invoke(IPC_CHANNELS.meetingFolderDismiss, meetingId, folderId),
+  meetingImportPreview: () => ipcRenderer.invoke(IPC_CHANNELS.meetingImportPreview),
+  meetingImportConfirm: (input) => ipcRenderer.invoke(IPC_CHANNELS.meetingImportConfirm, input),
+  meetingImportCancel: (token) => ipcRenderer.invoke(IPC_CHANNELS.meetingImportCancel, token),
   meetingRetentionDue: () => ipcRenderer.invoke(IPC_CHANNELS.meetingRetentionDue),
   meetingExport: (meetingId, options) =>
     ipcRenderer.invoke(IPC_CHANNELS.meetingExport, meetingId, options),
