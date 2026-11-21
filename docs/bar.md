@@ -43,3 +43,7 @@ pointer from starting a drag.
 2. Click into TextEdit and dictate: the pill shows Listening with a moving meter and time, then Transcribing, then the word count, and the text arrives in TextEdit. Typing in TextEdit keeps working the whole time.
 3. Drag the pill to a corner, quit and restart: it comes back to the same place.
 4. Hold Right Option with the input muted: "No sound from …" in amber after about 3 seconds.
+
+## Questions with their own buttons
+
+A question (`ask`) normally has Save and Dismiss. It can carry up to three buttons of its own and its own timeout: the detected-meeting prompt uses Record, Not now and Never, and goes away after 20 seconds. The answer is one of `yes`, `no` or `never`. A click on the red recording dot (idle Bar) opens the Notetaker page.

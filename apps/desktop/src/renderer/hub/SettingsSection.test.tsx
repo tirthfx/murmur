@@ -123,4 +123,32 @@ describe("Settings section", () => {
     await userEvent.click(screen.getByRole("switch", { name: "Mute other audio while dictating" }));
     expect(api.updateSettings).toHaveBeenCalledWith({ muteWhileDictating: true });
   });
+
+  it("sets the recording notice and the meeting detection switches (NT-25, NT-01)", async () => {
+    const api = mount({}, "system");
+    expect(await screen.findByText("Meeting detection")).toBeTruthy();
+    await userEvent.click(screen.getByRole("switch", { name: "Detect meetings" }));
+    expect(api.updateSettings).toHaveBeenCalledWith({
+      notetaker: expect.objectContaining({
+        detect: expect.objectContaining({ enabled: false }),
+      }),
+    });
+    await userEvent.click(screen.getByRole("switch", { name: "Google Meet" }));
+    expect(api.updateSettings).toHaveBeenLastCalledWith({
+      notetaker: expect.objectContaining({
+        detect: expect.objectContaining({
+          apps: { zoom: true, meet: false, teams: true },
+        }),
+      }),
+    });
+    await userEvent.click(
+      screen.getByRole("switch", { name: "Record detected meetings without asking" }),
+    );
+    expect(api.updateSettings).toHaveBeenLastCalledWith({
+      notetaker: expect.objectContaining({
+        detect: expect.objectContaining({ autoRecord: true }),
+      }),
+    });
+    expect(screen.getByText("Recording notice")).toBeTruthy();
+  });
 });

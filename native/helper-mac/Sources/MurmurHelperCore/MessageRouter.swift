@@ -21,6 +21,7 @@ public struct MessageRouter: Sendable {
     private let focus: FocusWatchController?
     private let inspector: AXInspectController?
     private let meeting: MeetingCaptureController?
+    private let detection: DetectionController?
     private var handshakeComplete = false
 
     /// Set once a `shutdown` request has been answered. The host exits after writing the reply.
@@ -44,6 +45,7 @@ public struct MessageRouter: Sendable {
         focus: FocusWatchController? = nil,
         inspector: AXInspectController? = nil,
         meeting: MeetingCaptureController? = nil,
+        detection: DetectionController? = nil,
         uptimeMs: @escaping @Sendable () -> Int
     ) {
         self.helperVersion = helperVersion
@@ -63,6 +65,7 @@ public struct MessageRouter: Sendable {
         self.focus = focus
         self.inspector = inspector
         self.meeting = meeting
+        self.detection = detection
         self.uptimeMs = uptimeMs
     }
 
@@ -222,6 +225,11 @@ public struct MessageRouter: Sendable {
                 return [Self.failure(id: id, requestType: type, .unsupportedRequest, "Unknown request type")]
             }
             return [focus.handle(id: id, type: type, payload: envelope.payload)]
+        case "detect.subscribe":
+            guard let detection else {
+                return [Self.failure(id: id, requestType: type, .unsupportedRequest, "Unknown request type")]
+            }
+            return [detection.handle(id: id, type: type, payload: envelope.payload)]
         case "capture.start", "capture.stop":
             guard let meeting else {
                 return [Self.failure(id: id, requestType: type, .unsupportedRequest, "Unknown request type")]

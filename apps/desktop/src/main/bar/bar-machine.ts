@@ -22,8 +22,17 @@ export type BarEvent =
   /** Something to tell the user. While recording it stays until the recording ends. */
   | { type: "warn"; message: string }
   | { type: "timeout" }
-  /** Ask a question with Yes and No (PZ-19); it goes away after ASK_MS. */
-  | { type: "ask"; message: string; detail: string }
+  /**
+   * Ask a question with Yes and No (PZ-19), or with the buttons given; it goes away after
+   * `timeoutMs` (ASK_MS when not given).
+   */
+  | {
+      type: "ask";
+      message: string;
+      detail: string;
+      actions?: NonNullable<BarView["actions"]>;
+      timeoutMs?: number;
+    }
   | { type: "answered" }
   /** The recording was a command (RW-08): no text goes in; what it did is shown next. */
   | { type: "settle" };
@@ -114,7 +123,14 @@ export function transition(current: BarView, event: BarEvent): BarStep {
       // After a dictation or at rest; never over a recording.
       return isRecording(current) || current.state === "hidden"
         ? same
-        : to(view("ask", { message: event.message, detail: event.detail }), ASK_MS);
+        : to(
+            view("ask", {
+              message: event.message,
+              detail: event.detail,
+              ...(event.actions ? { actions: event.actions } : {}),
+            }),
+            event.timeoutMs ?? ASK_MS,
+          );
     case "answered":
       return current.state === "ask" ? to(view("idle")) : same;
     case "settle":

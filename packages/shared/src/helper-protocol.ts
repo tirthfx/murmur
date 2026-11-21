@@ -12,6 +12,11 @@ import {
   audioStopResultSchema,
 } from "./audio";
 import { contextSnapshotPayloadSchema, focusContextSchema } from "./context";
+import {
+  detectEventPayloadSchema,
+  detectSubscribePayloadSchema,
+  detectSubscribeResultSchema,
+} from "./detect";
 import { procForegroundResultSchema } from "./processes";
 import { axInspectPayloadSchema, axInspectResultSchema } from "./testing";
 import {
@@ -297,6 +302,10 @@ export const HELPER_REQUESTS = {
     payload: transcribeLivePayloadSchema,
     result: transcribeLiveResultSchema,
   },
+  "detect.subscribe": {
+    payload: detectSubscribePayloadSchema,
+    result: detectSubscribeResultSchema,
+  },
 } as const;
 
 export type HelperRequestType = keyof typeof HELPER_REQUESTS;
@@ -331,6 +340,7 @@ export const HELPER_EVENTS = {
   "capture.chunk": captureChunkPayloadSchema,
   "capture.level": captureLevelPayloadSchema,
   "capture.error": captureErrorPayloadSchema,
+  "detect.event": detectEventPayloadSchema,
 } as const;
 
 export type HelperEventType = keyof typeof HELPER_EVENTS;
@@ -466,6 +476,11 @@ export const transcribeLiveRequestSchema = requestEnvelope(
   "transcribe.live",
   transcribeLivePayloadSchema,
 );
+export const detectSubscribeRequestSchema = requestEnvelope(
+  "detect.subscribe",
+  detectSubscribePayloadSchema,
+);
+export const detectEventSchema = eventEnvelope("detect.event", detectEventPayloadSchema);
 export const captureChunkEventSchema = eventEnvelope("capture.chunk", captureChunkPayloadSchema);
 export const captureLevelEventSchema = eventEnvelope("capture.level", captureLevelPayloadSchema);
 export const captureErrorEventSchema = eventEnvelope("capture.error", captureErrorPayloadSchema);

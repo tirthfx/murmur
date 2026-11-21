@@ -86,6 +86,31 @@ describe("Bar pill", () => {
     expect(onAnswer.mock.calls).toEqual([["yes"], ["no"]]);
   });
 
+  it("asks with the buttons it is given, and Never can say more than its label", () => {
+    const onAnswer = vi.fn();
+    render(
+      <BarPill
+        view={view("ask", {
+          message: "Record this meeting?",
+          detail: "Zoom call detected",
+          actions: [
+            { answer: "yes", label: "Record", primary: true },
+            { answer: "no", label: "Not now" },
+            { answer: "never", label: "Never", hint: "Never for this app" },
+          ],
+        })}
+        level={null}
+        now={now}
+        onAnswer={onAnswer}
+      />,
+    );
+    screen.getByRole("button", { name: "Record" }).click();
+    screen.getByRole("button", { name: "Not now" }).click();
+    screen.getByRole("button", { name: "Never for this app" }).click();
+    expect(onAnswer.mock.calls).toEqual([["yes"], ["no"], ["never"]]);
+    expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
+  });
+
   it("draws nothing when hidden", () => {
     const { container } = render(<BarPill view={view("hidden")} level={null} now={now} />);
     expect(container.innerHTML).toBe("");

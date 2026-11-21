@@ -21,6 +21,10 @@ export const BAR_STATES = [
 ] as const;
 export type BarState = (typeof BAR_STATES)[number];
 
+/** What a Bar question can be answered with. Yes and No unless a question gives buttons. */
+export const BAR_ANSWERS = ["yes", "no", "never"] as const;
+export type BarAnswer = (typeof BAR_ANSWERS)[number];
+
 /** What the Bar page draws. */
 export const barViewSchema = z.strictObject({
   state: z.enum(BAR_STATES),
@@ -32,6 +36,19 @@ export const barViewSchema = z.strictObject({
   message: z.string().nullable(),
   /** The second line of `ask`: what the question is about. */
   detail: z.string().nullable().optional(),
+  /** Buttons for `ask`, in order, up to three. Without them: Save and Dismiss (PZ-19). */
+  actions: z
+    .array(
+      z.strictObject({
+        answer: z.enum(BAR_ANSWERS),
+        label: z.string().min(1).max(30),
+        /** Spoken name when the label is short ("Never" for "Never for this app"). */
+        hint: z.string().max(60).optional(),
+        primary: z.boolean().optional(),
+      }),
+    )
+    .max(3)
+    .optional(),
   /** Focus Mode is on (RW-18): when it ends, or null until turned off. Shown while idle. */
   focus: z.strictObject({ endsAt: z.number().nullable() }).nullable().optional(),
   /** A meeting is being recorded (NT-04): a red dot in every state, and its time while idle. */
@@ -67,7 +84,7 @@ export const BAR_IPC_CONTRACT = {
   [BAR_IPC_CHANNELS.drag]: z.tuple([offset, offset]),
   [BAR_IPC_CHANNELS.dragEnd]: z.tuple([]),
   [BAR_IPC_CHANNELS.click]: z.tuple([]),
-  [BAR_IPC_CHANNELS.answer]: z.tuple([z.enum(["yes", "no"])]),
+  [BAR_IPC_CHANNELS.answer]: z.tuple([z.enum(BAR_ANSWERS)]),
 } as const;
 
 export type BarIpcChannel = keyof typeof BAR_IPC_CONTRACT;
@@ -93,5 +110,5 @@ export interface MurmurBarApi {
   dragEnd(): void;
   click(): void;
   /** The answer to the question the Bar shows. */
-  answer(choice: "yes" | "no"): void;
+  answer(choice: BarAnswer): void;
 }

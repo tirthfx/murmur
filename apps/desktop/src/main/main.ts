@@ -84,6 +84,7 @@ import {
   FOCUS_MESSAGES,
   FOCUS_OVERLAY_CHANNELS,
   parseSiteEntry,
+  type BarAnswer,
   type BarView,
   INSTRUCT_PANEL_PUSH,
   INSTRUCT_PANEL_SIZE,
@@ -134,6 +135,9 @@ import { createNotesStore } from "./notes/notes-store";
 import { createMeetingsStore } from "./meetings/meetings-store";
 import { createMeetingRecorder } from "./meetings/meeting-recorder";
 import { createMeetingStarter } from "./meetings/meeting-starter";
+import { createMeetingDetector, type MeetingDetector } from "./meetings/meeting-detector";
+import { loadMeetingMatchers } from "./meetings/matchers-file";
+import { createDetectionSync } from "./meetings/detection-sync";
 import { createMeetingJobs, type MeetingJobs } from "./meetings/meeting-jobs";
 import { createTranscriptStore } from "./meetings/transcript-store";
 import { createLiveTranscriber } from "./meetings/live-transcriber";
@@ -384,7 +388,12 @@ const voiceProfile = database ? createVoiceProfile(database) : null;
 let profilePromptShown = false;
 let offeredFact: { text: string; until: number } | null = null;
 /** The Bar's question was answered: "Save to Memory?" or the weekly profile prompt. */
-function answerBar(choice: "yes" | "no"): void {
+function answerBar(choice: BarAnswer): void {
+  // The Record, Not now and Never buttons of a detected call (NT-01).
+  if (bar.getView().actions && meetingDetector?.answer(choice)) {
+    bar.dispatch({ type: "answered" });
+    return;
+  }
   if (commandQuestion) {
     commandQuestion.answer(choice === "yes");
     bar.dispatch({ type: "answered" });
@@ -1633,6 +1642,7 @@ const liveTranscriber = createLiveTranscriber({
   logger: createConsoleLogger("[meetings]"),
 });
 let meetingTick: ReturnType<typeof setInterval> | null = null;
+let meetingDetector: MeetingDetector | null = null;
 const meetings = meetingsStore
   ? createMeetingRecorder({
       helper,
@@ -1657,6 +1667,7 @@ const meetings = meetingsStore
           meetingTick = null;
         }
         meetingBadge = state.status === "recording" ? { startedAt: state.startedAt } : null;
+        meetingDetector?.recordingChanged(state);
         if (state.status === "recording") liveTranscriber.start(state.meetingId, state.channels);
         notifyMeetings(null);
         barPort.render(bar.getView());
@@ -1756,6 +1767,61 @@ const meetingStarter =
         logger: createConsoleLogger("[meetings]"),
       })
     : null;
+
+// NT-01: calls in Zoom, Meet and Teams. The helper looks only while this is on.
+const meetingMatchers = loadMeetingMatchers(() => {
+  const file = path.join(profile.appData, "Murmur", "meeting-matchers.json");
+  return existsSync(file) ? readFileSync(file, "utf8") : null;
+}, createConsoleLogger("[detect]"));
+if (meetings && meetingStarter) {
+  meetingDetector = createMeetingDetector({
+    clock: systemClock,
+    matchers: () => meetingMatchers,
+    settings: () => settingsStore.get().notetaker.detect,
+    recording: () => meetings.state(),
+    showPrompt: ({ name }) => {
+      bar.dispatch({
+        type: "ask",
+        message: "Record this meeting?",
+        detail: `${name} call detected`,
+        actions: [
+          { answer: "yes", label: "Record", primary: true },
+          { answer: "no", label: "Not now" },
+          { answer: "never", label: "Never", hint: "Never for this app" },
+        ],
+        timeoutMs: 20_000,
+      });
+      return bar.getView().state === "ask";
+    },
+    hidePrompt: () => {
+      if (bar.getView().actions) bar.dispatch({ type: "answered" });
+    },
+    start: async () => meetingStarter.start(),
+    stop: () => meetings.stop(),
+    neverFor: (id) => {
+      const notetaker = settingsStore.get().notetaker;
+      const detect = notetaker.detect;
+      if (detect.neverApps.includes(id)) return;
+      settingsStore.update({
+        notetaker: { ...notetaker, detect: { ...detect, neverApps: [...detect.neverApps, id] } },
+      });
+    },
+    logger: createConsoleLogger("[detect]"),
+  });
+  helper.onMeetingDetected((event) => meetingDetector?.event(event));
+}
+
+const detectionSync = createDetectionSync({
+  matchers: () => meetingMatchers,
+  settings: () => settingsStore.get().notetaker.detect,
+  helperReady: () => helper.getStatus().state === "ready",
+  watch: (input) => helper.watchMeetings(input),
+  stopped: () => meetingDetector?.reset(),
+  logger: createConsoleLogger("[detect]"),
+});
+settingsStore.onChange(() => detectionSync.sync());
+// A new helper process knows nothing: it is told again once it is ready.
+helper.onStatusChange(() => detectionSync.sync());
 
 async function startMeeting(): Promise<void> {
   const result = await meetingStarter?.start();

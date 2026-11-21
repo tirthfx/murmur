@@ -10,6 +10,7 @@ import { VStack } from "@astryxdesign/core/VStack";
 import {
   planAllows,
   CONSENT_NOTICES,
+  DEFAULT_MEETING_MATCHERS,
   type ConsentNotice,
   APP_LANGUAGES,
   APP_LANGUAGE_NAMES,
@@ -336,6 +337,90 @@ export function SettingsSection({
               recording”, nothing is recorded until you press OK. The red recording dot is always
               shown. Murmur does not give legal advice.
             </Text>
+          </VStack>
+        </Row>
+        <Row id="meeting-detect">
+          <VStack gap={2}>
+            <Heading level={3}>Meeting detection</Heading>
+            <Text size="sm" color="secondary">
+              Looks for a call in Zoom, Google Meet and Microsoft Teams and asks if you want to
+              record it. Only the call apps are looked at, only on this Mac, and nothing is recorded
+              until you say so (unless you turn on the switch below). Reading a browser tab needs
+              the Accessibility permission.
+            </Text>
+            <Switch
+              label="Detect meetings"
+              value={settings.notetaker.detect.enabled}
+              onChange={(enabled) =>
+                update({
+                  notetaker: {
+                    ...settings.notetaker,
+                    detect: { ...settings.notetaker.detect, enabled },
+                  },
+                })
+              }
+            />
+            {DEFAULT_MEETING_MATCHERS.map((matcher) => (
+              <Switch
+                key={matcher.id}
+                label={matcher.name}
+                value={settings.notetaker.detect.apps[matcher.id] !== false}
+                isDisabled={!settings.notetaker.detect.enabled}
+                onChange={(on) =>
+                  update({
+                    notetaker: {
+                      ...settings.notetaker,
+                      detect: {
+                        ...settings.notetaker.detect,
+                        apps: { ...settings.notetaker.detect.apps, [matcher.id]: on },
+                      },
+                    },
+                  })
+                }
+              />
+            ))}
+            <Switch
+              label="Record detected meetings without asking"
+              description="Recording starts when a call is detected. The recording notice still applies."
+              value={settings.notetaker.detect.autoRecord}
+              isDisabled={!settings.notetaker.detect.enabled}
+              onChange={(autoRecord) =>
+                update({
+                  notetaker: {
+                    ...settings.notetaker,
+                    detect: { ...settings.notetaker.detect, autoRecord },
+                  },
+                })
+              }
+            />
+            {settings.notetaker.detect.neverApps.map((id) => (
+              <HStack key={id} gap={2}>
+                <Text size="sm">
+                  Never asked for{" "}
+                  {DEFAULT_MEETING_MATCHERS.find((matcher) => matcher.id === id)?.name ?? id}
+                </Text>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  label={`Ask again for ${id}`}
+                  onClick={() =>
+                    update({
+                      notetaker: {
+                        ...settings.notetaker,
+                        detect: {
+                          ...settings.notetaker.detect,
+                          neverApps: settings.notetaker.detect.neverApps.filter(
+                            (other) => other !== id,
+                          ),
+                        },
+                      },
+                    })
+                  }
+                >
+                  Ask again
+                </Button>
+              </HStack>
+            ))}
           </VStack>
         </Row>
         <Row id="instruct">

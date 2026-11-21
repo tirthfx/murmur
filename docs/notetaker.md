@@ -97,3 +97,21 @@ Clicking the red recording indicator on the Bar opens the Notetaker page, where 
 Not built yet: the calendar line in event descriptions (M6), `notetaker.titleFormat`, and the suggested shortcut in first-run setup.
 
 Manual check: set a shortcut, press it with the notice on "Before every recording" and confirm the dialog comes first and nothing records until OK; press it again to stop; click the red dot on the Bar.
+
+## Meeting detection (NT-01)
+
+Murmur can notice a call in Zoom, Google Meet or Microsoft Teams and ask if you want to record it. Settings, System, Meeting detection: detection on or off (default on), a switch per app, "Record detected meetings without asking" (default off), and the apps set to "Never".
+
+**How it works.** With detection on, main sends `detect.subscribe` to the helper with the matchers. The helper looks every 2 seconds at the windows of those apps through Accessibility and sends `detect.event` `{matcherId, active}` when a call starts or ends. It never sends a window title or a page address. With detection off (or every app off or set to Never), no `detect.subscribe` is sent at all; a stop is sent only after a start; a helper that restarted is told again.
+
+**What counts as a call.** A native app (Zoom, the Teams app) has a window whose title has one of the matcher's words. A web app (Meet, Teams in a browser) is in the tab a browser window is _showing_: the host, and for Meet a call path such as `/abc-defg-hij`, must match. A call in a background tab is not showing, so it never matches. Where the address cannot be read, a matcher with title words falls back to the window title alone; one without does not match.
+
+**Matchers are data.** The built-in list is in `packages/shared/src/detect.ts`. A file `meeting-matchers.json` in Murmur's profile folder (a list of matchers) replaces it, so an app can be added or a title fixed without a new release. A file that is not valid is ignored and said so in the log. The Teams title words ("Meeting with", "Meeting in", "Call with") are a best effort and have not been checked against a real Teams call.
+
+**The prompt.** After the call has been seen for 2 seconds, the Bar asks "Record this meeting?" with Record, Not now and Never (for this app). After 20 seconds it counts as Not now. Not now asks nothing more until that call ends. Never adds the app to the list in Settings, where "Ask again" removes it. Nothing is asked while a recording runs or a dictation is recording. Record goes through the same starter as the shortcut, so the recording notice still applies.
+
+**Ending.** A recording Murmur started for a call stops 60 seconds after the call ends, unless the call comes back. A recording you stop yourself is not started again for that call.
+
+Needs the Accessibility permission (the same one dictation uses). Detection reads window titles and pages only for the call apps and only on this Mac.
+
+Manual check: join a Zoom call (the prompt comes within a few seconds); open a Meet call in a background tab (no prompt), then show the tab (prompt); choose Never and check Settings; turn detection off and check nothing prompts; leave the call and check the recording stops within a minute.

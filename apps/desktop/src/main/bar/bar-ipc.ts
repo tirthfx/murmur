@@ -1,4 +1,4 @@
-import { BAR_IPC_CHANNELS, parseBarIpc, type BarView } from "@murmur/shared";
+import { BAR_IPC_CHANNELS, parseBarIpc, type BarAnswer, type BarView } from "@murmur/shared";
 import { isTrustedIpcSender } from "../../security/guards";
 
 export interface BarIpcDeps {
@@ -10,7 +10,7 @@ export interface BarIpcDeps {
   dragEnd: () => void;
   click: () => void;
   /** The answer to the Bar's question. */
-  answer: (choice: "yes" | "no") => void;
+  answer: (choice: BarAnswer) => void;
 }
 
 /**
@@ -36,7 +36,7 @@ export function createBarIpcHandler(deps: BarIpcDeps) {
       case BAR_IPC_CHANNELS.click:
         return deps.click();
       case BAR_IPC_CHANNELS.answer:
-        return deps.answer(parsed[0] as "yes" | "no");
+        return deps.answer(parsed[0] as BarAnswer);
       default:
         throw new Error("Bar IPC rejected: invalid call");
     }

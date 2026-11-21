@@ -34,6 +34,8 @@ import {
   captureStopRequestSchema,
   transcribeLiveRequestSchema,
   captureChunkEventSchema,
+  detectSubscribeRequestSchema,
+  detectEventSchema,
   captureLevelEventSchema,
   captureErrorEventSchema,
   editsWatchRequestSchema,
@@ -173,6 +175,10 @@ function validateMessage(message: unknown): boolean {
       return captureStopRequestSchema.safeParse(message).success;
     case "transcribe.live":
       return transcribeLiveRequestSchema.safeParse(message).success;
+    case "detect.subscribe":
+      return detectSubscribeRequestSchema.safeParse(message).success;
+    case "detect.event":
+      return detectEventSchema.safeParse(message).success;
     case "capture.chunk":
       return captureChunkEventSchema.safeParse(message).success;
     case "capture.level":

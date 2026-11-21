@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { AxInspectResult } from "./testing";
+import type { DetectEvent, DetectSubscribeInput } from "./detect";
 import type {
   CaptureChunk,
   CaptureError,
@@ -175,6 +176,13 @@ export interface PlatformHelper {
   /** Closes the last chunks; their `capture.chunk` events arrive before this resolves. */
   stopMeetingCapture(meetingId: string): Promise<CaptureStopResult>;
   onCaptureChunk(handler: (chunk: CaptureChunk) => void): Unsubscribe;
+  /**
+   * NT-01: starts or stops looking for calls with these matchers. Rejects with
+   * UNSUPPORTED_REQUEST from a helper that is too old.
+   */
+  watchMeetings(input: DetectSubscribeInput): Promise<void>;
+  /** A call started or ended for a matcher. */
+  onMeetingDetected(handler: (event: DetectEvent) => void): Unsubscribe;
   /** NT-06: decodes the chunk still being written on a channel. */
   transcribeLive(input: TranscribeLiveInput): Promise<LiveTranscript>;
   onCaptureLevel(handler: (level: CaptureLevel) => void): Unsubscribe;

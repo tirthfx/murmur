@@ -58,6 +58,8 @@ describe("bar IPC", () => {
     const { deps, handle } = setup();
     handle(BAR_IPC_CHANNELS.answer, barUrl, ["yes"]);
     expect(deps.answer).toHaveBeenCalledWith("yes");
+    handle(BAR_IPC_CHANNELS.answer, barUrl, ["never"]);
+    expect(deps.answer).toHaveBeenCalledWith("never");
     expect(() => handle(BAR_IPC_CHANNELS.answer, barUrl, ["maybe"])).toThrow();
   });
 });

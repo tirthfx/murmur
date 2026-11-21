@@ -253,4 +253,31 @@ describe("bar state machine", () => {
     expect(transition(at("idle"), { type: "settle" }).changed).toBe(false);
     expect(transition(at("listening", { startedAt: 1 }), { type: "settle" }).changed).toBe(false);
   });
+
+  it("asks with its own buttons and timeout, never over a recording", () => {
+    const actions = [
+      { answer: "yes" as const, label: "Record", primary: true },
+      { answer: "no" as const, label: "Not now" },
+      { answer: "never" as const, label: "Never" },
+    ];
+    const step = transition(at("idle"), {
+      type: "ask",
+      message: "Record this meeting?",
+      detail: "Zoom call detected",
+      actions,
+      timeoutMs: 20_000,
+    });
+    expect(step.view).toEqual(
+      at("ask", { message: "Record this meeting?", detail: "Zoom call detected", actions }),
+    );
+    expect(step.timeoutMs).toBe(20_000);
+    expect(
+      transition(at("listening", { startedAt: 1 }), {
+        type: "ask",
+        message: "x",
+        detail: "y",
+        actions,
+      }).changed,
+    ).toBe(false);
+  });
 });
