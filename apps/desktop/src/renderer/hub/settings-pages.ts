@@ -78,6 +78,12 @@ export const SETTINGS_INDEX: readonly SettingEntry[] = [
     words: "notetaker question chat search notes scope",
   },
   {
+    id: "meeting-live",
+    page: "system",
+    label: "Dictating and catching up during a meeting",
+    words: "notetaker dictation dictated transcript recap what did i miss minutes",
+  },
+  {
     id: "meeting-import",
     page: "system",
     label: "Importing transcripts",

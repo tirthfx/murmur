@@ -325,6 +325,28 @@ export interface TranscriptVersionInfo {
 
 export type RerunResult = { ok: true } | { ok: false; message: string };
 
+/** A dictation's time on the meeting's timeline, as far as it reaches a microphone line (NT-19). */
+export const DICTATION_PAD_MS = 750;
+
+/** "What did I miss" (NT-13): a short recap of the last minutes of a meeting. */
+export interface MeetingRecap {
+  id: string;
+  meetingId: string;
+  /** The time it covers, on the meeting's timeline. */
+  windowStartMs: number;
+  windowEndMs: number;
+  /** `-` bullets, each ending with a time: `[12:34](seg:<segment id>)` or `[12:34]`. */
+  markdown: string;
+  createdAt: number;
+}
+
+export type RecapStatus =
+  { state: "idle" } | { state: "running" } | { state: "failed"; message: string };
+
+export type MeetingRecapResult = { ok: true; recap: MeetingRecap } | { ok: false; message: string };
+
+export const RECAP_WINDOWS = [5, 10, 15, 30] as const;
+
 /** Everything the meeting view shows. */
 export interface MeetingDetail {
   meeting: Meeting;
@@ -349,6 +371,11 @@ export interface MeetingDetail {
   rerunBlocked: string | null;
   /** NT-17: a folder this meeting looks like it belongs in, for the Inbox only. */
   folderSuggestion: FolderSuggestion | null;
+  /** NT-13: the recaps of the meeting, newest first. */
+  recaps: MeetingRecap[];
+  recapStatus: RecapStatus;
+  /** NT-19: show lines dictated during the meeting, tagged, in the transcript. */
+  showDictated: boolean;
 }
 
 /** What the Tasks tab shows besides the tasks (NT-26). */
@@ -477,6 +504,14 @@ export const notetakerSettingsSchema = z.strictObject({
   rerun: z
     .strictObject({ keepPreviousVersionDays: z.number().int().min(1).max(365) })
     .default({ keepPreviousVersionDays: 30 }),
+  /** NT-19: dictation during a meeting. */
+  dictation: z
+    .strictObject({ excludeFromTranscript: z.boolean() })
+    .default({ excludeFromTranscript: true }),
+  /** NT-13: the "What did I miss" recap. */
+  recap: z
+    .strictObject({ windowMinutes: z.number().int().min(1).max(120) })
+    .default({ windowMinutes: 10 }),
   /** NT-21: importing transcript files. */
   import: importSettingsSchema.default(DEFAULT_IMPORT_SETTINGS),
   /** NT-22: how long audio and transcripts are kept. */
@@ -510,4 +545,6 @@ export const DEFAULT_NOTETAKER: NotetakerSettings = {
   folders: DEFAULT_FOLDERS_SETTINGS,
   retention: DEFAULT_MEETING_RETENTION,
   import: DEFAULT_IMPORT_SETTINGS,
+  dictation: { excludeFromTranscript: true },
+  recap: { windowMinutes: 10 },
 };

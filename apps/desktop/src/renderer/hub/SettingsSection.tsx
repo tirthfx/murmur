@@ -16,6 +16,7 @@ import {
   TRANSCRIPT_RETENTION,
   TRANSCRIPT_RETENTION_TEXT,
   MEETING_LANGUAGES,
+  RECAP_WINDOWS,
   type ConsentNotice,
   APP_LANGUAGES,
   APP_LANGUAGE_NAMES,
@@ -581,6 +582,44 @@ export function SettingsSection({
                   notetaker: {
                     ...settings.notetaker,
                     ask: { ...settings.notetaker.ask, includeNotes },
+                  },
+                })
+              }
+            />
+          </VStack>
+        </Row>
+        <Row id="meeting-live">
+          <VStack gap={2}>
+            <Heading level={3}>Dictating and catching up during a meeting</Heading>
+            <Text size="sm" color="secondary">
+              Dictation works while a meeting records, and the recording is not paused. What you
+              dictate is also heard by the microphone, so those lines are marked as dictated.
+            </Text>
+            <Switch
+              label="Leave dictated lines out of the transcript"
+              description="Off shows them in the Transcript tab with a “Dictated” tag. Summaries and Ask never use them."
+              value={settings.notetaker.dictation.excludeFromTranscript}
+              onChange={(excludeFromTranscript) =>
+                update({
+                  notetaker: {
+                    ...settings.notetaker,
+                    dictation: { excludeFromTranscript },
+                  },
+                })
+              }
+            />
+            <Selector
+              label="“What did I miss?” looks back"
+              options={RECAP_WINDOWS.map((minutes) => ({
+                value: String(minutes),
+                label: `${minutes} minutes`,
+              }))}
+              value={String(settings.notetaker.recap.windowMinutes)}
+              onChange={(value) =>
+                update({
+                  notetaker: {
+                    ...settings.notetaker,
+                    recap: { windowMinutes: Number(value) },
                   },
                 })
               }

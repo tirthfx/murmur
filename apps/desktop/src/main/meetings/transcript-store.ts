@@ -5,6 +5,7 @@ import type {
   MeetingSegment,
   TranscriptionProgress,
 } from "@murmur/shared";
+import { MARK_DICTATED_SQL } from "./dictation-windows";
 
 /** A segment as the recognizer gave it, with times on the meeting's timeline. */
 export interface NewSegment {
@@ -135,6 +136,8 @@ export function createTranscriptStore(db: DatabaseSync): TranscriptStore {
             ).changes,
           );
         });
+        // Microphone lines that overlap a dictation are the dictation, not the meeting (NT-19).
+        if (chunk.channel === "mic") db.prepare(MARK_DICTATED_SQL).run(chunk.meetingId);
         db.prepare(
           `UPDATE meeting_audio_chunks SET transcribed_at = ?
            WHERE meeting_id = ? AND channel = ? AND seq = ?`,

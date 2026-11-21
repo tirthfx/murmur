@@ -115,7 +115,7 @@ function Transcript({ detail, highlight }: { detail: MeetingDetail; highlight: s
   const box = useRef<HTMLDivElement>(null);
   const [following, setFollowing] = useState(true);
   const [editing, setEditing] = useState<string | null>(null);
-  const lines = detail.segments.filter((segment) => !segment.isDictated);
+  const lines = detail.segments.filter((segment) => detail.showDictated || !segment.isDictated);
   const live = detail.live.flatMap((partial) =>
     partial.segments.map((segment, index) => ({
       key: `live-${partial.channel}-${partial.seq}-${index}`,
@@ -201,19 +201,29 @@ function Transcript({ detail, highlight }: { detail: MeetingDetail; highlight: s
                 <span className="hub-transcript-speaker">{speakerName(detail, segment)}</span>
                 <span>
                   {segment.text}
+                  {segment.isDictated ? (
+                    <span
+                      className="hub-transcript-dictated"
+                      title="Dictated into another app while the meeting recorded"
+                    >
+                      Dictated
+                    </span>
+                  ) : null}
                   {segment.edited ? (
                     <span className="hub-transcript-edited" title="This line was corrected">
                       (edited)
                     </span>
                   ) : null}
-                  <button
-                    type="button"
-                    className="hub-transcript-edit"
-                    aria-label={`Correct the line at ${formatElapsed(segment.startMs)}`}
-                    onClick={() => setEditing(segment.id)}
-                  >
-                    Edit
-                  </button>
+                  {segment.isDictated ? null : (
+                    <button
+                      type="button"
+                      className="hub-transcript-edit"
+                      aria-label={`Correct the line at ${formatElapsed(segment.startMs)}`}
+                      onClick={() => setEditing(segment.id)}
+                    >
+                      Edit
+                    </button>
+                  )}
                 </span>
               </p>
             ),
@@ -464,6 +474,20 @@ function MeetingView({
               void window.murmur.meetingMove(meeting.id, value === INBOX ? null : value)
             }
           />
+          {meeting.status === "recording" ? (
+            <Button
+              size="sm"
+              variant="secondary"
+              label="What did I miss?"
+              onClick={() => {
+                setTab("summary");
+                rememberTab(meeting.id, "summary");
+                void window.murmur.meetingRecap(meeting.id);
+              }}
+            >
+              What did I miss?
+            </Button>
+          ) : null}
           <Button
             size="sm"
             variant="secondary"

@@ -88,6 +88,9 @@ function detail(overrides: Partial<MeetingDetail> = {}): MeetingDetail {
     detectedLanguage: null,
     rerunBlocked: null,
     folderSuggestion: null,
+    recaps: [],
+    recapStatus: { state: "idle" },
+    showDictated: false,
     speakers: [
       {
         id: "m-1:mic",
@@ -681,6 +684,65 @@ describe("Notetaker page", () => {
       await waitFor(() => expect(window.murmur.meetingDetail).toHaveBeenCalledWith("m-1"));
       await waitFor(() => expect(screen.getByRole("region", { name: "Meeting" })).toBeTruthy());
       expect(screen.queryByLabelText("Date and time")).toBeNull();
+    });
+  });
+
+  describe("dictation during a meeting (NT-19)", () => {
+    const dictated = (over: Record<string, unknown> = {}) => {
+      const base = detail();
+      return {
+        ...base,
+        ...over,
+        segments: [
+          ...base.segments,
+          {
+            ...base.segments[0]!,
+            id: "d1",
+            startMs: 90_000,
+            endMs: 93_000,
+            text: "Dictated into an email.",
+            isDictated: true,
+          },
+        ],
+      };
+    };
+
+    it("hides dictated lines, and shows them with a tag when the setting is off", async () => {
+      window.murmur.meetingDetail = vi.fn().mockResolvedValue(dictated({ showDictated: false }));
+      await openMeeting();
+      await act(async () => screen.getByRole("tab", { name: "Transcript" }).click());
+      expect(screen.queryByText(/Dictated into an email/)).toBeNull();
+      expect(screen.getByText(/Yes, the roadmap first/)).toBeTruthy();
+      cleanup();
+      window.murmur.meetingDetail = vi.fn().mockResolvedValue(dictated({ showDictated: true }));
+      await openMeeting();
+      await act(async () => screen.getByRole("tab", { name: "Transcript" }).click());
+      expect(screen.getByText(/Dictated into an email/)).toBeTruthy();
+      // The fixture has another dictated line too.
+      expect(screen.getAllByText("Dictated")).toHaveLength(2);
+      // A dictated line cannot be corrected.
+      expect(screen.queryByRole("button", { name: "Correct the line at 1:30" })).toBeNull();
+      expect(screen.getByRole("button", { name: "Correct the line at 0:02" })).toBeTruthy();
+    });
+  });
+
+  describe("recap (NT-13)", () => {
+    it("asks for a recap from the header of a recording meeting and opens the Summary tab", async () => {
+      const base = detail();
+      window.murmur.meetingDetail = vi
+        .fn()
+        .mockResolvedValue({ ...base, meeting: { ...base.meeting, status: "recording" } });
+      window.murmur.meetingRecap = vi.fn().mockResolvedValue({
+        ok: false,
+        message: "Nothing has been said in the last 10 minutes yet.",
+      });
+      await openMeeting();
+      const header = screen.getByRole("region", { name: "Meeting" });
+      await act(async () =>
+        within(header).getAllByRole("button", { name: "What did I miss?" })[0]!.click(),
+      );
+      expect(window.murmur.meetingRecap).toHaveBeenCalledWith("m-1");
+      expect(screen.getByRole("tab", { name: "Summary", selected: true })).toBeTruthy();
     });
   });
 });

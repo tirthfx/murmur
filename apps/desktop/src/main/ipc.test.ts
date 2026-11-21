@@ -92,6 +92,7 @@ function setup() {
     meetingExport: vi.fn(),
     meetingRetentionDue: vi.fn(),
     meetingImportPreview: vi.fn(),
+    meetingRecap: vi.fn(),
     meetingImportConfirm: vi.fn(),
     meetingImportCancel: vi.fn(),
     meetingRerun: vi.fn(),

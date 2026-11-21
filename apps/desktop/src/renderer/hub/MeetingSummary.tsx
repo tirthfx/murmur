@@ -6,6 +6,7 @@ import { HStack } from "@astryxdesign/core/HStack";
 import { Selector } from "@astryxdesign/core/Selector";
 import { Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
+import { RecapPanel } from "./RecapPanel";
 import {
   SUMMARY_FEEDBACK_REASONS,
   SUMMARY_FEEDBACK_TEXT,
@@ -148,6 +149,7 @@ export function SummaryTab({
 
   return (
     <VStack gap={3}>
+      <RecapPanel detail={detail} onOpenSegment={onOpenSegment} />
       <HStack gap={2} align="end" wrap="wrap">
         <Selector
           label="Skill"
