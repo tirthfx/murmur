@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SummaryTab } from "./MeetingSummary";
 import { AskPanel, type AskTarget } from "./AskPanel";
+import { LineEditor } from "./LineEditor";
 import { SkillsManager } from "./SkillsManager";
 import { SpeakersPanel } from "./SpeakersPanel";
 import { TasksPanel } from "./TasksPanel";
@@ -106,6 +107,7 @@ function speakerName(
 function Transcript({ detail, highlight }: { detail: MeetingDetail; highlight: string | null }) {
   const box = useRef<HTMLDivElement>(null);
   const [following, setFollowing] = useState(true);
+  const [editing, setEditing] = useState<string | null>(null);
   const lines = detail.segments.filter((segment) => !segment.isDictated);
   const live = detail.live.flatMap((partial) =>
     partial.segments.map((segment, index) => ({
@@ -167,19 +169,45 @@ function Transcript({ detail, highlight }: { detail: MeetingDetail; highlight: s
             setFollowing(element.scrollHeight - element.scrollTop - element.clientHeight < 24);
           }}
         >
-          {lines.map((segment) => (
-            <p
-              key={segment.id}
-              className="hub-transcript-line"
-              data-channel={segment.channel}
-              data-segment-id={segment.id}
-              {...(segment.id === highlight ? { "data-highlight": "true" } : {})}
-            >
-              <span className="hub-transcript-time">{formatElapsed(segment.startMs)}</span>
-              <span className="hub-transcript-speaker">{speakerName(detail, segment)}</span>
-              <span>{segment.text}</span>
-            </p>
-          ))}
+          {lines.map((segment) =>
+            editing === segment.id ? (
+              <div
+                key={segment.id}
+                className="hub-transcript-line"
+                data-channel={segment.channel}
+                data-segment-id={segment.id}
+              >
+                <LineEditor detail={detail} segment={segment} onClose={() => setEditing(null)} />
+              </div>
+            ) : (
+              <p
+                key={segment.id}
+                className="hub-transcript-line"
+                data-channel={segment.channel}
+                data-segment-id={segment.id}
+                {...(segment.id === highlight ? { "data-highlight": "true" } : {})}
+              >
+                <span className="hub-transcript-time">{formatElapsed(segment.startMs)}</span>
+                <span className="hub-transcript-speaker">{speakerName(detail, segment)}</span>
+                <span>
+                  {segment.text}
+                  {segment.edited ? (
+                    <span className="hub-transcript-edited" title="This line was corrected">
+                      (edited)
+                    </span>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="hub-transcript-edit"
+                    aria-label={`Correct the line at ${formatElapsed(segment.startMs)}`}
+                    onClick={() => setEditing(segment.id)}
+                  >
+                    Edit
+                  </button>
+                </span>
+              </p>
+            ),
+          )}
           {live.map((segment) => (
             <p
               key={segment.key}

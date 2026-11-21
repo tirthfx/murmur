@@ -13,6 +13,7 @@ const segment = (over: Partial<MeetingSegment> = {}): MeetingSegment => ({
   speakerId: null,
   isDictated: false,
   isFinal: true,
+  edited: false,
   ...over,
 });
 

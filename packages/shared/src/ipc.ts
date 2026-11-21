@@ -1,14 +1,19 @@
 import { z } from "zod";
-import type {
-  LivePartial,
-  MeetingDetail,
-  MeetingFindTasksResult,
-  MeetingSummarizeResult,
-  MeetingDoc,
-  MeetingListItem,
-  RecordingState,
-  SpeakerClipResult,
-  SpeakerRenameResult,
+import {
+  correctionSchema,
+  type Correction,
+  type CorrectionResult,
+  type LivePartial,
+  type MeetingDetail,
+  type MeetingDoc,
+  type MeetingFindTasksResult,
+  type MeetingListItem,
+  type MeetingSummarizeResult,
+  type RecordingState,
+  type RevertResult,
+  type SegmentHistoryItem,
+  type SpeakerClipResult,
+  type SpeakerRenameResult,
 } from "./meetings";
 import {
   askSendSchema,
@@ -408,6 +413,9 @@ export const IPC_CHANNELS = {
   askDelete: "ask:delete",
   meetingSpeakerRename: "meetings:speaker-rename",
   meetingSpeakerClip: "meetings:speaker-clip",
+  meetingCorrect: "meetings:correct",
+  meetingSegmentHistory: "meetings:segment-history",
+  meetingCorrectionRevert: "meetings:correction-revert",
 } as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
@@ -905,6 +913,18 @@ export const IPC_CONTRACT = {
     args: z.tuple([z.string().min(1).max(64), z.string().min(1).max(128)]),
     result: z.custom<SpeakerClipResult>(),
   },
+  [IPC_CHANNELS.meetingCorrect]: {
+    args: z.tuple([z.string().min(1).max(64), correctionSchema]),
+    result: z.custom<CorrectionResult>(),
+  },
+  [IPC_CHANNELS.meetingSegmentHistory]: {
+    args: z.tuple([z.string().min(1).max(64), z.string().min(1).max(200)]),
+    result: z.custom<SegmentHistoryItem[]>(),
+  },
+  [IPC_CHANNELS.meetingCorrectionRevert]: {
+    args: z.tuple([z.string().min(1).max(64), z.number().int().min(1)]),
+    result: z.custom<RevertResult>(),
+  },
   [IPC_CHANNELS.askThreads]: { args: z.tuple([]), result: z.custom<AskThreadItem[]>() },
   [IPC_CHANNELS.askThread]: {
     args: z.tuple([z.string().min(1).max(64)]),
@@ -1206,6 +1226,12 @@ export interface MurmurApi {
   ): Promise<SpeakerRenameResult>;
   /** NT-08: a sample of a speaker from the stored audio; not available once it is deleted. */
   meetingSpeakerClip(meetingId: string, speakerId: string): Promise<SpeakerClipResult>;
+  /** NT-24: edits a line's text or speaker, splits it, or merges it with the next one. */
+  meetingCorrect(meetingId: string, correction: Correction): Promise<CorrectionResult>;
+  /** The corrections a line has been through, newest first. */
+  meetingSegmentHistory(meetingId: string, segmentId: string): Promise<SegmentHistoryItem[]>;
+  /** Takes back one correction, the newest of its lines. */
+  meetingCorrectionRevert(meetingId: string, correctionId: number): Promise<RevertResult>;
   /** NT-10: saves My notes; false when they are too long. */
   meetingNotesSave(id: string, body: string): Promise<boolean>;
   meetingDocAddLink(id: string, url: string, title: string): Promise<MeetingDocResult>;

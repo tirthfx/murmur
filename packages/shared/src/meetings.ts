@@ -155,6 +155,8 @@ export interface MeetingSegment {
   speakerId: string | null;
   isDictated: boolean;
   isFinal: boolean;
+  /** NT-24: the line has been corrected (text, speaker, split or merge). */
+  edited: boolean;
 }
 
 export const MEETING_JOB_KINDS = [
@@ -235,6 +237,55 @@ export type SpeakerClipResult =
   | { ok: false; reason: "audio-deleted" | "no-audio" | "no-speech" };
 
 export const SPEAKER_CLIP_MAX_SEC = 8;
+
+/** NT-24: a change to a transcript line. */
+export const correctionSchema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("text"),
+    segmentId: z.string().min(1).max(200),
+    text: z.string().max(4_000),
+  }),
+  z.strictObject({
+    kind: z.literal("speaker"),
+    segmentId: z.string().min(1).max(200),
+    /** An existing speaker, or the name of a new one. */
+    speakerId: z.string().min(1).max(200).optional(),
+    newName: z.string().max(200).optional(),
+  }),
+  z.strictObject({
+    kind: z.literal("split"),
+    segmentId: z.string().min(1).max(200),
+    /** Where in the text the line is cut: the characters before it stay in the first line. */
+    offset: z.number().int().min(1).max(4_000),
+  }),
+  z.strictObject({ kind: z.literal("merge"), segmentId: z.string().min(1).max(200) }),
+]);
+export type Correction = z.infer<typeof correctionSchema>;
+
+export const SEGMENT_TEXT_MAX = 4_000;
+
+/** The result of a correction. `learned` says what was added to the Dictionary for review. */
+export type CorrectionResult =
+  | {
+      ok: true;
+      segmentId: string;
+      changed: boolean;
+      learned: { spoken: string; written: string } | null;
+    }
+  | { ok: false; message: string };
+
+/** What a line was before one of its corrections. */
+export interface SegmentHistoryItem {
+  id: number;
+  kind: "text" | "speaker" | "split" | "merge";
+  createdAt: number;
+  /** What the line said or who said it, before. */
+  original: string;
+  /** Only the newest correction of a line can be taken back first. */
+  canRevert: boolean;
+}
+
+export type RevertResult = { ok: true } | { ok: false; message: string };
 
 /** Everything the meeting view shows. */
 export interface MeetingDetail {
@@ -368,6 +419,13 @@ export const notetakerSettingsSchema = z.strictObject({
   tasks: tasksSettingsSchema.default(DEFAULT_TASKS_SETTINGS),
   /** NT-14: asking across meetings. */
   ask: askSettingsSchema.default(DEFAULT_ASK_SETTINGS),
+  /** NT-24: corrections to a transcript. */
+  corrections: z
+    .strictObject({
+      /** Offer words the owner changes again and again to the Dictionary, for review. */
+      suggestDictionary: z.boolean(),
+    })
+    .default({ suggestDictionary: true }),
 });
 export type NotetakerSettings = z.infer<typeof notetakerSettingsSchema>;
 
@@ -381,4 +439,5 @@ export const DEFAULT_NOTETAKER: NotetakerSettings = {
   skills: DEFAULT_SKILLS_SETTINGS,
   tasks: DEFAULT_TASKS_SETTINGS,
   ask: DEFAULT_ASK_SETTINGS,
+  corrections: { suggestDictionary: true },
 };

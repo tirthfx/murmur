@@ -53,6 +53,7 @@ interface SegmentRow {
   speaker_id: string | null;
   is_dictated: number;
   is_final: number;
+  edited: number;
 }
 
 /** Text the model writes for sounds rather than words, such as "[Music]" or "(applause)". */
@@ -139,7 +140,7 @@ export function createTranscriptStore(db: DatabaseSync): TranscriptStore {
         db
           .prepare(
             `SELECT id, meeting_id, channel, start_ms, end_ms, text, language, speaker_id,
-                    is_dictated, is_final
+                    is_dictated, is_final, edited
              FROM meeting_segments WHERE meeting_id = ?
              ORDER BY start_ms, CASE channel WHEN 'mic' THEN 0 ELSE 1 END, id`,
           )
@@ -156,6 +157,7 @@ export function createTranscriptStore(db: DatabaseSync): TranscriptStore {
         speakerId: row.speaker_id ?? `${row.meeting_id}:${row.channel}`,
         isDictated: row.is_dictated === 1,
         isFinal: row.is_final === 1,
+        edited: row.edited >= 1,
       }));
     },
   };

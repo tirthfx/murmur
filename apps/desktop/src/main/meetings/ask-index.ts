@@ -254,6 +254,13 @@ export function createAskIndex(db: DatabaseSync, deps: { now(): number }): AskIn
         "SELECT COUNT(*) AS n, COALESCE(MAX(updated_at), 0) AS last FROM tasks WHERE meeting_id = ? AND status != 'archived'",
       )
       .get(meetingId) as { n: number; last: number };
+    // A correction changes lines without changing how many there are (NT-24). The ids of
+    // corrections are never used twice, so taking one back also changes this.
+    const corrections = db
+      .prepare(
+        "SELECT COUNT(*) AS n, COALESCE(MAX(id), 0) AS last FROM transcript_corrections WHERE meeting_id = ?",
+      )
+      .get(meetingId) as { n: number; last: number };
     return [
       segments.n,
       segments.last,
@@ -261,6 +268,8 @@ export function createAskIndex(db: DatabaseSync, deps: { now(): number }): AskIn
       notes?.updated_at ?? 0,
       tasks.n,
       tasks.last,
+      corrections.n,
+      corrections.last,
     ].join("|");
   }
 

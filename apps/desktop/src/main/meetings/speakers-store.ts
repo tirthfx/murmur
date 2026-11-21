@@ -24,18 +24,28 @@ export interface SpeakerSample {
  * The people in a meeting's transcript (NT-07, NT-08). At level 1 there are two: the
  * microphone ("You") and the Mac's sound ("Remote"). Naming one names every line of theirs,
  * including lines transcribed after the rename, because a line belongs to its channel's speaker
- * unless it says otherwise.
+ * unless it says otherwise. A line can be given to another speaker, also a new one (a guest in
+ * the room): that is a correction (NT-24).
  */
 export interface SpeakersStore {
-  /** The meeting's speakers: its channels, with how many lines and how much talk each has. */
+  /** The meeting's speakers: its channels, then the ones added, with the lines and talk each has. */
   list(meetingId: string): MeetingSpeaker[];
-  /** One name for the whole meeting. Empty gives the speaker its first name back. */
+  /** One name for the whole meeting. For a channel's speaker, empty gives its first name back. */
   rename(meetingId: string, speakerId: string, name: string): SpeakerRenameResult;
-  /** The line to play for a speaker: its longest one (at least one second when there is such a line). */
+  /** Adds a speaker (a person in the room, say) that lines can be given to. */
+  add(
+    meetingId: string,
+    channel: MeetingChannel,
+    name: string,
+  ): { ok: true; id: string } | { ok: false; message: string };
+  /** The line to play for a speaker: its longest one. */
   sample(meetingId: string, speakerId: string): SpeakerSample | null;
 }
 
 const clean = (name: string) => name.replace(/\s+/g, " ").trim();
+
+/** The speaker a line belongs to, as SQL. */
+const EFFECTIVE = "COALESCE(speaker_id, meeting_id || ':' || channel)";
 
 export function createSpeakersStore(db: DatabaseSync, deps: { now(): number }): SpeakersStore {
   const channelsOf = (meetingId: string): MeetingChannel[] | null => {
@@ -57,38 +67,72 @@ export function createSpeakersStore(db: DatabaseSync, deps: { now(): number }): 
   const list = (meetingId: string): MeetingSpeaker[] => {
     const channels = channelsOf(meetingId);
     if (!channels) return [];
-    const named = new Map(
-      (
-        db.prepare("SELECT id, name FROM meeting_speakers WHERE meeting_id = ?").all(meetingId) as {
-          id: string;
-          name: string;
-        }[]
-      ).map((r) => [r.id, r.name]),
-    );
+    const rows = db
+      .prepare(
+        "SELECT id, channel, name FROM meeting_speakers WHERE meeting_id = ? ORDER BY created_at, id",
+      )
+      .all(meetingId) as { id: string; channel: MeetingChannel; name: string }[];
+    const named = new Map(rows.map((r) => [r.id, r.name]));
     const totals = new Map(
       (
         db
           .prepare(
-            `SELECT channel, COUNT(*) AS n, COALESCE(SUM(end_ms - start_ms), 0) AS talk
-             FROM meeting_segments
-             WHERE meeting_id = ? AND is_dictated = 0
-               AND (speaker_id IS NULL OR speaker_id = meeting_id || ':' || channel)
-             GROUP BY channel`,
+            `SELECT ${EFFECTIVE} AS sid, COUNT(*) AS n, COALESCE(SUM(end_ms - start_ms), 0) AS talk
+             FROM meeting_segments WHERE meeting_id = ? AND is_dictated = 0 GROUP BY sid`,
           )
-          .all(meetingId) as { channel: MeetingChannel; n: number; talk: number }[]
-      ).map((r) => [r.channel, r]),
+          .all(meetingId) as { sid: string; n: number; talk: number }[]
+      ).map((r) => [r.sid, r]),
     );
-    return channels.map((channel) => {
+    const own = new Set(MEETING_CHANNELS.map((c) => channelSpeakerId(meetingId, c)));
+    const speakers: MeetingSpeaker[] = channels.map((channel) => {
       const id = channelSpeakerId(meetingId, channel);
       return {
         id,
         channel,
         name: named.get(id) ?? SPEAKER_DEFAULT_NAMES[channel],
         defaultName: SPEAKER_DEFAULT_NAMES[channel],
-        segments: totals.get(channel)?.n ?? 0,
-        talkMs: totals.get(channel)?.talk ?? 0,
+        segments: totals.get(id)?.n ?? 0,
+        talkMs: totals.get(id)?.talk ?? 0,
       };
     });
+    // Speakers that were added, once they have lines.
+    for (const row of rows) {
+      if (own.has(row.id) || !totals.has(row.id)) continue;
+      speakers.push({
+        id: row.id,
+        channel: row.channel,
+        name: row.name,
+        defaultName: row.name,
+        segments: totals.get(row.id)!.n,
+        talkMs: totals.get(row.id)!.talk,
+      });
+    }
+    return speakers;
+  };
+
+  /** Checks a name; returns the cleaned name or why not. */
+  const check = (
+    speakers: MeetingSpeaker[],
+    selfId: string | null,
+    name: string,
+  ): { ok: true; name: string } | { ok: false; message: string } => {
+    if (name.length > SPEAKER_NAME_MAX)
+      return { ok: false, message: `A name can be up to ${SPEAKER_NAME_MAX} characters.` };
+    const taken = speakers.find(
+      (other) => other.id !== selfId && other.name.toLowerCase() === name.toLowerCase(),
+    );
+    return taken
+      ? { ok: false, message: `${taken.name} is already a speaker in this meeting.` }
+      : { ok: true, name };
+  };
+
+  const write = (id: string, meetingId: string, channel: MeetingChannel, name: string) => {
+    const at = deps.now();
+    db.prepare(
+      `INSERT INTO meeting_speakers (id, meeting_id, channel, name, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT (id) DO UPDATE SET name = excluded.name, updated_at = excluded.updated_at`,
+    ).run(id, meetingId, channel, name, at, at);
   };
 
   return {
@@ -98,38 +142,46 @@ export function createSpeakersStore(db: DatabaseSync, deps: { now(): number }): 
       const speakers = list(meetingId);
       const speaker = speakers.find((candidate) => candidate.id === speakerId);
       if (!speaker) return { ok: false, message: "That speaker is not in this meeting." };
-      const next = clean(name) === "" ? speaker.defaultName : clean(name);
-      if (next.length > SPEAKER_NAME_MAX)
-        return { ok: false, message: `A name can be up to ${SPEAKER_NAME_MAX} characters.` };
-      const taken = speakers.find(
-        (other) => other.id !== speaker.id && other.name.toLowerCase() === next.toLowerCase(),
-      );
-      if (taken)
-        return { ok: false, message: `${taken.name} is already a speaker in this meeting.` };
-      const at = deps.now();
+      const own = speaker.id === channelSpeakerId(meetingId, speaker.channel);
+      const wanted = clean(name);
+      if (wanted === "" && !own) return { ok: false, message: "Write a name." };
+      const checked = check(speakers, speaker.id, wanted === "" ? speaker.defaultName : wanted);
+      if (!checked.ok) return checked;
       // One row: every line of the speaker follows it.
-      db.prepare(
-        `INSERT INTO meeting_speakers (id, meeting_id, channel, name, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?)
-         ON CONFLICT (id) DO UPDATE SET name = excluded.name, updated_at = excluded.updated_at`,
-      ).run(speaker.id, meetingId, speaker.channel, next, at, at);
+      write(speaker.id, meetingId, speaker.channel, checked.name);
       return { ok: true, speakers: list(meetingId) };
+    },
+
+    add(meetingId, channel, name) {
+      const speakers = list(meetingId);
+      if (channelsOf(meetingId) === null) return { ok: false, message: "That meeting is gone." };
+      const wanted = clean(name);
+      if (wanted === "") return { ok: false, message: "Write a name." };
+      const checked = check(speakers, null, wanted);
+      if (!checked.ok) return checked;
+      const used = (
+        db
+          .prepare("SELECT id FROM meeting_speakers WHERE meeting_id = ? AND id LIKE ?")
+          .all(meetingId, `${meetingId}:p%`) as { id: string }[]
+      ).map((row) => Number(row.id.slice(`${meetingId}:p`.length)) || 0);
+      const id = `${meetingId}:p${Math.max(0, ...used) + 1}`;
+      write(id, meetingId, channel, checked.name);
+      return { ok: true, id };
     },
 
     sample(meetingId, speakerId) {
       const speaker = list(meetingId).find((candidate) => candidate.id === speakerId);
       if (!speaker) return null;
-      const rows = db
+      const row = db
         .prepare(
           `SELECT id, channel, start_ms, end_ms FROM meeting_segments
-           WHERE meeting_id = ? AND channel = ? AND is_dictated = 0
-             AND (speaker_id IS NULL OR speaker_id = meeting_id || ':' || channel)
+           WHERE meeting_id = ? AND is_dictated = 0 AND ${EFFECTIVE} = ?
            ORDER BY (end_ms - start_ms) DESC, start_ms LIMIT 1`,
         )
-        .get(meetingId, speaker.channel) as
+        .get(meetingId, speaker.id) as
         { id: string; channel: MeetingChannel; start_ms: number; end_ms: number } | undefined;
-      return rows
-        ? { segmentId: rows.id, channel: rows.channel, startMs: rows.start_ms, endMs: rows.end_ms }
+      return row
+        ? { segmentId: row.id, channel: row.channel, startMs: row.start_ms, endMs: row.end_ms }
         : null;
     },
   };

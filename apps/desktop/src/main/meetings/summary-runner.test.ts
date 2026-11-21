@@ -16,6 +16,7 @@ const segment = (id: string, startMs: number, isDictated = false): MeetingSegmen
   speakerId: null,
   isDictated,
   isFinal: true,
+  edited: false,
 });
 
 const ANSWER = "## Overview\n- We met [0:02]\n## Key points\n- Roadmap [0:02]";
