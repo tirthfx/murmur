@@ -118,6 +118,32 @@ describe("delete by category (HB-47)", () => {
     expect(existsSync(path.join(meetingsRoot, "m1"))).toBe(false);
   });
 
+  it("also deletes the tasks taken from meetings and the Ask conversations, but not tasks written by hand", () => {
+    const { db, deleter } = setup();
+    const at = Date.now();
+    const task = db.prepare(
+      `INSERT INTO tasks (id, title, status, source, meeting_id, position, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, 1, ?, ?)`,
+    );
+    task.run("t1", "From a meeting", "open", "meeting", "m1", at, at);
+    task.run("t2", "By hand", "open", "manual", null, at, at);
+    db.prepare(
+      "INSERT INTO ask_threads (id, title, scope_json, created_at, updated_at) VALUES ('a1', 'Q', '{\"kind\":\"all\"}', ?, ?)",
+    ).run(at, at);
+    db.prepare(
+      "INSERT INTO ask_messages (id, thread_id, seq, role, text, created_at) VALUES ('x1', 'a1', 1, 'user', 'Q', ?)",
+    ).run(at);
+    db.prepare(
+      "INSERT INTO ask_chunks (meeting_id, source, text) VALUES ('m1', 'transcript', 'secret words')",
+    ).run();
+    deleter.delete("meetings");
+    expect(rows(db, "tasks")).toBe(1);
+    expect(db.prepare("SELECT title FROM tasks").get()).toEqual({ title: "By hand" });
+    expect(rows(db, "ask_threads")).toBe(0);
+    expect(rows(db, "ask_messages")).toBe(0);
+    expect(rows(db, "ask_chunks")).toBe(0);
+  });
+
   it("deletes recordings but keeps the dictations", () => {
     const { db, deleter, file } = setup();
     deleter.delete("audio");

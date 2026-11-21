@@ -9,6 +9,10 @@ import {
   type SkillImportResult,
   type SkillResult,
   type SkillVersion,
+  type AskSendInput,
+  type AskSendResult,
+  type AskThread,
+  type AskThreadItem,
   type MeetingFindTasksResult,
   type TaskAction,
   type TaskDraft,
@@ -142,6 +146,10 @@ export interface IpcDeps {
   taskReorder: (id: string, beforeId: string | null) => TaskResult;
   tasksUndo: () => { ok: true; label: string } | { ok: false };
   meetingFindTasks: (meetingId: string) => MeetingFindTasksResult;
+  askThreads: () => AskThreadItem[];
+  askThread: (id: string) => AskThread | null;
+  askSend: (input: AskSendInput) => Promise<AskSendResult>;
+  askDelete: (id: string) => void;
   meetingDelete: (id: string) => void;
   meetingNotesSave: (id: string, body: string) => boolean;
   meetingDocAddLink: (id: string, url: string, title: string) => MeetingDocResult;
@@ -575,6 +583,14 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.tasksUndo();
       case IPC_CHANNELS.meetingFindTasks:
         return deps.meetingFindTasks(request.args[0] as string);
+      case IPC_CHANNELS.askThreads:
+        return deps.askThreads();
+      case IPC_CHANNELS.askThread:
+        return deps.askThread(request.args[0] as string);
+      case IPC_CHANNELS.askSend:
+        return deps.askSend(request.args[0] as AskSendInput);
+      case IPC_CHANNELS.askDelete:
+        return deps.askDelete(request.args[0] as string);
       case IPC_CHANNELS.meetingRename:
         return deps.meetingRename(request.args[0] as string, request.args[1] as string);
       case IPC_CHANNELS.meetingDelete:

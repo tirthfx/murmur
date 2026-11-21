@@ -178,3 +178,26 @@ Manual check (Skills): open Notetaker, Skills, duplicate Action review, change t
 Table `tasks` (migration 0031). `npx vite-node scripts/bench-tasks.mjs` runs the extraction on the real model with a made-up meeting (needs the model).
 
 Manual check: record or open a meeting where two things are agreed (for example "I will send the budget by Friday", "Priya, can you book the room?" "Sure"), wait for the summary and then the tasks (or press Look for tasks on the Tasks tab); check they are Suggested with the right owner and Friday's date, accept one, press Source and check the transcript opens at that line, move one with Down and by dragging, press Undo until it says nothing is left, add a task by hand, and turn the setting off.
+
+## Ask across meetings (NT-14)
+
+**What.** The Ask tab is a chat about the owner's meetings. A question is answered on this Mac by the local model from numbered sources taken from the meetings, and each source is a chip that opens the meeting where it was said. If the meetings do not support an answer, Ask says so and lists the closest meetings it checked. Ask only reads; it changes no transcript, summary, note or task. Settings, System, Ask across meetings: where a new question looks to begin with (all meetings, the last 7 days, the last 30 days) and whether the owner's notes are searched.
+
+**Scope.** All meetings, a date range ("Last 7 days", "Last 30 days", or dates written YYYY-MM-DD, both days included) or a chosen set of meetings (the Ask button on a meeting's page asks about that meeting only). Folders come with #194 and plug in as a list of meeting ids. Dates in the question ("yesterday", "last Tuesday", "last week", "this month", "in the last 3 days"; English) narrow the scope further, worked out from the local clock; the words are taken out of the question the model sees, because a small model that reads "last Tuesday" looks for it in the text and refuses. A scope is kept with the conversation and can be changed for the next question.
+
+**Search** (`meetings/ask-index.ts`, ADR-0081 in the vault). Pieces of every meeting are in the table `ask_chunks` with an FTS5 index (`ask_fts`, BM25): transcript pieces of about 200 tokens, each starting with the last line of the one before (dictated lines left out); one piece for each section of the newest final summary (links and "(No source)" taken out; sections that say nothing skipped); the owner's notes by paragraph; and one line for each task that is not archived. A meeting is indexed again, just before a question, when its signature changed (transcript lines, the summary, the notes or the tasks). The question becomes an FTS query of its meaningful words joined by OR, each cut to a crude English stem and matching longer words (shipping finds ship, ships, shipped); a question of only small words finds nothing. The best 12 pieces (`notetaker.ask.topK`) are kept, and as many as fit about 2,300 tokens go to the model, so the prompt stays within the smallest context (4,096). There are no embeddings.
+
+**Answer** (`ask-answer.ts`, `ask-runner.ts`). The model is told to use only the sources, to end every sentence with the numbers of its sources, and to reply exactly NOT_SUPPORTED when they do not answer. Then the answer is checked:
+
+- A citation number that is not one of the sources is removed and logged (`[ask]` in the console).
+- An answer with no valid citation left is not kept: it counts as not supported (logged).
+- NOT_SUPPORTED, or a search that finds nothing, gives the not-supported reply and the closest meetings (up to 3, from the best pieces). With nothing found the model is not called.
+- A kept answer stores its citations: the meeting, the kind of source, the transcript line (the first line of the piece) or summary or task, and the words. A chip shows the meeting title and the time, or the kind of source; a deleted meeting's chip is greyed and opens nothing. Only text is rendered, so markup from the model is shown as text.
+
+The model is shared as for summaries (`model-ask.ts`): a dictation first, never cancelling a Rewrite, Command or Instruct generation, and one question at a time. A follow-up question is searched on its own words: it does not know the earlier answer ("it" and "that" find nothing).
+
+**Threads.** `ask_threads` and `ask_messages` (migration 0032) keep each question, answer, citations and scope. Deleting a conversation deletes its messages. Deleting the "meetings" category in Data and Privacy removes the Ask conversations and the tasks taken from meetings too (tasks written by hand stay).
+
+`npx vite-node scripts/bench-ask.mjs` asks the real model seven questions over three made-up meetings and prints each answer with its sources (needs the model).
+
+Manual check: with a few meetings that have transcripts, open Notetaker, Ask, and ask something one meeting answers: check the answer cites that meeting and that clicking the chip opens the transcript at the line; ask something no meeting covers and check the not-supported reply and its closest meetings; switch to "Last 7 days" and to a date range and check meetings outside it are not used; ask with "last Tuesday" in the question; use Ask on a meeting's page; reopen the conversation after restarting the app; delete a conversation.

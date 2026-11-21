@@ -9,6 +9,13 @@ import type {
   RecordingState,
 } from "./meetings";
 import {
+  askSendSchema,
+  type AskSendInput,
+  type AskSendResult,
+  type AskThread,
+  type AskThreadItem,
+} from "./ask";
+import {
   TASK_ACTIONS,
   taskDraftSchema,
   taskFilterSchema,
@@ -393,6 +400,10 @@ export const IPC_CHANNELS = {
   taskReorder: "tasks:reorder",
   tasksUndo: "tasks:undo",
   meetingFindTasks: "meetings:find-tasks",
+  askThreads: "ask:threads",
+  askThread: "ask:thread",
+  askSend: "ask:send",
+  askDelete: "ask:delete",
 } as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
@@ -882,6 +893,13 @@ export const IPC_CONTRACT = {
     args: z.tuple([]),
     result: z.custom<{ ok: true; label: string } | { ok: false }>(),
   },
+  [IPC_CHANNELS.askThreads]: { args: z.tuple([]), result: z.custom<AskThreadItem[]>() },
+  [IPC_CHANNELS.askThread]: {
+    args: z.tuple([z.string().min(1).max(64)]),
+    result: z.custom<AskThread | null>(),
+  },
+  [IPC_CHANNELS.askSend]: { args: z.tuple([askSendSchema]), result: z.custom<AskSendResult>() },
+  [IPC_CHANNELS.askDelete]: { args: z.tuple([z.string().min(1).max(64)]), result: z.void() },
   [IPC_CHANNELS.meetingFindTasks]: {
     args: z.tuple([z.string().min(1).max(64)]),
     result: z.custom<MeetingFindTasksResult>(),
@@ -1162,6 +1180,12 @@ export interface MurmurApi {
   tasksUndo(): Promise<{ ok: true; label: string } | { ok: false }>;
   /** Looks for tasks in a meeting now (the job runs behind the summary and the model). */
   meetingFindTasks(meetingId: string): Promise<MeetingFindTasksResult>;
+  /** NT-14: the saved conversations of Ask, newest first. */
+  askThreads(): Promise<AskThreadItem[]>;
+  askThread(id: string): Promise<AskThread | null>;
+  /** Answers a question from the meetings in its scope (a few seconds to a minute). */
+  askSend(input: AskSendInput): Promise<AskSendResult>;
+  askDelete(id: string): Promise<void>;
   /** NT-10: saves My notes; false when they are too long. */
   meetingNotesSave(id: string, body: string): Promise<boolean>;
   meetingDocAddLink(id: string, url: string, title: string): Promise<MeetingDocResult>;

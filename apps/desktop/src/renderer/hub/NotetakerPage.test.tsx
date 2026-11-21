@@ -5,6 +5,7 @@ import type {
   LivePartial,
   MeetingDetail,
   MeetingListItem,
+  AskThread,
   MeetingSummary,
   Task,
 } from "@murmur/shared";
@@ -116,8 +117,8 @@ describe("Notetaker page", () => {
 
   it("opens a meeting with six tabs and the transcript, without dictated lines", async () => {
     await openMeeting();
-    // Three tabs for the page (Meetings, My Tasks, Skills) and six for the meeting.
-    expect(screen.getAllByRole("tab")).toHaveLength(9);
+    // Four tabs for the page (Meetings, Ask, My Tasks, Skills) and six for the meeting.
+    expect(screen.getAllByRole("tab")).toHaveLength(10);
     for (const name of ["My notes", "Summary", "Transcript", "Tasks", "Brief", "Docs"]) {
       expect(screen.getByRole("tab", { name })).toBeTruthy();
     }
@@ -357,6 +358,74 @@ describe("Notetaker page", () => {
           document.querySelector('[data-segment-id="s2"]')?.getAttribute("data-highlight"),
         ).toBe("true"),
       );
+    });
+  });
+
+  describe("ask (NT-14)", () => {
+    const thread: AskThread = {
+      id: "th1",
+      title: "Roadmap?",
+      scope: { kind: "all" },
+      createdAt: 1,
+      updatedAt: 2,
+      messages: [
+        {
+          id: "a1",
+          role: "assistant",
+          text: "The roadmap comes first [1].",
+          citations: [
+            {
+              n: 1,
+              meetingId: "m-1",
+              meetingTitle: "Design sync",
+              gone: false,
+              source: "transcript",
+              ref: "s2",
+              startMs: 65_000,
+              excerpt: "Yes, the roadmap first.",
+            },
+          ],
+          supported: true,
+          closest: [],
+          createdAt: 2,
+        },
+      ],
+    };
+
+    it("opens the meeting at the cited line from an answer", async () => {
+      window.murmur.askSend = vi.fn().mockResolvedValue({ ok: true, thread });
+      render(<NotetakerPage />);
+      await act(async () => screen.getByRole("tab", { name: "Ask" }).click());
+      fireEvent.change(await screen.findByLabelText("Your question"), {
+        target: { value: "What comes first?" },
+      });
+      await act(async () => screen.getByRole("button", { name: "Ask" }).click());
+      await act(async () =>
+        (await screen.findByRole("button", { name: "Open Design sync · 1:05" })).click(),
+      );
+      await waitFor(() => expect(screen.getByRole("region", { name: "Meeting" })).toBeTruthy());
+      expect(screen.getByRole("tab", { name: "Transcript", selected: true })).toBeTruthy();
+      await waitFor(() =>
+        expect(
+          document.querySelector('[data-segment-id="s2"]')?.getAttribute("data-highlight"),
+        ).toBe("true"),
+      );
+    });
+
+    it("asks about one meeting from its page", async () => {
+      window.murmur.askSend = vi.fn().mockResolvedValue({ ok: true, thread });
+      await openMeeting();
+      await act(async () => screen.getByRole("button", { name: "Ask about this meeting" }).click());
+      expect(screen.getByRole("tab", { name: "Ask", selected: true })).toBeTruthy();
+      fireEvent.change(await screen.findByLabelText("Your question"), {
+        target: { value: "What comes first?" },
+      });
+      await act(async () => screen.getByRole("button", { name: "Ask" }).click());
+      expect(window.murmur.askSend).toHaveBeenCalledWith({
+        threadId: null,
+        question: "What comes first?",
+        scope: { kind: "meetings", ids: ["m-1"] },
+      });
     });
   });
 });
