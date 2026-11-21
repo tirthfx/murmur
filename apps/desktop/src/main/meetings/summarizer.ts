@@ -126,7 +126,7 @@ const CLOCK = /\[(\d{1,2}(?::\d{2}){1,2}(?:\s*[,;–-]\s*\d{1,2}(?::\d{2}){1,2})
 /** A bracket the answer was cut in the middle of. */
 const UNFINISHED = /\s*\[[^\]]*$/;
 
-function clockSeconds(text: string): number {
+export function clockSeconds(text: string): number {
   const parts = text.split(":").map(Number);
   return parts.reduce((total, part) => total * 60 + part, 0);
 }
@@ -156,7 +156,10 @@ function sectionName(text: string): string {
 }
 
 /** The segment a cited time points at: the one said at that second, else the nearest. */
-function resolve(seconds: number, segments: readonly SummarySegment[]): SummarySegment | null {
+export function resolve(
+  seconds: number,
+  segments: readonly SummarySegment[],
+): SummarySegment | null {
   let best: SummarySegment | null = null;
   let distance = Infinity;
   for (const segment of segments) {

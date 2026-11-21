@@ -482,6 +482,47 @@ export function SettingsSection({
             />
           </VStack>
         </Row>
+        <Row id="meeting-tasks">
+          <VStack gap={2}>
+            <Heading level={3}>Tasks from meetings</Heading>
+            <Text size="sm" color="secondary">
+              After the summary, the local language model suggests tasks. They wait in My Tasks as
+              Suggested until you accept them; none is ever accepted for you.
+            </Text>
+            <Switch
+              label="Suggest tasks after each meeting"
+              value={settings.notetaker.tasks.extract}
+              onChange={(extract) =>
+                update({
+                  notetaker: {
+                    ...settings.notetaker,
+                    tasks: { ...settings.notetaker.tasks, extract },
+                  },
+                })
+              }
+            />
+            <Selector
+              label="My Tasks shows"
+              options={[
+                { value: "me-or-named", label: "Tasks for me or for a named person" },
+                { value: "all", label: "All tasks, including ones nobody was named for" },
+              ]}
+              value={settings.notetaker.tasks.ownerRule}
+              onChange={(ownerRule) =>
+                update({
+                  notetaker: {
+                    ...settings.notetaker,
+                    tasks: {
+                      ...settings.notetaker.tasks,
+                      ownerRule:
+                        ownerRule as SettingsView["settings"]["notetaker"]["tasks"]["ownerRule"],
+                    },
+                  },
+                })
+              }
+            />
+          </VStack>
+        </Row>
         <Row id="instruct">
           <InstructSection view={view} onSaved={setView} update={update} />
         </Row>

@@ -7,6 +7,7 @@ import {
   type SkillLength,
 } from "@murmur/shared";
 import type { Logger } from "../helper/types";
+import { createModelAsk } from "./model-ask";
 import { summarizeMeeting } from "./summarizer";
 import type { SkillsStore, SummariesStore } from "./summaries-store";
 
@@ -60,9 +61,6 @@ export interface SummaryRunner {
   status(meetingId: string): SummaryStatus;
 }
 
-/** A call the model dropped for another request is asked again this many times. */
-const RETRIES = 8;
-
 /**
  * Runs summaries (NT-09). The model is shared: a dictation always goes first, and a Rewrite,
  * Command or Instruct generation is never cancelled by a summary (the newest request would
@@ -78,24 +76,7 @@ export function createSummaryRunner(deps: SummaryRunnerDeps): SummaryRunner {
     deps.onChange(meetingId);
   };
 
-  async function ask(request: {
-    system: string;
-    prompt: string;
-    maxTokens: number;
-  }): Promise<string> {
-    for (let attempt = 0; ; attempt++) {
-      while (deps.dictating() || deps.generating()) await deps.wait(1_000);
-      try {
-        return await deps.generate(request);
-      } catch (error) {
-        if ((error as { retry?: boolean } | null)?.retry && attempt < RETRIES) {
-          await deps.wait(2_000);
-          continue;
-        }
-        throw error;
-      }
-    }
-  }
+  const ask = createModelAsk(deps);
 
   return {
     status: (meetingId) => states.get(meetingId) ?? { state: "idle" },

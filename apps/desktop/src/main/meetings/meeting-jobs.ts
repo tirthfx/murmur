@@ -25,6 +25,13 @@ export interface MeetingJobsDeps {
    * `busy` (another summary is being written: try again), `no-transcript` (nothing to do).
    */
   summarise?(meetingId: string): Promise<void>;
+  /** The summary job finished (NT-26 suggests tasks next). */
+  onSummarised?(meetingId: string): void;
+  /**
+   * Suggests the meeting's tasks (NT-26). Rejects with the same codes as `summarise`. A
+   * returned `note` is kept in the job's log; the job still ends `done`.
+   */
+  extractTasks?(meetingId: string): Promise<{ note?: string } | void>;
   logger: Logger;
 }
 
@@ -155,36 +162,45 @@ export function createMeetingJobs(deps: MeetingJobsDeps): MeetingJobs {
     }
   }
 
-  /** Writes a summary (NT-09). Returns false when the job has to wait for a later kick. */
-  async function summarise(meetingId: string, attempts: number): Promise<boolean> {
-    setJobRunning(meetingId, "summarise");
+  /**
+   * Runs a job that needs the language model (a summary, the tasks). Returns false when the job
+   * has to wait for a later kick.
+   */
+  async function modelJob(
+    kind: "summarise" | "extract_tasks",
+    meetingId: string,
+    attempts: number,
+    work: () => Promise<{ note?: string } | void>,
+  ): Promise<boolean> {
+    setJobRunning(meetingId, kind);
     deps.onProgress(meetingId);
     try {
-      await deps.summarise?.(meetingId);
-      setJob(meetingId, "summarise", "done");
+      const result = await work();
+      setJob(meetingId, kind, "done", result?.note?.slice(0, 500));
+      if (kind === "summarise") deps.onSummarised?.(meetingId);
       deps.onProgress(meetingId);
       return true;
     } catch (error) {
       const code = errorCode(error);
       if (code === "no-transcript") {
-        setJob(meetingId, "summarise", "done");
+        setJob(meetingId, kind, "done");
         deps.onProgress(meetingId);
         return true;
       }
       if (code === "model-missing" || code === "busy") {
-        // Not a failure: it waits for the model, or for the summary being written.
+        // Not a failure: it waits for the model, or for the work already going on.
         db.prepare(
           `UPDATE meeting_jobs SET status = 'queued', attempts = attempts - 1, updated_at = ?
-           WHERE meeting_id = ? AND kind = 'summarise'`,
-        ).run(deps.now(), meetingId);
+           WHERE meeting_id = ? AND kind = ?`,
+        ).run(deps.now(), meetingId, kind);
         deps.onProgress(meetingId);
         return false;
       }
       const failed = attempts + 1 >= MAX_ATTEMPTS;
       deps.logger.warn(
-        `summarising meeting ${meetingId} failed (try ${attempts + 1}): ${message(error)}`,
+        `job ${kind} of meeting ${meetingId} failed (try ${attempts + 1}): ${message(error)}`,
       );
-      setJob(meetingId, "summarise", failed ? "failed" : "queued", message(error).slice(0, 500));
+      setJob(meetingId, kind, failed ? "failed" : "queued", message(error).slice(0, 500));
       deps.onProgress(meetingId);
       return false;
     }
@@ -211,7 +227,15 @@ export function createMeetingJobs(deps: MeetingJobsDeps): MeetingJobs {
         }
         if (!(await transcribe(job.meetingId, job.attempts))) waiting.add("transcribe");
       } else if (job.kind === "summarise" && deps.summarise) {
-        if (!(await summarise(job.meetingId, job.attempts))) waiting.add("summarise");
+        const write = deps.summarise;
+        if (!(await modelJob("summarise", job.meetingId, job.attempts, () => write(job.meetingId))))
+          waiting.add("summarise");
+      } else if (job.kind === "extract_tasks" && deps.extractTasks) {
+        const find = deps.extractTasks;
+        if (
+          !(await modelJob("extract_tasks", job.meetingId, job.attempts, () => find(job.meetingId)))
+        )
+          waiting.add("extract_tasks");
       } else {
         // Later issues add the other kinds; until then they are left queued.
         waiting.add(job.kind);

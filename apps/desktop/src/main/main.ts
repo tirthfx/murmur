@@ -40,6 +40,7 @@ import {
   type DictationState,
   type MeetingDetail,
   type SummaryStatus,
+  type TaskRunStatus,
   type HistoryRetryResult,
   localDate,
   milestoneTitle,
@@ -143,6 +144,8 @@ import { loadMeetingMatchers } from "./meetings/matchers-file";
 import { createDetectionSync } from "./meetings/detection-sync";
 import { createMeetingJobs, type MeetingJobs } from "./meetings/meeting-jobs";
 import { createSkillsService } from "./meetings/skills-service";
+import { createTaskRunner, TaskError } from "./meetings/tasks-runner";
+import { createTasksService } from "./meetings/tasks-service";
 import { createSkillsStore, createSummariesStore } from "./meetings/summaries-store";
 import { createSummaryRunner, SummaryError } from "./meetings/summary-runner";
 import { createTranscriptStore } from "./meetings/transcript-store";
@@ -1642,7 +1645,25 @@ const skillsService = meetingSkills
       },
     })
   : null;
+const noTasks = { ok: false as const, message: "Tasks cannot be saved without the database." };
 const noSkills = { ok: false as const, message: "Skills cannot be saved without the database." };
+// One call of the local model for the Notetaker's background work (summaries, tasks).
+async function meetingGenerate(request: {
+  system: string;
+  prompt: string;
+  maxTokens: number;
+}): Promise<string> {
+  const job = llm.generate(request, { timeoutMs: 180_000, onChunk: () => {} });
+  try {
+    return await job.result;
+  } catch (error) {
+    // Another request took the model: the step is asked again later.
+    if (error instanceof LlmCancelledError || error instanceof LlmPreemptedError) {
+      throw Object.assign(error, { retry: true });
+    }
+    throw error;
+  }
+}
 // NT-09: summaries on the local model. A dictation or a Rewrite always goes first.
 const summaryRunner =
   meetingsStore && meetingTranscripts && meetingNotes && meetingSummaries && meetingSkills
@@ -1658,18 +1679,7 @@ const summaryRunner =
         },
         modelId: DEFAULT_CLEANUP_MODEL.id,
         modelReady: cleanupModelReady,
-        generate: async (request) => {
-          const job = llm.generate(request, { timeoutMs: 180_000, onChunk: () => {} });
-          try {
-            return await job.result;
-          } catch (error) {
-            // Another request took the model: the step is asked again later.
-            if (error instanceof LlmCancelledError || error instanceof LlmPreemptedError) {
-              throw Object.assign(error, { retry: true });
-            }
-            throw error;
-          }
-        },
+        generate: meetingGenerate,
         dictating: () => hubDictationState !== "idle",
         generating: () => llm.isGenerating(),
         wait: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
@@ -1683,6 +1693,27 @@ const summaryRunner =
 function notifyMeetings(meetingId: string | null): void {
   if (hubEvents && !hubEvents.isDestroyed()) hubEvents.send(IPC_EVENTS.meetingsChanged, meetingId);
 }
+// NT-26: tasks suggested from meetings, and My Tasks.
+const tasksService = database
+  ? createTasksService(database, { newId: randomUUID, now: Date.now })
+  : null;
+const taskRunner =
+  meetingsStore && meetingTranscripts && tasksService
+    ? createTaskRunner({
+        hasMeeting: (id) => meetingsStore.get(id) !== null,
+        startedAt: (id) => meetingsStore.get(id)?.startedAt ?? Date.now(),
+        segments: (id) => meetingTranscripts.segments(id),
+        tasks: tasksService,
+        maxPerMeeting: () => settingsStore.get().notetaker.tasks.maxPerMeeting,
+        modelReady: cleanupModelReady,
+        generate: meetingGenerate,
+        dictating: () => hubDictationState !== "idle",
+        generating: () => llm.isGenerating(),
+        wait: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+        onChange: (id) => notifyMeetings(id),
+        logger: createConsoleLogger("[tasks]"),
+      })
+    : null;
 // NT-05: the work queue. Transcription needs only the local model; meetings wait for it.
 const meetingJobs: MeetingJobs | null =
   database && meetingsStore && meetingTranscripts
@@ -1699,11 +1730,30 @@ const meetingJobs: MeetingJobs | null =
         onProgress: (meetingId) => notifyMeetings(meetingId),
         // The summary is written once the transcript is complete, unless it is off.
         onTranscribed: (id) => {
-          if (!settingsStore.get().notetaker.summary.auto) return;
           if (meetingsStore.get(id)?.status !== "ready") return;
-          if ((meetingSummaries?.list(id).length ?? 0) > 0) return;
-          if (meetingJobs?.jobStatus(id, "summarise") !== null) return;
-          meetingJobs.enqueue(id, "summarise");
+          const notetaker = settingsStore.get().notetaker;
+          if (notetaker.summary.auto) {
+            if ((meetingSummaries?.list(id).length ?? 0) > 0) return;
+            if (meetingJobs?.jobStatus(id, "summarise") !== null) return;
+            meetingJobs.enqueue(id, "summarise");
+          } else if (
+            notetaker.tasks.extract &&
+            meetingJobs?.jobStatus(id, "extract_tasks") === null
+          ) {
+            // No summary to wait for: the tasks are looked for now.
+            meetingJobs.enqueue(id, "extract_tasks");
+          }
+        },
+        // The tasks are looked for after the summary, once.
+        onSummarised: (id) => {
+          if (!settingsStore.get().notetaker.tasks.extract) return;
+          if (meetingJobs?.jobStatus(id, "extract_tasks") !== null) return;
+          meetingJobs.enqueue(id, "extract_tasks");
+        },
+        extractTasks: async (id) => {
+          if (!taskRunner) throw new TaskError("no-transcript", "No tasks here.");
+          const result = await taskRunner.run(id);
+          return result.note ? { note: result.note } : undefined;
         },
         summarise: async (id) => {
           if (!summaryRunner) throw new SummaryError("no-transcript", "No summaries here.");
@@ -1807,6 +1857,7 @@ function meetingDetail(id: string): MeetingDetail | null {
     docs: meetingNotes.docs(id),
     summaries: meetingSummaries?.list(id) ?? [],
     summaryStatus: summaryStatus(id),
+    taskStatus: taskStatus(id),
   };
 }
 
@@ -1817,6 +1868,15 @@ function summaryStatus(id: string): SummaryStatus {
   if (job === "queued" || job === "running") return { state: "waiting" };
   if (job === "failed")
     return { state: "failed", message: "The summary could not be written. Try again." };
+  return { state: "idle" };
+}
+
+function taskStatus(id: string): TaskRunStatus {
+  const running = taskRunner?.status(id) ?? { state: "idle" as const };
+  if (running.state !== "idle") return running;
+  const job = meetingJobs?.jobStatus(id, "extract_tasks");
+  if (job === "queued" || job === "running") return { state: "waiting" };
+  if (job === "failed") return { state: "failed", message: "Tasks could not be found. Try again." };
   return { state: "idle" };
 }
 
@@ -2510,6 +2570,20 @@ function registerIpc(): void {
       meetingSummaries?.setFeedback(summaryId, feedback);
     },
     skillsList: () => meetingSkills?.list() ?? [],
+    tasksList: (filter) => tasksService?.list(filter) ?? { tasks: [], undo: null },
+    taskAdd: (draft) => tasksService?.addManual(draft) ?? noTasks,
+    taskUpdate: (id, draft) => tasksService?.update(id, draft) ?? noTasks,
+    taskAction: (id, action) => tasksService?.act(id, action) ?? noTasks,
+    taskReorder: (id, beforeId) => tasksService?.reorder(id, beforeId) ?? noTasks,
+    tasksUndo: () => tasksService?.undo() ?? { ok: false },
+    meetingFindTasks: (id) => {
+      if (!meetingJobs || !meetingsStore?.get(id))
+        return { ok: false, message: "That meeting is gone." };
+      meetingJobs.enqueue(id, "extract_tasks");
+      meetingJobs.kick();
+      notifyMeetings(id);
+      return { ok: true };
+    },
     skillSave: (id, draft) => skillsService?.save(id, draft) ?? noSkills,
     skillDuplicate: (id) => skillsService?.duplicate(id) ?? noSkills,
     skillDelete: (id) => skillsService?.remove(id) ?? noSkills,
