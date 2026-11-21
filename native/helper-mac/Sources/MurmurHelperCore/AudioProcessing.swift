@@ -311,6 +311,22 @@ public final class Resampler {
 /// recording without a clear gap between speech and background is left as it is.
 public enum SilenceTrim {
     static let windowMs = 20
+    /// Louder than this in some 20 ms window counts as sound.
+    static let soundFloorDb = -50.0
+
+    /// False when every 20 ms window is quieter than -50 dBFS: there is nothing to hear.
+    public static func hasSound(_ samples: [Float], sampleRate: Int = AudioFormat.sampleRate) -> Bool {
+        let window = max(1, sampleRate * windowMs / 1000)
+        var start = 0
+        while start < samples.count {
+            let end = min(samples.count, start + window)
+            var squares = 0.0
+            for sample in samples[start..<end] { squares += Double(sample) * Double(sample) }
+            if Decibels.fromMeanSquare(squares / Double(end - start)) > soundFloorDb { return true }
+            start = end
+        }
+        return false
+    }
     /// Kept around the speech, so soft word endings are not cut.
     static let padMs = 300
 

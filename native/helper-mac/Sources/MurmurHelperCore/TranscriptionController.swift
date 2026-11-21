@@ -111,10 +111,15 @@ public final class TranscriptionController: @unchecked Sendable {
 
     private func transcribeFile(id: String, payload: [String: JSONValue]) -> Envelope? {
         let type = "transcribe.file"
-        guard let path = payload["path"]?.stringValue, path.hasPrefix("/"), path.hasSuffix(".pcm") else {
+        guard let path = payload["path"]?.stringValue, path.hasPrefix("/"),
+            path.hasSuffix(".pcm") || path.hasSuffix(".m4a")
+        else {
             return MessageRouter.failure(
-                id: id, requestType: type, .invalidPayload, "path must be an absolute path to a .pcm file")
+                id: id, requestType: type, .invalidPayload, "path must be an absolute path to a .pcm or .m4a file")
         }
+        // Meeting chunks (NT-05): no silence trim, so times stay on the chunk's timeline, and
+        // a chunk with no sound at all gives no text (the model invents words in silence).
+        let keepTiming = payload["keepTiming"]?.boolValue ?? false
         var languages: [String] = []
         if let value = payload["languages"] {
             guard case .array(let items) = value, items.count <= 20,
@@ -132,9 +137,11 @@ public final class TranscriptionController: @unchecked Sendable {
             }
             prompt = text.isEmpty ? nil : text
         }
-        let data: Data
+        let samples: [Float]
         do {
-            data = try Data(contentsOf: URL(fileURLWithPath: path))
+            let url = URL(fileURLWithPath: path)
+            samples = path.hasSuffix(".m4a")
+                ? try AudioFileReader.floats(url: url) : PCMReader.floats(from: try Data(contentsOf: url))
         } catch {
             return MessageRouter.failure(id: id, requestType: type, .notFound, "The audio file could not be read")
         }
@@ -151,7 +158,6 @@ public final class TranscriptionController: @unchecked Sendable {
             return MessageRouter.failure(id: id, requestType: type, .busy, "A model load or transcription is running")
         }
 
-        let samples = PCMReader.floats(from: data)
         let audioMs = samples.count * 1000 / AudioFormat.sampleRate
         let windows = max(1, Int((Double(audioMs) / 30_000).rounded(.up)))
         let timeout = timeoutPerWindow * Double(windows)
@@ -162,11 +168,11 @@ public final class TranscriptionController: @unchecked Sendable {
             let envelope: Envelope
             do {
                 let recognition: Recognition
-                if samples.isEmpty {
+                if samples.isEmpty || (keepTiming && !SilenceTrim.hasSound(samples)) {
                     lock.withLock { decoding = false }
                     recognition = Recognition(text: "", language: languages.first ?? "", segments: [])
                 } else {
-                    let speech = SilenceTrim.trim(samples)
+                    let speech = keepTiming ? samples : SilenceTrim.trim(samples)
                     recognition = try await withTimeout(seconds: timeout) {
                         try await recognizer.transcribe(speech, options: options)
                     }

@@ -25,6 +25,11 @@ export const transcribeFilePayloadSchema = z.object({
   languages: z.array(z.string().min(1)).max(20),
   /** Words already on screen, to help spell names and terms (DC-30). */
   prompt: z.string().max(2000).optional(),
+  /**
+   * Meeting chunks (NT-05): no silence trim, so segment times match the file, and a file
+   * with no sound gives no text. `.m4a` files are read too.
+   */
+  keepTiming: z.boolean().optional(),
 });
 export type TranscribeFileInput = z.infer<typeof transcribeFilePayloadSchema>;
 

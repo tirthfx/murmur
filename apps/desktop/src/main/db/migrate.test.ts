@@ -40,6 +40,8 @@ describe("migrations", () => {
       "instruct_threads",
       "learn_candidates",
       "meeting_audio_chunks",
+      "meeting_jobs",
+      "meeting_segments",
       "meetings",
       "memory_items",
       "milestones",
