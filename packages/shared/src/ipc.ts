@@ -376,8 +376,7 @@ export type MeetingStartResult = z.infer<typeof meetingStartResultSchema>;
 
 /** Adding a link or file to a meeting; `canceled` when the file dialog was closed. */
 export type MeetingDocResult =
-  | { ok: true; doc: MeetingDoc }
-  | { ok: false; message: string; canceled?: boolean };
+  { ok: true; doc: MeetingDoc } | { ok: false; message: string; canceled?: boolean };
 
 /** Per-channel schema for the arguments a renderer may send, and for the reply main returns. */
 export const IPC_CONTRACT = {
