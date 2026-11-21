@@ -3,6 +3,7 @@ import { APP_LANGUAGES } from "./catalogue";
 import { privacySettingsSchema } from "./privacy";
 import { developerSettingsSchema } from "./testing";
 import { helpSettingsSchema, referralSettingsSchema } from "./help";
+import { notetakerSettingsSchema } from "./meetings";
 import { audioDeviceSchema } from "./audio";
 import { developerToolsSchema, jargonPacksSchema } from "./developer";
 import { emailSettingsSchema } from "./email";
@@ -177,6 +178,8 @@ export const settingsSchema = z.strictObject({
   help: helpSettingsSchema,
   /** HB-43: the local referral code and the hand-kept invite count. */
   referral: referralSettingsSchema,
+  /** M5: Notetaker recording, detection and processing. */
+  notetaker: notetakerSettingsSchema,
   /** HB-20, HB-57: developer mode and the engine switches. */
   devMode: developerSettingsSchema,
   /** HB-19: the trial, the student label and the plan change log. */
@@ -230,6 +233,7 @@ export const settingsPatchSchema = settingsSchema
     devMode: true,
     help: true,
     referral: true,
+    notetaker: true,
   })
   .partial()
   .strict();
@@ -278,6 +282,7 @@ export const SETTING_KEYS: Record<keyof Settings, string> = {
   devMode: "dev.settings",
   help: "help.tours",
   referral: "referral.settings",
+  notetaker: "notetaker.settings",
 };
 
 /** HB-24 defaults. */

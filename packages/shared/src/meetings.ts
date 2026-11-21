@@ -1,0 +1,182 @@
+import { z } from "zod";
+import { audioSessionIdSchema } from "./audio";
+
+/**
+ * Notetaker (M5). Meetings are recorded by the helper as two channels of chunk files; main
+ * keeps the meeting rows and the chunk list. Audio never crosses the protocol.
+ */
+
+export const MEETING_CHANNELS = ["mic", "system"] as const;
+export type MeetingChannel = (typeof MEETING_CHANNELS)[number];
+export const meetingChannelSchema = z.enum(MEETING_CHANNELS);
+
+/** Problems a channel can report while recording; the recording goes on (NT-04). */
+export const CAPTURE_ISSUES = ["device_lost", "sck_stream_stopped", "write_failed"] as const;
+export type CaptureIssue = (typeof CAPTURE_ISSUES)[number];
+
+/** Why a channel did not start: no Screen Recording permission, or the stream failed. */
+export const CAPTURE_WARNINGS = ["system_permission", "system_unavailable"] as const;
+export type CaptureWarning = (typeof CAPTURE_WARNINGS)[number];
+
+// ------------------------------------------------------------------- protocol
+
+export const captureStartPayloadSchema = z.object({
+  meetingId: audioSessionIdSchema,
+  /** Absolute folder the chunk files go in. */
+  folder: z.string().min(2).max(1024).startsWith("/"),
+  channels: z.array(meetingChannelSchema).min(1).max(2).optional(),
+  chunkSeconds: z.number().int().min(1).max(300).optional(),
+  /** A device id from `audio.devices`, or null for the system default. */
+  micDeviceId: z.string().min(1).max(512).nullable().optional(),
+});
+export type CaptureStartInput = z.infer<typeof captureStartPayloadSchema>;
+
+export const captureStartResultSchema = z.object({
+  startedAt: z.number().int().nonnegative(),
+  /** The channels that started, with their device names. */
+  channels: z.object({ mic: z.string().optional(), system: z.string().optional() }),
+  sampleRate: z.literal(16000),
+  warnings: z.array(z.enum(CAPTURE_WARNINGS)),
+});
+export type CaptureStartResult = z.infer<typeof captureStartResultSchema>;
+
+export const captureStopPayloadSchema = z.object({ meetingId: audioSessionIdSchema });
+
+const channelSummarySchema = z.object({
+  chunks: z.number().int().nonnegative(),
+  durationMs: z.number().int().nonnegative(),
+});
+export const captureStopResultSchema = z.object({
+  durationMs: z.number().int().nonnegative(),
+  channels: z.object({
+    mic: channelSummarySchema.optional(),
+    system: channelSummarySchema.optional(),
+  }),
+});
+export type CaptureStopResult = z.infer<typeof captureStopResultSchema>;
+
+export const captureChunkPayloadSchema = z.object({
+  meetingId: audioSessionIdSchema,
+  channel: meetingChannelSchema,
+  seq: z.number().int().positive(),
+  path: z.string().min(1),
+  sha256: z.string().regex(/^[0-9a-f]{64}$/),
+  bytes: z.number().int().nonnegative(),
+  /** Where the chunk starts on the meeting's timeline. */
+  startMs: z.number().int().nonnegative(),
+  durationMs: z.number().int().nonnegative(),
+});
+export type CaptureChunk = z.infer<typeof captureChunkPayloadSchema>;
+
+export const captureLevelPayloadSchema = z.object({
+  meetingId: audioSessionIdSchema,
+  channel: meetingChannelSchema,
+  rmsDb: z.number(),
+});
+export type CaptureLevel = z.infer<typeof captureLevelPayloadSchema>;
+
+export const captureErrorPayloadSchema = z.object({
+  meetingId: audioSessionIdSchema,
+  channel: meetingChannelSchema,
+  code: z.enum(CAPTURE_ISSUES),
+});
+export type CaptureError = z.infer<typeof captureErrorPayloadSchema>;
+
+// ------------------------------------------------------------------- meetings
+
+export const MEETING_STATUSES = ["recording", "queued", "processing", "ready", "failed"] as const;
+export type MeetingStatus = (typeof MEETING_STATUSES)[number];
+
+export const MEETING_SOURCES = ["recorded", "imported", "ad_hoc", "calendar"] as const;
+export type MeetingSource = (typeof MEETING_SOURCES)[number];
+
+export interface Meeting {
+  id: string;
+  title: string;
+  startedAt: number;
+  endedAt: number | null;
+  source: MeetingSource;
+  status: MeetingStatus;
+  /** Channels recorded, in order. */
+  channels: MeetingChannel[];
+  /** Warnings shown on the meeting: missing system sound, a lost device. */
+  warnings: MeetingWarning[];
+  durationMs: number;
+  audioDeletedAt: number | null;
+}
+
+export interface AudioChunkRow {
+  meetingId: string;
+  channel: MeetingChannel;
+  seq: number;
+  path: string;
+  sha256: string;
+  bytes: number;
+  startMs: number;
+  durationMs: number;
+}
+
+/** What a meeting can be marked with: a channel problem, or a recording cut short. */
+export type MeetingWarning = CaptureWarning | CaptureIssue | "interrupted";
+
+/** What the Notetaker shows about the recording now. */
+export type RecordingState =
+  | { status: "idle" }
+  | { status: "starting" }
+  | {
+      status: "recording";
+      meetingId: string;
+      title: string;
+      startedAt: number;
+      channels: MeetingChannel[];
+      warnings: MeetingWarning[];
+    }
+  | { status: "stopping"; meetingId: string };
+
+export const MEETING_WARNING_TEXT: Record<MeetingWarning, string> = {
+  system_permission:
+    "Only your microphone was recorded. Allow Screen Recording for Murmur to record the other people too.",
+  system_unavailable: "Only your microphone was recorded: the Mac's sound could not be captured.",
+  device_lost: "The microphone changed during the meeting; recording went on with the default one.",
+  sck_stream_stopped: "Recording the Mac's sound stopped part way; your microphone kept recording.",
+  write_failed: "Part of the recording could not be saved.",
+  interrupted: "The recording stopped unexpectedly. What was saved before then is kept.",
+};
+
+/** "Meeting, 21 Nov 2026 14:05" in the local time zone (NT-03). */
+export function defaultMeetingTitle(at: number, locale?: string): string {
+  const date = new Date(at);
+  const day = date.toLocaleDateString(locale, { day: "numeric", month: "short", year: "numeric" });
+  const time = date.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+  return `Meeting, ${day} ${time}`;
+}
+
+/** 0:07, 12:30, 1:02:03. */
+export function formatElapsed(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = String(total % 60).padStart(2, "0");
+  return hours > 0
+    ? `${hours}:${String(minutes).padStart(2, "0")}:${seconds}`
+    : `${minutes}:${seconds}`;
+}
+
+// ------------------------------------------------------------------- settings
+
+/**
+ * Notetaker settings (`notetaker.settings`). Fields added after the first release carry a
+ * default, so a value stored by an older build still reads.
+ */
+export const notetakerSettingsSchema = z.strictObject({
+  /** NT-04: record the Mac's sound as well as the microphone. */
+  captureSystem: z.boolean(),
+  /** NT-04: length of each audio chunk file. */
+  chunkSeconds: z.number().int().min(5).max(120),
+});
+export type NotetakerSettings = z.infer<typeof notetakerSettingsSchema>;
+
+export const DEFAULT_NOTETAKER: NotetakerSettings = {
+  captureSystem: true,
+  chunkSeconds: 30,
+};

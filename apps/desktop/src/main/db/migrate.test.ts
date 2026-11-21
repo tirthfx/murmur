@@ -39,6 +39,8 @@ describe("migrations", () => {
       "instruct_history",
       "instruct_threads",
       "learn_candidates",
+      "meeting_audio_chunks",
+      "meetings",
       "memory_items",
       "milestones",
       "note_images",

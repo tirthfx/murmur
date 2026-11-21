@@ -44,6 +44,26 @@ describe("Bar pill", () => {
     });
   }
 
+  it("shows a meeting being recorded: the time while idle, the dot in every state", () => {
+    const meeting = { startedAt: now - 125_000 };
+    const { container, rerender } = render(
+      <BarPill view={view("idle", { meeting })} level={null} now={now} />,
+    );
+    expect(container.querySelector(".bar-text")?.textContent).toBe("Meeting");
+    expect(container.querySelector(".bar-time")?.textContent).toBe(elapsed(meeting.startedAt, now));
+    expect(screen.getByRole("img", { name: "Recording a meeting" })).toBeTruthy();
+    rerender(
+      <BarPill
+        view={view("listening", { startedAt: now - 3_000, meeting })}
+        level={null}
+        now={now}
+      />,
+    );
+    expect(container.querySelector(".bar-text")?.textContent).toBe("Listening");
+    expect(container.querySelector(".bar-time")?.textContent).toBe(elapsed(now - 3_000, now));
+    expect(screen.getByRole("img", { name: "Recording a meeting" })).toBeTruthy();
+  });
+
   it("asks with Save and Dismiss, and the buttons do not start a drag", () => {
     const onAnswer = vi.fn();
     const onPointerDown = vi.fn();

@@ -58,6 +58,9 @@ let audioDirectory: URL = {
 let audio = AudioCaptureController(
     source: fixtureClip.map { FileAudioSource(url: $0) as any AudioInputSource } ?? EngineAudioSource(),
     permissions: permissions, directory: audioDirectory, emit: output.send)
+let meeting = MeetingCaptureController(
+    mic: MicChannelSource(), system: SystemAudioSource(), permissions: permissions, encoder: AACChunkEncoder(),
+    emit: output.send)
 let speech = TranscriptionController(recognizer: WhisperKitRecognizer(), reply: output.send)
 let pasteboard = SystemPasteboard()
 let insertion = InsertionController(
@@ -78,6 +81,7 @@ func finish(status: Int32, _ message: String) -> Never {
     Log.info(message)
     hotkeys.stop()
     audio.shutdown()
+    meeting.shutdown()
     output.flush()
     exit(status)
 }
@@ -99,6 +103,7 @@ var host = HelperHost(
         keys: KeysController(keys: keyPoster, permissions: permissions, frontmostBundleId: { Frontmost.bundleId() }),
         focus: FocusWatchController(source: SystemAppsSource(), emit: output.send),
         inspector: AXInspectController(source: SystemInspectSource(), permissions: permissions),
+        meeting: meeting,
         uptimeMs: HostInfo.uptimeProvider()))
 Log.info("started, helper \(ProtocolConstants.helperVersion), protocol \(ProtocolConstants.protocolVersion)")
 output.send(host.greeting())

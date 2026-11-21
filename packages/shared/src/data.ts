@@ -60,6 +60,7 @@ export const DELETE_CATEGORIES = [
   "instruct",
   "insights",
   "learnedCandidates",
+  "meetings",
 ] as const;
 export type DeleteCategory = (typeof DELETE_CATEGORIES)[number];
 
@@ -75,6 +76,7 @@ export const DELETE_LABELS: Record<DeleteCategory, string> = {
   instruct: "Instruct threads",
   insights: "Insights and milestones",
   learnedCandidates: "Learned word suggestions",
+  meetings: "Meetings and their recordings",
 };
 
 export const dataCountsSchema = z.strictObject({

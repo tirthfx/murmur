@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { DELETE_CATEGORIES } from "@murmur/shared";
 import { openDatabase } from "../db/database";
 import { createHistoryStore } from "../history/history-store";
+import { createMeetingsStore } from "../meetings/meetings-store";
 import { createNotesStore } from "../notes/notes-store";
 import type { DictationRecord } from "../recorder";
 import { createDataDeleter } from "./data-delete";
@@ -51,8 +52,30 @@ function setup() {
     "INSERT INTO snippets (id, trigger_phrase, body, body_format, use_count, created_at, updated_at) VALUES ('s', 'addr', 'x', 'plain', 0, 1, 1)",
   ).run();
   createNotesStore(db).create("note");
-  const deleter = createDataDeleter({ db, history, notesRoot, audioRoot, clipsRoot: null });
-  return { db, deleter, file, notesRoot };
+  const meetingsRoot = path.join(dir, "meetings");
+  mkdirSync(path.join(meetingsRoot, "m1"), { recursive: true });
+  writeFileSync(path.join(meetingsRoot, "m1", "mic-000001.m4a"), "aac");
+  const meetings = createMeetingsStore(db);
+  meetings.create({ id: "m1", title: "Sync", startedAt: 1, source: "ad_hoc", folder: "m1" });
+  meetings.addChunk({
+    meetingId: "m1",
+    channel: "mic",
+    seq: 1,
+    path: path.join(meetingsRoot, "m1", "mic-000001.m4a"),
+    sha256: "a".repeat(64),
+    bytes: 3,
+    startMs: 0,
+    durationMs: 1000,
+  });
+  const deleter = createDataDeleter({
+    db,
+    history,
+    notesRoot,
+    audioRoot,
+    clipsRoot: null,
+    meetingsRoot,
+  });
+  return { db, deleter, file, notesRoot, meetingsRoot };
 }
 
 const rows = (db: ReturnType<typeof openDatabase>, table: string) =>
@@ -83,6 +106,18 @@ describe("delete by category (HB-47)", () => {
     expect(existsSync(path.join(notesRoot, "n1"))).toBe(false);
   });
 
+  it("deletes meetings with their chunk rows and audio files", () => {
+    const { db, deleter, meetingsRoot } = setup();
+    expect(deleter.counts().categories.find((item) => item.category === "meetings")).toMatchObject({
+      count: 1,
+      bytes: 3,
+    });
+    expect(deleter.delete("meetings")).toMatchObject({ rows: 1, files: 1 });
+    expect(rows(db, "meetings")).toBe(0);
+    expect(rows(db, "meeting_audio_chunks")).toBe(0);
+    expect(existsSync(path.join(meetingsRoot, "m1"))).toBe(false);
+  });
+
   it("deletes recordings but keeps the dictations", () => {
     const { db, deleter, file } = setup();
     deleter.delete("audio");
@@ -104,6 +139,7 @@ describe("delete by category (HB-47)", () => {
       "memory_items",
       "settings",
       "insights_daily",
+      "meetings",
     ]) {
       expect(rows(db, table), table).toBe(0);
     }

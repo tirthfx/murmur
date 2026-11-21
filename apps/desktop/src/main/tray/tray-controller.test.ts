@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { DEFAULT_SOUNDS, type AudioDevice, type Settings } from "@murmur/shared";
+import {
+  DEFAULT_NOTETAKER,
+  DEFAULT_SOUNDS,
+  type AudioDevice,
+  type RecordingState,
+  type Settings,
+} from "@murmur/shared";
 import { FakeClock, createTestLogger } from "../helper/fakes";
 import { createTrayController, WARNING_MS, type TrayView } from "./tray-controller";
 import type { TrayItem } from "./tray-menu";
@@ -50,6 +56,7 @@ function setup() {
     devMode: { enabled: false, disableCleanup: false, forceTyped: false, disableContext: false },
     help: { tours: {} },
     referral: { code: "ABCD2345", invites: 0 },
+    notetaker: DEFAULT_NOTETAKER,
     contextAwareness: true,
     mouseButtons: { hold: null, handsFree: null },
     typingReminder: { enabled: true, snoozedUntil: null },
@@ -110,6 +117,60 @@ function setup() {
     items.flatMap((item) => (item.kind === "item" ? [item.label] : []));
   return { controller, views, clock, state, deps, labels, settings: () => settings };
 }
+
+describe("tray meeting recording", () => {
+  it("starts a meeting, then shows its time with a way to stop it", () => {
+    let meeting: RecordingState = { status: "idle" };
+    const startMeeting = vi.fn();
+    const stopMeeting = vi.fn();
+    const clock = new FakeClock();
+    const views: TrayView[] = [];
+    const tray = createTrayController({
+      host: { render: (view) => views.push(view) },
+      clock,
+      logger: createTestLogger(),
+      settings: () => setup().settings(),
+      updateSettings: () => {},
+      listDevices: async () => [],
+      lastTranscript: () => null,
+      toggleDictation: () => {},
+      canRetry: () => false,
+      retryLast: () => {},
+      snoozeReminder: () => {},
+      copy: () => {},
+      quit: () => {},
+      meetingState: () => meeting,
+      startMeeting,
+      stopMeeting,
+    });
+    const find = (label: string) =>
+      tray.view().items.find((item) => item.kind === "item" && item.label === label);
+    const start = find("Record a meeting");
+    expect(start).toMatchObject({ enabled: true, action: { type: "meeting-start" } });
+    tray.perform({ type: "meeting-start" });
+    expect(startMeeting).toHaveBeenCalledOnce();
+
+    meeting = {
+      status: "recording",
+      meetingId: "m",
+      title: "Meeting",
+      startedAt: clock.now() - 125_000,
+      channels: ["mic", "system"],
+      warnings: [],
+    };
+    const view = tray.view();
+    expect(view.status).toBe("meeting");
+    expect(view.elapsed).toBe("2:05");
+    expect(view.tooltip).toBe("Murmur: recording a meeting");
+    expect(find("Recording a meeting: 2:05")).toMatchObject({ enabled: false });
+    expect(find("Stop recording the meeting")).toMatchObject({ action: { type: "meeting-stop" } });
+    tray.perform({ type: "meeting-stop" });
+    expect(stopMeeting).toHaveBeenCalledOnce();
+
+    meeting = { status: "starting" };
+    expect(find("Record a meeting")).toMatchObject({ enabled: false });
+  });
+});
 
 describe("tray controller", () => {
   it("follows a dictation: label and status", () => {

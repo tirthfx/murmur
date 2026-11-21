@@ -4,6 +4,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -46,6 +47,7 @@ import {
   DEFAULT_PRIVACY,
   DEFAULT_PLAN_STATE,
   DEFAULT_DEVELOPER,
+  DEFAULT_NOTETAKER,
   referralCode,
   type TestingTool,
   type TestingToolResult,
@@ -127,6 +129,8 @@ import { createPlanController } from "./plans/plan-controller";
 import { diagnosticsReport } from "./testing/diagnostics";
 import { writeExport } from "./privacy/data-export";
 import { createNotesStore } from "./notes/notes-store";
+import { createMeetingsStore } from "./meetings/meetings-store";
+import { createMeetingRecorder } from "./meetings/meeting-recorder";
 import { createNoteImages, type ImageEncoder } from "./notes/note-images";
 import {
   noteFileName,
@@ -624,6 +628,7 @@ const dataDeleter =
         notesRoot: path.join(profile.appData, "Murmur", "notes"),
         audioRoot: path.join(profile.appData, "Murmur", "audio"),
         clipsRoot: path.join(profile.appData, "Murmur", "clips"),
+        meetingsRoot: path.join(profile.appData, "Murmur", "meetings"),
       })
     : null;
 
@@ -651,6 +656,7 @@ const settingsStore = createSettingsStore(database, {
   devMode: DEFAULT_DEVELOPER,
   help: { tours: {} },
   referral: { code: "", invites: 0 },
+  notetaker: DEFAULT_NOTETAKER,
   plan: DEFAULT_PLAN,
   inputDevice: "auto",
   languages: [],
@@ -777,13 +783,15 @@ const barWindow = new BarWindow({
 });
 /** Focus Mode's time left, drawn on the idle Bar (RW-18). */
 let focusBadge: BarView["focus"] = null;
+/** A meeting being recorded, drawn on the Bar in every state (NT-04). */
+let meetingBadge: BarView["meeting"] = null;
 /** The dictation state the Hub shows (HB-03), following the Bar. */
 let hubDictationState: DictationState = "idle";
 /** The Hub's web contents for pushed events; set when the Hub opens (it may not exist yet). */
 let hubEvents: Electron.WebContents | null = null;
 const barPort = {
   render: (view: BarView) => {
-    barWindow.render({ ...view, focus: focusBadge });
+    barWindow.render({ ...view, focus: focusBadge, meeting: meetingBadge });
     const state = dictationStateOf(view.state);
     if (state === hubDictationState) return;
     hubDictationState = state;
@@ -1571,6 +1579,62 @@ helper.onEditsChanged((change) => {
   if (learned) console.log(`[dictionary] learned a ${learned.kind} from a correction`);
 });
 
+// NT-04: meeting recordings. The helper writes the chunk files; main keeps the rows.
+const meetingsStore = database ? createMeetingsStore(database) : null;
+let meetingTick: ReturnType<typeof setInterval> | null = null;
+const meetings = meetingsStore
+  ? createMeetingRecorder({
+      helper,
+      store: meetingsStore,
+      meetingsDir: path.join(profile.appData, "Murmur", "meetings"),
+      now: () => Date.now(),
+      newId: randomUUID,
+      options: () => {
+        const settings = settingsStore.get();
+        return {
+          captureSystem: settings.notetaker.captureSystem,
+          chunkSeconds: settings.notetaker.chunkSeconds,
+          micDeviceId: settings.inputDevice === "auto" ? null : settings.inputDevice,
+        };
+      },
+      onState: (state) => {
+        // The menu bar shows the time while recording, so it is redrawn every second.
+        if (state.status === "recording" && meetingTick === null) {
+          meetingTick = setInterval(() => tray?.refresh(), 1000);
+        } else if (state.status !== "recording" && meetingTick !== null) {
+          clearInterval(meetingTick);
+          meetingTick = null;
+        }
+        meetingBadge = state.status === "recording" ? { startedAt: state.startedAt } : null;
+        barPort.render(bar.getView());
+        tray?.refresh();
+      },
+      removePartials: (folder) => {
+        try {
+          for (const name of readdirSync(folder)) {
+            if (name.includes(".partial.")) rmSync(path.join(folder, name), { force: true });
+          }
+        } catch {
+          // The folder is gone: nothing to tidy.
+        }
+      },
+      logger: createConsoleLogger("[meetings]"),
+    })
+  : null;
+const interruptedMeetings = meetings?.recover() ?? 0;
+if (interruptedMeetings > 0) {
+  console.log(`[meetings] ended ${interruptedMeetings} recording(s) cut short by a crash`);
+}
+helper.onStatusChange((status) => {
+  if (status.state !== "ready") meetings?.helperDown();
+});
+
+async function startMeeting(): Promise<void> {
+  if (!meetings) return;
+  const result = await meetings.start();
+  if (!result.ok) console.warn(`[meetings] ${result.message}`);
+}
+
 // The menu bar item. Created once the app is ready; it works with the Hub closed.
 let tray: TrayController | null = null;
 function createTray(): void {
@@ -1592,6 +1656,13 @@ function createTray(): void {
     focusState: () => focus.state(),
     startFocus: (duration) => focus.start(duration),
     stopFocus: () => focus.stop("user"),
+    ...(meetings
+      ? {
+          meetingState: () => meetings.state(),
+          startMeeting: () => void startMeeting(),
+          stopMeeting: () => void meetings.stop(),
+        }
+      : {}),
   });
   tray = controller;
   controller.refresh();
@@ -2621,7 +2692,11 @@ app.on("before-quit", (event) => {
   if (helperStopped) return;
   event.preventDefault();
   helperStopped = true;
-  void helper.shutdown("app-quit").finally(() => app.quit());
+  // A meeting being recorded is closed first, so its last chunk is stored.
+  void (meetings?.stop() ?? Promise.resolve(null))
+    .catch(() => null)
+    .then(() => helper.shutdown("app-quit"))
+    .finally(() => app.quit());
 });
 
 // Last resort if main exits without going through a clean quit.

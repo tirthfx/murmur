@@ -8,6 +8,7 @@ const DOT: Record<TrayStatus, string> = {
   idle: "",
   listening: "\u001b[31m●",
   warning: "\u001b[33m●",
+  meeting: "\u001b[31m●",
 };
 
 function template(
@@ -52,7 +53,9 @@ export function createElectronTray(perform: (action: TrayAction) => void): Elect
     render(view: TrayView) {
       tray.setContextMenu(Menu.buildFromTemplate(template(view.items, perform)));
       tray.setToolTip(view.tooltip);
-      if (process.platform === "darwin") tray.setTitle(DOT[view.status]);
+      if (process.platform === "darwin") {
+        tray.setTitle(view.elapsed ? `${DOT[view.status]} ${view.elapsed}` : DOT[view.status]);
+      }
     },
     onHover(handler) {
       tray.on("mouse-enter", handler);
