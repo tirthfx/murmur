@@ -28,6 +28,8 @@ export interface ConnectorProvider {
   authorizeParams?: Readonly<Record<string, string>>;
   /** A fixed loopback port for providers that need an exact redirect address; null picks one. */
   loopbackPort: number | null;
+  /** `localhost` for providers that register that name for a loopback redirect. Default `127.0.0.1`. */
+  redirectHost?: "127.0.0.1" | "localhost";
   /** The path of the redirect address. Default `/callback`. */
   callbackPath?: string;
   /** The provider wants a client secret even with PKCE. It is kept in the Keychain. */

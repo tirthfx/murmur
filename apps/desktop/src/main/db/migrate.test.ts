@@ -40,6 +40,7 @@ describe("migrations", () => {
       "ask_messages",
       "ask_threads",
       "audio_chunks",
+      "calendar_events",
       "command_runs",
       "connector_accounts",
       "connector_cache",

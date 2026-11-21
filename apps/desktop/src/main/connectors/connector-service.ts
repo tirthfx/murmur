@@ -130,6 +130,23 @@ export interface ConnectorServiceDeps {
   refreshAheadMs?: number;
 }
 
+/** The provider's own reason for refusing, from an OAuth error body, in one short line; or null. */
+async function providerError(response: Response): Promise<string | null> {
+  try {
+    const body = (await response.json()) as { error?: unknown; error_description?: unknown };
+    const text =
+      typeof body.error_description === "string" && body.error_description !== ""
+        ? body.error_description
+        : typeof body.error === "string"
+          ? body.error
+          : "";
+    const line = text.replace(/\s+/g, " ").trim().slice(0, 300);
+    return line === "" ? null : line;
+  } catch {
+    return null;
+  }
+}
+
 const form = (values: Record<string, string>) => new URLSearchParams(values).toString();
 
 const FORM_HEADERS = {
@@ -349,7 +366,11 @@ export function createConnectorService(deps: ConnectorServiceDeps): ConnectorSer
       const path = provider.callbackPath ?? "/callback";
       let loopback: Loopback;
       try {
-        loopback = await startLoopback({ port: provider.loopbackPort ?? 0, path });
+        loopback = await startLoopback({
+          port: provider.loopbackPort ?? 0,
+          path,
+          ...(provider.redirectHost ? { redirectHost: provider.redirectHost } : {}),
+        });
       } catch (error) {
         return { ok: false, reason: "failed", message: (error as Error).message };
       }
@@ -401,12 +422,16 @@ export function createConnectorService(deps: ConnectorServiceDeps): ConnectorSer
             message: `Murmur could not reach ${provider.name}.`,
           };
         }
-        if (!response.ok)
+        if (!response.ok) {
+          const detail = await providerError(response);
           return {
             ok: false,
             reason: "failed",
-            message: `${provider.name} did not accept the sign-in code (${response.status}).`,
+            message: detail
+              ? `${provider.name} did not accept the sign-in: ${detail}`
+              : `${provider.name} did not accept the sign-in code (${response.status}).`,
           };
+        }
         const token = await parseToken(response);
         if (!token)
           return {

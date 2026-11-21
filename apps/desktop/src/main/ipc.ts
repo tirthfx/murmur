@@ -202,6 +202,7 @@ export interface IpcDeps {
   connectorCancel: (id: string) => void;
   connectorDisconnect: (accountId: string) => Promise<ConnectorActionResult>;
   connectorSetEnabled: (accountId: string, enabled: boolean) => void;
+  connectorSync: (accountId: string) => Promise<ConnectorActionResult>;
   connectorSetClientId: (id: string, clientId: string | null) => Promise<ConnectorActionResult>;
   connectorSetClientSecret: (id: string, secret: string | null) => Promise<ConnectorActionResult>;
   meetingMove: (meetingId: string, folderId: string | null) => FolderResult;
@@ -673,6 +674,8 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.folderChooseExport(request.args[0] as string);
       case IPC_CHANNELS.folderClearExport:
         return deps.folderClearExport(request.args[0] as string);
+      case IPC_CHANNELS.connectorSync:
+        return deps.connectorSync(request.args[0] as string);
       case IPC_CHANNELS.mcpStatus:
         return deps.mcpStatus();
       case IPC_CHANNELS.mcpClients:

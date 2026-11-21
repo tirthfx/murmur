@@ -163,6 +163,10 @@ import { createMcpService } from "./mcp/mcp-service";
 import { createMcpSetup } from "./mcp/mcp-setup";
 import { createHelperKeychain } from "./connectors/helper-keychain";
 import { createConnectorRegistry } from "./connectors/providers";
+import { createCalendarStore } from "./connectors/calendar/calendar-store";
+import { createCalendarSync } from "./connectors/calendar/calendar-sync";
+import { googleCalendarProvider } from "./connectors/calendar/google-calendar";
+import { outlookCalendarProvider } from "./connectors/calendar/outlook-calendar";
 import { createAskIndex } from "./meetings/ask-index";
 import { createAutoExport } from "./meetings/auto-export";
 import { createDictationWindows } from "./meetings/dictation-windows";
@@ -1747,7 +1751,10 @@ const connectorConfig = createConnectorConfig({
   },
   keychain: connectorKeychain,
 });
-const connectorRegistry = createConnectorRegistry([]);
+const connectorRegistry = createConnectorRegistry([
+  googleCalendarProvider,
+  outlookCalendarProvider,
+]);
 const connectorService = connectorStore
   ? createConnectorService({
       registry: connectorRegistry,
@@ -1774,6 +1781,21 @@ const connectorService = connectorStore
     })
   : null;
 connectorStore?.cachePrune(Date.now());
+// CN-02, CN-03: the events of the days around now, read from the providers every 15 minutes
+// (or as the owner chose) and kept on this Mac.
+const calendarStore = database ? createCalendarStore(database) : null;
+const calendarSync =
+  connectorService && connectorStore && calendarStore
+    ? createCalendarSync({
+        connectors: connectorService,
+        connectorStore,
+        store: calendarStore,
+        settings: () => settingsStore.get().connectors,
+        now: Date.now,
+        logger: createConsoleLogger("[calendar]"),
+      })
+    : null;
+calendarSync?.start();
 /** A folder call's result: the folders as they are now, or why it did not work. */
 function folderResult(
   outcome: { ok: true; id: string } | { ok: false; message: string } | undefined,
@@ -3157,6 +3179,7 @@ function registerIpc(): void {
     connectorConnect: async (id, loginHint) => {
       if (!connectorService) return { ok: false, message: "Connectors are not available." };
       const outcome = await connectorService.connect(id, loginHint ? { loginHint } : {});
+      if (outcome.ok) void calendarSync?.syncAccount(outcome.account.id);
       return outcome.ok
         ? { ok: true, message: `Connected ${outcome.account.email}.` }
         : { ok: false, message: outcome.message };
@@ -3181,6 +3204,13 @@ function registerIpc(): void {
       }
     },
     connectorSetEnabled: (accountId, enabled) => connectorService?.setEnabled(accountId, enabled),
+    connectorSync: async (accountId) => {
+      const result = await (calendarSync?.syncAccount(accountId) ??
+        Promise.resolve({ ok: false as const, message: "Calendars are not available." }));
+      return result.ok
+        ? { ok: true, message: `Read ${result.count} ${result.count === 1 ? "event" : "events"}.` }
+        : result;
+    },
     connectorSetClientId: async (id, clientId) => {
       if (!CONNECTOR_CATALOGUE.some((entry) => entry.id === id))
         return { ok: false, message: "That connector is not known." };
@@ -3929,6 +3959,7 @@ let helperStopped = false;
 app.on("before-quit", (event) => {
   void hubState.flush();
   void mcpService?.stop();
+  calendarSync?.stop();
   focus.quit();
   focusOverlay.close();
   if (helperStopped) return;

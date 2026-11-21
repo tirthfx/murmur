@@ -185,6 +185,7 @@ const api: MurmurApi = {
   folderChooseExport: (id) => ipcRenderer.invoke(IPC_CHANNELS.folderChooseExport, id),
   folderClearExport: (id) => ipcRenderer.invoke(IPC_CHANNELS.folderClearExport, id),
   connectorsView: () => ipcRenderer.invoke(IPC_CHANNELS.connectorsView),
+  connectorSync: (accountId) => ipcRenderer.invoke(IPC_CHANNELS.connectorSync, accountId),
   mcpStatus: () => ipcRenderer.invoke(IPC_CHANNELS.mcpStatus),
   mcpClients: () => ipcRenderer.invoke(IPC_CHANNELS.mcpClients),
   mcpIssue: (name, kind) => ipcRenderer.invoke(IPC_CHANNELS.mcpIssue, name, kind),

@@ -88,6 +88,7 @@ function setup() {
     folderChooseExport: vi.fn(),
     folderClearExport: vi.fn(),
     connectorsView: vi.fn(),
+    connectorSync: vi.fn(),
     mcpStatus: vi.fn(),
     mcpClients: vi.fn(),
     mcpIssue: vi.fn(),

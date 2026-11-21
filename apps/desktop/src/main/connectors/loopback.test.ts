@@ -41,6 +41,29 @@ describe("loopback redirect listener (CN-01)", () => {
     await expect(second).resolves.toMatchObject({ ok: false, reason: "denied" });
   });
 
+  it("gives the provider's own reason when it sends one, such as an administrator's consent", async () => {
+    const loopback = await startLoopback({ port: 0, path: "/callback" });
+    const result = loopback.wait("s");
+    await get(
+      `${loopback.redirectUri}?error=access_denied&state=s&error_description=${encodeURIComponent("AADSTS90094: The grant requires administrator permission.")}`,
+    );
+    await expect(result).resolves.toEqual({
+      ok: false,
+      reason: "denied",
+      message:
+        "The provider refused the sign-in: AADSTS90094: The grant requires administrator permission.",
+    });
+  });
+
+  it("can name localhost in the redirect while it listens on 127.0.0.1", async () => {
+    const loopback = await startLoopback({ port: 0, path: "/callback", redirectHost: "localhost" });
+    expect(loopback.redirectUri).toMatch(/^http:\/\/localhost:\d+\/callback$/);
+    const result = loopback.wait("s");
+    const port = new URL(loopback.redirectUri).port;
+    await get(`http://127.0.0.1:${port}/callback?code=c&state=s`);
+    await expect(result).resolves.toEqual({ ok: true, code: "c" });
+  });
+
   it("ignores other paths and methods while it waits", async () => {
     const loopback = await startLoopback({ port: 0, path: "/callback" });
     const origin = new URL(loopback.redirectUri).origin;

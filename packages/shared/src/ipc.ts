@@ -458,6 +458,7 @@ export const IPC_CHANNELS = {
   connectorSetEnabled: "connectors:set-enabled",
   connectorSetClientId: "connectors:set-client-id",
   connectorSetClientSecret: "connectors:set-client-secret",
+  connectorSync: "connectors:sync",
   mcpStatus: "mcp:status",
   mcpClients: "mcp:clients",
   mcpIssue: "mcp:issue",
@@ -1028,6 +1029,10 @@ export const IPC_CONTRACT = {
     args: z.tuple([z.string().min(1).max(64), z.string().max(300).nullable()]),
     result: z.custom<ConnectorActionResult>(),
   },
+  [IPC_CHANNELS.connectorSync]: {
+    args: z.tuple([z.string().min(1).max(64)]),
+    result: z.custom<ConnectorActionResult>(),
+  },
   [IPC_CHANNELS.mcpStatus]: { args: z.tuple([]), result: z.custom<McpStatus>() },
   [IPC_CHANNELS.mcpClients]: { args: z.tuple([]), result: z.custom<McpClientsView>() },
   [IPC_CHANNELS.mcpIssue]: {
@@ -1436,6 +1441,8 @@ export interface MurmurApi {
   connectorSetClientId(id: string, clientId: string | null): Promise<ConnectorActionResult>;
   /** The client secret goes to the Keychain and is never sent back; null removes it. */
   connectorSetClientSecret(id: string, secret: string | null): Promise<ConnectorActionResult>;
+  /** CN-02, CN-03: reads a calendar account's events now. */
+  connectorSync(accountId: string): Promise<ConnectorActionResult>;
   /** CN-11: whether the local MCP server is listening, and where, once a change of setting has been applied. Its switches are in settings. */
   mcpStatus(): Promise<McpStatus>;
   /** The apps the owner approved. Tokens are never in it. */

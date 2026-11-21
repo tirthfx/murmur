@@ -227,6 +227,34 @@ describe("Connectors page (CN-15)", () => {
     expect((await card("Google Calendar")).getAllByText("Needs attention")).toHaveLength(2);
   });
 
+  it("reads a calendar account now, and says how many events it found", async () => {
+    show(viewOf({ googleCalendar: { readiness: "ready", accounts: [account()] } }));
+    api.connectorSync = vi.fn().mockResolvedValue({ ok: true, message: "Read 12 events." });
+    render(<ConnectorsPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Read me@example.com now" }));
+    await waitFor(() => expect(api.connectorSync).toHaveBeenCalledWith("a1"));
+    expect(await screen.findByText("Read 12 events.")).toBeTruthy();
+  });
+
+  it("says why a calendar could not be read, and has no Read now for a connector that is not a calendar", async () => {
+    show(
+      viewOf({
+        googleCalendar: { readiness: "ready", accounts: [account()] },
+        gmail: {
+          readiness: "ready",
+          accounts: [account({ id: "m1", connector: "gmail", email: "m@example.com" })],
+        },
+      }),
+    );
+    api.connectorSync = vi
+      .fn()
+      .mockResolvedValue({ ok: false, message: "Google Calendar answered 503." });
+    render(<ConnectorsPage />);
+    expect(await screen.findAllByRole("button", { name: /^Read .* now$/ })).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Read me@example.com now" }));
+    expect(await screen.findByText("Google Calendar answered 503.")).toBeTruthy();
+  });
+
   it("turns an account off and on", async () => {
     show(viewOf({ googleCalendar: { readiness: "ready", accounts: [account()] } }));
     render(<ConnectorsPage />);
