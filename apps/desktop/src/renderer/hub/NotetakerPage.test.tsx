@@ -42,6 +42,7 @@ function detail(overrides: Partial<MeetingDetail> = {}): MeetingDetail {
         speakerId: null,
         isDictated: false,
         isFinal: true,
+        edited: false,
       },
       {
         id: "s2",
@@ -54,6 +55,7 @@ function detail(overrides: Partial<MeetingDetail> = {}): MeetingDetail {
         speakerId: null,
         isDictated: false,
         isFinal: true,
+        edited: false,
       },
       {
         id: "s3",
@@ -66,6 +68,7 @@ function detail(overrides: Partial<MeetingDetail> = {}): MeetingDetail {
         speakerId: null,
         isDictated: true,
         isFinal: true,
+        edited: false,
       },
     ],
     live: [],
@@ -142,7 +145,7 @@ describe("Notetaker page", () => {
     }
     const transcript = screen.getByLabelText("Transcript", { selector: "div.hub-transcript" });
     const lines = [...transcript.querySelectorAll("p")].map((line) => line.textContent);
-    expect(lines).toEqual(["0:02YouShall we start?", "1:05RemoteYes, the roadmap first."]);
+    expect(lines).toEqual(["0:02YouShall we start?Edit", "1:05RemoteYes, the roadmap first.Edit"]);
   });
 
   it("shows grey live text and drops it when the chunk is final", async () => {
@@ -476,8 +479,8 @@ describe("Notetaker page", () => {
       const transcript = screen.getByLabelText("Transcript", { selector: "div.hub-transcript" });
       const lines = [...transcript.querySelectorAll("p")].map((line) => line.textContent);
       expect(lines).toEqual([
-        "0:02Priya (in room)Shall we start?",
-        "1:05DanaYes, the roadmap first.",
+        "0:02Priya (in room)Shall we start?Edit",
+        "1:05DanaYes, the roadmap first.Edit",
       ]);
       expect(screen.getByRole("button", { name: "Play a sample of Dana" })).toBeTruthy();
       expect(screen.getByText(/Priya \(in room\) and Dana/)).toBeTruthy();
@@ -518,6 +521,28 @@ describe("Notetaker page", () => {
       );
       const partial = document.querySelector(".hub-transcript-partial");
       expect(partial?.textContent).toContain("Dana");
+    });
+  });
+
+  describe("corrections (NT-24)", () => {
+    it("marks a corrected line, and opens the editor from Edit", async () => {
+      const base = detail();
+      window.murmur.meetingDetail = vi.fn().mockResolvedValue({
+        ...base,
+        segments: base.segments.map((segment, i) =>
+          i === 0 ? { ...segment, edited: true } : segment,
+        ),
+      });
+      await openMeeting();
+      await act(async () => screen.getByRole("tab", { name: "Transcript" }).click());
+      expect(screen.getByText("(edited)")).toBeTruthy();
+      await act(async () =>
+        screen.getByRole("button", { name: "Correct the line at 0:02" }).click(),
+      );
+      expect(screen.getByLabelText("Line")).toHaveProperty("value", "Shall we start?");
+      expect(window.murmur.meetingSegmentHistory).toHaveBeenCalledWith("m-1", "s1");
+      await act(async () => screen.getByRole("button", { name: "Close the editor" }).click());
+      expect(screen.queryByLabelText("Line")).toBeNull();
     });
   });
 });

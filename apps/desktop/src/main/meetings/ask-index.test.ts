@@ -10,7 +10,9 @@ import {
   taskPiece,
   transcriptPieces,
 } from "./ask-index";
+import { createCorrectionsStore } from "./corrections-store";
 import { createMeetingsStore } from "./meetings-store";
+import { createSpeakersStore } from "./speakers-store";
 import { createSummariesStore } from "./summaries-store";
 import { createTasksService } from "./tasks-service";
 
@@ -287,6 +289,30 @@ describe("index and search (NT-14)", () => {
     t.say("m-1", 9_000, "epsilon topic");
     expect(t.index.sync({ meetingIds: ["m-2"] })).toBe(0);
     expect(t.index.sync({ meetingIds: ["m-1"] })).toBe(1);
+  });
+
+  it("finds a corrected line at once, and the original again after a revert (NT-24)", () => {
+    const t = setup();
+    t.meeting("m-1", "One", 1_000);
+    t.say("m-1", 0, "We will ship the flow on Thursday.");
+    t.index.sync();
+    expect(t.index.search("Friday", {}, 5)).toEqual([]);
+    const corrections = createCorrectionsStore(t.db, {
+      now: () => 5,
+      speakers: createSpeakersStore(t.db, { now: () => 5 }),
+    });
+    corrections.apply("m-1", {
+      kind: "text",
+      segmentId: "m-1:s1",
+      text: "We will ship the flow on Friday.",
+    });
+    expect(t.index.sync()).toBe(1);
+    expect(t.index.search("Friday", {}, 5)).toHaveLength(1);
+    expect(t.index.search("Thursday", {}, 5)).toEqual([]);
+    corrections.revert("m-1", corrections.history("m-1", "m-1:s1")[0]!.id);
+    expect(t.index.sync()).toBe(1);
+    expect(t.index.search("Thursday", {}, 5)).toHaveLength(1);
+    expect(t.index.search("Friday", {}, 5)).toEqual([]);
   });
 
   it("forgets a meeting that is deleted", () => {

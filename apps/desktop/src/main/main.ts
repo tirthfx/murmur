@@ -145,6 +145,8 @@ import { createDetectionSync } from "./meetings/detection-sync";
 import { createMeetingJobs, type MeetingJobs } from "./meetings/meeting-jobs";
 import { createSkillsService } from "./meetings/skills-service";
 import { createAskIndex } from "./meetings/ask-index";
+import { suggestFromCorrection } from "./meetings/corrections-learn";
+import { createCorrectionsStore } from "./meetings/corrections-store";
 import { createSpeakerClip } from "./meetings/speaker-clip";
 import { createSpeakersStore } from "./meetings/speakers-store";
 import { AskError, createAskRunner } from "./meetings/ask-runner";
@@ -1734,6 +1736,11 @@ const speakerClip =
         },
       })
     : null;
+// NT-24: corrections to a transcript, each one kept so it can be taken back.
+const correctionsStore =
+  database && speakersStore
+    ? createCorrectionsStore(database, { now: Date.now, speakers: speakersStore })
+    : null;
 // NT-14: Ask across meetings. BM25 over pieces of the meetings, answered by the local model.
 const askStore = database ? createAskStore(database, { now: Date.now, newId: randomUUID }) : null;
 const askRunner =
@@ -2618,6 +2625,34 @@ function registerIpc(): void {
       const result = speakersStore?.rename(meetingId, speakerId, name) ?? {
         ok: false as const,
         message: "Speakers cannot be saved without the database.",
+      };
+      if (result.ok) notifyMeetings(meetingId);
+      return result;
+    },
+    meetingCorrect: (meetingId, correction) => {
+      if (!correctionsStore) return { ok: false, message: "Corrections need the database." };
+      const result = correctionsStore.apply(meetingId, correction);
+      if (!result.ok) return result;
+      if (result.changed) notifyMeetings(meetingId);
+      // Words the owner changes again and again are offered to the Dictionary, for review.
+      const settings = settingsStore.get();
+      const learned =
+        result.changed &&
+        result.before !== undefined &&
+        result.after !== undefined &&
+        learner &&
+        settings.learnCorrections &&
+        settings.notetaker.corrections.suggestDictionary
+          ? suggestFromCorrection(learner, result.before, result.after)
+          : null;
+      return { ok: true, segmentId: result.segmentId, changed: result.changed, learned };
+    },
+    meetingSegmentHistory: (meetingId, segmentId) =>
+      correctionsStore?.history(meetingId, segmentId) ?? [],
+    meetingCorrectionRevert: (meetingId, correctionId) => {
+      const result = correctionsStore?.revert(meetingId, correctionId) ?? {
+        ok: false as const,
+        message: "Corrections need the database.",
       };
       if (result.ok) notifyMeetings(meetingId);
       return result;

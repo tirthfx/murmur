@@ -565,6 +565,28 @@ export function SettingsSection({
             />
           </VStack>
         </Row>
+        <Row id="meeting-corrections">
+          <VStack gap={2}>
+            <Heading level={3}>Transcript corrections</Heading>
+            <Text size="sm" color="secondary">
+              Fix a line, its speaker, or split or join lines on the Transcript tab. The original is
+              kept until you take the change back. Summaries and Ask use the corrected words.
+            </Text>
+            <Switch
+              label="Offer words I change again and again to the Dictionary"
+              description="They are added for you to review on the Dictionary page. Needs “Learn from my corrections” in Personalization."
+              value={settings.notetaker.corrections.suggestDictionary}
+              onChange={(suggestDictionary) =>
+                update({
+                  notetaker: {
+                    ...settings.notetaker,
+                    corrections: { ...settings.notetaker.corrections, suggestDictionary },
+                  },
+                })
+              }
+            />
+          </VStack>
+        </Row>
         <Row id="instruct">
           <InstructSection view={view} onSaved={setView} update={update} />
         </Row>

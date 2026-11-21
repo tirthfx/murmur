@@ -8,10 +8,17 @@ import { migrateDown, migrateUp, orderMigrations, parseMigration, schemaVersion 
 
 function tables(db: DatabaseSync): string[] {
   return (
-    db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").all() as {
-      name: string;
-    }[]
-  ).map((row) => row.name);
+    // `sqlite_sequence` is SQLite's own table for AUTOINCREMENT; it stays after a table is dropped.
+    (
+      db
+        .prepare(
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND name != 'sqlite_sequence' ORDER BY name",
+        )
+        .all() as {
+        name: string;
+      }[]
+    ).map((row) => row.name)
+  );
 }
 
 describe("migrations", () => {
@@ -79,6 +86,7 @@ describe("migrations", () => {
       "snippets",
       "styles",
       "tasks",
+      "transcript_corrections",
       "voice_profiles",
       "voice_samples",
       "writing_samples",

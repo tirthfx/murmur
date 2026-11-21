@@ -14,6 +14,10 @@ import {
   type AskThread,
   type AskThreadItem,
   type MeetingFindTasksResult,
+  type Correction,
+  type CorrectionResult,
+  type RevertResult,
+  type SegmentHistoryItem,
   type SpeakerClipResult,
   type SpeakerRenameResult,
   type TaskAction,
@@ -154,6 +158,9 @@ export interface IpcDeps {
   askDelete: (id: string) => void;
   meetingSpeakerRename: (meetingId: string, speakerId: string, name: string) => SpeakerRenameResult;
   meetingSpeakerClip: (meetingId: string, speakerId: string) => SpeakerClipResult;
+  meetingCorrect: (meetingId: string, correction: Correction) => CorrectionResult;
+  meetingSegmentHistory: (meetingId: string, segmentId: string) => SegmentHistoryItem[];
+  meetingCorrectionRevert: (meetingId: string, correctionId: number) => RevertResult;
   meetingDelete: (id: string) => void;
   meetingNotesSave: (id: string, body: string) => boolean;
   meetingDocAddLink: (id: string, url: string, title: string) => MeetingDocResult;
@@ -595,6 +602,12 @@ export function createIpcHandler(deps: IpcDeps) {
         );
       case IPC_CHANNELS.meetingSpeakerClip:
         return deps.meetingSpeakerClip(request.args[0] as string, request.args[1] as string);
+      case IPC_CHANNELS.meetingCorrect:
+        return deps.meetingCorrect(request.args[0] as string, request.args[1] as Correction);
+      case IPC_CHANNELS.meetingSegmentHistory:
+        return deps.meetingSegmentHistory(request.args[0] as string, request.args[1] as string);
+      case IPC_CHANNELS.meetingCorrectionRevert:
+        return deps.meetingCorrectionRevert(request.args[0] as string, request.args[1] as number);
       case IPC_CHANNELS.askThreads:
         return deps.askThreads();
       case IPC_CHANNELS.askThread:
