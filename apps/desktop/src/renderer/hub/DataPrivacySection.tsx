@@ -34,6 +34,8 @@ const HISTORY_CHOICES = [
 const RETENTION_NAMES: Record<string, string> = {
   historyText: "dictations past their time",
   audio: "recordings",
+  meetingAudio: "meeting recordings",
+  meetingTranscripts: "meeting transcripts",
   instructThreads: "Instruct threads",
   learnedCandidates: "learned word suggestions",
   voiceSamples: "voice samples",

@@ -70,6 +70,7 @@ interface MeetingRow {
   translate: number;
   transcript_version: number;
   folder_id: string | null;
+  transcript_deleted_at: number | null;
 }
 
 interface ChunkRow {
@@ -84,7 +85,7 @@ interface ChunkRow {
 }
 
 const COLUMNS =
-  "id, title, started_at, ended_at, source, status, channels, warnings, duration_ms, audio_deleted_at, language, translate, transcript_version, folder_id";
+  "id, title, started_at, ended_at, source, status, channels, warnings, duration_ms, audio_deleted_at, language, translate, transcript_version, folder_id, transcript_deleted_at";
 
 function parseList<T>(text: string): T[] {
   try {
@@ -111,6 +112,7 @@ function toMeeting(row: MeetingRow): Meeting {
     translate: row.translate === 1,
     transcriptVersion: row.transcript_version,
     folderId: row.folder_id,
+    transcriptDeletedAt: row.transcript_deleted_at,
   };
 }
 

@@ -1,5 +1,12 @@
 import type { DatabaseSync } from "node:sqlite";
-import { FOLDER_NAME_MAX, INBOX, type FolderSuggestion, type MeetingFolder } from "@murmur/shared";
+import {
+  FOLDER_NAME_MAX,
+  INBOX,
+  type AudioRetention,
+  type FolderSuggestion,
+  type MeetingFolder,
+  type TranscriptRetention,
+} from "@murmur/shared";
 
 export type FolderOutcome = { ok: true; id: string } | { ok: false; message: string };
 
@@ -17,6 +24,11 @@ export interface FoldersStore {
   remove(id: string): void;
   setDefaultSkill(id: string, skillId: string | null): void;
   setAutoExport(id: string, path: string | null): void;
+  /** NT-22: a folder's own periods; null uses the ones in Settings. */
+  setRetention(
+    id: string,
+    retention: { audio?: AudioRetention | null; transcript?: TranscriptRetention | null },
+  ): void;
   /** Puts a meeting in a folder, or in the Inbox (null). */
   move(meetingId: string, folderId: string | null): FolderOutcome;
   folderOf(meetingId: string): string | null;
@@ -73,6 +85,8 @@ export function createFoldersStore(
     name: string;
     default_skill_id: string | null;
     auto_export_path: string | null;
+    retention_audio: AudioRetention | null;
+    retention_transcript: TranscriptRetention | null;
     meetings: number;
   }
   const toFolder = (row: Row): MeetingFolder => ({
@@ -81,8 +95,10 @@ export function createFoldersStore(
     meetings: row.meetings,
     defaultSkillId: row.default_skill_id,
     autoExportPath: row.auto_export_path,
+    retentionAudio: row.retention_audio,
+    retentionTranscript: row.retention_transcript,
   });
-  const SELECT = `SELECT f.id, f.name, f.default_skill_id, f.auto_export_path,
+  const SELECT = `SELECT f.id, f.name, f.default_skill_id, f.auto_export_path, f.retention_audio, f.retention_transcript,
       (SELECT COUNT(*) FROM meetings m WHERE m.folder_id = f.id) AS meetings FROM folders f`;
 
   const checkName = (
@@ -168,6 +184,21 @@ export function createFoldersStore(
         deps.now(),
         id,
       );
+    },
+
+    setRetention(id, retention) {
+      if (retention.audio !== undefined)
+        db.prepare("UPDATE folders SET retention_audio = ?, updated_at = ? WHERE id = ?").run(
+          retention.audio,
+          deps.now(),
+          id,
+        );
+      if (retention.transcript !== undefined)
+        db.prepare("UPDATE folders SET retention_transcript = ?, updated_at = ? WHERE id = ?").run(
+          retention.transcript,
+          deps.now(),
+          id,
+        );
     },
 
     setAutoExport(id, path) {

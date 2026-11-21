@@ -1,4 +1,10 @@
 import { z } from "zod";
+import {
+  AUDIO_RETENTION,
+  TRANSCRIPT_RETENTION,
+  type AudioRetention,
+  type TranscriptRetention,
+} from "./meeting-retention";
 
 /**
  * Folders for meetings (NT-17) and shareable files (NT-18). A meeting is in one folder or in the
@@ -18,6 +24,9 @@ export interface MeetingFolder {
   defaultSkillId: string | null;
   /** Where a file is written after each of its meetings is ready; null for nowhere. */
   autoExportPath: string | null;
+  /** NT-22: its own retention periods; null uses the ones in Settings. */
+  retentionAudio: AudioRetention | null;
+  retentionTranscript: TranscriptRetention | null;
 }
 
 export type FolderResult =
@@ -30,7 +39,9 @@ export interface FolderSuggestion {
 }
 
 export const folderPatchSchema = z.strictObject({
-  defaultSkillId: z.string().min(1).max(64).nullable(),
+  defaultSkillId: z.string().min(1).max(64).nullable().optional(),
+  retentionAudio: z.enum(AUDIO_RETENTION).nullable().optional(),
+  retentionTranscript: z.enum(TRANSCRIPT_RETENTION).nullable().optional(),
 });
 export type FolderPatch = z.infer<typeof folderPatchSchema>;
 

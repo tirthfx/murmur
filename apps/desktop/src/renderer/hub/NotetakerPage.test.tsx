@@ -28,6 +28,7 @@ const meeting: MeetingListItem = {
   translate: false,
   transcriptVersion: 1,
   folderId: null,
+  transcriptDeletedAt: null,
   progress: { chunks: 4, done: 4 },
 };
 
@@ -562,6 +563,8 @@ describe("Notetaker page", () => {
       meetings: 1,
       defaultSkillId: null,
       autoExportPath: null,
+      retentionAudio: null,
+      retentionTranscript: null,
     };
 
     it("filters the meetings by folder, and shows the Inbox", async () => {
@@ -619,6 +622,32 @@ describe("Notetaker page", () => {
       expect(screen.getByLabelText("New folder")).toBeTruthy();
       fireEvent.click(screen.getByRole("button", { name: "Export a shareable file" }));
       expect(screen.getByText(/The audio is not included/)).toBeTruthy();
+    });
+  });
+
+  describe("retention (NT-22)", () => {
+    it("marks a meeting whose audio and transcript were deleted by retention", async () => {
+      const base = detail();
+      window.murmur.meetingDetail = vi.fn().mockResolvedValue({
+        ...base,
+        meeting: {
+          ...base.meeting,
+          audioDeletedAt: Date.UTC(2026, 10, 21),
+          transcriptDeletedAt: Date.UTC(2026, 10, 22),
+        },
+        segments: [],
+      });
+      await openMeeting();
+      expect(screen.getByText(/^Audio deleted by retention, /)).toBeTruthy();
+      expect(screen.getByText(/^Transcript deleted by retention, /)).toBeTruthy();
+      await act(async () => screen.getByRole("tab", { name: "Transcript" }).click());
+      expect(screen.getByText(/The transcript was deleted by retention/)).toBeTruthy();
+      expect(screen.queryByText(/No speech was found/)).toBeNull();
+    });
+
+    it("shows no marker for a meeting nothing was deleted from", async () => {
+      await openMeeting();
+      expect(screen.queryByText(/deleted by retention/)).toBeNull();
     });
   });
 });

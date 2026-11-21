@@ -78,6 +78,12 @@ export const SETTINGS_INDEX: readonly SettingEntry[] = [
     words: "notetaker question chat search notes scope",
   },
   {
+    id: "meeting-retention",
+    page: "system",
+    label: "Meeting recordings and transcripts",
+    words: "notetaker retention delete audio transcript keep days",
+  },
+  {
     id: "meeting-folders",
     page: "system",
     label: "Meeting folders",

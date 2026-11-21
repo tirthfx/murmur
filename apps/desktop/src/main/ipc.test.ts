@@ -90,6 +90,7 @@ function setup() {
     meetingMove: vi.fn(),
     meetingFolderDismiss: vi.fn(),
     meetingExport: vi.fn(),
+    meetingRetentionDue: vi.fn(),
     meetingRerun: vi.fn(),
     meetingVersionRestore: vi.fn(),
     meetingSegmentHistory: vi.fn(),

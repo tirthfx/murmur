@@ -18,6 +18,7 @@ import {
   type MeetingExportOptions,
   type MeetingExportResult,
   type MeetingFolder,
+  type MeetingRetentionDue,
   type MeetingFindTasksResult,
   type MeetingLanguageInput,
   type RerunResult,
@@ -177,6 +178,7 @@ export interface IpcDeps {
   meetingMove: (meetingId: string, folderId: string | null) => FolderResult;
   meetingFolderDismiss: (meetingId: string, folderId: string) => void;
   meetingExport: (meetingId: string, options: MeetingExportOptions) => Promise<MeetingExportResult>;
+  meetingRetentionDue: () => MeetingRetentionDue;
   meetingRerun: (meetingId: string, input: MeetingLanguageInput) => RerunResult;
   meetingVersionRestore: (meetingId: string, versionId: number) => RerunResult;
   meetingSegmentHistory: (meetingId: string, segmentId: string) => SegmentHistoryItem[];
@@ -642,6 +644,8 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.meetingMove(request.args[0] as string, request.args[1] as string | null);
       case IPC_CHANNELS.meetingFolderDismiss:
         return deps.meetingFolderDismiss(request.args[0] as string, request.args[1] as string);
+      case IPC_CHANNELS.meetingRetentionDue:
+        return deps.meetingRetentionDue();
       case IPC_CHANNELS.meetingExport:
         return deps.meetingExport(
           request.args[0] as string,

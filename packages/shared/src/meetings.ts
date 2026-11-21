@@ -8,6 +8,7 @@ import {
   summarySettingsSchema,
 } from "./skills";
 import { audioSessionIdSchema } from "./audio";
+import { DEFAULT_MEETING_RETENTION, meetingRetentionSettingsSchema } from "./meeting-retention";
 import { meetingLanguageCodes } from "./languages";
 import { DEFAULT_ASK_SETTINGS, askSettingsSchema } from "./ask";
 import { DEFAULT_FOLDERS_SETTINGS, foldersSettingsSchema, type FolderSuggestion } from "./folders";
@@ -142,6 +143,8 @@ export interface Meeting {
   transcriptVersion: number;
   /** NT-17: the folder it is in; null for the Inbox. */
   folderId: string | null;
+  /** NT-22: when retention deleted the transcript, or null. */
+  transcriptDeletedAt: number | null;
 }
 
 export interface AudioChunkRow {
@@ -473,6 +476,8 @@ export const notetakerSettingsSchema = z.strictObject({
   rerun: z
     .strictObject({ keepPreviousVersionDays: z.number().int().min(1).max(365) })
     .default({ keepPreviousVersionDays: 30 }),
+  /** NT-22: how long audio and transcripts are kept. */
+  retention: meetingRetentionSettingsSchema.default(DEFAULT_MEETING_RETENTION),
   /** NT-17: folders. */
   folders: foldersSettingsSchema.default(DEFAULT_FOLDERS_SETTINGS),
   /** NT-24: corrections to a transcript. */
@@ -500,4 +505,5 @@ export const DEFAULT_NOTETAKER: NotetakerSettings = {
   translate: { transcriptToEnglish: false },
   rerun: { keepPreviousVersionDays: 30 },
   folders: DEFAULT_FOLDERS_SETTINGS,
+  retention: DEFAULT_MEETING_RETENTION,
 };

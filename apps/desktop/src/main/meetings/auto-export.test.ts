@@ -15,6 +15,8 @@ function setup(over: Record<string, unknown> = {}) {
               meetings: 1,
               defaultSkillId: null,
               autoExportPath: "/Users/me/Shared",
+              retentionAudio: null,
+              retentionTranscript: null,
             }
           : null,
     },
@@ -53,6 +55,8 @@ describe("folder auto-export (NT-18)", () => {
           meetings: 0,
           defaultSkillId: null,
           autoExportPath: null,
+          retentionAudio: null,
+          retentionTranscript: null,
         }),
       },
     });
@@ -82,6 +86,8 @@ describe("folder auto-export (NT-18)", () => {
           meetings: 0,
           defaultSkillId: null,
           autoExportPath: "/p",
+          retentionAudio: null,
+          retentionTranscript: null,
         }),
       },
     });

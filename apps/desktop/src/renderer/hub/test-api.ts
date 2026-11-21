@@ -450,6 +450,7 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
     meetingMove: vi.fn().mockResolvedValue({ ok: true, folders: [] }),
     meetingFolderDismiss: vi.fn().mockResolvedValue(undefined),
     meetingExport: vi.fn().mockResolvedValue({ ok: false, cancelled: true }),
+    meetingRetentionDue: vi.fn().mockResolvedValue({ audio: 0, transcripts: 0 }),
     meetingRerun: vi.fn().mockResolvedValue({ ok: true }),
     meetingVersionRestore: vi.fn().mockResolvedValue({ ok: true }),
     meetingSegmentHistory: vi.fn().mockResolvedValue([]),

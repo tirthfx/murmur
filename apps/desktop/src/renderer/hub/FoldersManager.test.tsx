@@ -11,6 +11,8 @@ const folder = (over: Partial<MeetingFolder> = {}): MeetingFolder => ({
   meetings: 3,
   defaultSkillId: null,
   autoExportPath: null,
+  retentionAudio: null,
+  retentionTranscript: null,
   ...over,
 });
 
@@ -90,6 +92,40 @@ describe("folders (NT-17, NT-18)", () => {
       expect(api.folderUpdate).toHaveBeenCalledWith("f1", {
         defaultSkillId: "customer-call-notes",
       }),
+    );
+  });
+
+  it("gives a folder its own retention periods (NT-22)", async () => {
+    render(<FoldersManager folders={[folder()]} onChange={changed} />);
+    fireEvent.click(
+      await screen.findByRole("combobox", { name: "Keep the audio of Customer calls" }),
+    );
+    fireEvent.click(await screen.findByRole("option", { name: "7 days" }));
+    await waitFor(() =>
+      expect(api.folderUpdate).toHaveBeenCalledWith("f1", { retentionAudio: "7d" }),
+    );
+    fireEvent.click(
+      screen.getByRole("combobox", { name: "Keep the transcript of Customer calls" }),
+    );
+    fireEvent.click(await screen.findByRole("option", { name: "1 year" }));
+    await waitFor(() =>
+      expect(api.folderUpdate).toHaveBeenLastCalledWith("f1", { retentionTranscript: "1y" }),
+    );
+  });
+
+  it("goes back to the Settings periods", async () => {
+    render(
+      <FoldersManager
+        folders={[folder({ retentionAudio: "7d", retentionTranscript: "30d" })]}
+        onChange={changed}
+      />,
+    );
+    fireEvent.click(
+      await screen.findByRole("combobox", { name: "Keep the audio of Customer calls" }),
+    );
+    fireEvent.click(await screen.findByRole("option", { name: "As in Settings" }));
+    await waitFor(() =>
+      expect(api.folderUpdate).toHaveBeenCalledWith("f1", { retentionAudio: null }),
     );
   });
 

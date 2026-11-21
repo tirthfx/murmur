@@ -155,6 +155,7 @@ import { exportFileName, renderMeetingHtml } from "./meetings/meeting-export";
 import { suggestFromCorrection } from "./meetings/corrections-learn";
 import { createCorrectionsStore } from "./meetings/corrections-store";
 import { createMeetingRerun } from "./meetings/meeting-rerun";
+import { createMeetingRetention } from "./meetings/meeting-retention";
 import { createSpeakerClip } from "./meetings/speaker-clip";
 import { createTranscriptVersions } from "./meetings/transcript-versions";
 import { createSpeakersStore } from "./meetings/speakers-store";
@@ -560,6 +561,10 @@ const retention = database
         return days && history ? history.removeOlderThan(now - days * DAY_MS).rows : 0;
       },
       audio: (now) => history?.pruneAudio(now) ?? 0,
+      // NT-22: meeting recordings and transcripts past their time (a recording, or one still
+      // being transcribed, is never touched).
+      meetingAudio: (now) => meetingRetention?.runAudio(now) ?? 0,
+      meetingTranscripts: (now) => meetingRetention?.runTranscripts(now) ?? 0,
       instructThreads: () => {
         const result = instructThreads?.applyRetention();
         return result ? result.textRemoved + result.deleted : 0;
@@ -1638,6 +1643,17 @@ const meetingTranscripts = database ? createTranscriptStore(database) : null;
 const meetingNotes = database ? createMeetingNotesStore(database) : null;
 const meetingSummaries = database ? createSummariesStore(database) : null;
 const meetingSkills = database ? createSkillsStore(database) : null;
+// NT-22: retention of meeting audio and transcripts, joined to the daily retention job.
+const meetingRetention = database
+  ? createMeetingRetention(database, {
+      settings: () => {
+        const notetaker = settingsStore.get().notetaker;
+        return { ...notetaker.retention, summaryAuto: notetaker.summary.auto };
+      },
+      removeFile: (file) => rmSync(file, { force: true }),
+      logger: createConsoleLogger("[retention]"),
+    })
+  : null;
 // NT-17: personal folders for meetings. The Inbox is the meetings in no folder.
 const foldersStore = database
   ? createFoldersStore(database, { now: Date.now, newId: randomUUID })
@@ -1814,6 +1830,8 @@ const meetingJobs: MeetingJobs | null =
           }
           // With no summary and no tasks to wait for, the folder's file is written now.
           if (!notetaker.summary.auto && !notetaker.tasks.extract) autoExport?.run(id);
+          // With no summary to wait for, "after processing" is now.
+          if (!notetaker.summary.auto) meetingRetention?.afterProcessing(id, Date.now());
           if (notetaker.summary.auto) {
             if ((meetingSummaries?.list(id).length ?? 0) > 0) return;
             if (meetingJobs?.jobStatus(id, "summarise") !== null) return;
@@ -1829,6 +1847,8 @@ const meetingJobs: MeetingJobs | null =
         // The tasks are looked for after the summary, once.
         onSummarised: (id) => {
           autoExport?.run(id);
+          // "Delete after processing" (NT-22): the audio goes once the summary is written.
+          meetingRetention?.afterProcessing(id, Date.now());
           const again = rerunExtract.delete(id);
           if (!settingsStore.get().notetaker.tasks.extract) return;
           if (!again && meetingJobs?.jobStatus(id, "extract_tasks") !== null) return;
@@ -2804,7 +2824,14 @@ function registerIpc(): void {
     },
     folderUpdate: (id, patch) => {
       if (!foldersStore?.get(id)) return folderResult(undefined);
-      foldersStore.setDefaultSkill(id, patch.defaultSkillId);
+      if (patch.defaultSkillId !== undefined)
+        foldersStore.setDefaultSkill(id, patch.defaultSkillId);
+      foldersStore.setRetention(id, {
+        ...(patch.retentionAudio !== undefined ? { audio: patch.retentionAudio } : {}),
+        ...(patch.retentionTranscript !== undefined
+          ? { transcript: patch.retentionTranscript }
+          : {}),
+      });
       return { ok: true, folders: foldersStore.list(), id };
     },
     folderChooseExport: async (id) => {
@@ -2854,6 +2881,7 @@ function registerIpc(): void {
         return { ok: false, message: "The file could not be saved there." };
       }
     },
+    meetingRetentionDue: () => meetingRetention?.due(Date.now()) ?? { audio: 0, transcripts: 0 },
     meetingSetLanguage: (meetingId, input) =>
       meetingRerun?.setLanguage(meetingId, input) ?? {
         ok: false,

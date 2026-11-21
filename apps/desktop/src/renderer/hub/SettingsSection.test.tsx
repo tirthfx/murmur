@@ -151,4 +151,44 @@ describe("Settings section", () => {
     });
     expect(screen.getByText("Recording notice")).toBeTruthy();
   });
+
+  it("sets how long meeting audio and transcripts are kept, and says what is due (NT-22)", async () => {
+    const api = mount(
+      { meetingRetentionDue: vi.fn().mockResolvedValue({ audio: 2, transcripts: 1 }) },
+      "system",
+    );
+    expect(await screen.findByText("Meeting recordings and transcripts")).toBeTruthy();
+    expect(
+      await screen.findByText(
+        "In the next 24 hours: 2 recordings and 1 transcript will be deleted.",
+      ),
+    ).toBeTruthy();
+    await userEvent.click(screen.getByRole("combobox", { name: "Keep the audio" }));
+    await userEvent.click(await screen.findByRole("option", { name: "Delete after processing" }));
+    expect(api.updateSettings).toHaveBeenLastCalledWith({
+      notetaker: expect.objectContaining({
+        retention: expect.objectContaining({ audio: "processing", transcript: "forever" }),
+      }),
+    });
+    await userEvent.click(screen.getByRole("combobox", { name: "Keep the transcript" }));
+    await userEvent.click(await screen.findByRole("option", { name: "90 days" }));
+    expect(api.updateSettings).toHaveBeenLastCalledWith({
+      notetaker: expect.objectContaining({
+        retention: expect.objectContaining({ transcript: "90d" }),
+      }),
+    });
+    await userEvent.click(
+      screen.getByRole("switch", { name: "Delete the summaries with the transcript" }),
+    );
+    expect(api.updateSettings).toHaveBeenLastCalledWith({
+      notetaker: expect.objectContaining({
+        retention: expect.objectContaining({ removeSummaryWithTranscript: true }),
+      }),
+    });
+  });
+
+  it("says when nothing is due", async () => {
+    mount({}, "system");
+    expect(await screen.findByText("Nothing is due in the next 24 hours.")).toBeTruthy();
+  });
 });
