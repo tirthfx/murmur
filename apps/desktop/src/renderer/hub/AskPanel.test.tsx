@@ -232,17 +232,15 @@ describe("Ask (NT-14)", () => {
   });
 
   it("asks about the meetings of a folder, or of the Inbox (NT-17)", async () => {
-    api.foldersList = vi
-      .fn()
-      .mockResolvedValue([
-        {
-          id: "f1",
-          name: "Customer calls",
-          meetings: 2,
-          defaultSkillId: null,
-          autoExportPath: null,
-        },
-      ]);
+    api.foldersList = vi.fn().mockResolvedValue([
+      {
+        id: "f1",
+        name: "Customer calls",
+        meetings: 2,
+        defaultSkillId: null,
+        autoExportPath: null,
+      },
+    ]);
     api.askSend = vi.fn().mockResolvedValue({ ok: true, thread: answered });
     render(<AskPanel onOpen={open} />);
     fireEvent.click(await screen.findByRole("combobox", { name: "Look in" }));
@@ -270,17 +268,15 @@ describe("Ask (NT-14)", () => {
   });
 
   it("opens a conversation in its folder scope", async () => {
-    api.foldersList = vi
-      .fn()
-      .mockResolvedValue([
-        {
-          id: "f1",
-          name: "Customer calls",
-          meetings: 2,
-          defaultSkillId: null,
-          autoExportPath: null,
-        },
-      ]);
+    api.foldersList = vi.fn().mockResolvedValue([
+      {
+        id: "f1",
+        name: "Customer calls",
+        meetings: 2,
+        defaultSkillId: null,
+        autoExportPath: null,
+      },
+    ]);
     api.askThreads = vi
       .fn()
       .mockResolvedValue([{ id: "th1", title: "When do we ship?", updatedAt: 2 }]);
