@@ -63,6 +63,7 @@ A Hub page, after Notetaker. It reads local state only (`connectors:view`, built
 - **A needs-attention account** also shows one banner at the top with a Reconnect button, which signs in again with that email as the hint, so the account keeps its id.
 - **Sync interval and read only:** each connected connector has a sync interval (5 minutes to 4 hours; 15 for calendars, 30 for others by default) and, for a connector that can write, a read-only switch that is on until turned off. They are in the setting `connectors.settings` and are used by the syncs that come with each provider. The cache lifetime is 15 minutes.
 - **For features:** `ConnectorNotice` (renderer) takes a feature id and shows one banner with the reason and a Reconnect or Open Connectors button when the feature cannot work, and nothing when it can.
+- **Local MCP server:** a section at the bottom with the switches for the local MCP server (on, the socket, the web address and its port) and where it is listening; see `docs/mcp.md`.
 - The page reads again when the window is focused, so a sign-in finished in the browser or a token that stopped working shows up.
 
 ## Adding a provider

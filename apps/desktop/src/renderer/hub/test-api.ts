@@ -1,4 +1,10 @@
-import { BUILT_IN_SKILLS, DEFAULT_CONNECTOR_SETTINGS, DEFAULT_NOTETAKER } from "@murmur/shared";
+import {
+  BUILT_IN_SKILLS,
+  DEFAULT_CONNECTOR_SETTINGS,
+  DEFAULT_MCP_SETTINGS,
+  DEFAULT_NOTETAKER,
+  MCP_STATUS_OFF,
+} from "@murmur/shared";
 import { vi } from "vitest";
 import type {
   HistoryPage,
@@ -52,6 +58,7 @@ export const SAMPLE_SETTINGS: SettingsView = {
     referral: { code: "ABCD2345", invites: 0 },
     notetaker: DEFAULT_NOTETAKER,
     connectors: DEFAULT_CONNECTOR_SETTINGS,
+    mcp: DEFAULT_MCP_SETTINGS,
     contextAwareness: true,
     mouseButtons: { hold: null, handsFree: null },
     typingReminder: { enabled: true, snoozedUntil: null },
@@ -449,6 +456,7 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
     folderChooseExport: vi.fn().mockResolvedValue({ ok: true, folders: [] }),
     folderClearExport: vi.fn().mockResolvedValue({ ok: true, folders: [] }),
     connectorsView: vi.fn().mockResolvedValue({ connectors: [], cacheTtlMinutes: 15 }),
+    mcpStatus: vi.fn().mockResolvedValue(MCP_STATUS_OFF),
     connectorConnect: vi.fn().mockResolvedValue({ ok: true }),
     connectorCancel: vi.fn().mockResolvedValue(undefined),
     connectorDisconnect: vi.fn().mockResolvedValue({ ok: true }),

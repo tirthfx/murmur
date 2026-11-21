@@ -1,4 +1,4 @@
-import { cpSync, existsSync, mkdirSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import type { ForgeConfig } from "@electron-forge/shared-types";
 import { VitePlugin } from "@electron-forge/plugin-vite";
@@ -9,6 +9,9 @@ import {
   runtimeClosure,
   skipLlamaFile,
 } from "./packaging/runtime-modules.ts";
+
+/** The command MCP clients launch; it relays stdio to the app's local socket (CN-11). */
+const mcpShim = path.resolve("packaging/murmur-mcp");
 
 /** Where `npm run build:helper` puts the Swift helper, relative to this directory. */
 const helperBinary = path.resolve("../../native/helper-mac/.build/release/murmur-helper");
@@ -42,6 +45,14 @@ const config: ForgeConfig = {
         );
         copyRuntimePackages(llm, target, skipLlamaFile);
         console.log(`[package] included ${llm.length} packages for the cleanup model at ${target}`);
+      }
+      // The MCP command goes to Contents/Resources/mcp/murmur-mcp, which clients can run.
+      for (const outputPath of outputPaths) {
+        const target = path.join(outputPath, "Murmur.app", "Contents", "Resources", "mcp");
+        mkdirSync(target, { recursive: true });
+        cpSync(mcpShim, path.join(target, "murmur-mcp"));
+        chmodSync(path.join(target, "murmur-mcp"), 0o755);
+        console.log(`[package] included the MCP command at ${path.join(target, "murmur-mcp")}`);
       }
       if (!existsSync(helperBinary)) {
         console.warn(

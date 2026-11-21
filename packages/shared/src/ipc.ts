@@ -27,6 +27,7 @@ import {
   type TranscriptImportPreviewResult,
 } from "./transcript-import";
 import type { ConnectorActionResult, ConnectorsView } from "./connectors";
+import type { McpStatus } from "./mcp";
 import {
   folderPatchSchema,
   meetingExportOptionsSchema,
@@ -450,6 +451,7 @@ export const IPC_CHANNELS = {
   connectorSetEnabled: "connectors:set-enabled",
   connectorSetClientId: "connectors:set-client-id",
   connectorSetClientSecret: "connectors:set-client-secret",
+  mcpStatus: "mcp:status",
   meetingMove: "meetings:move",
   meetingFolderDismiss: "meetings:folder-dismiss",
   meetingExport: "meetings:export",
@@ -1010,6 +1012,7 @@ export const IPC_CONTRACT = {
     args: z.tuple([z.string().min(1).max(64), z.string().max(300).nullable()]),
     result: z.custom<ConnectorActionResult>(),
   },
+  [IPC_CHANNELS.mcpStatus]: { args: z.tuple([]), result: z.custom<McpStatus>() },
   [IPC_CHANNELS.meetingMove]: {
     args: z.tuple([z.string().min(1).max(64), z.string().min(1).max(64).nullable()]),
     result: z.custom<FolderResult>(),
@@ -1390,6 +1393,8 @@ export interface MurmurApi {
   connectorSetClientId(id: string, clientId: string | null): Promise<ConnectorActionResult>;
   /** The client secret goes to the Keychain and is never sent back; null removes it. */
   connectorSetClientSecret(id: string, secret: string | null): Promise<ConnectorActionResult>;
+  /** CN-11: whether the local MCP server is listening, and where, once a change of setting has been applied. Its switches are in settings. */
+  mcpStatus(): Promise<McpStatus>;
   /** Puts a meeting in a folder, or in the Inbox (null). */
   meetingMove(meetingId: string, folderId: string | null): Promise<FolderResult>;
   /** Stops offering this folder for meetings like this one. */
