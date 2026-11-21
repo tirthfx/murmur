@@ -7,7 +7,17 @@ import type {
   MeetingListItem,
   RecordingState,
 } from "./meetings";
-import { summaryFeedbackSchema, type Skill, type SummaryFeedback } from "./skills";
+import {
+  skillDraftSchema,
+  summaryFeedbackSchema,
+  type Skill,
+  type SkillDraft,
+  type SkillExportResult,
+  type SkillImportResult,
+  type SkillResult,
+  type SkillVersion,
+  type SummaryFeedback,
+} from "./skills";
 import {
   historyDeleteResultSchema,
   historyFeedbackSchema,
@@ -358,6 +368,13 @@ export const IPC_CHANNELS = {
   meetingSummarize: "meetings:summarize",
   meetingSummaryFeedback: "meetings:summary-feedback",
   skillsList: "skills:list",
+  skillSave: "skills:save",
+  skillDuplicate: "skills:duplicate",
+  skillDelete: "skills:delete",
+  skillVersions: "skills:versions",
+  skillRestore: "skills:restore",
+  skillExport: "skills:export",
+  skillImport: "skills:import",
 } as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
@@ -801,6 +818,31 @@ export const IPC_CONTRACT = {
     result: z.void(),
   },
   [IPC_CHANNELS.skillsList]: { args: z.tuple([]), result: z.custom<Skill[]>() },
+  [IPC_CHANNELS.skillSave]: {
+    args: z.tuple([z.string().min(1).max(64).nullable(), skillDraftSchema]),
+    result: z.custom<SkillResult>(),
+  },
+  [IPC_CHANNELS.skillDuplicate]: {
+    args: z.tuple([z.string().min(1).max(64)]),
+    result: z.custom<SkillResult>(),
+  },
+  [IPC_CHANNELS.skillDelete]: {
+    args: z.tuple([z.string().min(1).max(64)]),
+    result: z.custom<{ ok: true } | { ok: false; message: string }>(),
+  },
+  [IPC_CHANNELS.skillVersions]: {
+    args: z.tuple([z.string().min(1).max(64)]),
+    result: z.custom<SkillVersion[]>(),
+  },
+  [IPC_CHANNELS.skillRestore]: {
+    args: z.tuple([z.string().min(1).max(64), z.number().int().min(1)]),
+    result: z.custom<SkillResult>(),
+  },
+  [IPC_CHANNELS.skillExport]: {
+    args: z.tuple([z.string().min(1).max(64)]),
+    result: z.custom<SkillExportResult>(),
+  },
+  [IPC_CHANNELS.skillImport]: { args: z.tuple([]), result: z.custom<SkillImportResult>() },
   [IPC_CHANNELS.meetingNotesSave]: {
     args: z.tuple([meetingIdArg, z.string().max(200_000)]),
     result: z.boolean(),
@@ -1055,6 +1097,17 @@ export interface MurmurApi {
   meetingSummaryFeedback(summaryId: string, feedback: SummaryFeedback | null): Promise<void>;
   /** NT-15: the built-in Skills, then the owner's copies. */
   skillsList(): Promise<Skill[]>;
+  /** NT-16: makes a custom Skill (`id` null) or edits one into its next version. */
+  skillSave(id: string | null, draft: SkillDraft): Promise<SkillResult>;
+  skillDuplicate(id: string): Promise<SkillResult>;
+  skillDelete(id: string): Promise<{ ok: true } | { ok: false; message: string }>;
+  /** The versions a custom Skill had before the current one, newest first. */
+  skillVersions(id: string): Promise<SkillVersion[]>;
+  skillRestore(id: string, version: number): Promise<SkillResult>;
+  /** Asks where to save the Skill's `.md` file. */
+  skillExport(id: string): Promise<SkillExportResult>;
+  /** Asks for a `.md` file and makes a custom Skill of it; a bad file names the line. */
+  skillImport(): Promise<SkillImportResult>;
   /** NT-10: saves My notes; false when they are too long. */
   meetingNotesSave(id: string, body: string): Promise<boolean>;
   meetingDocAddLink(id: string, url: string, title: string): Promise<MeetingDocResult>;

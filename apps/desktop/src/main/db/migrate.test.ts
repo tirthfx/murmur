@@ -64,6 +64,7 @@ describe("migrations", () => {
       "rewrites",
       "schema_migrations",
       "settings",
+      "skill_versions",
       "skills",
       "snippets",
       "styles",

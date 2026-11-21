@@ -613,3 +613,11 @@ body {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.hub-skill-versions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}

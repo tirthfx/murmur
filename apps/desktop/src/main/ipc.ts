@@ -4,6 +4,11 @@ import {
   type MeetingDetail,
   type MeetingSummarizeResult,
   type Skill,
+  type SkillDraft,
+  type SkillExportResult,
+  type SkillImportResult,
+  type SkillResult,
+  type SkillVersion,
   type SummaryFeedback,
   type MeetingDocResult,
   type MeetingListItem,
@@ -117,6 +122,13 @@ export interface IpcDeps {
   ) => Promise<MeetingSummarizeResult>;
   meetingSummaryFeedback: (summaryId: string, feedback: SummaryFeedback | null) => void;
   skillsList: () => Skill[];
+  skillSave: (id: string | null, draft: SkillDraft) => SkillResult;
+  skillDuplicate: (id: string) => SkillResult;
+  skillDelete: (id: string) => { ok: true } | { ok: false; message: string };
+  skillVersions: (id: string) => SkillVersion[];
+  skillRestore: (id: string, version: number) => SkillResult;
+  skillExport: (id: string) => Promise<SkillExportResult>;
+  skillImport: () => Promise<SkillImportResult>;
   meetingDelete: (id: string) => void;
   meetingNotesSave: (id: string, body: string) => boolean;
   meetingDocAddLink: (id: string, url: string, title: string) => MeetingDocResult;
@@ -522,6 +534,20 @@ export function createIpcHandler(deps: IpcDeps) {
         );
       case IPC_CHANNELS.skillsList:
         return deps.skillsList();
+      case IPC_CHANNELS.skillSave:
+        return deps.skillSave(request.args[0] as string | null, request.args[1] as SkillDraft);
+      case IPC_CHANNELS.skillDuplicate:
+        return deps.skillDuplicate(request.args[0] as string);
+      case IPC_CHANNELS.skillDelete:
+        return deps.skillDelete(request.args[0] as string);
+      case IPC_CHANNELS.skillVersions:
+        return deps.skillVersions(request.args[0] as string);
+      case IPC_CHANNELS.skillRestore:
+        return deps.skillRestore(request.args[0] as string, request.args[1] as number);
+      case IPC_CHANNELS.skillExport:
+        return deps.skillExport(request.args[0] as string);
+      case IPC_CHANNELS.skillImport:
+        return deps.skillImport();
       case IPC_CHANNELS.meetingRename:
         return deps.meetingRename(request.args[0] as string, request.args[1] as string);
       case IPC_CHANNELS.meetingDelete:
