@@ -18,6 +18,13 @@ export interface MeetingJobsDeps {
   wait(ms: number): Promise<void>;
   /** A meeting's status or transcript changed. */
   onProgress(meetingId: string): void;
+  /** A meeting has been transcribed to the end (NT-09 writes its summary next). */
+  onTranscribed?(meetingId: string): void;
+  /**
+   * Writes the meeting's summary. Rejects with `code`: `model-missing` (wait for the model),
+   * `busy` (another summary is being written: try again), `no-transcript` (nothing to do).
+   */
+  summarise?(meetingId: string): Promise<void>;
   logger: Logger;
 }
 
@@ -30,6 +37,11 @@ export interface MeetingJobs {
    * transcript with no job gets one. Returns how many jobs are queued.
    */
   resume(): number;
+  /** The state of a meeting's job of this kind, or null when it has none. */
+  jobStatus(
+    meetingId: string,
+    kind: MeetingJobKind,
+  ): "queued" | "running" | "done" | "failed" | null;
   /** Resolves when the current run of the queue ends (tests). */
   idle(): Promise<void>;
 }
@@ -58,13 +70,16 @@ export function createMeetingJobs(deps: MeetingJobsDeps): MeetingJobs {
       )
       .run(status, error ?? null, deps.now(), meetingId, kind);
 
-  function next(): { meetingId: string; kind: MeetingJobKind; attempts: number } | null {
-    const row = db
+  function next(
+    skip: ReadonlySet<MeetingJobKind> = new Set(),
+  ): { meetingId: string; kind: MeetingJobKind; attempts: number } | null {
+    const rows = db
       .prepare(
         `SELECT meeting_id, kind, attempts FROM meeting_jobs
-         WHERE status = 'queued' ORDER BY created_at, rowid LIMIT 1`,
+         WHERE status = 'queued' ORDER BY created_at, rowid`,
       )
-      .get() as { meeting_id: string; kind: MeetingJobKind; attempts: number } | undefined;
+      .all() as { meeting_id: string; kind: MeetingJobKind; attempts: number }[];
+    const row = rows.find((candidate) => !skip.has(candidate.kind));
     return row ? { meetingId: row.meeting_id, kind: row.kind, attempts: row.attempts } : null;
   }
 
@@ -114,6 +129,7 @@ export function createMeetingJobs(deps: MeetingJobsDeps): MeetingJobs {
         deps.meetings.setStatus(meetingId, "ready");
       }
       deps.onProgress(meetingId);
+      deps.onTranscribed?.(meetingId);
       return true;
     } catch (error) {
       const code = errorCode(error);
@@ -139,17 +155,67 @@ export function createMeetingJobs(deps: MeetingJobsDeps): MeetingJobs {
     }
   }
 
-  async function run(): Promise<void> {
-    for (;;) {
-      if (!deps.speechReady()) return;
-      const job = next();
-      if (!job) return;
-      if (job.kind !== "transcribe") {
-        // Later issues add the other kinds; until then they are left queued.
-        return;
+  /** Writes a summary (NT-09). Returns false when the job has to wait for a later kick. */
+  async function summarise(meetingId: string, attempts: number): Promise<boolean> {
+    setJobRunning(meetingId, "summarise");
+    deps.onProgress(meetingId);
+    try {
+      await deps.summarise?.(meetingId);
+      setJob(meetingId, "summarise", "done");
+      deps.onProgress(meetingId);
+      return true;
+    } catch (error) {
+      const code = errorCode(error);
+      if (code === "no-transcript") {
+        setJob(meetingId, "summarise", "done");
+        deps.onProgress(meetingId);
+        return true;
       }
-      const carriedOn = await transcribe(job.meetingId, job.attempts);
-      if (!carriedOn) return;
+      if (code === "model-missing" || code === "busy") {
+        // Not a failure: it waits for the model, or for the summary being written.
+        db.prepare(
+          `UPDATE meeting_jobs SET status = 'queued', attempts = attempts - 1, updated_at = ?
+           WHERE meeting_id = ? AND kind = 'summarise'`,
+        ).run(deps.now(), meetingId);
+        deps.onProgress(meetingId);
+        return false;
+      }
+      const failed = attempts + 1 >= MAX_ATTEMPTS;
+      deps.logger.warn(
+        `summarising meeting ${meetingId} failed (try ${attempts + 1}): ${message(error)}`,
+      );
+      setJob(meetingId, "summarise", failed ? "failed" : "queued", message(error).slice(0, 500));
+      deps.onProgress(meetingId);
+      return false;
+    }
+  }
+
+  const setJobRunning = (meetingId: string, kind: MeetingJobKind) =>
+    db
+      .prepare(
+        `UPDATE meeting_jobs SET status = 'running', attempts = attempts + 1, updated_at = ?
+         WHERE meeting_id = ? AND kind = ?`,
+      )
+      .run(deps.now(), meetingId, kind);
+
+  async function run(): Promise<void> {
+    // A kind that has to wait must not hold back the others queued after it.
+    const waiting = new Set<MeetingJobKind>();
+    for (;;) {
+      const job = next(waiting);
+      if (!job) return;
+      if (job.kind === "transcribe") {
+        if (!deps.speechReady()) {
+          waiting.add("transcribe");
+          continue;
+        }
+        if (!(await transcribe(job.meetingId, job.attempts))) waiting.add("transcribe");
+      } else if (job.kind === "summarise" && deps.summarise) {
+        if (!(await summarise(job.meetingId, job.attempts))) waiting.add("summarise");
+      } else {
+        // Later issues add the other kinds; until then they are left queued.
+        waiting.add(job.kind);
+      }
     }
   }
 
@@ -191,6 +257,12 @@ export function createMeetingJobs(deps: MeetingJobsDeps): MeetingJobs {
           n: number;
         }
       ).n;
+    },
+    jobStatus(meetingId, kind) {
+      const row = db
+        .prepare("SELECT status FROM meeting_jobs WHERE meeting_id = ? AND kind = ?")
+        .get(meetingId, kind) as { status: "queued" | "running" | "done" | "failed" } | undefined;
+      return row?.status ?? null;
     },
     idle: () => running ?? Promise.resolve(),
   };

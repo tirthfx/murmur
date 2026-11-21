@@ -16,6 +16,7 @@ import {
   APP_LANGUAGE_NAMES,
   SETTINGS_CLEANUP_LEVELS,
   SOUND_NAMES,
+  type Skill,
   type SettingsPatch,
   type SettingsView,
 } from "@murmur/shared";
@@ -96,6 +97,14 @@ export function SettingsSection({
     [onView],
   );
   const [problem, setProblem] = useState<string | null>(null);
+  const [skills, setSkills] = useState<Skill[]>([]);
+  useEffect(() => {
+    let alive = true;
+    void window.murmur.skillsList().then((list) => alive && setSkills(list));
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -421,6 +430,56 @@ export function SettingsSection({
                 </Button>
               </HStack>
             ))}
+          </VStack>
+        </Row>
+        <Row id="meeting-summary">
+          <VStack gap={2}>
+            <Heading level={3}>Meeting summaries</Heading>
+            <Text size="sm" color="secondary">
+              A summary is written on this Mac with the local language model when a recording has
+              been transcribed. Every bullet links to the line it came from, or says it has no
+              source.
+            </Text>
+            <Switch
+              label="Write a summary after each meeting"
+              value={settings.notetaker.summary.auto}
+              onChange={(auto) =>
+                update({
+                  notetaker: {
+                    ...settings.notetaker,
+                    summary: { ...settings.notetaker.summary, auto },
+                  },
+                })
+              }
+            />
+            <Selector
+              label="Length"
+              options={[
+                { value: "short", label: "Short" },
+                { value: "medium", label: "Medium" },
+                { value: "long", label: "Long" },
+              ]}
+              value={settings.notetaker.summary.length}
+              onChange={(length) =>
+                update({
+                  notetaker: {
+                    ...settings.notetaker,
+                    summary: {
+                      ...settings.notetaker.summary,
+                      length: length as SettingsView["settings"]["notetaker"]["summary"]["length"],
+                    },
+                  },
+                })
+              }
+            />
+            <Selector
+              label="Skill for summaries"
+              options={skills.map((skill) => ({ value: skill.id, label: skill.name }))}
+              value={settings.notetaker.skills.default}
+              onChange={(value) =>
+                update({ notetaker: { ...settings.notetaker, skills: { default: value } } })
+              }
+            />
           </VStack>
         </Row>
         <Row id="instruct">

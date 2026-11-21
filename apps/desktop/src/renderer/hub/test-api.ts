@@ -1,4 +1,4 @@
-import { DEFAULT_NOTETAKER } from "@murmur/shared";
+import { BUILT_IN_SKILLS, DEFAULT_NOTETAKER } from "@murmur/shared";
 import { vi } from "vitest";
 import type {
   HistoryPage,
@@ -415,6 +415,9 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
     meetingStart: vi.fn().mockResolvedValue({ ok: true, meetingId: "m-1" }),
     meetingStop: vi.fn().mockResolvedValue(undefined),
     meetingRename: vi.fn().mockResolvedValue(undefined),
+    meetingSummarize: vi.fn().mockResolvedValue({ ok: true }),
+    meetingSummaryFeedback: vi.fn().mockResolvedValue(undefined),
+    skillsList: vi.fn().mockResolvedValue(BUILT_IN_SKILLS),
     meetingDelete: vi.fn().mockResolvedValue(undefined),
     meetingNotesSave: vi.fn().mockResolvedValue(true),
     meetingDocAddLink: vi.fn().mockResolvedValue({ ok: false, message: "x" }),

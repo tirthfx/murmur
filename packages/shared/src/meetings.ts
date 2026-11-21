@@ -1,5 +1,12 @@
 import { z } from "zod";
 import { DEFAULT_DETECT, detectSettingsSchema } from "./detect";
+import {
+  type MeetingSummary,
+  DEFAULT_SKILLS_SETTINGS,
+  DEFAULT_SUMMARY_SETTINGS,
+  skillsSettingsSchema,
+  summarySettingsSchema,
+} from "./skills";
 import { audioSessionIdSchema } from "./audio";
 import { transcriptSchema } from "./speech";
 
@@ -198,7 +205,20 @@ export interface MeetingDetail {
   notes: string;
   notesUpdatedAt: number | null;
   docs: MeetingDoc[];
+  /** NT-09: every version, oldest first. */
+  summaries: MeetingSummary[];
+  summaryStatus: SummaryStatus;
 }
+
+/** What the Summary tab shows besides the summaries (NT-09). */
+export type SummaryStatus =
+  | { state: "idle" }
+  /** Queued behind the transcript or the language model. */
+  | { state: "waiting" }
+  | { state: "running"; done: number; total: number }
+  | { state: "failed"; message: string };
+
+export type MeetingSummarizeResult = { ok: true } | { ok: false; message: string };
 
 export const MEETING_TABS = ["notes", "summary", "transcript", "tasks", "brief", "docs"] as const;
 export type MeetingTab = (typeof MEETING_TABS)[number];
@@ -286,6 +306,10 @@ export const notetakerSettingsSchema = z.strictObject({
     .default({ notice: "first", seen: false }),
   /** NT-01: detect calls in Zoom, Meet and Teams. */
   detect: detectSettingsSchema.default(DEFAULT_DETECT),
+  /** NT-09: summaries. */
+  summary: summarySettingsSchema.default(DEFAULT_SUMMARY_SETTINGS),
+  /** NT-15: which Skill writes the summary. */
+  skills: skillsSettingsSchema.default(DEFAULT_SKILLS_SETTINGS),
 });
 export type NotetakerSettings = z.infer<typeof notetakerSettingsSchema>;
 
@@ -295,4 +319,6 @@ export const DEFAULT_NOTETAKER: NotetakerSettings = {
   live: true,
   consent: { notice: "first", seen: false },
   detect: DEFAULT_DETECT,
+  summary: DEFAULT_SUMMARY_SETTINGS,
+  skills: DEFAULT_SKILLS_SETTINGS,
 };

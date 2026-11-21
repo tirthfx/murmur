@@ -18,6 +18,7 @@ function fakeLlm(answers: (string[] | Error)[]) {
   const cancel = vi.fn();
   const llm: LlmClient = {
     prepare: vi.fn(),
+    isGenerating: vi.fn(() => false),
     clean: vi.fn(),
     translate: vi.fn(),
     stop: vi.fn(),

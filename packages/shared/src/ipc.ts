@@ -2,10 +2,12 @@ import { z } from "zod";
 import type {
   LivePartial,
   MeetingDetail,
+  MeetingSummarizeResult,
   MeetingDoc,
   MeetingListItem,
   RecordingState,
 } from "./meetings";
+import { summaryFeedbackSchema, type Skill, type SummaryFeedback } from "./skills";
 import {
   historyDeleteResultSchema,
   historyFeedbackSchema,
@@ -353,6 +355,9 @@ export const IPC_CHANNELS = {
   meetingDocAddFile: "meetings:doc-add-file",
   meetingDocOpen: "meetings:doc-open",
   meetingDocRemove: "meetings:doc-remove",
+  meetingSummarize: "meetings:summarize",
+  meetingSummaryFeedback: "meetings:summary-feedback",
+  skillsList: "skills:list",
 } as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
@@ -784,6 +789,18 @@ export const IPC_CONTRACT = {
     result: z.void(),
   },
   [IPC_CHANNELS.meetingDelete]: { args: z.tuple([meetingIdArg]), result: z.void() },
+  [IPC_CHANNELS.meetingSummarize]: {
+    args: z.tuple([
+      meetingIdArg,
+      z.strictObject({ skillId: z.string().max(64).optional(), quick: z.boolean().optional() }),
+    ]),
+    result: z.custom<MeetingSummarizeResult>(),
+  },
+  [IPC_CHANNELS.meetingSummaryFeedback]: {
+    args: z.tuple([z.string().min(1).max(64), summaryFeedbackSchema.nullable()]),
+    result: z.void(),
+  },
+  [IPC_CHANNELS.skillsList]: { args: z.tuple([]), result: z.custom<Skill[]>() },
   [IPC_CHANNELS.meetingNotesSave]: {
     args: z.tuple([meetingIdArg, z.string().max(200_000)]),
     result: z.boolean(),
@@ -1027,6 +1044,17 @@ export interface MurmurApi {
   meetingRename(id: string, title: string): Promise<void>;
   /** Deletes the meeting, its transcript, notes, docs and audio. */
   meetingDelete(id: string): Promise<void>;
+  /**
+   * NT-09: writes a summary now, as a new version (the Skill defaults to the setting). `quick`
+   * summarises what is transcribed so far, during a meeting. Resolves when it is stored.
+   */
+  meetingSummarize(
+    id: string,
+    options: { skillId?: string; quick?: boolean },
+  ): Promise<MeetingSummarizeResult>;
+  meetingSummaryFeedback(summaryId: string, feedback: SummaryFeedback | null): Promise<void>;
+  /** NT-15: the built-in Skills, then the owner's copies. */
+  skillsList(): Promise<Skill[]>;
   /** NT-10: saves My notes; false when they are too long. */
   meetingNotesSave(id: string, body: string): Promise<boolean>;
   meetingDocAddLink(id: string, url: string, title: string): Promise<MeetingDocResult>;

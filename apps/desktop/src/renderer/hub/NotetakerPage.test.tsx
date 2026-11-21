@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { LivePartial, MeetingDetail, MeetingListItem } from "@murmur/shared";
+import type { LivePartial, MeetingDetail, MeetingListItem, MeetingSummary } from "@murmur/shared";
 import { NotetakerPage, statusText } from "./NotetakerPage";
 import { createMockApi } from "./test-api";
 
@@ -65,6 +65,8 @@ function detail(overrides: Partial<MeetingDetail> = {}): MeetingDetail {
     notes: "Agenda",
     notesUpdatedAt: 1,
     docs: [],
+    summaries: [],
+    summaryStatus: { state: "idle" },
     ...overrides,
   };
 }
@@ -200,5 +202,93 @@ describe("Notetaker page", () => {
     // Main reports changes; the list is read again.
     await act(async () => changed(null));
     expect(window.murmur.meetingsList).toHaveBeenCalledTimes(4);
+  });
+
+  describe("Summary tab (NT-09)", () => {
+    const summary = (version: number, extra: Partial<MeetingSummary> = {}): MeetingSummary => ({
+      id: `sum-${version}`,
+      meetingId: "m-1",
+      version,
+      skillId: "meeting-summary",
+      skillName: "Meeting summary",
+      modelId: "model-1",
+      quick: false,
+      markdown:
+        "## Overview\n- Start with the roadmap [1:05](seg:s2)\n- Nobody owns it (No source)\n\n## Decisions\nNot discussed",
+      createdAt: Date.UTC(2026, 10, 21, 11, 0),
+      feedback: null,
+      ...extra,
+    });
+
+    async function openSummary(detailOverrides: Partial<MeetingDetail>) {
+      window.murmur.meetingDetail = vi.fn().mockResolvedValue(detail(detailOverrides));
+      await openMeeting();
+      await act(async () => screen.getByRole("tab", { name: "Summary" }).click());
+    }
+
+    it("shows the newest summary with cited times, and a citation opens the transcript line", async () => {
+      await openSummary({ summaries: [summary(1), summary(2, { skillName: "Decision record" })] });
+      expect(screen.getByRole("heading", { name: "Overview" })).toBeTruthy();
+      expect(screen.getByText(/Nobody owns it \(No source\)/)).toBeTruthy();
+      expect(screen.getByText("Not discussed")).toBeTruthy();
+      expect(screen.getAllByText(/Version 2: Decision record/).length).toBeGreaterThan(0);
+      await act(async () =>
+        screen.getByRole("button", { name: "Open the transcript at 1:05" }).click(),
+      );
+      expect(screen.getByRole("tab", { name: "Transcript", selected: true })).toBeTruthy();
+      const line = document.querySelector('[data-segment-id="s2"]');
+      expect(line?.getAttribute("data-highlight")).toBe("true");
+    });
+
+    it("writes a new version with the chosen Skill", async () => {
+      await openSummary({ summaries: [summary(1)] });
+      await act(async () => screen.getByRole("button", { name: "Write a new version" }).click());
+      expect(window.murmur.meetingSummarize).toHaveBeenCalledWith("m-1", {});
+    });
+
+    it("says why a summary could not be written", async () => {
+      window.murmur.meetingSummarize = vi
+        .fn()
+        .mockResolvedValue({ ok: false, message: "The language model is not downloaded." });
+      await openSummary({});
+      await act(async () => screen.getByRole("button", { name: "Write a summary" }).click());
+      expect(screen.getByText("The language model is not downloaded.")).toBeTruthy();
+    });
+
+    it("labels a quick summary, and offers one only while recording", async () => {
+      await openSummary({
+        meeting: { ...meeting, status: "recording" },
+        summaries: [summary(1, { quick: true })],
+      });
+      expect(screen.getByText("Quick")).toBeTruthy();
+      await act(async () => screen.getByRole("button", { name: "Quick summary so far" }).click());
+      expect(window.murmur.meetingSummarize).toHaveBeenCalledWith("m-1", { quick: true });
+      cleanup();
+      await openSummary({ summaries: [summary(1)] });
+      expect(screen.queryByRole("button", { name: "Quick summary so far" })).toBeNull();
+    });
+
+    it("stores thumbs with a reason, and shows the state of a summary being written", async () => {
+      await openSummary({
+        summaries: [summary(1)],
+        summaryStatus: { state: "running", done: 1, total: 4 },
+      });
+      expect(
+        within(screen.getByRole("tabpanel", { name: "Summary" }))
+          .getAllByRole("status")
+          .map((node) => node.textContent)
+          .join(" "),
+      ).toContain("step 2 of 4");
+      await act(async () => screen.getByRole("button", { name: "Poor summary" }).click());
+      expect(window.murmur.meetingSummaryFeedback).toHaveBeenCalledWith("sum-1", {
+        rating: "down",
+        reason: null,
+      });
+      await act(async () => screen.getByRole("button", { name: "Too long" }).click());
+      expect(window.murmur.meetingSummaryFeedback).toHaveBeenLastCalledWith("sum-1", {
+        rating: "down",
+        reason: "too_long",
+      });
+    });
   });
 });

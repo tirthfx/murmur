@@ -566,6 +566,41 @@ body {
   font-style: italic;
 }
 
+.hub-transcript-line[data-highlight="true"] {
+  background: var(--color-background-highlight, rgba(250, 204, 21, 0.25));
+  border-radius: 4px;
+}
+
+.hub-summary {
+  line-height: 1.5;
+  max-width: 70ch;
+}
+
+.hub-summary h4 {
+  margin: 16px 0 4px;
+}
+
+.hub-summary ul {
+  margin: 0 0 8px;
+  padding-inline-start: 20px;
+}
+
+.hub-summary p {
+  margin: 0 0 8px;
+}
+
+.hub-cite {
+  appearance: none;
+  border: 0;
+  background: none;
+  padding: 0 2px;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-link, #2563eb);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .hub-rec-dot {
   width: 10px;
   height: 10px;
