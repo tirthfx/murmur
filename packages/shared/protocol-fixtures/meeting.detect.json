@@ -1,0 +1,127 @@
+{
+  "description": "Meeting detection (NT-01). Main sends `detect.subscribe` with the matchers only while detection is on. The helper reports `detect.event` when a call starts or ends for a matcher; it never sends a window title or page address.",
+  "messages": [
+    {
+      "id": "m-000140",
+      "type": "detect.subscribe",
+      "payload": {
+        "enabled": true,
+        "matchers": [
+          {
+            "id": "zoom",
+            "name": "Zoom",
+            "native": {
+              "bundleIds": ["us.zoom.xos"],
+              "titles": ["Zoom Meeting"]
+            }
+          },
+          {
+            "id": "meet",
+            "name": "Google Meet",
+            "web": {
+              "hosts": ["meet.google.com"],
+              "path": "^/[a-z]{3}-[a-z]{4}-[a-z]{3}(/|$)"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "m-000140",
+      "type": "response",
+      "payload": {
+        "requestType": "detect.subscribe",
+        "ok": true,
+        "result": {
+          "watching": true
+        }
+      }
+    },
+    {
+      "id": null,
+      "type": "detect.event",
+      "payload": {
+        "matcherId": "zoom",
+        "active": true
+      }
+    },
+    {
+      "id": null,
+      "type": "detect.event",
+      "payload": {
+        "matcherId": "zoom",
+        "active": false
+      }
+    },
+    {
+      "id": "m-000141",
+      "type": "detect.subscribe",
+      "payload": {
+        "enabled": false,
+        "matchers": []
+      }
+    }
+  ],
+  "invalidMessages": [
+    {
+      "id": "m-000142",
+      "type": "detect.subscribe",
+      "payload": {
+        "enabled": true
+      }
+    },
+    {
+      "id": "m-000142",
+      "type": "detect.subscribe",
+      "payload": {
+        "enabled": true,
+        "matchers": [
+          {
+            "id": "Bad Id",
+            "name": "x",
+            "web": {
+              "hosts": ["a.com"]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "m-000142",
+      "type": "detect.subscribe",
+      "payload": {
+        "enabled": true,
+        "matchers": [
+          {
+            "id": "x",
+            "name": "x"
+          }
+        ]
+      }
+    },
+    {
+      "id": "m-000142",
+      "type": "detect.subscribe",
+      "payload": {
+        "enabled": true,
+        "matchers": [
+          {
+            "id": "x",
+            "name": "x",
+            "web": {
+              "hosts": ["a.com"],
+              "path": "("
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": null,
+      "type": "detect.event",
+      "payload": {
+        "matcherId": "zoom"
+      }
+    }
+  ]
+}

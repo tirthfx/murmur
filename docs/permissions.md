@@ -4,12 +4,12 @@ Murmur uses four macOS privacy permissions. The Hub shows each one on the Settin
 
 ## What each one is for
 
-| Permission       | Used for                                                            | Request button                               | Settings pane                                       |
-| ---------------- | ------------------------------------------------------------------- | -------------------------------------------- | --------------------------------------------------- |
-| Microphone       | Hearing your voice for dictation and meetings                       | Yes                                          | Privacy & Security, Microphone                      |
-| Accessibility    | Reading the focused app and field, and pasting or typing the result | Yes                                          | Privacy & Security, Accessibility                   |
-| Input Monitoring | Noticing the dictation shortcut while another app is in front       | Yes                                          | Privacy & Security, Input Monitoring                |
-| Screen Recording | Recording the Mac's sound (the other people) in a meeting (NT-04)   | No, status only: grant it in System Settings | Privacy & Security, Screen & System Audio Recording |
+| Permission       | Used for                                                                                                                     | Request button                               | Settings pane                                       |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- | --------------------------------------------------- |
+| Microphone       | Hearing your voice for dictation and meetings                                                                                | Yes                                          | Privacy & Security, Microphone                      |
+| Accessibility    | Reading the focused app and field, pasting or typing the result, and meeting detection (call window titles and browser tabs) | Yes                                          | Privacy & Security, Accessibility                   |
+| Input Monitoring | Noticing the dictation shortcut while another app is in front                                                                | Yes                                          | Privacy & Security, Input Monitoring                |
+| Screen Recording | Recording the Mac's sound (the other people) in a meeting (NT-04)                                                            | No, status only: grant it in System Settings | Privacy & Security, Screen & System Audio Recording |
 
 Nothing is requested on launch or when the page opens. Only a click on a Request button asks the OS. Status is read when the Hub starts, when the Settings page opens, and every time the Hub window regains focus, so a switch flipped in System Settings shows up as soon as you come back.
 

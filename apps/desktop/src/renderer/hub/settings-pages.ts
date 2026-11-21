@@ -53,6 +53,12 @@ export const SETTINGS_INDEX: readonly SettingEntry[] = [
     label: "Recording notice",
     words: "meeting consent notetaker tell participants",
   },
+  {
+    id: "meeting-detect",
+    page: "system",
+    label: "Meeting detection",
+    words: "zoom meet teams call notetaker record automatic",
+  },
   { id: "instruct", page: "system", label: "Instruct Mode", words: "draft context" },
   { id: "hold", page: "shortcuts", label: "Push to talk", words: "shortcut key hotkey" },
   { id: "hands-free", page: "shortcuts", label: "Hands-free", words: "shortcut key lock" },

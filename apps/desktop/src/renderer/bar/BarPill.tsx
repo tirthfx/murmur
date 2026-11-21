@@ -1,5 +1,5 @@
 import type { PointerEvent } from "react";
-import { focusTimeLeft, type BarView } from "@murmur/shared";
+import { focusTimeLeft, type BarAnswer, type BarView } from "@murmur/shared";
 import { announcement, describeView, elapsed, meterFill } from "./bar-text";
 import { Icon } from "./icons";
 
@@ -10,8 +10,8 @@ export interface BarPillProps {
   onPointerDown?: (event: PointerEvent<HTMLDivElement>) => void;
   onPointerMove?: (event: PointerEvent<HTMLDivElement>) => void;
   onPointerUp?: (event: PointerEvent<HTMLDivElement>) => void;
-  /** Yes or No for a question (`ask`). */
-  onAnswer?: (choice: "yes" | "no") => void;
+  /** The answer to a question (`ask`). */
+  onAnswer?: (choice: BarAnswer) => void;
 }
 
 const METER_BARS = 5;
@@ -38,22 +38,24 @@ export function BarPill({ view, level, now, onAnswer, ...handlers }: BarPillProp
             </span>
           ) : null}
         </span>
-        <button
-          type="button"
-          className="bar-button bar-button-primary"
-          onPointerDown={keepFromDrag}
-          onClick={() => onAnswer?.("yes")}
-        >
-          Save
-        </button>
-        <button
-          type="button"
-          className="bar-button"
-          onPointerDown={keepFromDrag}
-          onClick={() => onAnswer?.("no")}
-        >
-          Dismiss
-        </button>
+        {(
+          view.actions ?? [
+            { answer: "yes", label: "Save", primary: true },
+            { answer: "no", label: "Dismiss" },
+          ]
+        ).map((action) => (
+          <button
+            key={action.answer}
+            type="button"
+            className={action.primary ? "bar-button bar-button-primary" : "bar-button"}
+            aria-label={action.hint}
+            title={action.hint}
+            onPointerDown={keepFromDrag}
+            onClick={() => onAnswer?.(action.answer)}
+          >
+            {action.label}
+          </button>
+        ))}
       </div>
     );
   }

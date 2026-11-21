@@ -4,6 +4,8 @@ import {
   type AxInspectResult,
   type CaptureChunk,
   type CaptureError,
+  type DetectEvent,
+  type DetectSubscribeInput,
   type CaptureLevel,
   type CaptureStartInput,
   type CaptureStartResult,
@@ -124,6 +126,7 @@ export class HelperSupervisor implements PlatformHelper {
   private readonly captureChunkHandlers = new Set<(chunk: CaptureChunk) => void>();
   private readonly captureLevelHandlers = new Set<(level: CaptureLevel) => void>();
   private readonly captureErrorHandlers = new Set<(error: CaptureError) => void>();
+  private readonly detectHandlers = new Set<(event: DetectEvent) => void>();
 
   private connection: HelperConnection | null = null;
   private restartTimes: number[] = [];
@@ -428,6 +431,17 @@ export class HelperSupervisor implements PlatformHelper {
     return this.connection.request("transcribe.live", input);
   }
 
+  async watchMeetings(input: DetectSubscribeInput): Promise<void> {
+    if (!this.connection || this.status.state !== "ready") {
+      throw new HelperError("HELPER_UNAVAILABLE", "The helper is not running");
+    }
+    await this.connection.request("detect.subscribe", input);
+  }
+
+  onMeetingDetected(handler: (event: DetectEvent) => void): Unsubscribe {
+    return subscribe(this.detectHandlers, handler);
+  }
+
   onCaptureChunk(handler: (chunk: CaptureChunk) => void): Unsubscribe {
     return subscribe(this.captureChunkHandlers, handler);
   }
@@ -714,6 +728,9 @@ export class HelperSupervisor implements PlatformHelper {
         break;
       case "capture.error":
         for (const handler of this.captureErrorHandlers) handler(event.payload);
+        break;
+      case "detect.event":
+        for (const handler of this.detectHandlers) handler(event.payload);
         break;
     }
   }

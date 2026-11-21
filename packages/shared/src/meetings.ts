@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DEFAULT_DETECT, detectSettingsSchema } from "./detect";
 import { audioSessionIdSchema } from "./audio";
 import { transcriptSchema } from "./speech";
 
@@ -283,6 +284,8 @@ export const notetakerSettingsSchema = z.strictObject({
       seen: z.boolean(),
     })
     .default({ notice: "first", seen: false }),
+  /** NT-01: detect calls in Zoom, Meet and Teams. */
+  detect: detectSettingsSchema.default(DEFAULT_DETECT),
 });
 export type NotetakerSettings = z.infer<typeof notetakerSettingsSchema>;
 
@@ -291,4 +294,5 @@ export const DEFAULT_NOTETAKER: NotetakerSettings = {
   chunkSeconds: 30,
   live: true,
   consent: { notice: "first", seen: false },
+  detect: DEFAULT_DETECT,
 };

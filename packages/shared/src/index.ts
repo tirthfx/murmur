@@ -34,6 +34,7 @@ export * from "./rewrite-panel";
 export * from "./commands";
 export * from "./instruct";
 export * from "./undo";
+export * from "./detect";
 export * from "./focus";
 export * from "./plans";
 export * from "./history";

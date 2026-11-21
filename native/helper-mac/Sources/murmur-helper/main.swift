@@ -104,6 +104,7 @@ var host = HelperHost(
         focus: FocusWatchController(source: SystemAppsSource(), emit: output.send),
         inspector: AXInspectController(source: SystemInspectSource(), permissions: permissions),
         meeting: meeting,
+        detection: DetectionController(source: SystemDetectSource(), emit: output.send),
         uptimeMs: HostInfo.uptimeProvider()))
 Log.info("started, helper \(ProtocolConstants.helperVersion), protocol \(ProtocolConstants.protocolVersion)")
 output.send(host.greeting())
