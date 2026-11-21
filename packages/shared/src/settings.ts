@@ -12,7 +12,12 @@ import { hotkeyTriggerSchema, mouseButtonSchema } from "./hotkeys";
 import { planStateSchema, planTierSchema } from "./plans";
 import { languageCodes, SPEECH_LANGUAGES } from "./languages";
 
-export { SPEECH_LANGUAGES, type SpeechLanguage } from "./languages";
+export {
+  MEETING_LANGUAGES,
+  meetingLanguageCodes,
+  SPEECH_LANGUAGES,
+  type SpeechLanguage,
+} from "./languages";
 
 /**
  * User settings (DC-06, DC-09, DC-17, DC-28). Stored one key per row in the `settings`

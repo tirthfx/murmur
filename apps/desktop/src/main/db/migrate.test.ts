@@ -87,6 +87,7 @@ describe("migrations", () => {
       "styles",
       "tasks",
       "transcript_corrections",
+      "transcript_versions",
       "voice_profiles",
       "voice_samples",
       "writing_samples",

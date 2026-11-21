@@ -29,6 +29,8 @@ export interface TranscriptStore {
   addChunkSegments(chunk: AudioChunkRow, segments: NewSegment[], at: number): number;
   /** In time order; ties keep the microphone first. */
   segments(meetingId: string): MeetingSegment[];
+  /** The language most of the spoken lines were heard in, or null when none has one. */
+  detectedLanguage(meetingId: string): string | null;
 }
 
 interface ChunkRow {
@@ -106,6 +108,15 @@ export function createTranscriptStore(db: DatabaseSync): TranscriptStore {
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       );
       let added = 0;
+      // The lines of a transcript made by a rerun carry its version, so a link to a line of
+      // an older one never opens a different line of this one (NT-23).
+      const version =
+        (
+          db
+            .prepare("SELECT transcript_version AS v FROM meetings WHERE id = ?")
+            .get(chunk.meetingId) as { v: number } | undefined
+        )?.v ?? 1;
+      const tag = version > 1 ? `~${version}` : "";
       db.exec("BEGIN IMMEDIATE");
       try {
         segments.forEach((segment, index) => {
@@ -113,7 +124,7 @@ export function createTranscriptStore(db: DatabaseSync): TranscriptStore {
           if (!text || NOT_SPEECH.test(text)) return;
           added += Number(
             insert.run(
-              `${chunk.meetingId}:${chunk.channel}:${chunk.seq}:${index}`,
+              `${chunk.meetingId}:${chunk.channel}:${chunk.seq}:${index}${tag}`,
               chunk.meetingId,
               segment.channel,
               Math.max(0, Math.round(segment.startMs)),
@@ -134,6 +145,16 @@ export function createTranscriptStore(db: DatabaseSync): TranscriptStore {
         throw error;
       }
       return added;
+    },
+    detectedLanguage(meetingId) {
+      const row = db
+        .prepare(
+          `SELECT language FROM meeting_segments
+           WHERE meeting_id = ? AND is_dictated = 0 AND language IS NOT NULL AND language != ''
+           GROUP BY language ORDER BY COUNT(*) DESC, language LIMIT 1`,
+        )
+        .get(meetingId) as { language: string } | undefined;
+      return row?.language ?? null;
     },
     segments(meetingId) {
       return (

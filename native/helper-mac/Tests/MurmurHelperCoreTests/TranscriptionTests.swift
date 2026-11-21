@@ -149,6 +149,33 @@ final class TranscriptionControllerTests: XCTestCase {
         XCTAssertNil(decodes.first?.options.prompt)
     }
 
+    func testTranslateIsPassedToTheRecognizerAndOffByDefault() async throws {
+        let (controller, recognizer, events) = loaded()
+        let path = try pcmFile(seconds: 2)
+        XCTAssertNil(controller.handle(id: "m-2", type: "transcribe.file", payload: ["path": .string(path)]))
+        waitForReplies(events, count: 1)
+        XCTAssertNil(
+            controller.handle(
+                id: "m-3", type: "transcribe.file",
+                payload: ["path": .string(path), "languages": .array([.string("es")]), "translate": .bool(true)]))
+        waitForReplies(events, count: 2)
+        let decodes = await recognizer.decodes
+        XCTAssertEqual(decodes.map(\.options.translate), [false, true])
+        // The language spoken is still reported.
+        let second = try XCTUnwrap(events.all.last?.payload["result"]?.objectValue)
+        XCTAssertEqual(second["language"], .string("es"))
+    }
+
+    func testLiveSamplesCarryTranslateToo() async throws {
+        let (controller, recognizer, events) = loaded()
+        let samples = [Float](repeating: 0.3, count: 16_000)
+        XCTAssertNil(controller.transcribeSamples(id: "m-9", samples: samples, languages: ["fr"], translate: true, extra: [:]))
+        waitForReplies(events, count: 1)
+        let decodes = await recognizer.decodes
+        XCTAssertEqual(decodes.first?.options.translate, true)
+        XCTAssertEqual(decodes.first?.options.languages, ["fr"])
+    }
+
     func testMeetingChunksKeepTheirTimingAndSkipSilence() async throws {
         let (controller, recognizer, events) = loaded()
         // Half a second of silence, then a tone: with keepTiming nothing is trimmed.

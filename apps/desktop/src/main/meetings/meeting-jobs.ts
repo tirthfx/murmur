@@ -8,8 +8,14 @@ export interface MeetingJobsDeps {
   db: DatabaseSync;
   meetings: MeetingsStore;
   transcripts: TranscriptStore;
-  /** Transcribes one chunk file, keeping its timing. */
-  transcribe(path: string): Promise<Transcript>;
+  /**
+   * Transcribes one chunk file, keeping its timing, in the meeting's language: `languages`
+   * empty detects it, and `translate` writes the words in English (NT-20).
+   */
+  transcribe(
+    path: string,
+    options: { languages: string[]; translate: boolean },
+  ): Promise<Transcript>;
   /** False while the speech model is missing or loading: jobs wait in the queue. */
   speechReady(): boolean;
   /** True while a dictation is recording or being transcribed: it goes first. */
@@ -100,6 +106,8 @@ export function createMeetingJobs(deps: MeetingJobsDeps): MeetingJobs {
       deps.meetings.setStatus(meetingId, "processing");
     }
     deps.onProgress(meetingId);
+    // How this meeting is transcribed is read for each chunk, so a change while it records
+    // applies from the next chunk (NT-20).
     try {
       // Chunks keep arriving while a meeting records: drain until none is left.
       for (
@@ -109,9 +117,13 @@ export function createMeetingJobs(deps: MeetingJobsDeps): MeetingJobs {
       )
         for (const chunk of pending) {
           while (deps.dictating()) await deps.wait(500);
+          const meeting = deps.meetings.get(meetingId);
           let transcript: Transcript;
           try {
-            transcript = await deps.transcribe(chunk.path);
+            transcript = await deps.transcribe(chunk.path, {
+              languages: meeting?.language ? [meeting.language] : [],
+              translate: meeting?.translate ?? false,
+            });
           } catch (error) {
             // A chunk file removed by hand: nothing to read, so move on.
             if (errorCode(error) !== "NOT_FOUND") throw error;

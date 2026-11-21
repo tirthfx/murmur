@@ -5,6 +5,7 @@ import {
   chunkLines,
   estimateTokens,
   groundSummary,
+  languageLine,
   NOT_WRITTEN,
   summarizeMeeting,
   transcriptLines,
@@ -109,6 +110,15 @@ describe("grounding a summary", () => {
   });
 });
 
+describe("summary language (NT-20)", () => {
+  it("writes in the transcript's language unless a language is chosen", () => {
+    expect(languageLine(undefined)).toBe("Write in the language the transcript is in.");
+    expect(languageLine("meeting")).toBe("Write in the language the transcript is in.");
+    expect(languageLine("es")).toBe("Write in Spanish, whatever language the transcript is in.");
+    expect(languageLine("hi-Latn")).toBe("Write in the language the transcript is in.");
+  });
+});
+
 describe("summarising a meeting", () => {
   /** A model that notes the first time it sees in its prompt, and records every prompt. */
   function fakeModel() {
@@ -142,6 +152,20 @@ describe("summarising a meeting", () => {
     expect(model.calls).toHaveLength(1);
     expect(model.calls[0]!.prompt).toContain("The owner's own notes:\nAgenda: roadmap");
     expect(result).toContain("(seg:");
+  });
+
+  it("is asked to write in the chosen language", async () => {
+    const model = fakeModel();
+    await summarizeMeeting(model, {
+      segments: [segment("s1", 2)],
+      notes: "",
+      skill: summary,
+      length: "medium",
+      language: "fr",
+    });
+    expect(model.calls[0]!.system).toContain(
+      "Write in French, whatever language the transcript is in.",
+    );
   });
 
   it("a 60-minute meeting fits the model context in every call", async () => {

@@ -17,6 +17,9 @@ export interface MeetingsStore {
     startedAt: number;
     source: MeetingSource;
     folder: string;
+    /** NT-20: null detects the language. */
+    language?: string | null;
+    translate?: boolean;
   }): Meeting;
   get(id: string): Meeting | null;
   /** Newest first. */
@@ -40,6 +43,10 @@ export interface MeetingsStore {
    * returns false when it did not change the title.
    */
   setGeneratedTitle(id: string, title: string): boolean;
+  /** NT-20: how the meeting is transcribed from now on. */
+  setLanguage(id: string, language: string | null, translate: boolean): void;
+  /** NT-23: true once, after a rerun, when its transcription has finished: a new summary is due. */
+  consumeRerun(id: string): boolean;
   /** NT-25: the owner accepted the recording notice for this meeting. */
   acknowledgeConsent(id: string, at: number): void;
   consentAcknowledgedAt(id: string): number | null;
@@ -57,6 +64,9 @@ interface MeetingRow {
   warnings: string;
   duration_ms: number;
   audio_deleted_at: number | null;
+  language: string | null;
+  translate: number;
+  transcript_version: number;
 }
 
 interface ChunkRow {
@@ -71,7 +81,7 @@ interface ChunkRow {
 }
 
 const COLUMNS =
-  "id, title, started_at, ended_at, source, status, channels, warnings, duration_ms, audio_deleted_at";
+  "id, title, started_at, ended_at, source, status, channels, warnings, duration_ms, audio_deleted_at, language, translate, transcript_version";
 
 function parseList<T>(text: string): T[] {
   try {
@@ -94,6 +104,9 @@ function toMeeting(row: MeetingRow): Meeting {
     warnings: parseList<MeetingWarning>(row.warnings),
     durationMs: row.duration_ms,
     audioDeletedAt: row.audio_deleted_at,
+    language: row.language,
+    translate: row.translate === 1,
+    transcriptVersion: row.transcript_version,
   };
 }
 
@@ -110,14 +123,16 @@ export function createMeetingsStore(db: DatabaseSync): MeetingsStore {
   return {
     create(input) {
       db.prepare(
-        `INSERT INTO meetings (id, title, started_at, source, status, folder)
-         VALUES (?, ?, ?, ?, 'recording', ?)`,
+        `INSERT INTO meetings (id, title, started_at, source, status, folder, language, translate)
+         VALUES (?, ?, ?, ?, 'recording', ?, ?, ?)`,
       ).run(
         input.id,
         input.title.slice(0, MEETING_TITLE_MAX),
         input.startedAt,
         input.source,
         input.folder,
+        input.language ?? null,
+        input.translate ? 1 : 0,
       );
       return get(input.id)!;
     },
@@ -140,6 +155,20 @@ export function createMeetingsStore(db: DatabaseSync): MeetingsStore {
       const row = db.prepare("SELECT folder FROM meetings WHERE id = ?").get(id) as
         { folder: string } | undefined;
       return row?.folder ?? null;
+    },
+    setLanguage(id, language, translate) {
+      db.prepare("UPDATE meetings SET language = ?, translate = ? WHERE id = ?").run(
+        language,
+        translate ? 1 : 0,
+        id,
+      );
+    },
+    consumeRerun(id) {
+      return (
+        db
+          .prepare("UPDATE meetings SET rerun_pending = 0 WHERE id = ? AND rerun_pending = 1")
+          .run(id).changes > 0
+      );
     },
     setChannels(id, channels) {
       const ordered = MEETING_CHANNELS.filter((channel) => channels.includes(channel));

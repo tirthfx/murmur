@@ -1,4 +1,5 @@
 import {
+  MEETING_LANGUAGES,
   NOT_DISCUSSED,
   NO_SOURCE,
   formatElapsed,
@@ -27,6 +28,8 @@ export interface SummaryRequest {
   notes: string;
   skill: Skill;
   length: SkillLength;
+  /** NT-20: "meeting" writes in the language of the transcript; a code writes in that language. */
+  language?: string;
 }
 
 /** A rough size: about 3.5 characters to a token, so the count errs on the large side. */
@@ -88,28 +91,34 @@ export function chunkLines(
   return chunks;
 }
 
-const LANGUAGE = "Write in the language the transcript is in.";
+/** The line that says what language to write in (NT-20). */
+export function languageLine(language: string | undefined): string {
+  const named = MEETING_LANGUAGES.find((candidate) => candidate.code === language);
+  return named
+    ? `Write in ${named.label}, whatever language the transcript is in.`
+    : "Write in the language the transcript is in.";
+}
 const GROUND =
   'Use only what is in the text. Never invent names, numbers, dates or decisions. Lines of the transcript are marked with the time they were said, like [12:34]. Owner lines are the person who owns these notes and Remote lines are everyone else: name people when a name was said, otherwise say "the owner" or "someone", never "you".';
 
-function mapSystem(): string {
+function mapSystem(language?: string): string {
   return [
     "You take notes on one part of a meeting, for a summary that will be written later.",
     GROUND,
     'Write short bullets, each starting with "- " and ending with the time or times in square brackets of the lines it comes from, like [12:34] or [12:34] [12:51].',
     "Keep decisions, actions with their owner, numbers, names and open questions. No headings and no introduction. At most 12 bullets.",
-    LANGUAGE,
+    languageLine(language),
   ].join("\n");
 }
 
-function finalSystem(skill: Skill, length: SkillLength, brief = false): string {
+function finalSystem(skill: Skill, length: SkillLength, brief = false, language?: string): string {
   const most = brief ? Math.max(2, Math.floor(BULLETS[length] / 2)) : BULLETS[length];
   return [
     "You write meeting notes.",
     GROUND,
     `Write Markdown with exactly these section headings, in this order, each on its own line as "## Heading": ${skill.sections.join(", ")}.`,
     `Under each heading write short bullets starting with "- ", at most ${most} per section. End every bullet with ${brief ? "one time" : "the time or times"} in square brackets of the lines it comes from, like [12:34]. A section that was not discussed has only the words "${NOT_DISCUSSED}" under its heading.`,
-    LANGUAGE,
+    languageLine(language),
     `What to write: ${skill.prompt}`,
   ].join("\n");
 }
@@ -274,7 +283,7 @@ export async function summarizeMeeting(
     steps = parts.length + 2;
     const noted: string[] = [];
     for (const part of parts) {
-      noted.push((await call(mapSystem(), part.join("\n"), MAP_MAX_TOKENS)).trim());
+      noted.push((await call(mapSystem(request.language), part.join("\n"), MAP_MAX_TOKENS)).trim());
     }
     let merged = noted.join("\n");
     // Merge again while the notes alone are too long for one prompt.
@@ -283,7 +292,9 @@ export async function summarizeMeeting(
       steps += groups.length;
       const condensed: string[] = [];
       for (const group of groups)
-        condensed.push((await call(mapSystem(), group.join("\n"), MAP_MAX_TOKENS)).trim());
+        condensed.push(
+          (await call(mapSystem(request.language), group.join("\n"), MAP_MAX_TOKENS)).trim(),
+        );
       merged = condensed.join("\n");
     }
     body = merged;
@@ -292,12 +303,20 @@ export async function summarizeMeeting(
   }
   const prompt = finalPrompt(body, notes, label);
   const room = FINAL_MAX_TOKENS[request.length];
-  let output = await call(finalSystem(request.skill, request.length), prompt, room);
+  let output = await call(
+    finalSystem(request.skill, request.length, false, request.language),
+    prompt,
+    room,
+  );
   let cut = looksCut(output, room);
   if (cut) {
     // Too much for the room: once more, with fewer bullets and one time each.
     steps++;
-    output = await call(finalSystem(request.skill, request.length, true), prompt, room);
+    output = await call(
+      finalSystem(request.skill, request.length, true, request.language),
+      prompt,
+      room,
+    );
     cut = looksCut(output, room);
   }
   return groundSummary(output, request.skill, request.segments, cut);

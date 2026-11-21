@@ -14,6 +14,8 @@ export interface LiveTranscriberDeps {
   dictating(): boolean;
   /** `notetaker.live`. */
   enabled(): boolean;
+  /** How the meeting is transcribed (NT-20); without it the language is detected. */
+  options?(meetingId: string): { languages: string[]; translate: boolean };
   /** True once a chunk's final segments are written: its partial is no longer shown. */
   isFinal(meetingId: string, channel: MeetingChannel, seq: number): boolean;
   wait(ms: number): Promise<void>;
@@ -58,7 +60,13 @@ export function createLiveTranscriber(deps: LiveTranscriberDeps): LiveTranscribe
         if (!recording(meetingId)) break;
         if (!deps.enabled() || deps.dictating()) continue;
         try {
-          const result = await deps.transcribeLive({ meetingId, channel });
+          const how = deps.options?.(meetingId);
+          const result = await deps.transcribeLive({
+            meetingId,
+            channel,
+            ...(how && how.languages.length > 0 ? { languages: how.languages } : {}),
+            ...(how?.translate ? { translate: true } : {}),
+          });
           const partial: LivePartial = {
             meetingId,
             channel,

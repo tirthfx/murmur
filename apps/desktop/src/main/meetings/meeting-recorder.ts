@@ -22,7 +22,14 @@ export interface MeetingRecorderDeps {
   meetingsDir: string;
   now(): number;
   newId(): string;
-  options(): { captureSystem: boolean; chunkSeconds: number; micDeviceId: string | null };
+  options(): {
+    captureSystem: boolean;
+    chunkSeconds: number;
+    micDeviceId: string | null;
+    /** NT-20: a new meeting's language (null detects it) and whether it is translated to English. */
+    language?: string | null;
+    translate?: boolean;
+  };
   /** Called on every change, for the Hub, the tray and the Bar. */
   onState(state: RecordingState): void;
   /** Called once a recording has ended and is ready to be transcribed. */
@@ -110,7 +117,15 @@ export function createMeetingRecorder(deps: MeetingRecorderDeps): MeetingRecorde
       const startedAt = deps.now();
       const folder = path.join(deps.meetingsDir, id);
       const title = input.title?.trim() || defaultMeetingTitle(startedAt);
-      deps.store.create({ id, title, startedAt, source: input.source ?? "ad_hoc", folder });
+      deps.store.create({
+        id,
+        title,
+        startedAt,
+        source: input.source ?? "ad_hoc",
+        folder,
+        language: options.language ?? null,
+        translate: options.translate ?? false,
+      });
       const wanted: MeetingChannel[] = options.captureSystem ? ["mic", "system"] : ["mic"];
       try {
         const result = await deps.helper.startMeetingCapture({

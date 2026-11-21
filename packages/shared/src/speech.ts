@@ -30,6 +30,8 @@ export const transcribeFilePayloadSchema = z.object({
    * with no sound gives no text. `.m4a` files are read too.
    */
   keepTiming: z.boolean().optional(),
+  /** NT-20: write the words in English whatever language is spoken (the model's translate task). */
+  translate: z.boolean().optional(),
 });
 export type TranscribeFileInput = z.infer<typeof transcribeFilePayloadSchema>;
 

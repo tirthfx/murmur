@@ -34,10 +34,14 @@ public struct RecognitionOptions: Sendable, Equatable {
     public var languages: [String]
     /// Text to condition the decoder on (words already on screen); nil for none.
     public var prompt: String?
+    /// Write the words in English whatever language is spoken (the model's translate task).
+    /// The recognition still reports the language that was spoken.
+    public var translate: Bool
 
-    public init(languages: [String] = [], prompt: String? = nil) {
+    public init(languages: [String] = [], prompt: String? = nil, translate: Bool = false) {
         self.languages = languages
         self.prompt = prompt
+        self.translate = translate
     }
 }
 

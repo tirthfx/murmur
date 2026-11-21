@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { meetingLanguageCodes } from "./languages";
 
 /**
  * Skills (NT-15): a named prompt that turns a meeting's transcript and notes into a summary,
@@ -251,10 +252,13 @@ export const summarySettingsSchema = z.strictObject({
   /** Write a summary when a recording has been transcribed. */
   auto: z.boolean(),
   length: z.enum(SUMMARY_LENGTH_SETTINGS),
+  /** NT-20: the language a summary is written in: the meeting's, or a fixed one. */
+  language: z.enum(["meeting", ...meetingLanguageCodes]).default("meeting"),
 });
 export const DEFAULT_SUMMARY_SETTINGS: z.infer<typeof summarySettingsSchema> = {
   auto: true,
   length: "medium",
+  language: "meeting",
 };
 export const skillsSettingsSchema = z.strictObject({ default: z.string().min(1).max(64) });
 export const DEFAULT_SKILLS_SETTINGS: z.infer<typeof skillsSettingsSchema> = {

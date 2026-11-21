@@ -135,6 +135,32 @@ describe("speech service", () => {
     expect(helper.transcribeFile).toHaveBeenCalledWith({ path: "/tmp/a.pcm", languages: [] });
   });
 
+  it("passes the language and translate to the helper for a meeting chunk (NT-20)", async () => {
+    const { service, helper } = setup();
+    service.start();
+    await flush();
+    helper.transcribeFile.mockResolvedValue({
+      text: "",
+      language: "es",
+      segments: [],
+      decodeMs: 1,
+      audioMs: 1,
+    });
+    await service.transcribeMeeting("/m/a.m4a", ["es"], true);
+    expect(helper.transcribeFile).toHaveBeenLastCalledWith({
+      path: "/m/a.m4a",
+      languages: ["es"],
+      keepTiming: true,
+      translate: true,
+    });
+    await service.transcribeMeeting("/m/b.m4a", ["es"]);
+    expect(helper.transcribeFile).toHaveBeenLastCalledWith({
+      path: "/m/b.m4a",
+      languages: ["es"],
+      keepTiming: true,
+    });
+  });
+
   it("decodes one file at a time, and a waiting dictation goes before meeting chunks", async () => {
     const { service, helper } = setup();
     service.start();

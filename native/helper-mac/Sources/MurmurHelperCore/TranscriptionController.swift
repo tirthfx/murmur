@@ -120,6 +120,8 @@ public final class TranscriptionController: @unchecked Sendable {
         // Meeting chunks (NT-05): no silence trim, so times stay on the chunk's timeline, and
         // a chunk with no sound at all gives no text (the model invents words in silence).
         let keepTiming = payload["keepTiming"]?.boolValue ?? false
+        // NT-20: write the words in English whatever language is spoken.
+        let translate = payload["translate"]?.boolValue ?? false
         var languages: [String] = []
         if let value = payload["languages"] {
             guard case .array(let items) = value, items.count <= 20,
@@ -147,22 +149,22 @@ public final class TranscriptionController: @unchecked Sendable {
         }
         return decode(
             id: id, type: type, samples: samples, languages: languages, prompt: prompt, keepTiming: keepTiming,
-            extra: [:])
+            translate: translate, extra: [:])
     }
 
     /// `transcribe.live` (NT-06): decodes audio handed over by the meeting recorder, the chunk
     /// still being written, with its timing kept. `extra` is added to the result.
     public func transcribeSamples(
-        id: String, samples: [Float], languages: [String], extra: [String: JSONValue]
+        id: String, samples: [Float], languages: [String], translate: Bool = false, extra: [String: JSONValue]
     ) -> Envelope? {
         decode(
             id: id, type: "transcribe.live", samples: samples, languages: languages, prompt: nil, keepTiming: true,
-            extra: extra)
+            translate: translate, extra: extra)
     }
 
     private func decode(
         id: String, type: String, samples: [Float], languages: [String], prompt: String?, keepTiming: Bool,
-        extra: [String: JSONValue]
+        translate: Bool, extra: [String: JSONValue]
     ) -> Envelope? {
         let state = lock.withLock { () -> String? in
             if loadedModel == nil { return "not-loaded" }
@@ -180,7 +182,7 @@ public final class TranscriptionController: @unchecked Sendable {
         let audioMs = samples.count * 1000 / AudioFormat.sampleRate
         let windows = max(1, Int((Double(audioMs) / 30_000).rounded(.up)))
         let timeout = timeoutPerWindow * Double(windows)
-        let options = RecognitionOptions(languages: languages, prompt: prompt)
+        let options = RecognitionOptions(languages: languages, prompt: prompt, translate: translate)
         let recognizer = self.recognizer
         let started = clock()
         Task {
