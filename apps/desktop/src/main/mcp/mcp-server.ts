@@ -42,6 +42,8 @@ export interface McpCallEvent {
   ok: boolean;
   /** Bytes of the text sent back. */
   resultBytes: number;
+  /** The tool changes data. */
+  write: boolean;
 }
 
 export type JsonRpcId = string | number | null;
@@ -88,7 +90,10 @@ export interface McpServerDeps {
   rateLimiter?: RateLimiter;
   /** Told about every tool call: who, which tool, and the sizes (never the result). */
   onCall?(event: McpCallEvent): void;
-  /** A tool that writes is refused while this says no. Default: refused. */
+  /**
+   * A tool that writes is refused, and not listed, while this says no. Default: refused. It is
+   * asked for each call and each listing, so a switch counts at once.
+   */
   writeAllowed?(tool: McpTool): boolean;
 }
 
@@ -115,8 +120,10 @@ const textResult = (text: string, isError: boolean) => ({
 export function createMcpServer(deps: McpServerDeps): McpServer {
   const byName = new Map(deps.tools.map((tool) => [tool.name, tool]));
 
+  const allowed = (tool: McpTool) => tool.readOnly || (deps.writeAllowed?.(tool) ?? false);
+
   const toolList = () =>
-    deps.tools.map((tool) => ({
+    deps.tools.filter(allowed).map((tool) => ({
       name: tool.name,
       title: tool.title,
       description: tool.description,
@@ -144,14 +151,14 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
         args: parsed.data.arguments ?? {},
         ok,
         resultBytes: Buffer.byteLength(text),
+        write: !tool.readOnly,
       });
     const refuse = (message: string) => {
       event(false, message);
       return textResult(message, true);
     };
 
-    if (!tool.readOnly && !(deps.writeAllowed?.(tool) ?? false))
-      return refuse(`The ${tool.name} tool is turned off in Murmur.`);
+    if (!allowed(tool)) return refuse(`The ${tool.name} tool is turned off in Murmur.`);
     const limited = deps.rateLimiter?.check(client.id);
     if (limited && !limited.ok)
       return refuse(
@@ -186,7 +193,8 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
       case "initialize": {
         const parsed = initializeSchema.safeParse(params ?? {});
         const info = parsed.success ? parsed.data : {};
-        if (info.clientInfo?.name) client.name = info.clientInfo.name;
+        // An app the owner approved keeps the name they gave it, whatever it calls itself.
+        if (info.clientInfo?.name && client.name === null) client.name = info.clientInfo.name;
         const asked = info.protocolVersion;
         return {
           protocolVersion: (SUPPORTED_PROTOCOLS as readonly string[]).includes(asked ?? "")

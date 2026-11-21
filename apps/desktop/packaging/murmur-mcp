@@ -3,14 +3,25 @@
 #
 # The client starts this command and speaks JSON-RPC, one message per line, on stdin and stdout.
 # It is passed on to the running Murmur app through its local socket, which only this user can
-# open. Murmur must be running, with the local MCP server turned on (Connectors, Local MCP server).
+# open. Murmur must be running, with the local MCP server turned on (Connectors, Local MCP server),
+# and the app must have been added there: its token is in MURMUR_MCP_TOKEN, which the config that
+# Murmur writes for the app sets. The token is sent first, on the connection, and is not shown in
+# any process list.
 #
 # The socket is named by the first argument, or MURMUR_MCP_SOCKET, or is the default one.
 socket="${1:-${MURMUR_MCP_SOCKET:-$HOME/Library/Application Support/Murmur/mcp.sock}}"
+token="${MURMUR_MCP_TOKEN:-}"
+
+if [ -z "$token" ]; then
+  echo "murmur-mcp: MURMUR_MCP_TOKEN is not set. Add this app in Murmur (Connectors, Local MCP server) and write its config." >&2
+  exit 1
+fi
 
 if [ ! -S "$socket" ]; then
   echo "murmur-mcp: Murmur is not running, or its local MCP server is off ($socket is not there)." >&2
   exit 1
 fi
 
-exec /usr/bin/nc -U "$socket"
+# `printf` is built in, so the token is not an argument of any process.
+{ printf '{"jsonrpc":"2.0","method":"murmur/authorize","params":{"token":"%s"}}\n' "$token"; cat; } |
+  /usr/bin/nc -U "$socket"

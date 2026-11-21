@@ -27,7 +27,14 @@ import {
   type TranscriptImportPreviewResult,
 } from "./transcript-import";
 import type { ConnectorActionResult, ConnectorsView } from "./connectors";
-import type { McpStatus } from "./mcp";
+import type {
+  McpActionResult,
+  McpAuditEntry,
+  McpClientKind,
+  McpClientsView,
+  McpConfigPreviewResult,
+  McpStatus,
+} from "./mcp";
 import {
   folderPatchSchema,
   meetingExportOptionsSchema,
@@ -452,6 +459,15 @@ export const IPC_CHANNELS = {
   connectorSetClientId: "connectors:set-client-id",
   connectorSetClientSecret: "connectors:set-client-secret",
   mcpStatus: "mcp:status",
+  mcpClients: "mcp:clients",
+  mcpIssue: "mcp:issue",
+  mcpRotate: "mcp:rotate",
+  mcpRevoke: "mcp:revoke",
+  mcpCopyToken: "mcp:copy-token",
+  mcpConfigPreview: "mcp:config-preview",
+  mcpConfigWrite: "mcp:config-write",
+  mcpAudit: "mcp:audit",
+  mcpAuditClear: "mcp:audit-clear",
   meetingMove: "meetings:move",
   meetingFolderDismiss: "meetings:folder-dismiss",
   meetingExport: "meetings:export",
@@ -1013,6 +1029,33 @@ export const IPC_CONTRACT = {
     result: z.custom<ConnectorActionResult>(),
   },
   [IPC_CHANNELS.mcpStatus]: { args: z.tuple([]), result: z.custom<McpStatus>() },
+  [IPC_CHANNELS.mcpClients]: { args: z.tuple([]), result: z.custom<McpClientsView>() },
+  [IPC_CHANNELS.mcpIssue]: {
+    args: z.tuple([z.string().max(200), z.enum(["claude-desktop", "cursor", "other"])]),
+    result: z.custom<McpActionResult>(),
+  },
+  [IPC_CHANNELS.mcpRotate]: {
+    args: z.tuple([z.string().min(1).max(64)]),
+    result: z.custom<McpActionResult>(),
+  },
+  [IPC_CHANNELS.mcpRevoke]: {
+    args: z.tuple([z.string().min(1).max(64)]),
+    result: z.custom<McpActionResult>(),
+  },
+  [IPC_CHANNELS.mcpCopyToken]: {
+    args: z.tuple([z.string().min(1).max(64)]),
+    result: z.custom<McpActionResult>(),
+  },
+  [IPC_CHANNELS.mcpConfigPreview]: {
+    args: z.tuple([z.string().min(1).max(64)]),
+    result: z.custom<McpConfigPreviewResult>(),
+  },
+  [IPC_CHANNELS.mcpConfigWrite]: {
+    args: z.tuple([z.string().min(1).max(64)]),
+    result: z.custom<McpActionResult>(),
+  },
+  [IPC_CHANNELS.mcpAudit]: { args: z.tuple([]), result: z.custom<McpAuditEntry[]>() },
+  [IPC_CHANNELS.mcpAuditClear]: { args: z.tuple([]), result: z.void() },
   [IPC_CHANNELS.meetingMove]: {
     args: z.tuple([z.string().min(1).max(64), z.string().min(1).max(64).nullable()]),
     result: z.custom<FolderResult>(),
@@ -1395,6 +1438,23 @@ export interface MurmurApi {
   connectorSetClientSecret(id: string, secret: string | null): Promise<ConnectorActionResult>;
   /** CN-11: whether the local MCP server is listening, and where, once a change of setting has been applied. Its switches are in settings. */
   mcpStatus(): Promise<McpStatus>;
+  /** The apps the owner approved. Tokens are never in it. */
+  mcpClients(): Promise<McpClientsView>;
+  /** Approves an app: makes its token and keeps it in the Keychain. */
+  mcpIssue(name: string, kind: McpClientKind): Promise<McpActionResult>;
+  /** A new token; the old one stops working at once. */
+  mcpRotate(id: string): Promise<McpActionResult>;
+  /** The app can no longer use Murmur, at once. */
+  mcpRevoke(id: string): Promise<McpActionResult>;
+  /** Puts the app's token on the clipboard, which is cleared after a minute. The window never sees it. */
+  mcpCopyToken(id: string): Promise<McpActionResult>;
+  /** What writing the app's config file would change, for the owner to approve. Writes nothing. */
+  mcpConfigPreview(id: string): Promise<McpConfigPreviewResult>;
+  /** Writes the file a preview showed, if it has not changed since. */
+  mcpConfigWrite(previewId: string): Promise<McpActionResult>;
+  /** The last calls apps made: names and sizes, never contents. */
+  mcpAudit(): Promise<McpAuditEntry[]>;
+  mcpAuditClear(): Promise<void>;
   /** Puts a meeting in a folder, or in the Inbox (null). */
   meetingMove(meetingId: string, folderId: string | null): Promise<FolderResult>;
   /** Stops offering this folder for meetings like this one. */

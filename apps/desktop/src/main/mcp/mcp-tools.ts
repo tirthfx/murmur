@@ -2,6 +2,7 @@ import { z } from "zod";
 import { MCP_LIMITS, TASK_OWNER_FILTERS, TASK_STATUSES, type TaskFilter } from "@murmur/shared";
 import type { AskIndex } from "../meetings/ask-index";
 import type { FoldersStore } from "../meetings/folders-store";
+import type { MeetingNotesStore } from "../meetings/meeting-notes-store";
 import type { MeetingsStore } from "../meetings/meetings-store";
 import type { SpeakersStore } from "../meetings/speakers-store";
 import type { SummariesStore } from "../meetings/summaries-store";
@@ -18,8 +19,9 @@ export interface McpData {
   transcript: Pick<TranscriptStore, "segments">;
   speakers: Pick<SpeakersStore, "list">;
   summaries: Pick<SummariesStore, "list">;
-  tasks: Pick<TasksService, "list">;
+  tasks: Pick<TasksService, "list" | "addClientSuggestion">;
   folders: Pick<FoldersStore, "list" | "get" | "meetingIds">;
+  notes: Pick<MeetingNotesStore, "notes" | "saveNotes">;
   ask: Pick<AskIndex, "sync" | "search" | "meetings">;
 }
 
@@ -425,5 +427,99 @@ export function createMcpTools(data: McpData): McpTool[] {
     },
   };
 
-  return [searchMeetings, getMeeting, getSummary, getTranscript, listTasks, listFolders];
+  const createTask: McpTool = {
+    name: "create_task",
+    title: "Suggest a task",
+    description:
+      "Adds a task for the owner to look at. It starts as a suggestion: the owner accepts or dismisses it in My Tasks, and it is never accepted by itself. Works only while the owner has turned it on in Murmur.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        title: { type: "string", maxLength: 200 },
+        notes: { type: "string", maxLength: 2000 },
+        owner: {
+          type: "string",
+          maxLength: 80,
+          description: "Who it is for, if someone was named.",
+        },
+        ownerIsMe: { type: "boolean", description: "True when it is for the owner." },
+        dueOn: { type: "string", description: "The due day, 2026-11-25." },
+        meetingId: { type: "string", description: "The meeting it came from, if any." },
+      },
+      required: ["title"],
+      additionalProperties: false,
+    },
+    args: z.strictObject({
+      title: z.string().min(1).max(200),
+      notes: z.string().max(2000).optional(),
+      owner: z.string().min(1).max(80).optional(),
+      ownerIsMe: z.boolean().optional(),
+      dueOn: z.string().max(10).optional(),
+      meetingId: meetingId.optional(),
+    }),
+    readOnly: false,
+    run(args: {
+      title: string;
+      notes?: string;
+      owner?: string;
+      ownerIsMe?: boolean;
+      dueOn?: string;
+      meetingId?: string;
+    }) {
+      const result = data.tasks.addClientSuggestion(
+        {
+          title: args.title,
+          notes: args.notes ?? "",
+          owner: args.owner ?? null,
+          ownerIsMe: args.ownerIsMe ?? false,
+          dueOn: args.dueOn ?? null,
+        },
+        args.meetingId ?? null,
+      );
+      if (!result.ok) throw new McpToolError(result.message);
+      return {
+        taskId: result.task.id,
+        status: result.task.status,
+        note: "The owner accepts or dismisses it in My Tasks.",
+      };
+    },
+  };
+
+  const addNote: McpTool = {
+    name: "add_note",
+    title: "Add to a meeting's notes",
+    description:
+      "Adds text at the end of the owner's own notes on a meeting. It never changes what is already there. Works only while the owner has turned it on in Murmur.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        meetingId: { type: "string" },
+        text: { type: "string", maxLength: 4000 },
+      },
+      required: ["meetingId", "text"],
+      additionalProperties: false,
+    },
+    args: z.strictObject({ meetingId, text: z.string().trim().min(1).max(4000) }),
+    readOnly: false,
+    run(args: { meetingId: string; text: string }) {
+      const meeting = need(args.meetingId);
+      const current = data.notes.notes(meeting.id).body;
+      const next =
+        current.trim() === "" ? args.text : `${current.replace(/\s+$/, "")}\n\n${args.text}`;
+      if (!data.notes.saveNotes(meeting.id, next))
+        throw new McpToolError("The notes on that meeting are too long to add more.");
+      return { meetingId: meeting.id, added: args.text.length, notesLength: next.length };
+    },
+  };
+
+  return [
+    searchMeetings,
+    getMeeting,
+    getSummary,
+    getTranscript,
+    listTasks,
+    listFolders,
+    createTask,
+    addNote,
+  ];
 }

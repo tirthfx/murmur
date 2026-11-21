@@ -69,15 +69,31 @@ describe("MCP protocol (CN-11)", () => {
     expect(await notify("no/such/thing")).toBeNull();
   });
 
-  it("lists tools with the read-only hint set", async () => {
-    const t = setup([tool(), tool({ name: "change", readOnly: false })]);
-    const reply = await t.call("tools/list");
-    expect(reply?.result).toMatchObject({
+  it("lists tools with the read-only hint set, and a tool that writes only while it is allowed", async () => {
+    let allowed = false;
+    const t = setup([tool(), tool({ name: "change", readOnly: false })], {
+      writeAllowed: () => allowed,
+    });
+    const names = async () =>
+      ((await t.call("tools/list"))?.result as { tools: { name: string }[] }).tools.map(
+        (candidate) => candidate.name,
+      );
+    expect(await names()).toEqual(["echo"]);
+    allowed = true;
+    expect(await names()).toEqual(["echo", "change"]);
+    expect((await t.call("tools/list"))?.result).toMatchObject({
       tools: [
         { name: "echo", annotations: { readOnlyHint: true, destructiveHint: false } },
         { name: "change", annotations: { readOnlyHint: false } },
       ],
     });
+  });
+
+  it("keeps the name an approved app was given, not the one it announces", async () => {
+    const t = setup();
+    t.client.name = "Claude desktop";
+    await t.call("initialize", { clientInfo: { name: "something-else" } });
+    expect(t.client.name).toBe("Claude desktop");
   });
 
   it("calls a tool and returns its result as one JSON text block", async () => {
@@ -90,6 +106,7 @@ describe("MCP protocol (CN-11)", () => {
       args: { text: "hi" },
       ok: true,
       resultBytes: 13,
+      write: false,
     });
   });
 

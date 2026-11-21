@@ -33,6 +33,15 @@ export const mcpSettingsSchema = z.strictObject({
   }),
   /** Calls a minute for one client. */
   rateLimitPerMinute: z.number().int().min(1).max(600),
+  /** Tools that change something are off until the owner turns each one on. */
+  write: z
+    .strictObject({
+      /** `create_task`: adds a suggested task. */
+      createTask: z.boolean(),
+      /** `add_note`: adds text to a meeting's My notes. */
+      addNote: z.boolean(),
+    })
+    .default({ createTask: false, addNote: false }),
 });
 export type McpSettings = z.infer<typeof mcpSettingsSchema>;
 
@@ -41,6 +50,7 @@ export const DEFAULT_MCP_SETTINGS: McpSettings = {
   transport: { stdio: true, http: false },
   http: { port: MCP_DEFAULT_PORT },
   rateLimitPerMinute: 60,
+  write: { createTask: false, addNote: false },
 };
 
 /** What the Connectors page shows about the server. */
@@ -70,3 +80,73 @@ export const MCP_STATUS_OFF: McpStatus = {
   stdio: { wanted: false, listening: false, path: null, problem: null },
   http: { wanted: false, listening: false, url: null, problem: null },
 };
+
+// ------------------------------------------------------------------ clients, config, audit
+
+/** The apps Murmur knows how to write a config file for; `other` is shown a command and an address. */
+export const MCP_CLIENT_KINDS = ["claude-desktop", "cursor", "other"] as const;
+export type McpClientKind = (typeof MCP_CLIENT_KINDS)[number];
+
+export const MCP_CLIENT_KIND_TEXT: Record<McpClientKind, string> = {
+  "claude-desktop": "Claude desktop",
+  cursor: "Cursor",
+  other: "Another app",
+};
+
+export const MCP_CLIENT_NAME_MAX = 60;
+
+/** An app the owner approved. It has a token of its own, which is not in this object. */
+export interface McpClientInfo {
+  id: string;
+  name: string;
+  kind: McpClientKind;
+  createdAt: number;
+  lastUsedAt: number | null;
+}
+
+export type McpActionResult = { ok: true; message?: string } | { ok: false; message: string };
+
+/** One line of a before and after view of a file. `skip` stands for lines that did not change. */
+export interface McpDiffLine {
+  kind: "same" | "add" | "remove" | "skip";
+  text: string;
+}
+
+/** What writing a client's config file would do, for the owner to approve. The token is masked. */
+export interface McpConfigPreview {
+  /** Names this preview; the write needs it, and only this file as it was seen. */
+  previewId: string;
+  clientName: string;
+  path: string;
+  /** False when the file is not there and would be made. */
+  exists: boolean;
+  /** False when the file already says what Murmur would write. */
+  changed: boolean;
+  lines: McpDiffLine[];
+  /** Where a copy of the current file is kept first; null when there is no file. */
+  backupPath: string | null;
+}
+
+export type McpConfigPreviewResult =
+  { ok: true; preview: McpConfigPreview } | { ok: false; message: string };
+
+/** The apps the owner approved, and what the page needs to tell another app how to connect. */
+export interface McpClientsView {
+  clients: McpClientInfo[];
+  /** The `murmur-mcp` command's path, for an app that is set up by hand. */
+  command: string;
+  /** The socket the command talks to. */
+  socketPath: string;
+}
+
+/** A line of the call log. It has the names and sizes, never the arguments or the result. */
+export interface McpAuditEntry {
+  id: number;
+  at: number;
+  client: string;
+  tool: string;
+  ok: boolean;
+  resultBytes: number;
+  /** The tool changes data. */
+  write: boolean;
+}

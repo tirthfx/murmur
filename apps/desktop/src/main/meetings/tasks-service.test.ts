@@ -281,3 +281,48 @@ describe("undo", () => {
     expect(t.tasks.list().undo).toBeNull();
   });
 });
+
+describe("tasks suggested by an outside app (CN-11)", () => {
+  it("adds a suggested task, which is not open until the owner accepts it", () => {
+    const t = setup();
+    const result = t.tasks.addClientSuggestion(
+      draft("Send the budget", { owner: "Sam", dueOn: "2026-11-25", notes: "From the review" }),
+      "m-1",
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      task: {
+        title: "Send the budget",
+        status: "suggested",
+        source: "meeting",
+        meetingId: "m-1",
+        owner: "Sam",
+        dueOn: "2026-11-25",
+        notes: "From the review",
+      },
+    });
+    expect(t.tasks.list({ status: "open" }).tasks).toEqual([]);
+    // Undo does not list it: it is not something the owner did.
+    expect(t.tasks.list().undo).toBeNull();
+  });
+
+  it("can belong to no meeting, and refuses a missing meeting, a bad draft and a repeat", () => {
+    const t = setup();
+    expect(t.tasks.addClientSuggestion(draft("Plan the offsite"), null)).toMatchObject({
+      ok: true,
+      task: { source: "manual", meetingId: null, status: "suggested" },
+    });
+    expect(t.tasks.addClientSuggestion(draft("Plan the OFFSITE!"), null)).toEqual({
+      ok: false,
+      message: "That task is there already.",
+    });
+    expect(t.tasks.addClientSuggestion(draft("Plan the offsite"), "m-1")).toMatchObject({
+      ok: true,
+    });
+    expect(t.tasks.addClientSuggestion(draft("x"), "nope")).toEqual({
+      ok: false,
+      message: "That meeting was not found.",
+    });
+    expect(t.tasks.addClientSuggestion({ title: "" }, null)).toMatchObject({ ok: false });
+  });
+});

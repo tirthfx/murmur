@@ -3,6 +3,7 @@ import { MCP_LIMITS } from "@murmur/shared";
 import { openDatabase } from "../db/database";
 import { createAskIndex } from "../meetings/ask-index";
 import { createFoldersStore } from "../meetings/folders-store";
+import { createMeetingNotesStore } from "../meetings/meeting-notes-store";
 import { createMeetingsStore } from "../meetings/meetings-store";
 import { createSpeakersStore } from "../meetings/speakers-store";
 import { createSummariesStore } from "../meetings/summaries-store";
@@ -121,11 +122,17 @@ function setup() {
     "INSERT INTO meeting_notes (meeting_id, body_md, updated_at) VALUES ('m-1', 'Private thought about Frankfurt hotels', 1)",
   ).run();
 
-  const data = { meetings, transcript, speakers, summaries, tasks, folders, ask };
+  const notes = createMeetingNotesStore(
+    db,
+    () => 1,
+    () => "doc",
+  );
+  const data = { meetings, transcript, speakers, summaries, tasks, folders, ask, notes };
   const server = createMcpServer({
     tools: createMcpTools(data),
     serverName: "murmur",
     serverVersion: "1",
+    writeAllowed: () => true,
   });
   const client = { id: "c", name: null };
   const call = async (name: string, args: unknown = {}) => {
@@ -141,11 +148,11 @@ function setup() {
       data: result.isError ? null : JSON.parse(text),
     };
   };
-  return { db, call, planningId: planning.id };
+  return { db, call, planningId: planning.id, notes, tasks };
 }
 
 describe("the six read tools (CN-11)", () => {
-  it("offers exactly the six read tools, all read-only", () => {
+  it("offers the six read tools, then the two that write", () => {
     const t = setup();
     expect(t).toBeTruthy();
     const names = createMcpTools({} as never).map((tool) => [tool.name, tool.readOnly]);
@@ -156,6 +163,8 @@ describe("the six read tools (CN-11)", () => {
       ["get_transcript", true],
       ["list_tasks", true],
       ["list_folders", true],
+      ["create_task", false],
+      ["add_note", false],
     ]);
   });
 
@@ -464,5 +473,75 @@ describe("search helpers", () => {
     expect(parseWhen("2026-11-21T10:00:00Z", true)).toBe(Date.parse("2026-11-21T10:00:00Z"));
     for (const bad of ["", "21 Nov", "2026-13-01", "2026-02-30", "2026-11-21 10:00"])
       expect(parseWhen(bad, false)).toBeNull();
+  });
+});
+
+describe("the two write tools (CN-11)", () => {
+  it("create_task adds a suggestion for the owner, not an open task", async () => {
+    const t = setup();
+    const { data } = await t.call("create_task", {
+      title: "Book the offsite venue",
+      owner: "Sam",
+      dueOn: "2026-12-01",
+      notes: "Asked for in the sync",
+      meetingId: "m-1",
+    });
+    expect(data).toMatchObject({ status: "suggested", note: expect.stringContaining("My Tasks") });
+    expect(t.tasks.get(data.taskId)).toMatchObject({
+      title: "Book the offsite venue",
+      status: "suggested",
+      owner: "Sam",
+      dueOn: "2026-12-01",
+      meetingId: "m-1",
+    });
+    // It is not in the open list until the owner accepts it.
+    const open = await t.call("list_tasks");
+    expect(JSON.stringify(open.data)).not.toContain("offsite venue");
+    const suggested = await t.call("list_tasks", { status: "suggested" });
+    expect(JSON.stringify(suggested.data)).toContain("Book the offsite venue");
+  });
+
+  it("create_task can have no meeting, and says why it refused a repeat, a bad date or a missing meeting", async () => {
+    const t = setup();
+    expect((await t.call("create_task", { title: "Water the plants" })).data.status).toBe(
+      "suggested",
+    );
+    expect((await t.call("create_task", { title: "water the plants" })).text).toBe(
+      "That task is there already.",
+    );
+    expect((await t.call("create_task", { title: "x", dueOn: "next week" })).text).toContain(
+      "not valid",
+    );
+    expect((await t.call("create_task", { title: "x", meetingId: "nope" })).text).toBe(
+      "That meeting was not found.",
+    );
+    expect((await t.call("create_task", { title: "" })).isError).toBe(true);
+    expect((await t.call("create_task", { title: "x", status: "done" })).isError).toBe(true);
+  });
+
+  it("add_note adds to the end of the owner's notes and keeps what is there", async () => {
+    const t = setup();
+    const before = t.notes.notes("m-1").body;
+    expect(before).toBe("Private thought about Frankfurt hotels");
+    const { data } = await t.call("add_note", {
+      meetingId: "m-1",
+      text: "Follow up with QA on Friday.",
+    });
+    expect(t.notes.notes("m-1").body).toBe(`${before}\n\nFollow up with QA on Friday.`);
+    expect(data).toMatchObject({ meetingId: "m-1", added: 28 });
+    // A meeting with no notes starts them.
+    await t.call("add_note", { meetingId: "m-2", text: "First note" });
+    expect(t.notes.notes("m-2").body).toBe("First note");
+  });
+
+  it("add_note refuses an unknown meeting, empty text, and notes that would be too long", async () => {
+    const t = setup();
+    expect((await t.call("add_note", { meetingId: "nope", text: "hi" })).text).toBe(
+      "There is no meeting nope.",
+    );
+    expect((await t.call("add_note", { meetingId: "m-1", text: "   " })).isError).toBe(true);
+    t.notes.saveNotes("m-1", "x".repeat(199_000));
+    const big = await t.call("add_note", { meetingId: "m-1", text: "y".repeat(4000) });
+    expect(big.isError).toBe(true);
   });
 });
