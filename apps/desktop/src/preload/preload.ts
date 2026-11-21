@@ -177,6 +177,19 @@ const api: MurmurApi = {
     ipcRenderer.invoke(IPC_CHANNELS.meetingSpeakerClip, meetingId, speakerId),
   meetingCorrect: (meetingId, correction) =>
     ipcRenderer.invoke(IPC_CHANNELS.meetingCorrect, meetingId, correction),
+  foldersList: () => ipcRenderer.invoke(IPC_CHANNELS.foldersList),
+  folderCreate: (name) => ipcRenderer.invoke(IPC_CHANNELS.folderCreate, name),
+  folderRename: (id, name) => ipcRenderer.invoke(IPC_CHANNELS.folderRename, id, name),
+  folderDelete: (id) => ipcRenderer.invoke(IPC_CHANNELS.folderDelete, id),
+  folderUpdate: (id, patch) => ipcRenderer.invoke(IPC_CHANNELS.folderUpdate, id, patch),
+  folderChooseExport: (id) => ipcRenderer.invoke(IPC_CHANNELS.folderChooseExport, id),
+  folderClearExport: (id) => ipcRenderer.invoke(IPC_CHANNELS.folderClearExport, id),
+  meetingMove: (meetingId, folderId) =>
+    ipcRenderer.invoke(IPC_CHANNELS.meetingMove, meetingId, folderId),
+  meetingFolderDismiss: (meetingId, folderId) =>
+    ipcRenderer.invoke(IPC_CHANNELS.meetingFolderDismiss, meetingId, folderId),
+  meetingExport: (meetingId, options) =>
+    ipcRenderer.invoke(IPC_CHANNELS.meetingExport, meetingId, options),
   meetingSetLanguage: (meetingId, input) =>
     ipcRenderer.invoke(IPC_CHANNELS.meetingSetLanguage, meetingId, input),
   meetingRerun: (meetingId, input) =>

@@ -723,3 +723,17 @@ body {
   display: grid;
   gap: 6px;
 }
+
+.hub-folders {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.hub-folder {
+  padding: 12px;
+  border: 1px solid var(--color-border, rgba(127, 127, 127, 0.3));
+  border-radius: 8px;
+}

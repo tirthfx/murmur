@@ -67,6 +67,8 @@ export const taskFilterSchema = z.strictObject({
   status: z.enum([...TASK_STATUSES, "all"]).optional(),
   owner: z.enum(TASK_OWNER_FILTERS).optional(),
   meetingId: z.string().min(1).max(64).optional(),
+  /** The tasks of the meetings in a folder; "inbox" for the Inbox (NT-17). */
+  folder: z.string().min(1).max(64).optional(),
 });
 export type TaskFilter = z.infer<typeof taskFilterSchema>;
 

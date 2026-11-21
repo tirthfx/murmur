@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { openDatabase } from "../db/database";
+import { createFoldersStore } from "./folders-store";
 import { createAskIndex } from "./ask-index";
 import { AskError, createAskRunner, scopeFilter } from "./ask-runner";
 import { createAskStore } from "./ask-store";
@@ -33,6 +34,7 @@ function setup(over: Record<string, unknown> = {}) {
   say("m-2", 9_000, "We also ship swag to the offsite on Thursday.");
 
   const warn = vi.fn();
+  const folders = createFoldersStore(db, { now: () => NOW, newId: () => `f${++n}` });
   const generate = vi.fn().mockResolvedValue("We ship on Thursday if the load test passes [1].");
   let counter = 0;
   const index = createAskIndex(db, { now: () => NOW });
@@ -40,6 +42,7 @@ function setup(over: Record<string, unknown> = {}) {
   const runner = createAskRunner({
     index,
     store,
+    folderMeetings: (folderId) => folders.meetingIds(folderId),
     settings: () => ({ topK: 12, includeNotes: true }),
     modelReady: async () => true,
     generate,
@@ -50,7 +53,7 @@ function setup(over: Record<string, unknown> = {}) {
     logger: { info: vi.fn(), warn, error: vi.fn() } as never,
     ...over,
   });
-  return { db, meetings, runner, store, generate, warn, say, make };
+  return { db, meetings, runner, store, generate, warn, say, make, folders };
 }
 
 const all = { kind: "all" } as const;
@@ -165,6 +168,36 @@ describe("ask runner (NT-14)", () => {
     expect(prompt).not.toContain("Launch review");
     expect(thread.messages.at(-1)!.citations[0]!.meetingId).toBe("m-2");
     expect(thread.scope).toEqual({ kind: "meetings", ids: ["m-2"] });
+  });
+
+  it("looks only in the meetings of a folder, and follows a meeting that is moved (NT-17)", async () => {
+    const generate = citing("ship");
+    const t = setup({ generate });
+    const calls = t.folders.create("Customer calls");
+    if (!calls.ok || !calls.id) throw new Error("no folder");
+    t.folders.move("m-2", calls.id);
+    const ask = () =>
+      t.runner.send({
+        threadId: null,
+        question: "When do we ship?",
+        scope: { kind: "folder", folderId: calls.id! },
+      });
+    await ask();
+    let prompt = (generate.mock.calls.at(-1)![0] as { prompt: string }).prompt;
+    expect(prompt).toContain("Budget call");
+    expect(prompt).not.toContain("Launch review");
+    // Move the other meeting in: the next question sees it, with no other change.
+    t.folders.move("m-1", calls.id);
+    await ask();
+    prompt = (generate.mock.calls.at(-1)![0] as { prompt: string }).prompt;
+    expect(prompt).toContain("Launch review");
+    // The Inbox is a folder scope too, and it is empty now.
+    const inbox = await t.runner.send({
+      threadId: null,
+      question: "When do we ship?",
+      scope: { kind: "folder", folderId: null },
+    });
+    expect(inbox.messages.at(-1)).toMatchObject({ supported: false, closest: [] });
   });
 
   it("limits a date range to the days given, both ends included", async () => {

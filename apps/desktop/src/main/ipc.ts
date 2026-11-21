@@ -13,6 +13,11 @@ import {
   type AskSendResult,
   type AskThread,
   type AskThreadItem,
+  type FolderPatch,
+  type FolderResult,
+  type MeetingExportOptions,
+  type MeetingExportResult,
+  type MeetingFolder,
   type MeetingFindTasksResult,
   type MeetingLanguageInput,
   type RerunResult,
@@ -162,6 +167,16 @@ export interface IpcDeps {
   meetingSpeakerClip: (meetingId: string, speakerId: string) => SpeakerClipResult;
   meetingCorrect: (meetingId: string, correction: Correction) => CorrectionResult;
   meetingSetLanguage: (meetingId: string, input: MeetingLanguageInput) => RerunResult;
+  foldersList: () => MeetingFolder[];
+  folderCreate: (name: string) => FolderResult;
+  folderRename: (id: string, name: string) => FolderResult;
+  folderDelete: (id: string) => FolderResult;
+  folderUpdate: (id: string, patch: FolderPatch) => FolderResult;
+  folderChooseExport: (id: string) => Promise<FolderResult>;
+  folderClearExport: (id: string) => FolderResult;
+  meetingMove: (meetingId: string, folderId: string | null) => FolderResult;
+  meetingFolderDismiss: (meetingId: string, folderId: string) => void;
+  meetingExport: (meetingId: string, options: MeetingExportOptions) => Promise<MeetingExportResult>;
   meetingRerun: (meetingId: string, input: MeetingLanguageInput) => RerunResult;
   meetingVersionRestore: (meetingId: string, versionId: number) => RerunResult;
   meetingSegmentHistory: (meetingId: string, segmentId: string) => SegmentHistoryItem[];
@@ -609,6 +624,29 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.meetingSpeakerClip(request.args[0] as string, request.args[1] as string);
       case IPC_CHANNELS.meetingCorrect:
         return deps.meetingCorrect(request.args[0] as string, request.args[1] as Correction);
+      case IPC_CHANNELS.foldersList:
+        return deps.foldersList();
+      case IPC_CHANNELS.folderCreate:
+        return deps.folderCreate(request.args[0] as string);
+      case IPC_CHANNELS.folderRename:
+        return deps.folderRename(request.args[0] as string, request.args[1] as string);
+      case IPC_CHANNELS.folderDelete:
+        return deps.folderDelete(request.args[0] as string);
+      case IPC_CHANNELS.folderUpdate:
+        return deps.folderUpdate(request.args[0] as string, request.args[1] as FolderPatch);
+      case IPC_CHANNELS.folderChooseExport:
+        return deps.folderChooseExport(request.args[0] as string);
+      case IPC_CHANNELS.folderClearExport:
+        return deps.folderClearExport(request.args[0] as string);
+      case IPC_CHANNELS.meetingMove:
+        return deps.meetingMove(request.args[0] as string, request.args[1] as string | null);
+      case IPC_CHANNELS.meetingFolderDismiss:
+        return deps.meetingFolderDismiss(request.args[0] as string, request.args[1] as string);
+      case IPC_CHANNELS.meetingExport:
+        return deps.meetingExport(
+          request.args[0] as string,
+          request.args[1] as MeetingExportOptions,
+        );
       case IPC_CHANNELS.meetingSetLanguage:
         return deps.meetingSetLanguage(
           request.args[0] as string,

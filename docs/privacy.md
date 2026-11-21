@@ -6,6 +6,8 @@ Settings, Data and Privacy (HB-21, HB-48 to HB-50, HB-52).
 
 **The statement:** the page says "Nothing leaves this Mac." It is built from the settings (`privacyStatement`). The one exception it lists is a model download you start. With strict local mode on, it says there is no network connection at all.
 
+**Files you write:** a shareable file of a meeting (NT-18) is written only where you save it, or in the place you chose for a folder; it holds no audio and no web links. What happens to it after that is up to the place it is in (a synced folder, for instance).
+
 **Network use:** the only network use in Murmur is the two model downloads: the speech model, and the Quality model for Instruct. Both go through `privacy/network-guard.ts`.
 
 ## Privacy mode (HB-48)

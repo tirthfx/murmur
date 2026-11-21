@@ -14,7 +14,9 @@ import {
   TASK_OWNER_FILTERS,
   TASK_OWNER_FILTER_TEXT,
   TASK_STATUS_TEXT,
+  INBOX,
   isCalendarDate,
+  type MeetingFolder,
   type MeetingListItem,
   type Task,
   type TaskAction,
@@ -140,6 +142,8 @@ export function TasksPanel({
   const [status, setStatus] = useState<StatusView>("active");
   const [owner, setOwner] = useState<TaskOwnerFilter>("me-or-named");
   const [meetingFilter, setMeetingFilter] = useState<string>("");
+  const [folderFilter, setFolderFilter] = useState<string>("");
+  const [folders, setFolders] = useState<MeetingFolder[]>([]);
   const [meetings, setMeetings] = useState<MeetingListItem[]>([]);
   const [editing, setEditing] = useState<string | "new" | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -151,10 +155,11 @@ export function TasksPanel({
       status: "all",
       owner,
       ...(scope ? { meetingId: scope } : {}),
+      ...(folderFilter ? { folder: folderFilter } : {}),
     });
     setTasks(view.tasks);
     setUndo(view.undo);
-  }, [owner, scope]);
+  }, [owner, scope, folderFilter]);
 
   useEffect(() => {
     void load().catch(() => setTasks([]));
@@ -176,6 +181,7 @@ export function TasksPanel({
   useEffect(() => {
     if (meetingId) return;
     void window.murmur.meetingsList().then(setMeetings);
+    void window.murmur.foldersList().then(setFolders);
   }, [meetingId]);
 
   const shown = (tasks ?? []).filter((task) => inView(task, status));
@@ -232,6 +238,18 @@ export function TasksPanel({
           }))}
           onChange={(value) => setOwner(value as TaskOwnerFilter)}
         />
+        {meetingId ? null : (
+          <Selector
+            label="Folder"
+            value={folderFilter}
+            options={[
+              { value: "", label: "All folders" },
+              { value: INBOX, label: "Inbox" },
+              ...folders.map((folder) => ({ value: folder.id, label: folder.name })),
+            ]}
+            onChange={setFolderFilter}
+          />
+        )}
         {meetingId ? null : (
           <Selector
             label="Meeting"

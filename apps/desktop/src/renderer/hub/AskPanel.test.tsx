@@ -231,6 +231,70 @@ describe("Ask (NT-14)", () => {
     );
   });
 
+  it("asks about the meetings of a folder, or of the Inbox (NT-17)", async () => {
+    api.foldersList = vi
+      .fn()
+      .mockResolvedValue([
+        {
+          id: "f1",
+          name: "Customer calls",
+          meetings: 2,
+          defaultSkillId: null,
+          autoExportPath: null,
+        },
+      ]);
+    api.askSend = vi.fn().mockResolvedValue({ ok: true, thread: answered });
+    render(<AskPanel onOpen={open} />);
+    fireEvent.click(await screen.findByRole("combobox", { name: "Look in" }));
+    fireEvent.click(await screen.findByRole("option", { name: "A folder" }));
+    fireEvent.click(await screen.findByRole("combobox", { name: "Folder" }));
+    fireEvent.click(await screen.findByRole("option", { name: "Customer calls" }));
+    await ask("When?");
+    await waitFor(() =>
+      expect(api.askSend).toHaveBeenCalledWith({
+        threadId: null,
+        question: "When?",
+        scope: { kind: "folder", folderId: "f1" },
+      }),
+    );
+    // The Inbox is the folder with no id.
+    fireEvent.click(screen.getByRole("combobox", { name: "Folder" }));
+    fireEvent.click(await screen.findByRole("option", { name: "Inbox" }));
+    fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "And now?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    await waitFor(() =>
+      expect(api.askSend).toHaveBeenLastCalledWith(
+        expect.objectContaining({ scope: { kind: "folder", folderId: null } }),
+      ),
+    );
+  });
+
+  it("opens a conversation in its folder scope", async () => {
+    api.foldersList = vi
+      .fn()
+      .mockResolvedValue([
+        {
+          id: "f1",
+          name: "Customer calls",
+          meetings: 2,
+          defaultSkillId: null,
+          autoExportPath: null,
+        },
+      ]);
+    api.askThreads = vi
+      .fn()
+      .mockResolvedValue([{ id: "th1", title: "When do we ship?", updatedAt: 2 }]);
+    api.askThread = vi
+      .fn()
+      .mockResolvedValue({ ...answered, scope: { kind: "folder", folderId: "f1" } });
+    render(<AskPanel onOpen={open} />);
+    fireEvent.click(await screen.findByRole("button", { name: "When do we ship?" }));
+    expect(await screen.findByRole("combobox", { name: "Folder" })).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: "Folder" }).textContent).toContain(
+      "Customer calls",
+    );
+  });
+
   it("shows why a question failed, and keeps the question", async () => {
     api.askSend = vi.fn().mockResolvedValue({
       ok: false,

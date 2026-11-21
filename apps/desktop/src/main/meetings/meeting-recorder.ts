@@ -29,6 +29,8 @@ export interface MeetingRecorderDeps {
     /** NT-20: a new meeting's language (null detects it) and whether it is translated to English. */
     language?: string | null;
     translate?: boolean;
+    /** NT-17: the folder a new meeting goes in; null is the Inbox. */
+    folderId?: string | null;
   };
   /** Called on every change, for the Hub, the tray and the Bar. */
   onState(state: RecordingState): void;
@@ -125,6 +127,7 @@ export function createMeetingRecorder(deps: MeetingRecorderDeps): MeetingRecorde
         folder,
         language: options.language ?? null,
         translate: options.translate ?? false,
+        folderId: options.folderId ?? null,
       });
       const wanted: MeetingChannel[] = options.captureSystem ? ["mic", "system"] : ["mic"];
       try {

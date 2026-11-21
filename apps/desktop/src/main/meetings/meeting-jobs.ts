@@ -33,6 +33,8 @@ export interface MeetingJobsDeps {
   summarise?(meetingId: string): Promise<void>;
   /** The summary job finished (NT-26 suggests tasks next). */
   onSummarised?(meetingId: string): void;
+  /** The tasks job finished (NT-18 writes the folder's file again with them). */
+  onTasksExtracted?(meetingId: string): void;
   /**
    * Suggests the meeting's tasks (NT-26). Rejects with the same codes as `summarise`. A
    * returned `note` is kept in the job's log; the job still ends `done`.
@@ -190,6 +192,7 @@ export function createMeetingJobs(deps: MeetingJobsDeps): MeetingJobs {
       const result = await work();
       setJob(meetingId, kind, "done", result?.note?.slice(0, 500));
       if (kind === "summarise") deps.onSummarised?.(meetingId);
+      else deps.onTasksExtracted?.(meetingId);
       deps.onProgress(meetingId);
       return true;
     } catch (error) {

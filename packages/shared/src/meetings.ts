@@ -10,6 +10,7 @@ import {
 import { audioSessionIdSchema } from "./audio";
 import { meetingLanguageCodes } from "./languages";
 import { DEFAULT_ASK_SETTINGS, askSettingsSchema } from "./ask";
+import { DEFAULT_FOLDERS_SETTINGS, foldersSettingsSchema, type FolderSuggestion } from "./folders";
 import { DEFAULT_TASKS_SETTINGS, tasksSettingsSchema } from "./tasks";
 import { transcriptSchema } from "./speech";
 
@@ -139,6 +140,8 @@ export interface Meeting {
   translate: boolean;
   /** NT-23: goes up by one with each rerun; the older transcripts are kept for a while. */
   transcriptVersion: number;
+  /** NT-17: the folder it is in; null for the Inbox. */
+  folderId: string | null;
 }
 
 export interface AudioChunkRow {
@@ -340,6 +343,8 @@ export interface MeetingDetail {
   detectedLanguage: string | null;
   /** NT-23: why the transcript cannot be rerun now (deleted audio, still working), or null. */
   rerunBlocked: string | null;
+  /** NT-17: a folder this meeting looks like it belongs in, for the Inbox only. */
+  folderSuggestion: FolderSuggestion | null;
 }
 
 /** What the Tasks tab shows besides the tasks (NT-26). */
@@ -468,6 +473,8 @@ export const notetakerSettingsSchema = z.strictObject({
   rerun: z
     .strictObject({ keepPreviousVersionDays: z.number().int().min(1).max(365) })
     .default({ keepPreviousVersionDays: 30 }),
+  /** NT-17: folders. */
+  folders: foldersSettingsSchema.default(DEFAULT_FOLDERS_SETTINGS),
   /** NT-24: corrections to a transcript. */
   corrections: z
     .strictObject({
@@ -492,4 +499,5 @@ export const DEFAULT_NOTETAKER: NotetakerSettings = {
   language: { default: "auto" },
   translate: { transcriptToEnglish: false },
   rerun: { keepPreviousVersionDays: 30 },
+  folders: DEFAULT_FOLDERS_SETTINGS,
 };

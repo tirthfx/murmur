@@ -61,10 +61,11 @@ interface Row {
 
 interface JoinedRow extends Row {
   meeting_title: string | null;
+  meeting_folder: string | null;
   source_ok: number;
 }
 
-const SELECT = `SELECT t.*, m.title AS meeting_title,
+const SELECT = `SELECT t.*, m.title AS meeting_title, m.folder_id AS meeting_folder,
     EXISTS (SELECT 1 FROM meeting_segments s WHERE s.id = t.source_segment_id) AS source_ok
   FROM tasks t LEFT JOIN meetings m ON m.id = t.meeting_id`;
 
@@ -191,7 +192,15 @@ export function createTasksService(
       const rows = db
         .prepare(`${SELECT} ORDER BY t.position, t.rowid`)
         .all() as unknown as JoinedRow[];
+      // The tasks of the meetings in a folder; "inbox" is the meetings in no folder (NT-17).
+      const inFolder = (row: JoinedRow) =>
+        !filter.folder ||
+        (row.meeting_id !== null &&
+          (filter.folder === "inbox"
+            ? row.meeting_folder === null
+            : row.meeting_folder === filter.folder));
       const tasks = rows
+        .filter(inFolder)
         .map(toTask)
         .filter(
           (task) => !filter.status || filter.status === "all" || task.status === filter.status,

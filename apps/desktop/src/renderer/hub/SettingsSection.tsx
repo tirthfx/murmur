@@ -17,6 +17,7 @@ import {
   APP_LANGUAGE_NAMES,
   SETTINGS_CLEANUP_LEVELS,
   SOUND_NAMES,
+  type MeetingFolder,
   type Skill,
   type SettingsPatch,
   type SettingsView,
@@ -99,6 +100,10 @@ export function SettingsSection({
   );
   const [problem, setProblem] = useState<string | null>(null);
   const [skills, setSkills] = useState<Skill[]>([]);
+  const [folders, setFolders] = useState<MeetingFolder[]>([]);
+  useEffect(() => {
+    void window.murmur.foldersList().then(setFolders);
+  }, []);
   useEffect(() => {
     let alive = true;
     void window.murmur.skillsList().then((list) => alive && setSkills(list));
@@ -560,6 +565,44 @@ export function SettingsSection({
                   notetaker: {
                     ...settings.notetaker,
                     ask: { ...settings.notetaker.ask, includeNotes },
+                  },
+                })
+              }
+            />
+          </VStack>
+        </Row>
+        <Row id="meeting-folders">
+          <VStack gap={2}>
+            <Heading level={3}>Meeting folders</Heading>
+            <Text size="sm" color="secondary">
+              Folders are made and managed on the Notetaker page. A meeting in no folder is in the
+              Inbox, and deleting a folder never deletes its meetings.
+            </Text>
+            <Selector
+              label="A new meeting goes to"
+              options={[
+                { value: "inbox", label: "The Inbox" },
+                ...folders.map((folder) => ({ value: folder.id, label: folder.name })),
+              ]}
+              value={settings.notetaker.folders.defaultFolder}
+              onChange={(defaultFolder) =>
+                update({
+                  notetaker: {
+                    ...settings.notetaker,
+                    folders: { ...settings.notetaker.folders, defaultFolder },
+                  },
+                })
+              }
+            />
+            <Switch
+              label="Suggest a folder for a meeting in the Inbox"
+              description="From its title and where earlier meetings went. Nothing is moved without a click."
+              value={settings.notetaker.folders.suggest}
+              onChange={(suggest) =>
+                update({
+                  notetaker: {
+                    ...settings.notetaker,
+                    folders: { ...settings.notetaker.folders, suggest },
                   },
                 })
               }
