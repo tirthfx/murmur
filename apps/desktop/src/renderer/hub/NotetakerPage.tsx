@@ -163,7 +163,9 @@ function Transcript({ detail, highlight }: { detail: MeetingDetail; highlight: s
         <Text color="secondary">
           {meeting.status === "recording"
             ? "Text appears here a few seconds after people speak."
-            : "No speech was found in this recording."}
+            : meeting.transcriptDeletedAt !== null
+              ? "The transcript was deleted by retention. The summary and the notes are kept unless you chose to delete the summary too."
+              : "No speech was found in this recording."}
         </Text>
       ) : (
         <div
@@ -500,6 +502,22 @@ function MeetingView({
             </Button>
           )}
         </HStack>
+        {meeting.audioDeletedAt !== null || meeting.transcriptDeletedAt !== null ? (
+          <HStack gap={1} wrap="wrap">
+            {meeting.audioDeletedAt !== null ? (
+              <Badge
+                variant="neutral"
+                label={`Audio deleted by retention, ${whenOf(meeting.audioDeletedAt)}`}
+              />
+            ) : null}
+            {meeting.transcriptDeletedAt !== null ? (
+              <Badge
+                variant="neutral"
+                label={`Transcript deleted by retention, ${whenOf(meeting.transcriptDeletedAt)}`}
+              />
+            ) : null}
+          </HStack>
+        ) : null}
         {detail.folderSuggestion ? (
           <Banner
             status="info"

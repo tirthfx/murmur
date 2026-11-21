@@ -18,6 +18,7 @@ import {
   type SpeakerClipResult,
   type SpeakerRenameResult,
 } from "./meetings";
+import type { MeetingRetentionDue } from "./meeting-retention";
 import {
   folderPatchSchema,
   meetingExportOptionsSchema,
@@ -437,6 +438,7 @@ export const IPC_CHANNELS = {
   meetingMove: "meetings:move",
   meetingFolderDismiss: "meetings:folder-dismiss",
   meetingExport: "meetings:export",
+  meetingRetentionDue: "meetings:retention-due",
   meetingRerun: "meetings:rerun",
   meetingVersionRestore: "meetings:version-restore",
   meetingSegmentHistory: "meetings:segment-history",
@@ -975,6 +977,10 @@ export const IPC_CONTRACT = {
     args: z.tuple([z.string().min(1).max(64), z.string().min(1).max(64)]),
     result: z.void(),
   },
+  [IPC_CHANNELS.meetingRetentionDue]: {
+    args: z.tuple([]),
+    result: z.custom<MeetingRetentionDue>(),
+  },
   [IPC_CHANNELS.meetingExport]: {
     args: z.tuple([z.string().min(1).max(64), meetingExportOptionsSchema]),
     result: z.custom<MeetingExportResult>(),
@@ -1320,6 +1326,8 @@ export interface MurmurApi {
   meetingFolderDismiss(meetingId: string, folderId: string): Promise<void>;
   /** NT-18: asks where to save a shareable HTML file of the meeting and writes it. */
   meetingExport(meetingId: string, options: MeetingExportOptions): Promise<MeetingExportResult>;
+  /** NT-22: how many recordings and transcripts the next 24 hours will delete. */
+  meetingRetentionDue(): Promise<MeetingRetentionDue>;
   /** NT-23: transcribes a finished meeting again from its saved audio, as a new version. */
   meetingRerun(meetingId: string, input: MeetingLanguageInput): Promise<RerunResult>;
   /** NT-23: puts a transcript a rerun replaced back. */

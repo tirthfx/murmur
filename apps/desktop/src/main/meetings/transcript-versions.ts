@@ -127,7 +127,7 @@ export function createTranscriptVersions(db: DatabaseSync): TranscriptVersions {
         ).run(meetingId);
         db.prepare(
           `UPDATE meetings SET language = ?, translate = ?, transcript_version = transcript_version + 1,
-             rerun_pending = 1, status = 'queued' WHERE id = ?`,
+             rerun_pending = 1, status = 'queued', transcript_deleted_at = NULL WHERE id = ?`,
         ).run(input.language, input.translate ? 1 : 0, meetingId);
       });
     },

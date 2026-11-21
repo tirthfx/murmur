@@ -10,7 +10,11 @@ import { VStack } from "@astryxdesign/core/VStack";
 import {
   planAllows,
   CONSENT_NOTICES,
+  AUDIO_RETENTION,
+  AUDIO_RETENTION_TEXT,
   DEFAULT_MEETING_MATCHERS,
+  TRANSCRIPT_RETENTION,
+  TRANSCRIPT_RETENTION_TEXT,
   MEETING_LANGUAGES,
   type ConsentNotice,
   APP_LANGUAGES,
@@ -18,6 +22,7 @@ import {
   SETTINGS_CLEANUP_LEVELS,
   SOUND_NAMES,
   type MeetingFolder,
+  type MeetingRetentionDue,
   type Skill,
   type SettingsPatch,
   type SettingsView,
@@ -101,9 +106,20 @@ export function SettingsSection({
   const [problem, setProblem] = useState<string | null>(null);
   const [skills, setSkills] = useState<Skill[]>([]);
   const [folders, setFolders] = useState<MeetingFolder[]>([]);
+  const [retentionDue, setRetentionDue] = useState<MeetingRetentionDue | null>(null);
   useEffect(() => {
     void window.murmur.foldersList().then(setFolders);
   }, []);
+  // What the next 24 hours will delete, again when a period is changed.
+  const audioPeriod = view?.settings.notetaker.retention.audio;
+  const transcriptPeriod = view?.settings.notetaker.retention.transcript;
+  useEffect(() => {
+    let alive = true;
+    void window.murmur.meetingRetentionDue().then((due) => alive && setRetentionDue(due));
+    return () => {
+      alive = false;
+    };
+  }, [audioPeriod, transcriptPeriod]);
   useEffect(() => {
     let alive = true;
     void window.murmur.skillsList().then((list) => alive && setSkills(list));
@@ -569,6 +585,74 @@ export function SettingsSection({
                 })
               }
             />
+          </VStack>
+        </Row>
+        <Row id="meeting-retention">
+          <VStack gap={2}>
+            <Heading level={3}>Meeting recordings and transcripts</Heading>
+            <Text size="sm" color="secondary">
+              How long a meeting&apos;s audio and its transcript are kept. When time is up they are
+              deleted for good: the meeting keeps its title, date and folder, marked “Deleted by
+              retention”. Meetings still recording or being transcribed are never touched. A folder
+              can have its own periods.
+            </Text>
+            <Selector
+              label="Keep the audio"
+              options={AUDIO_RETENTION.map((value) => ({
+                value,
+                label: AUDIO_RETENTION_TEXT[value],
+              }))}
+              value={settings.notetaker.retention.audio}
+              onChange={(audio) =>
+                update({
+                  notetaker: {
+                    ...settings.notetaker,
+                    retention: {
+                      ...settings.notetaker.retention,
+                      audio: audio as (typeof AUDIO_RETENTION)[number],
+                    },
+                  },
+                })
+              }
+            />
+            <Selector
+              label="Keep the transcript"
+              options={TRANSCRIPT_RETENTION.map((value) => ({
+                value,
+                label: TRANSCRIPT_RETENTION_TEXT[value],
+              }))}
+              value={settings.notetaker.retention.transcript}
+              onChange={(transcript) =>
+                update({
+                  notetaker: {
+                    ...settings.notetaker,
+                    retention: {
+                      ...settings.notetaker.retention,
+                      transcript: transcript as (typeof TRANSCRIPT_RETENTION)[number],
+                    },
+                  },
+                })
+              }
+            />
+            <Switch
+              label="Delete the summaries with the transcript"
+              value={settings.notetaker.retention.removeSummaryWithTranscript}
+              onChange={(removeSummaryWithTranscript) =>
+                update({
+                  notetaker: {
+                    ...settings.notetaker,
+                    retention: { ...settings.notetaker.retention, removeSummaryWithTranscript },
+                  },
+                })
+              }
+            />
+            <Text size="sm" color="secondary" role="status">
+              {retentionDue === null
+                ? "Checking what is due…"
+                : retentionDue.audio + retentionDue.transcripts === 0
+                  ? "Nothing is due in the next 24 hours."
+                  : `In the next 24 hours: ${retentionDue.audio} ${retentionDue.audio === 1 ? "recording" : "recordings"} and ${retentionDue.transcripts} ${retentionDue.transcripts === 1 ? "transcript" : "transcripts"} will be deleted.`}
+            </Text>
           </VStack>
         </Row>
         <Row id="meeting-folders">

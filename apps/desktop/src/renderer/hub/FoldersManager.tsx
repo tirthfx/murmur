@@ -6,7 +6,17 @@ import { Selector } from "@astryxdesign/core/Selector";
 import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { VStack } from "@astryxdesign/core/VStack";
-import type { FolderResult, MeetingFolder, Skill } from "@murmur/shared";
+import {
+  AUDIO_RETENTION,
+  AUDIO_RETENTION_TEXT,
+  TRANSCRIPT_RETENTION,
+  TRANSCRIPT_RETENTION_TEXT,
+  type AudioRetention,
+  type FolderResult,
+  type MeetingFolder,
+  type Skill,
+  type TranscriptRetention,
+} from "@murmur/shared";
 
 const NONE = "__none";
 
@@ -177,6 +187,43 @@ export function FoldersManager({
                       void run(
                         window.murmur.folderUpdate(folder.id, {
                           defaultSkillId: value === NONE ? null : value,
+                        }),
+                      )
+                    }
+                  />
+                  <Selector
+                    label={`Keep the audio of ${folder.name}`}
+                    value={folder.retentionAudio ?? NONE}
+                    options={[
+                      { value: NONE, label: "As in Settings" },
+                      ...AUDIO_RETENTION.map((value) => ({
+                        value,
+                        label: AUDIO_RETENTION_TEXT[value],
+                      })),
+                    ]}
+                    onChange={(value) =>
+                      void run(
+                        window.murmur.folderUpdate(folder.id, {
+                          retentionAudio: value === NONE ? null : (value as AudioRetention),
+                        }),
+                      )
+                    }
+                  />
+                  <Selector
+                    label={`Keep the transcript of ${folder.name}`}
+                    value={folder.retentionTranscript ?? NONE}
+                    options={[
+                      { value: NONE, label: "As in Settings" },
+                      ...TRANSCRIPT_RETENTION.map((value) => ({
+                        value,
+                        label: TRANSCRIPT_RETENTION_TEXT[value],
+                      })),
+                    ]}
+                    onChange={(value) =>
+                      void run(
+                        window.murmur.folderUpdate(folder.id, {
+                          retentionTranscript:
+                            value === NONE ? null : (value as TranscriptRetention),
                         }),
                       )
                     }

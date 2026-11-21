@@ -42,7 +42,8 @@ A daily job (`privacy/retention.ts`) runs at start when a day has passed since i
 - recordings past their time (a day; 7 days for failed ones);
 - the text of Instruct threads after 30 days;
 - learned word suggestions not seen for 90 days;
-- voice samples after 30 days.
+- voice samples after 30 days;
+- meeting recordings and transcripts past the periods in Settings, System (NT-22; see `docs/notetaker.md`): a meeting that is recording or being transcribed is never touched.
 
 Dictionary, Snippets, Styles, Memory and Scratchpad notes have no rule; retention never touches them.
 
