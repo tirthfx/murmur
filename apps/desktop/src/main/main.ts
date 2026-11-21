@@ -151,6 +151,7 @@ import { createSkillsService } from "./meetings/skills-service";
 import { createAskIndex } from "./meetings/ask-index";
 import { createAutoExport } from "./meetings/auto-export";
 import { createFoldersStore } from "./meetings/folders-store";
+import { createTranscriptImport } from "./meetings/import/transcript-import";
 import { exportFileName, renderMeetingHtml } from "./meetings/meeting-export";
 import { suggestFromCorrection } from "./meetings/corrections-learn";
 import { createCorrectionsStore } from "./meetings/corrections-store";
@@ -1883,6 +1884,21 @@ const meetingRerun =
       })
     : null;
 transcriptVersions?.purge(Date.now());
+// NT-21: meetings from transcript files (VTT, SRT, text, JSON); the preview comes first.
+const transcriptImport =
+  database && speakersStore
+    ? createTranscriptImport(database, {
+        speakers: speakersStore,
+        newId: randomUUID,
+        now: Date.now,
+        meetingsRoot: path.join(profile.appData, "Murmur", "meetings"),
+        ownerName: () => settingsStore.get().profile.displayName,
+        folderId: () => {
+          const wanted = settingsStore.get().notetaker.import.defaultFolder;
+          return wanted !== "inbox" && foldersStore?.get(wanted) ? wanted : null;
+        },
+      })
+    : null;
 // NT-18: a meeting as one HTML file that opens offline; audio is never in it.
 function buildMeetingExport(
   meetingId: string,
@@ -2881,6 +2897,49 @@ function registerIpc(): void {
         return { ok: false, message: "The file could not be saved there." };
       }
     },
+    meetingImportPreview: async () => {
+      if (!transcriptImport) return { ok: false, message: "Import needs the database." };
+      const options = {
+        title: "Import a transcript",
+        properties: ["openFile" as const],
+        filters: [
+          { name: "Transcripts", extensions: ["vtt", "srt", "txt", "json"] },
+          { name: "All files", extensions: ["*"] },
+        ],
+      };
+      const picked = hubWindow
+        ? await dialog.showOpenDialog(hubWindow, options)
+        : await dialog.showOpenDialog(options);
+      const file = picked.filePaths[0];
+      if (picked.canceled || !file) return { ok: false, cancelled: true };
+      try {
+        const stat = statSync(file);
+        if (stat.size > 20 * 1024 * 1024)
+          return { ok: false, message: "That file is too big to be a transcript." };
+        const prepared = transcriptImport.prepare({
+          name: path.basename(file),
+          bytes: new Uint8Array(readFileSync(file)),
+          modifiedAt: stat.mtimeMs,
+        });
+        return prepared.ok ? { ok: true, preview: prepared.preview } : prepared;
+      } catch {
+        return { ok: false, message: "That file could not be read." };
+      }
+    },
+    meetingImportConfirm: (input) => {
+      if (!transcriptImport) return { ok: false, message: "Import needs the database." };
+      const result = transcriptImport.confirm(input);
+      if (result.ok) {
+        // The summary is written like for a recording, and then the tasks.
+        if (settingsStore.get().notetaker.import.regenerateSummary) {
+          meetingJobs?.enqueue(result.meetingId, "summarise");
+          meetingJobs?.kick();
+        }
+        notifyMeetings(null);
+      }
+      return result;
+    },
+    meetingImportCancel: (token) => transcriptImport?.discard(token),
     meetingRetentionDue: () => meetingRetention?.due(Date.now()) ?? { audio: 0, transcripts: 0 },
     meetingSetLanguage: (meetingId, input) =>
       meetingRerun?.setLanguage(meetingId, input) ?? {

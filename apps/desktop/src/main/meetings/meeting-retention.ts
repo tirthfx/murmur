@@ -41,6 +41,7 @@ interface Row {
   at: number;
   audio_deleted_at: number | null;
   transcript_deleted_at: number | null;
+  chunks: number;
   folder_audio: AudioRetention | null;
   folder_transcript: TranscriptRetention | null;
 }
@@ -61,7 +62,9 @@ export function createMeetingRetention(
     db
       .prepare(
         `SELECT m.id, m.status, COALESCE(m.ended_at, m.started_at) AS at, m.audio_deleted_at,
-                m.transcript_deleted_at, f.retention_audio AS folder_audio,
+                m.transcript_deleted_at,
+                (SELECT COUNT(*) FROM meeting_audio_chunks c WHERE c.meeting_id = m.id) AS chunks,
+                f.retention_audio AS folder_audio,
                 f.retention_transcript AS folder_transcript
          FROM meetings m LEFT JOIN folders f ON f.id = m.folder_id
          WHERE m.status IN ('ready', 'failed')`,
@@ -86,7 +89,8 @@ export function createMeetingRetention(
   }
 
   const audioDue = (row: Row, now: number): boolean => {
-    if (row.audio_deleted_at !== null) return false;
+    // An imported meeting has no audio: there is nothing to delete, and nothing to mark.
+    if (row.audio_deleted_at !== null || row.chunks === 0) return false;
     const period = audioPeriod(row);
     if (period === "forever") return false;
     if (period === "processing") return processed(row.id);

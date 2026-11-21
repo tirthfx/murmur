@@ -20,6 +20,12 @@ import {
 } from "./meetings";
 import type { MeetingRetentionDue } from "./meeting-retention";
 import {
+  transcriptImportConfirmSchema,
+  type TranscriptImportConfirmInput,
+  type TranscriptImportConfirmResult,
+  type TranscriptImportPreviewResult,
+} from "./transcript-import";
+import {
   folderPatchSchema,
   meetingExportOptionsSchema,
   type FolderPatch,
@@ -439,6 +445,9 @@ export const IPC_CHANNELS = {
   meetingFolderDismiss: "meetings:folder-dismiss",
   meetingExport: "meetings:export",
   meetingRetentionDue: "meetings:retention-due",
+  meetingImportPreview: "meetings:import-preview",
+  meetingImportConfirm: "meetings:import-confirm",
+  meetingImportCancel: "meetings:import-cancel",
   meetingRerun: "meetings:rerun",
   meetingVersionRestore: "meetings:version-restore",
   meetingSegmentHistory: "meetings:segment-history",
@@ -977,6 +986,18 @@ export const IPC_CONTRACT = {
     args: z.tuple([z.string().min(1).max(64), z.string().min(1).max(64)]),
     result: z.void(),
   },
+  [IPC_CHANNELS.meetingImportPreview]: {
+    args: z.tuple([]),
+    result: z.custom<TranscriptImportPreviewResult>(),
+  },
+  [IPC_CHANNELS.meetingImportConfirm]: {
+    args: z.tuple([transcriptImportConfirmSchema]),
+    result: z.custom<TranscriptImportConfirmResult>(),
+  },
+  [IPC_CHANNELS.meetingImportCancel]: {
+    args: z.tuple([z.string().min(1).max(64)]),
+    result: z.void(),
+  },
   [IPC_CHANNELS.meetingRetentionDue]: {
     args: z.tuple([]),
     result: z.custom<MeetingRetentionDue>(),
@@ -1328,6 +1349,11 @@ export interface MurmurApi {
   meetingExport(meetingId: string, options: MeetingExportOptions): Promise<MeetingExportResult>;
   /** NT-22: how many recordings and transcripts the next 24 hours will delete. */
   meetingRetentionDue(): Promise<MeetingRetentionDue>;
+  /** NT-21: asks for a transcript file and says what is in it, without creating anything. */
+  meetingImportPreview(): Promise<TranscriptImportPreviewResult>;
+  /** Makes the meeting from the file just previewed. */
+  meetingImportConfirm(input: TranscriptImportConfirmInput): Promise<TranscriptImportConfirmResult>;
+  meetingImportCancel(token: string): Promise<void>;
   /** NT-23: transcribes a finished meeting again from its saved audio, as a new version. */
   meetingRerun(meetingId: string, input: MeetingLanguageInput): Promise<RerunResult>;
   /** NT-23: puts a transcript a rerun replaced back. */

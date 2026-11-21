@@ -650,4 +650,37 @@ describe("Notetaker page", () => {
       expect(screen.queryByText(/deleted by retention/)).toBeNull();
     });
   });
+
+  describe("import (NT-21)", () => {
+    it("opens the new meeting after a transcript is imported", async () => {
+      window.murmur.meetingImportPreview = vi.fn().mockResolvedValue({
+        ok: true,
+        preview: {
+          token: "tok",
+          fileName: "a.vtt",
+          format: "vtt",
+          formatName: "WebVTT",
+          title: "Imported call",
+          startedAt: Date.UTC(2026, 10, 21, 10),
+          durationMs: 1000,
+          lines: 1,
+          speakers: [],
+          timesEstimated: false,
+          duplicate: null,
+        },
+      });
+      window.murmur.meetingImportConfirm = vi
+        .fn()
+        .mockResolvedValue({ ok: true, meetingId: "m-1" });
+      render(<NotetakerPage />);
+      await screen.findByRole("button", { name: /Design sync/ });
+      fireEvent.click(screen.getByRole("button", { name: "Import a transcript file" }));
+      fireEvent.click(screen.getByRole("button", { name: "Choose a transcript file" }));
+      await screen.findByLabelText("Title");
+      fireEvent.click(screen.getByRole("button", { name: "Import this transcript" }));
+      await waitFor(() => expect(window.murmur.meetingDetail).toHaveBeenCalledWith("m-1"));
+      await waitFor(() => expect(screen.getByRole("region", { name: "Meeting" })).toBeTruthy());
+      expect(screen.queryByLabelText("Date and time")).toBeNull();
+    });
+  });
 });

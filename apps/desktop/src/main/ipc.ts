@@ -19,6 +19,9 @@ import {
   type MeetingExportResult,
   type MeetingFolder,
   type MeetingRetentionDue,
+  type TranscriptImportConfirmInput,
+  type TranscriptImportConfirmResult,
+  type TranscriptImportPreviewResult,
   type MeetingFindTasksResult,
   type MeetingLanguageInput,
   type RerunResult,
@@ -179,6 +182,9 @@ export interface IpcDeps {
   meetingFolderDismiss: (meetingId: string, folderId: string) => void;
   meetingExport: (meetingId: string, options: MeetingExportOptions) => Promise<MeetingExportResult>;
   meetingRetentionDue: () => MeetingRetentionDue;
+  meetingImportPreview: () => Promise<TranscriptImportPreviewResult>;
+  meetingImportConfirm: (input: TranscriptImportConfirmInput) => TranscriptImportConfirmResult;
+  meetingImportCancel: (token: string) => void;
   meetingRerun: (meetingId: string, input: MeetingLanguageInput) => RerunResult;
   meetingVersionRestore: (meetingId: string, versionId: number) => RerunResult;
   meetingSegmentHistory: (meetingId: string, segmentId: string) => SegmentHistoryItem[];
@@ -644,6 +650,12 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.meetingMove(request.args[0] as string, request.args[1] as string | null);
       case IPC_CHANNELS.meetingFolderDismiss:
         return deps.meetingFolderDismiss(request.args[0] as string, request.args[1] as string);
+      case IPC_CHANNELS.meetingImportPreview:
+        return deps.meetingImportPreview();
+      case IPC_CHANNELS.meetingImportConfirm:
+        return deps.meetingImportConfirm(request.args[0] as TranscriptImportConfirmInput);
+      case IPC_CHANNELS.meetingImportCancel:
+        return deps.meetingImportCancel(request.args[0] as string);
       case IPC_CHANNELS.meetingRetentionDue:
         return deps.meetingRetentionDue();
       case IPC_CHANNELS.meetingExport:

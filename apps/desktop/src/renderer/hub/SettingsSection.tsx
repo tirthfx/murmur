@@ -587,6 +587,43 @@ export function SettingsSection({
             />
           </VStack>
         </Row>
+        <Row id="meeting-import">
+          <VStack gap={2}>
+            <Heading level={3}>Importing transcripts</Heading>
+            <Text size="sm" color="secondary">
+              Import a WebVTT, SubRip, plain text or JSON transcript from the Notetaker page. It
+              becomes a meeting with no audio.
+            </Text>
+            <Switch
+              label="Write a summary for an imported meeting"
+              value={settings.notetaker.import.regenerateSummary}
+              onChange={(regenerateSummary) =>
+                update({
+                  notetaker: {
+                    ...settings.notetaker,
+                    import: { ...settings.notetaker.import, regenerateSummary },
+                  },
+                })
+              }
+            />
+            <Selector
+              label="An imported meeting goes to"
+              options={[
+                { value: "inbox", label: "The Inbox" },
+                ...folders.map((folder) => ({ value: folder.id, label: folder.name })),
+              ]}
+              value={settings.notetaker.import.defaultFolder}
+              onChange={(defaultFolder) =>
+                update({
+                  notetaker: {
+                    ...settings.notetaker,
+                    import: { ...settings.notetaker.import, defaultFolder },
+                  },
+                })
+              }
+            />
+          </VStack>
+        </Row>
         <Row id="meeting-retention">
           <VStack gap={2}>
             <Heading level={3}>Meeting recordings and transcripts</Heading>

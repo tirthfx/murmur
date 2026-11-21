@@ -165,6 +165,18 @@ describe("audio retention (NT-22)", () => {
   });
 });
 
+describe("meetings with no audio", () => {
+  it("is not marked as having its audio deleted, but its transcript is still kept by its period", () => {
+    const t = setup({ audio: "7d", transcript: "30d" });
+    t.meeting("imported", 100);
+    t.db.prepare("DELETE FROM meeting_audio_chunks WHERE meeting_id = 'imported'").run();
+    expect(t.retention.runAudio(NOW)).toBe(0);
+    expect(t.meetings.get("imported")?.audioDeletedAt).toBeNull();
+    expect(t.retention.due(NOW)).toEqual({ audio: 0, transcripts: 1 });
+    expect(t.retention.runTranscripts(NOW)).toBe(1);
+  });
+});
+
 describe("delete after processing", () => {
   it("removes the audio once the final summary is written, and not before", () => {
     const t = setup({ audio: "processing" });

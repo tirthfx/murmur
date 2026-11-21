@@ -3,6 +3,7 @@ import { SummaryTab } from "./MeetingSummary";
 import { AskPanel, type AskTarget } from "./AskPanel";
 import { ExportPanel } from "./ExportPanel";
 import { FoldersManager } from "./FoldersManager";
+import { ImportPanel } from "./ImportPanel";
 import { LanguagePanel } from "./LanguagePanel";
 import { LineEditor } from "./LineEditor";
 import { SkillsManager } from "./SkillsManager";
@@ -644,6 +645,7 @@ export function NotetakerPage() {
   const [folders, setFolders] = useState<MeetingFolder[]>([]);
   const [folderFilter, setFolderFilter] = useState<string>("all");
   const [managingFolders, setManagingFolders] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [jump, setJump] = useState<Jump | null>(null);
   const [about, setAbout] = useState<{ id: string; title: string; n: number } | null>(null);
   const openRef = useRef<string | null>(null);
@@ -819,12 +821,31 @@ export function NotetakerPage() {
                 <Button
                   size="sm"
                   variant="ghost"
+                  label="Import a transcript file"
+                  onClick={() => setImporting((open) => !open)}
+                >
+                  Import…
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
                   label="Manage folders"
                   onClick={() => setManagingFolders((open) => !open)}
                 >
                   Folders…
                 </Button>
               </HStack>
+              {importing ? (
+                <ImportPanel
+                  onClose={() => setImporting(false)}
+                  onImported={(meetingId) => {
+                    setImporting(false);
+                    setFolderFilter("all");
+                    setOpenId(meetingId);
+                    void loadList();
+                  }}
+                />
+              ) : null}
               {managingFolders ? (
                 <FoldersManager folders={folders} onChange={() => void loadList()} />
               ) : null}
