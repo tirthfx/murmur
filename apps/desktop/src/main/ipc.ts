@@ -134,6 +134,8 @@ import {
   type PermissionKind,
   type PermissionsInfo,
   type RequestablePermissionKind,
+  type ConnectorActionResult,
+  type ConnectorsView,
 } from "@murmur/shared";
 import { isTrustedIpcSender } from "../security/guards";
 
@@ -179,6 +181,13 @@ export interface IpcDeps {
   folderUpdate: (id: string, patch: FolderPatch) => FolderResult;
   folderChooseExport: (id: string) => Promise<FolderResult>;
   folderClearExport: (id: string) => FolderResult;
+  connectorsView: () => Promise<ConnectorsView>;
+  connectorConnect: (id: string, loginHint?: string) => Promise<ConnectorActionResult>;
+  connectorCancel: (id: string) => void;
+  connectorDisconnect: (accountId: string) => Promise<ConnectorActionResult>;
+  connectorSetEnabled: (accountId: string, enabled: boolean) => void;
+  connectorSetClientId: (id: string, clientId: string | null) => Promise<ConnectorActionResult>;
+  connectorSetClientSecret: (id: string, secret: string | null) => Promise<ConnectorActionResult>;
   meetingMove: (meetingId: string, folderId: string | null) => FolderResult;
   meetingFolderDismiss: (meetingId: string, folderId: string) => void;
   meetingExport: (meetingId: string, options: MeetingExportOptions) => Promise<MeetingExportResult>;
@@ -648,6 +657,29 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.folderChooseExport(request.args[0] as string);
       case IPC_CHANNELS.folderClearExport:
         return deps.folderClearExport(request.args[0] as string);
+      case IPC_CHANNELS.connectorsView:
+        return deps.connectorsView();
+      case IPC_CHANNELS.connectorConnect:
+        return deps.connectorConnect(
+          request.args[0] as string,
+          request.args[1] as string | undefined,
+        );
+      case IPC_CHANNELS.connectorCancel:
+        return deps.connectorCancel(request.args[0] as string);
+      case IPC_CHANNELS.connectorDisconnect:
+        return deps.connectorDisconnect(request.args[0] as string);
+      case IPC_CHANNELS.connectorSetEnabled:
+        return deps.connectorSetEnabled(request.args[0] as string, request.args[1] as boolean);
+      case IPC_CHANNELS.connectorSetClientId:
+        return deps.connectorSetClientId(
+          request.args[0] as string,
+          request.args[1] as string | null,
+        );
+      case IPC_CHANNELS.connectorSetClientSecret:
+        return deps.connectorSetClientSecret(
+          request.args[0] as string,
+          request.args[1] as string | null,
+        );
       case IPC_CHANNELS.meetingMove:
         return deps.meetingMove(request.args[0] as string, request.args[1] as string | null);
       case IPC_CHANNELS.meetingFolderDismiss:

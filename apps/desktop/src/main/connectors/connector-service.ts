@@ -57,6 +57,8 @@ export interface ConnectorService {
   ): Promise<ConnectOutcome>;
   /** Stops a sign-in that is waiting for the browser. */
   cancelConnect(providerId: string): void;
+  /** Whether a sign-in to this provider is waiting for the browser. */
+  isConnecting(providerId: string): boolean;
   /**
    * Revokes the sign-in at the provider (when it can be), deletes the Keychain item and the
    * account with its cache. `revoked` is null when the provider has no revoke endpoint. When the
@@ -463,6 +465,8 @@ export function createConnectorService(deps: ConnectorServiceDeps): ConnectorSer
     cancelConnect(providerId) {
       connecting.get(providerId)?.close();
     },
+
+    isConnecting: (providerId) => connecting.has(providerId),
 
     async disconnect(accountId) {
       const account = store.get(accountId);

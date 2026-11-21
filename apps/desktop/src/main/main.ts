@@ -55,7 +55,10 @@ import {
   DEFAULT_PRIVACY,
   DEFAULT_PLAN_STATE,
   DEFAULT_DEVELOPER,
+  CONNECTOR_CATALOGUE,
+  DEFAULT_CONNECTOR_SETTINGS,
   DEFAULT_NOTETAKER,
+  isClientCredential,
   referralCode,
   type TestingTool,
   type TestingToolResult,
@@ -152,6 +155,7 @@ import { createSkillsService } from "./meetings/skills-service";
 import { createConnectorConfig } from "./connectors/connector-config";
 import { createConnectorService } from "./connectors/connector-service";
 import { createConnectorStore } from "./connectors/connector-store";
+import { buildConnectorsView } from "./connectors/connectors-view";
 import { createHelperKeychain } from "./connectors/helper-keychain";
 import { createConnectorRegistry } from "./connectors/providers";
 import { createAskIndex } from "./meetings/ask-index";
@@ -720,6 +724,7 @@ const settingsStore = createSettingsStore(database, {
   help: { tours: {} },
   referral: { code: "", invites: 0 },
   notetaker: DEFAULT_NOTETAKER,
+  connectors: DEFAULT_CONNECTOR_SETTINGS,
   plan: DEFAULT_PLAN,
   inputDevice: "auto",
   languages: [],
@@ -1721,21 +1726,28 @@ const skillsService = meetingSkills
 // list one by one in M6.
 const connectorKeychain = createHelperKeychain(helper);
 const connectorStore = database ? createConnectorStore(database) : null;
+const connectorsFile = path.join(profile.appData, "Murmur", "connectors.json");
+const connectorConfig = createConnectorConfig({
+  readFile: () => {
+    try {
+      return readFileSync(connectorsFile, "utf8");
+    } catch {
+      return null;
+    }
+  },
+  writeFile: (text) => {
+    mkdirSync(path.dirname(connectorsFile), { recursive: true });
+    writeFileSync(connectorsFile, text);
+  },
+  keychain: connectorKeychain,
+});
+const connectorRegistry = createConnectorRegistry([]);
 const connectorService = connectorStore
   ? createConnectorService({
-      registry: createConnectorRegistry([]),
+      registry: connectorRegistry,
       store: connectorStore,
       keychain: connectorKeychain,
-      config: createConnectorConfig({
-        readFile: () => {
-          try {
-            return readFileSync(path.join(profile.appData, "Murmur", "connectors.json"), "utf8");
-          } catch {
-            return null;
-          }
-        },
-        keychain: connectorKeychain,
-      }),
+      config: connectorConfig,
       // Strict local mode (HB-52): no sign-in and no request to a provider.
       http: (url, init) => {
         networkGuard.check("connector request");
@@ -2863,7 +2875,7 @@ function registerIpc(): void {
       const connectors = await connectorService?.reset();
       if (connectors && connectors.kept > 0)
         console.warn(`[connectors] reset: ${connectors.kept} sign-in(s) could not be removed`);
-      rmSync(path.join(profile.appData, "Murmur", "connectors.json"), { force: true });
+      rmSync(connectorsFile, { force: true });
       const result = dataDeleter?.deleteAll() ?? { rows: 0, files: 0, failedFiles: 0 };
       if (includeModels) {
         await rm(speechModelRoot(profile.modelsAppData), { recursive: true, force: true });
@@ -3009,6 +3021,67 @@ function registerIpc(): void {
       if (!foldersStore?.get(id)) return folderResult(undefined);
       foldersStore.setAutoExport(id, null);
       return { ok: true, folders: foldersStore.list(), id };
+    },
+    connectorsView: () =>
+      buildConnectorsView({
+        available: new Set(connectorRegistry.list().map((provider) => provider.id)),
+        accounts: connectorService?.list() ?? [],
+        config: connectorConfig,
+        settings: settingsStore.get().connectors,
+        isConnecting: (id) => connectorService?.isConnecting(id) ?? false,
+      }),
+    connectorConnect: async (id, loginHint) => {
+      if (!connectorService) return { ok: false, message: "Connectors are not available." };
+      const outcome = await connectorService.connect(id, loginHint ? { loginHint } : {});
+      return outcome.ok
+        ? { ok: true, message: `Connected ${outcome.account.email}.` }
+        : { ok: false, message: outcome.message };
+    },
+    connectorCancel: (id) => connectorService?.cancelConnect(id),
+    connectorDisconnect: async (accountId) => {
+      if (!connectorService) return { ok: false, message: "Connectors are not available." };
+      try {
+        const { revoked } = await connectorService.disconnect(accountId);
+        return {
+          ok: true,
+          message:
+            revoked === false
+              ? "Disconnected here. The provider did not confirm it, so also remove Murmur in that account's own settings."
+              : "Disconnected.",
+        };
+      } catch (error) {
+        return {
+          ok: false,
+          message: error instanceof Error ? error.message : "Could not disconnect.",
+        };
+      }
+    },
+    connectorSetEnabled: (accountId, enabled) => connectorService?.setEnabled(accountId, enabled),
+    connectorSetClientId: async (id, clientId) => {
+      if (!CONNECTOR_CATALOGUE.some((entry) => entry.id === id))
+        return { ok: false, message: "That connector is not known." };
+      const value = clientId?.trim() ?? null;
+      if (value !== null && !isClientCredential(value))
+        return { ok: false, message: "A client id is one piece of text with no spaces." };
+      try {
+        connectorConfig.setClientId(id, value === "" ? null : value);
+        return { ok: true };
+      } catch {
+        return { ok: false, message: "Murmur could not save the client id." };
+      }
+    },
+    connectorSetClientSecret: async (id, secret) => {
+      if (!CONNECTOR_CATALOGUE.some((entry) => entry.id === id && entry.clientSecret))
+        return { ok: false, message: "That connector has no client secret." };
+      const value = secret?.trim() ?? null;
+      if (value !== null && !isClientCredential(value))
+        return { ok: false, message: "A client secret is one piece of text with no spaces." };
+      try {
+        await connectorConfig.setClientSecret(id, value === "" ? null : value);
+        return { ok: true };
+      } catch {
+        return { ok: false, message: "Murmur could not save the client secret in the Keychain." };
+      }
     },
     meetingMove: (meetingId, folderId) => {
       if (!foldersStore) return folderResult(undefined);

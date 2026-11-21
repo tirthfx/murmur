@@ -3,6 +3,7 @@ import { APP_LANGUAGES } from "./catalogue";
 import { privacySettingsSchema } from "./privacy";
 import { developerSettingsSchema } from "./testing";
 import { helpSettingsSchema, referralSettingsSchema } from "./help";
+import { connectorSettingsSchema } from "./connectors";
 import { notetakerSettingsSchema } from "./meetings";
 import { audioDeviceSchema } from "./audio";
 import { developerToolsSchema, jargonPacksSchema } from "./developer";
@@ -187,6 +188,8 @@ export const settingsSchema = z.strictObject({
   referral: referralSettingsSchema,
   /** M5: Notetaker recording, detection and processing. */
   notetaker: notetakerSettingsSchema,
+  /** M6: the sync interval and read-only switch of each connector, and the cache lifetime. */
+  connectors: connectorSettingsSchema,
   /** HB-20, HB-57: developer mode and the engine switches. */
   devMode: developerSettingsSchema,
   /** HB-19: the trial, the student label and the plan change log. */
@@ -241,6 +244,7 @@ export const settingsPatchSchema = settingsSchema
     help: true,
     referral: true,
     notetaker: true,
+    connectors: true,
   })
   .partial()
   .strict();
@@ -291,6 +295,7 @@ export const SETTING_KEYS: Record<keyof Settings, string> = {
   help: "help.tours",
   referral: "referral.settings",
   notetaker: "notetaker.settings",
+  connectors: "connectors.settings",
 };
 
 /** HB-24 defaults. */
