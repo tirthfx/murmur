@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { AxInspectResult } from "./testing";
+import type { KeychainGetResult } from "./connectors";
 import type { DetectEvent, DetectSubscribeInput } from "./detect";
 import type {
   CaptureChunk,
@@ -181,6 +182,13 @@ export interface PlatformHelper {
    * UNSUPPORTED_REQUEST from a helper that is too old.
    */
   watchMeetings(input: DetectSubscribeInput): Promise<void>;
+  /**
+   * CN-01: Keychain items for connector tokens. The helper is the only Keychain client. Each
+   * rejects with HELPER_UNAVAILABLE when the helper is not running.
+   */
+  keychainGet(service: string, account: string): Promise<KeychainGetResult>;
+  keychainSet(service: string, account: string, value: string): Promise<{ ok: true }>;
+  keychainDelete(service: string, account: string): Promise<{ deleted: boolean }>;
   /** A call started or ended for a matcher. */
   onMeetingDetected(handler: (event: DetectEvent) => void): Unsubscribe;
   /** NT-06: decodes the chunk still being written on a channel. */

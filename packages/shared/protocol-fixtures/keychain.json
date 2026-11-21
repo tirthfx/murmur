@@ -1,0 +1,69 @@
+{
+  "description": "Keychain items for connector tokens (CN-01): generic passwords by service and account. The helper is the only Keychain client. Deleting an item that is not there is not an error.",
+  "messages": [
+    {
+      "id": "m-000200",
+      "type": "keychain.set",
+      "payload": {
+        "service": "com.murmur.connector.example",
+        "account": "person@example.com",
+        "value": "{\"accessToken\":\"fake\"}"
+      }
+    },
+    {
+      "id": "m-000200",
+      "type": "response",
+      "payload": { "requestType": "keychain.set", "ok": true, "result": { "ok": true } }
+    },
+    {
+      "id": "m-000201",
+      "type": "keychain.get",
+      "payload": { "service": "com.murmur.connector.example", "account": "person@example.com" }
+    },
+    {
+      "id": "m-000201",
+      "type": "response",
+      "payload": {
+        "requestType": "keychain.get",
+        "ok": true,
+        "result": { "found": true, "value": "{\"accessToken\":\"fake\"}" }
+      }
+    },
+    {
+      "id": "m-000202",
+      "type": "response",
+      "payload": {
+        "requestType": "keychain.get",
+        "ok": true,
+        "result": { "found": false, "value": "" }
+      }
+    },
+    {
+      "id": "m-000203",
+      "type": "keychain.delete",
+      "payload": { "service": "com.murmur.connector.example", "account": "person@example.com" }
+    },
+    {
+      "id": "m-000203",
+      "type": "response",
+      "payload": { "requestType": "keychain.delete", "ok": true, "result": { "deleted": true } }
+    }
+  ],
+  "invalidMessages": [
+    {
+      "id": "m-000204",
+      "type": "keychain.set",
+      "payload": { "service": "com.murmur.connector.example", "account": "person@example.com" }
+    },
+    {
+      "id": "m-000205",
+      "type": "keychain.get",
+      "payload": { "service": "", "account": "person@example.com" }
+    },
+    {
+      "id": "m-000206",
+      "type": "response",
+      "payload": { "requestType": "keychain.get", "ok": true, "result": { "found": true } }
+    }
+  ]
+}

@@ -2,6 +2,9 @@ import {
   PROTOCOL_VERSION,
   type AudioDevice,
   type AxInspectResult,
+  type HelperRequestPayload,
+  type HelperRequestResult,
+  type KeychainGetResult,
   type CaptureChunk,
   type CaptureError,
   type DetectEvent,
@@ -429,6 +432,29 @@ export class HelperSupervisor implements PlatformHelper {
       return Promise.reject(new HelperError("HELPER_UNAVAILABLE", "The helper is not running"));
     }
     return this.connection.request("transcribe.live", input);
+  }
+
+  /** Keychain items (CN-01). A connector's tokens live only here, never in the database. */
+  keychainGet(service: string, account: string): Promise<KeychainGetResult> {
+    return this.keychainRequest("keychain.get", { service, account });
+  }
+
+  keychainSet(service: string, account: string, value: string): Promise<{ ok: true }> {
+    return this.keychainRequest("keychain.set", { service, account, value });
+  }
+
+  keychainDelete(service: string, account: string): Promise<{ deleted: boolean }> {
+    return this.keychainRequest("keychain.delete", { service, account });
+  }
+
+  private keychainRequest<K extends "keychain.get" | "keychain.set" | "keychain.delete">(
+    type: K,
+    payload: HelperRequestPayload<K>,
+  ): Promise<HelperRequestResult<K>> {
+    if (!this.connection || this.status.state !== "ready") {
+      return Promise.reject(new HelperError("HELPER_UNAVAILABLE", "The helper is not running"));
+    }
+    return this.connection.request(type, payload);
   }
 
   async watchMeetings(input: DetectSubscribeInput): Promise<void> {

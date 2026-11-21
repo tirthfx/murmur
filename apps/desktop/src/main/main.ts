@@ -149,6 +149,11 @@ import { loadMeetingMatchers } from "./meetings/matchers-file";
 import { createDetectionSync } from "./meetings/detection-sync";
 import { createMeetingJobs, type MeetingJobs } from "./meetings/meeting-jobs";
 import { createSkillsService } from "./meetings/skills-service";
+import { createConnectorConfig } from "./connectors/connector-config";
+import { createConnectorService } from "./connectors/connector-service";
+import { createConnectorStore } from "./connectors/connector-store";
+import { createHelperKeychain } from "./connectors/helper-keychain";
+import { createConnectorRegistry } from "./connectors/providers";
 import { createAskIndex } from "./meetings/ask-index";
 import { createAutoExport } from "./meetings/auto-export";
 import { createDictationWindows } from "./meetings/dictation-windows";
@@ -1711,6 +1716,46 @@ const skillsService = meetingSkills
       },
     })
   : null;
+// CN-01: connectors. The tokens are in the Keychain, reached through the helper; the database
+// has only the accounts and a cache. The providers (Google Calendar, ...) are added to this
+// list one by one in M6.
+const connectorKeychain = createHelperKeychain(helper);
+const connectorStore = database ? createConnectorStore(database) : null;
+const connectorService = connectorStore
+  ? createConnectorService({
+      registry: createConnectorRegistry([]),
+      store: connectorStore,
+      keychain: connectorKeychain,
+      config: createConnectorConfig({
+        readFile: () => {
+          try {
+            return readFileSync(path.join(profile.appData, "Murmur", "connectors.json"), "utf8");
+          } catch {
+            return null;
+          }
+        },
+        keychain: connectorKeychain,
+      }),
+      // Strict local mode (HB-52): no sign-in and no request to a provider.
+      http: (url, init) => {
+        networkGuard.check("connector request");
+        return fetch(url, init);
+      },
+      openExternal: (url) => shell.openExternal(url),
+      networkRefusal: () => {
+        try {
+          networkGuard.check("connector sign-in");
+          return null;
+        } catch (error) {
+          return error instanceof Error ? error.message : String(error);
+        }
+      },
+      now: Date.now,
+      newId: randomUUID,
+      logger: createConsoleLogger("[connectors]"),
+    })
+  : null;
+connectorStore?.cachePrune(Date.now());
 /** A folder call's result: the folders as they are now, or why it did not work. */
 function folderResult(
   outcome: { ok: true; id: string } | { ok: false; message: string } | undefined,
@@ -2814,6 +2859,11 @@ function registerIpc(): void {
       return result;
     },
     dataReset: async ({ includeModels }) => {
+      // Sign-ins first: the tokens are in the Keychain, not in the database that is cleared next.
+      const connectors = await connectorService?.reset();
+      if (connectors && connectors.kept > 0)
+        console.warn(`[connectors] reset: ${connectors.kept} sign-in(s) could not be removed`);
+      rmSync(path.join(profile.appData, "Murmur", "connectors.json"), { force: true });
       const result = dataDeleter?.deleteAll() ?? { rows: 0, files: 0, failedFiles: 0 };
       if (includeModels) {
         await rm(speechModelRoot(profile.modelsAppData), { recursive: true, force: true });
