@@ -25,6 +25,8 @@ const run = (args: string[], input: string, env: Record<string, string> = {}) =>
     child.stdout.on("data", (chunk) => (stdout += chunk));
     child.stderr.on("data", (chunk) => (stderr += chunk));
     child.on("close", (code) => resolve({ code, stdout, stderr }));
+    // The command may exit before it reads anything (no socket): that is not an error here.
+    child.stdin.on("error", () => undefined);
     child.stdin.end(input);
   });
 
