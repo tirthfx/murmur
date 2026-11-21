@@ -35,6 +35,9 @@ import {
   transcribeLiveRequestSchema,
   captureChunkEventSchema,
   detectSubscribeRequestSchema,
+  keychainDeleteRequestSchema,
+  keychainGetRequestSchema,
+  keychainSetRequestSchema,
   detectEventSchema,
   captureLevelEventSchema,
   captureErrorEventSchema,
@@ -169,6 +172,12 @@ function validateMessage(message: unknown): boolean {
       return appsListRequestSchema.safeParse(message).success;
     case "ax.inspect":
       return axInspectRequestSchema.safeParse(message).success;
+    case "keychain.get":
+      return keychainGetRequestSchema.safeParse(message).success;
+    case "keychain.set":
+      return keychainSetRequestSchema.safeParse(message).success;
+    case "keychain.delete":
+      return keychainDeleteRequestSchema.safeParse(message).success;
     case "capture.start":
       return captureStartRequestSchema.safeParse(message).success;
     case "capture.stop":

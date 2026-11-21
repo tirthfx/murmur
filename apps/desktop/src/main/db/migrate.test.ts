@@ -41,6 +41,8 @@ describe("migrations", () => {
       "ask_threads",
       "audio_chunks",
       "command_runs",
+      "connector_accounts",
+      "connector_cache",
       "dictionary",
       "focus_rules",
       "focus_sessions",

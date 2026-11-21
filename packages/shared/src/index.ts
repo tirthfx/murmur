@@ -14,6 +14,7 @@ export * from "./bar";
 export * from "./settings";
 export * from "./media";
 export * from "./setup";
+export * from "./connectors";
 export * from "./context";
 export * from "./typing";
 export * from "./mic-check";

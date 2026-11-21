@@ -22,6 +22,7 @@ public struct MessageRouter: Sendable {
     private let inspector: AXInspectController?
     private let meeting: MeetingCaptureController?
     private let detection: DetectionController?
+    private let keychain: KeychainController?
     private var handshakeComplete = false
 
     /// Set once a `shutdown` request has been answered. The host exits after writing the reply.
@@ -46,6 +47,7 @@ public struct MessageRouter: Sendable {
         inspector: AXInspectController? = nil,
         meeting: MeetingCaptureController? = nil,
         detection: DetectionController? = nil,
+        keychain: KeychainController? = nil,
         uptimeMs: @escaping @Sendable () -> Int
     ) {
         self.helperVersion = helperVersion
@@ -66,6 +68,7 @@ public struct MessageRouter: Sendable {
         self.inspector = inspector
         self.meeting = meeting
         self.detection = detection
+        self.keychain = keychain
         self.uptimeMs = uptimeMs
     }
 
@@ -241,6 +244,11 @@ public struct MessageRouter: Sendable {
             case .success(let value): return [Self.success(id: id, requestType: type, value)]
             case .failure(let failure): return [Self.failure(id: id, requestType: type, failure.code, failure.message)]
             }
+        case "keychain.get", "keychain.set", "keychain.delete":
+            guard let keychain else {
+                return [Self.failure(id: id, requestType: type, .unsupportedRequest, "Unknown request type")]
+            }
+            return [keychain.handle(id: id, type: type, payload: envelope.payload)]
         case "ax.inspect":
             guard let inspector else {
                 return [Self.failure(id: id, requestType: type, .unsupportedRequest, "Unknown request type")]

@@ -105,6 +105,7 @@ var host = HelperHost(
         inspector: AXInspectController(source: SystemInspectSource(), permissions: permissions),
         meeting: meeting,
         detection: DetectionController(source: SystemDetectSource(), emit: output.send),
+        keychain: KeychainController(store: SystemKeychainStore()),
         uptimeMs: HostInfo.uptimeProvider()))
 Log.info("started, helper \(ProtocolConstants.helperVersion), protocol \(ProtocolConstants.protocolVersion)")
 output.send(host.greeting())

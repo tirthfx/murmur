@@ -17,6 +17,14 @@ import {
   detectSubscribePayloadSchema,
   detectSubscribeResultSchema,
 } from "./detect";
+import {
+  keychainDeletePayloadSchema,
+  keychainDeleteResultSchema,
+  keychainGetPayloadSchema,
+  keychainGetResultSchema,
+  keychainSetPayloadSchema,
+  keychainSetResultSchema,
+} from "./connectors";
 import { procForegroundResultSchema } from "./processes";
 import { axInspectPayloadSchema, axInspectResultSchema } from "./testing";
 import {
@@ -306,6 +314,18 @@ export const HELPER_REQUESTS = {
     payload: detectSubscribePayloadSchema,
     result: detectSubscribeResultSchema,
   },
+  "keychain.get": {
+    payload: keychainGetPayloadSchema,
+    result: keychainGetResultSchema,
+  },
+  "keychain.set": {
+    payload: keychainSetPayloadSchema,
+    result: keychainSetResultSchema,
+  },
+  "keychain.delete": {
+    payload: keychainDeletePayloadSchema,
+    result: keychainDeleteResultSchema,
+  },
 } as const;
 
 export type HelperRequestType = keyof typeof HELPER_REQUESTS;
@@ -466,6 +486,12 @@ export const keysPressRequestSchema = requestEnvelope("keys.press", keysPressPay
 export const focusWatchRequestSchema = requestEnvelope("focus.watch", focusWatchPayloadSchema);
 export const focusAppEventSchema = eventEnvelope("focus.app", frontAppPayloadSchema);
 export const appsListRequestSchema = requestEnvelope("apps.list", emptyObjectSchema);
+export const keychainGetRequestSchema = requestEnvelope("keychain.get", keychainGetPayloadSchema);
+export const keychainSetRequestSchema = requestEnvelope("keychain.set", keychainSetPayloadSchema);
+export const keychainDeleteRequestSchema = requestEnvelope(
+  "keychain.delete",
+  keychainDeletePayloadSchema,
+);
 export const axInspectRequestSchema = requestEnvelope("ax.inspect", axInspectPayloadSchema);
 export const captureStartRequestSchema = requestEnvelope(
   "capture.start",
