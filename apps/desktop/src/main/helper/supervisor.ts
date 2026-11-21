@@ -8,6 +8,8 @@ import {
   type CaptureStartInput,
   type CaptureStartResult,
   type CaptureStopResult,
+  type LiveTranscript,
+  type TranscribeLiveInput,
   type AudioInputs,
   type AudioLevel,
   type AudioSilent,
@@ -417,6 +419,13 @@ export class HelperSupervisor implements PlatformHelper {
       return Promise.reject(new HelperError("HELPER_UNAVAILABLE", "The helper is not running"));
     }
     return this.connection.request("capture.stop", { meetingId });
+  }
+
+  transcribeLive(input: TranscribeLiveInput): Promise<LiveTranscript> {
+    if (!this.connection || this.status.state !== "ready") {
+      return Promise.reject(new HelperError("HELPER_UNAVAILABLE", "The helper is not running"));
+    }
+    return this.connection.request("transcribe.live", input);
   }
 
   onCaptureChunk(handler: (chunk: CaptureChunk) => void): Unsubscribe {

@@ -68,6 +68,8 @@ public final class MeetingCaptureController: @unchecked Sendable {
         var failed = false
         var levelSum: Double = 0
         var levelCount = 0
+        /// The chunk being written, kept in memory for live text (NT-06).
+        var live: [Float] = []
 
         init(name: String) { self.name = name }
     }
@@ -238,6 +240,21 @@ public final class MeetingCaptureController: @unchecked Sendable {
         _ = stop(["meetingId": .string(id)])
     }
 
+    /// The audio of the chunk being written on a channel, where it starts on the meeting's
+    /// timeline, and its number. Nil when that channel is not being recorded.
+    public func liveAudio(meetingId: String, channel: String) -> (samples: [Float], startMs: Int, seq: Int)? {
+        lock.withLock {
+            guard let current = session, current.meetingId == meetingId, let found = current.channels[channel] else {
+                return nil
+            }
+            guard found.file != nil else {
+                // Between chunks: the next one starts where the audio so far ends.
+                return ([], found.total * 1000 / Self.sampleRate, found.seq + 1)
+            }
+            return (found.live, found.chunkStart * 1000 / Self.sampleRate, found.seq)
+        }
+    }
+
     /// Fills channels that fell behind the clock. Runs on a timer; tests call it directly.
     func tick() {
         lock.withLock {
@@ -317,6 +334,7 @@ public final class MeetingCaptureController: @unchecked Sendable {
             }
             channel.inChunk += take
             channel.total += take
+            channel.live.append(contentsOf: part)
             level(part, channel, current)
             if channel.inChunk >= current.chunkSamples { finishChunk(channel, in: current) }
         }
@@ -350,6 +368,7 @@ public final class MeetingCaptureController: @unchecked Sendable {
     private func openChunk(_ channel: Channel, in current: Session) {
         channel.seq += 1
         channel.inChunk = 0
+        channel.live = []
         channel.chunkStart = channel.total
         let url = chunkURL(channel, in: current, partial: true)
         do {
@@ -402,6 +421,7 @@ public final class MeetingCaptureController: @unchecked Sendable {
             fail(channel, in: current, "write_failed")
         }
         channel.inChunk = 0
+        channel.live = []
     }
 
     /// An absolute folder path with no `..` parts, or nil.

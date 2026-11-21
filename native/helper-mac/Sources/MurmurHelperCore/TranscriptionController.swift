@@ -145,6 +145,25 @@ public final class TranscriptionController: @unchecked Sendable {
         } catch {
             return MessageRouter.failure(id: id, requestType: type, .notFound, "The audio file could not be read")
         }
+        return decode(
+            id: id, type: type, samples: samples, languages: languages, prompt: prompt, keepTiming: keepTiming,
+            extra: [:])
+    }
+
+    /// `transcribe.live` (NT-06): decodes audio handed over by the meeting recorder, the chunk
+    /// still being written, with its timing kept. `extra` is added to the result.
+    public func transcribeSamples(
+        id: String, samples: [Float], languages: [String], extra: [String: JSONValue]
+    ) -> Envelope? {
+        decode(
+            id: id, type: "transcribe.live", samples: samples, languages: languages, prompt: nil, keepTiming: true,
+            extra: extra)
+    }
+
+    private func decode(
+        id: String, type: String, samples: [Float], languages: [String], prompt: String?, keepTiming: Bool,
+        extra: [String: JSONValue]
+    ) -> Envelope? {
         let state = lock.withLock { () -> String? in
             if loadedModel == nil { return "not-loaded" }
             if loading || decoding { return "busy" }
@@ -178,9 +197,7 @@ public final class TranscriptionController: @unchecked Sendable {
                     }
                 }
                 let decodeMs = Int(((clock() - started) * 1000).rounded())
-                envelope = MessageRouter.success(
-                    id: id, requestType: type,
-                    [
+                var result: [String: JSONValue] = [
                         "text": .string(recognition.text),
                         "language": .string(recognition.language),
                         "segments": .array(
@@ -192,7 +209,9 @@ public final class TranscriptionController: @unchecked Sendable {
                             }),
                         "decodeMs": .int(decodeMs),
                         "audioMs": .int(audioMs),
-                    ])
+                    ]
+                result.merge(extra) { $1 }
+                envelope = MessageRouter.success(id: id, requestType: type, result)
                 Log.info("transcribed \(audioMs) ms of audio in \(decodeMs) ms")
             } catch is TimeoutError {
                 envelope = MessageRouter.failure(

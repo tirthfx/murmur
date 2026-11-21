@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { audioSessionIdSchema } from "./audio";
+import { transcriptSchema } from "./speech";
 
 /**
  * Notetaker (M5). Meetings are recorded by the helper as two channels of chunk files; main
@@ -82,6 +83,22 @@ export const captureErrorPayloadSchema = z.object({
 });
 export type CaptureError = z.infer<typeof captureErrorPayloadSchema>;
 
+/** NT-06: decode the chunk still being written on a channel, for live text. */
+export const transcribeLivePayloadSchema = z.object({
+  meetingId: audioSessionIdSchema,
+  channel: meetingChannelSchema,
+  languages: z.array(z.string().min(1)).max(20).optional(),
+});
+export type TranscribeLiveInput = z.infer<typeof transcribeLivePayloadSchema>;
+
+/** Segment times are from the chunk's start; `startMs` places the chunk on the timeline. */
+export const transcribeLiveResultSchema = transcriptSchema.extend({
+  channel: meetingChannelSchema,
+  seq: z.number().int().positive(),
+  startMs: z.number().int().nonnegative(),
+});
+export type LiveTranscript = z.infer<typeof transcribeLiveResultSchema>;
+
 // ------------------------------------------------------------------- meetings
 
 export const MEETING_STATUSES = ["recording", "queued", "processing", "ready", "failed"] as const;
@@ -144,6 +161,55 @@ export interface TranscriptionProgress {
   done: number;
 }
 
+/**
+ * Text heard in the chunk still being recorded on a channel (NT-06). Grey, and replaced when
+ * that chunk's final segments are written. Times are on the meeting's timeline.
+ */
+export interface LivePartial {
+  meetingId: string;
+  channel: MeetingChannel;
+  seq: number;
+  segments: { startMs: number; endMs: number; text: string }[];
+}
+
+/** A link or a copied file attached to a meeting (NT-10, Docs tab). */
+export interface MeetingDoc {
+  id: string;
+  meetingId: string;
+  kind: "link" | "file";
+  title: string;
+  /** The address of a link; null for a file. */
+  url: string | null;
+  bytes: number | null;
+  addedAt: number;
+}
+
+export interface MeetingListItem extends Meeting {
+  progress: TranscriptionProgress;
+}
+
+/** Everything the meeting view shows. */
+export interface MeetingDetail {
+  meeting: Meeting;
+  progress: TranscriptionProgress;
+  segments: MeetingSegment[];
+  live: LivePartial[];
+  notes: string;
+  notesUpdatedAt: number | null;
+  docs: MeetingDoc[];
+}
+
+export const MEETING_TABS = ["notes", "summary", "transcript", "tasks", "brief", "docs"] as const;
+export type MeetingTab = (typeof MEETING_TABS)[number];
+
+/** Limits for the meeting view. */
+export const MEETING_LIMITS = {
+  notesBytes: 200_000,
+  titleChars: 200,
+  docFileBytes: 50 * 1024 * 1024,
+  docsPerMeeting: 50,
+} as const;
+
 /** What a meeting can be marked with: a channel problem, or a recording cut short. */
 export type MeetingWarning = CaptureWarning | CaptureIssue | "interrupted" | "sleep";
 
@@ -202,10 +268,13 @@ export const notetakerSettingsSchema = z.strictObject({
   captureSystem: z.boolean(),
   /** NT-04: length of each audio chunk file. */
   chunkSeconds: z.number().int().min(5).max(120),
+  /** NT-06: show text while the meeting records. */
+  live: z.boolean().default(true),
 });
 export type NotetakerSettings = z.infer<typeof notetakerSettingsSchema>;
 
 export const DEFAULT_NOTETAKER: NotetakerSettings = {
   captureSystem: true,
   chunkSeconds: 30,
+  live: true,
 };

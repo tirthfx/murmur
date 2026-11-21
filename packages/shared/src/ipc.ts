@@ -1,4 +1,11 @@
 import { z } from "zod";
+import type {
+  LivePartial,
+  MeetingDetail,
+  MeetingDoc,
+  MeetingListItem,
+  RecordingState,
+} from "./meetings";
 import {
   historyDeleteResultSchema,
   historyFeedbackSchema,
@@ -334,6 +341,18 @@ export const IPC_CHANNELS = {
   focusInstalledApps: "focus:installed-apps",
   focusSites: "focus:sites",
   focusAddSite: "focus:add-site",
+  meetingsList: "meetings:list",
+  meetingDetail: "meetings:detail",
+  meetingRecording: "meetings:recording",
+  meetingStart: "meetings:start",
+  meetingStop: "meetings:stop",
+  meetingRename: "meetings:rename",
+  meetingDelete: "meetings:delete",
+  meetingNotesSave: "meetings:notes-save",
+  meetingDocAddLink: "meetings:doc-add-link",
+  meetingDocAddFile: "meetings:doc-add-file",
+  meetingDocOpen: "meetings:doc-open",
+  meetingDocRemove: "meetings:doc-remove",
 } as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
@@ -345,6 +364,19 @@ export const appInfoSchema = z.strictObject({
 });
 
 export type AppInfo = z.infer<typeof appInfoSchema>;
+
+/** Meeting and doc ids are UUIDs. */
+const meetingIdArg = z.string().min(1).max(64);
+
+export const meetingStartResultSchema = z.discriminatedUnion("ok", [
+  z.strictObject({ ok: z.literal(true), meetingId: z.string() }),
+  z.strictObject({ ok: z.literal(false), message: z.string() }),
+]);
+export type MeetingStartResult = z.infer<typeof meetingStartResultSchema>;
+
+/** Adding a link or file to a meeting; `canceled` when the file dialog was closed. */
+export type MeetingDocResult =
+  { ok: true; doc: MeetingDoc } | { ok: false; message: string; canceled?: boolean };
 
 /** Per-channel schema for the arguments a renderer may send, and for the reply main returns. */
 export const IPC_CONTRACT = {
@@ -738,6 +770,34 @@ export const IPC_CONTRACT = {
     args: z.tuple([focusSiteInputSchema]),
     result: focusAddResultSchema,
   },
+  // M5 Notetaker (NT-06, NT-10). View results are built in main and not checked again.
+  [IPC_CHANNELS.meetingsList]: { args: z.tuple([]), result: z.custom<MeetingListItem[]>() },
+  [IPC_CHANNELS.meetingDetail]: {
+    args: z.tuple([meetingIdArg]),
+    result: z.custom<MeetingDetail | null>(),
+  },
+  [IPC_CHANNELS.meetingRecording]: { args: z.tuple([]), result: z.custom<RecordingState>() },
+  [IPC_CHANNELS.meetingStart]: { args: z.tuple([]), result: meetingStartResultSchema },
+  [IPC_CHANNELS.meetingStop]: { args: z.tuple([]), result: z.void() },
+  [IPC_CHANNELS.meetingRename]: {
+    args: z.tuple([meetingIdArg, z.string().max(200)]),
+    result: z.void(),
+  },
+  [IPC_CHANNELS.meetingDelete]: { args: z.tuple([meetingIdArg]), result: z.void() },
+  [IPC_CHANNELS.meetingNotesSave]: {
+    args: z.tuple([meetingIdArg, z.string().max(200_000)]),
+    result: z.boolean(),
+  },
+  [IPC_CHANNELS.meetingDocAddLink]: {
+    args: z.tuple([meetingIdArg, z.string().max(2048), z.string().max(200)]),
+    result: z.custom<MeetingDocResult>(),
+  },
+  [IPC_CHANNELS.meetingDocAddFile]: {
+    args: z.tuple([meetingIdArg]),
+    result: z.custom<MeetingDocResult>(),
+  },
+  [IPC_CHANNELS.meetingDocOpen]: { args: z.tuple([meetingIdArg]), result: z.void() },
+  [IPC_CHANNELS.meetingDocRemove]: { args: z.tuple([meetingIdArg]), result: z.void() },
 } as const satisfies Record<IpcChannel, { args: z.ZodType; result: z.ZodType }>;
 
 export function isIpcChannel(value: unknown): value is IpcChannel {
@@ -957,6 +1017,27 @@ export interface MurmurApi {
   onOpenPage(handler: (pageId: string) => void): () => void;
   /** Input levels during a microphone check, about 20 a second. Returns an unsubscribe. */
   onMicCheckLevel(handler: (rmsDb: number) => void): () => void;
+  /** Notetaker (M5): meetings newest first, with transcription progress. */
+  meetingsList(): Promise<MeetingListItem[]>;
+  meetingDetail(id: string): Promise<MeetingDetail | null>;
+  meetingRecording(): Promise<RecordingState>;
+  meetingStart(): Promise<MeetingStartResult>;
+  meetingStop(): Promise<void>;
+  /** A rename by the owner; a later summary will not change it (NT-03). */
+  meetingRename(id: string, title: string): Promise<void>;
+  /** Deletes the meeting, its transcript, notes, docs and audio. */
+  meetingDelete(id: string): Promise<void>;
+  /** NT-10: saves My notes; false when they are too long. */
+  meetingNotesSave(id: string, body: string): Promise<boolean>;
+  meetingDocAddLink(id: string, url: string, title: string): Promise<MeetingDocResult>;
+  /** Asks for a file and copies it into the meeting. */
+  meetingDocAddFile(id: string): Promise<MeetingDocResult>;
+  meetingDocOpen(docId: string): Promise<void>;
+  meetingDocRemove(docId: string): Promise<void>;
+  /** A meeting changed: its status, transcript, or the recording. `null` for the list. */
+  onMeetingsChanged(handler: (meetingId: string | null) => void): () => void;
+  /** NT-06: new grey text for the chunk being recorded. */
+  onMeetingLive(handler: (partial: LivePartial) => void): () => void;
 }
 
 /** Main-to-Hub messages (no reply). */
@@ -965,4 +1046,6 @@ export const IPC_EVENTS = {
   dictationState: "dictation:state-changed",
   scratchpadOpenNote: "scratchpad:open-note",
   openPage: "hub:open-page",
+  meetingsChanged: "meetings:changed",
+  meetingLive: "meetings:live",
 } as const;

@@ -32,6 +32,7 @@ import {
   axInspectRequestSchema,
   captureStartRequestSchema,
   captureStopRequestSchema,
+  transcribeLiveRequestSchema,
   captureChunkEventSchema,
   captureLevelEventSchema,
   captureErrorEventSchema,
@@ -170,6 +171,8 @@ function validateMessage(message: unknown): boolean {
       return captureStartRequestSchema.safeParse(message).success;
     case "capture.stop":
       return captureStopRequestSchema.safeParse(message).success;
+    case "transcribe.live":
+      return transcribeLiveRequestSchema.safeParse(message).success;
     case "capture.chunk":
       return captureChunkEventSchema.safeParse(message).success;
     case "capture.level":

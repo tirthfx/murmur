@@ -52,6 +52,7 @@ describe("Hub", () => {
     expect(PAGES.map((page) => page.title)).toEqual([
       "Home",
       "Dictation",
+      "Notetaker",
       "Dictionary",
       "Snippets",
       "Styles",

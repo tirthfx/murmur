@@ -7,6 +7,8 @@ import type {
   CaptureStartInput,
   CaptureStartResult,
   CaptureStopResult,
+  LiveTranscript,
+  TranscribeLiveInput,
 } from "./meetings";
 import type {
   AudioDevice,
@@ -173,6 +175,8 @@ export interface PlatformHelper {
   /** Closes the last chunks; their `capture.chunk` events arrive before this resolves. */
   stopMeetingCapture(meetingId: string): Promise<CaptureStopResult>;
   onCaptureChunk(handler: (chunk: CaptureChunk) => void): Unsubscribe;
+  /** NT-06: decodes the chunk still being written on a channel. */
+  transcribeLive(input: TranscribeLiveInput): Promise<LiveTranscript>;
   onCaptureLevel(handler: (level: CaptureLevel) => void): Unsubscribe;
   onCaptureError(handler: (error: CaptureError) => void): Unsubscribe;
   /** The changed words only, at most once per correction. */

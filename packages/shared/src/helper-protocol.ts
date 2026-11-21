@@ -22,6 +22,8 @@ import {
   captureStartResultSchema,
   captureStopPayloadSchema,
   captureStopResultSchema,
+  transcribeLivePayloadSchema,
+  transcribeLiveResultSchema,
 } from "./meetings";
 import {
   keysPressPayloadSchema,
@@ -291,6 +293,10 @@ export const HELPER_REQUESTS = {
     payload: captureStopPayloadSchema,
     result: captureStopResultSchema,
   },
+  "transcribe.live": {
+    payload: transcribeLivePayloadSchema,
+    result: transcribeLiveResultSchema,
+  },
 } as const;
 
 export type HelperRequestType = keyof typeof HELPER_REQUESTS;
@@ -456,6 +462,10 @@ export const captureStartRequestSchema = requestEnvelope(
   captureStartPayloadSchema,
 );
 export const captureStopRequestSchema = requestEnvelope("capture.stop", captureStopPayloadSchema);
+export const transcribeLiveRequestSchema = requestEnvelope(
+  "transcribe.live",
+  transcribeLivePayloadSchema,
+);
 export const captureChunkEventSchema = eventEnvelope("capture.chunk", captureChunkPayloadSchema);
 export const captureLevelEventSchema = eventEnvelope("capture.level", captureLevelPayloadSchema);
 export const captureErrorEventSchema = eventEnvelope("capture.error", captureErrorPayloadSchema);

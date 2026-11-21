@@ -1,5 +1,5 @@
 {
-  "description": "Meeting capture (NT-04): two channels in chunk files. Each finished chunk is reported with its path, size and SHA-256; levels come about five times a second; a channel problem is reported and recording goes on.",
+  "description": "Meeting capture (NT-04): two channels in chunk files. Each finished chunk is reported with its path, size and SHA-256; levels come about five times a second; a channel problem is reported and recording goes on. `transcribe.live` decodes the chunk still being written, for text during the meeting.",
   "messages": [
     {
       "id": "m-000130",
@@ -20,7 +20,10 @@
         "ok": true,
         "result": {
           "startedAt": 1763700000000,
-          "channels": { "mic": "MacBook Pro Microphone", "system": "System sound" },
+          "channels": {
+            "mic": "MacBook Pro Microphone",
+            "system": "System sound"
+          },
           "sampleRate": 16000,
           "warnings": []
         }
@@ -29,7 +32,11 @@
     {
       "id": null,
       "type": "capture.level",
-      "payload": { "meetingId": "mtg-1", "channel": "system", "rmsDb": -32.5 }
+      "payload": {
+        "meetingId": "mtg-1",
+        "channel": "system",
+        "rmsDb": -32.5
+      }
     },
     {
       "id": null,
@@ -48,12 +55,52 @@
     {
       "id": null,
       "type": "capture.error",
-      "payload": { "meetingId": "mtg-1", "channel": "system", "code": "sck_stream_stopped" }
+      "payload": {
+        "meetingId": "mtg-1",
+        "channel": "system",
+        "code": "sck_stream_stopped"
+      }
+    },
+    {
+      "id": "m-000133",
+      "type": "transcribe.live",
+      "payload": {
+        "meetingId": "mtg-1",
+        "channel": "system",
+        "languages": []
+      }
+    },
+    {
+      "id": "m-000133",
+      "type": "response",
+      "payload": {
+        "requestType": "transcribe.live",
+        "ok": true,
+        "result": {
+          "text": "Shall we start with the roadmap?",
+          "language": "en",
+          "segments": [
+            {
+              "startMs": 1200,
+              "endMs": 3100,
+              "text": "Shall we start with the roadmap?",
+              "confidence": 0.88
+            }
+          ],
+          "decodeMs": 640,
+          "audioMs": 12000,
+          "channel": "system",
+          "seq": 2,
+          "startMs": 30000
+        }
+      }
     },
     {
       "id": "m-000131",
       "type": "capture.stop",
-      "payload": { "meetingId": "mtg-1" }
+      "payload": {
+        "meetingId": "mtg-1"
+      }
     },
     {
       "id": "m-000131",
@@ -64,8 +111,14 @@
         "result": {
           "durationMs": 61000,
           "channels": {
-            "mic": { "chunks": 3, "durationMs": 61000 },
-            "system": { "chunks": 2, "durationMs": 60800 }
+            "mic": {
+              "chunks": 3,
+              "durationMs": 61000
+            },
+            "system": {
+              "chunks": 2,
+              "durationMs": 60800
+            }
           }
         }
       }
@@ -75,7 +128,10 @@
     {
       "id": "m-000132",
       "type": "capture.start",
-      "payload": { "meetingId": "../x", "folder": "relative/path" }
+      "payload": {
+        "meetingId": "../x",
+        "folder": "relative/path"
+      }
     }
   ]
 }
