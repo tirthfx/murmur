@@ -41,6 +41,11 @@ export function startLoopback(options: {
   port: number;
   path: string;
   timeoutMs?: number;
+  /**
+   * The host named in the redirect address. The listener is on 127.0.0.1 either way; some
+   * providers (Microsoft) register `localhost` for a loopback redirect. Default `127.0.0.1`.
+   */
+  redirectHost?: "127.0.0.1" | "localhost";
 }): Promise<Loopback> {
   const timeoutMs = options.timeoutMs ?? LOOPBACK_TIMEOUT_MS;
   return new Promise((resolveStart, rejectStart) => {
@@ -71,13 +76,21 @@ export function startLoopback(options: {
           message: "The answer did not match this sign-in, so it was ignored. Try again.",
         };
       } else if (error !== null) {
+        // The provider's own words, when it gives them: they say what to fix (a work account that
+        // needs an administrator's consent, say).
+        const detail = (url.searchParams.get("error_description") ?? "")
+          .replace(/\s+/g, " ")
+          .trim()
+          .slice(0, 300);
         result = {
           ok: false,
           reason: "denied",
           message:
-            error === "access_denied"
+            error === "access_denied" && detail === ""
               ? "The sign-in was not allowed."
-              : `The provider refused the sign-in (${error.slice(0, 80)}).`,
+              : detail !== ""
+                ? `The provider refused the sign-in: ${detail}`
+                : `The provider refused the sign-in (${error.slice(0, 80)}).`,
         };
       } else if (code === null || code === "") {
         result = { ok: false, reason: "denied", message: "The provider sent no sign-in code." };
@@ -123,7 +136,7 @@ export function startLoopback(options: {
         close();
       }, timeoutMs);
       resolveStart({
-        redirectUri: `http://127.0.0.1:${port}${options.path}`,
+        redirectUri: `http://${options.redirectHost ?? "127.0.0.1"}:${port}${options.path}`,
         wait(state) {
           expected = state;
           return done;

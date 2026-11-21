@@ -18,6 +18,8 @@ class FakeProvider {
   userinfoCalls = 0;
   failRefresh: number | null = null;
   failRevoke = false;
+  /** Makes the provider refuse the sign-in code with this answer. */
+  refuseCode: { status: number; body: object } | null = null;
   refreshTokenInResponse = false;
   expiresIn: number | undefined = 3600;
   private counter = 0;
@@ -68,6 +70,8 @@ class FakeProvider {
       const body = Object.fromEntries(new URLSearchParams(String(init?.body)));
       this.tokenCalls.push(body);
       if (body.grant_type === "authorization_code") {
+        if (this.refuseCode)
+          return Response.json(this.refuseCode.body, { status: this.refuseCode.status });
         const issued = this.codes.get(body.code!);
         const verified =
           issued &&
@@ -275,6 +279,27 @@ describe("connecting (CN-01)", () => {
     ]);
   });
 
+  it("names localhost in the redirect for a provider that registers it, and shows the provider's reason for a refused code", async () => {
+    const t = setup({ provider: { redirectHost: "localhost" } });
+    expect((await t.service.connect("fake")).ok).toBe(true);
+    expect(t.opened[0]!.searchParams.get("redirect_uri")).toMatch(
+      /^http:\/\/localhost:\d+\/callback$/,
+    );
+    expect(t.fake.tokenCalls[0]!.redirect_uri).toMatch(/^http:\/\/localhost:/);
+    const failing = setup();
+    failing.fake.refuseCode = {
+      status: 400,
+      body: {
+        error: "invalid_request",
+        error_description: "AADSTS70000: The code was used already.",
+      },
+    };
+    expect(await failing.service.connect("fake")).toMatchObject({
+      ok: false,
+      message: "Fakebook did not accept the sign-in: AADSTS70000: The code was used already.",
+    });
+  });
+
   it("is refused while strict local mode is on, before anything is opened", async () => {
     const t = setup();
     const service = createConnectorService({
@@ -355,6 +380,19 @@ describe("connecting (CN-01)", () => {
       message: "Murmur could not open your browser.",
     });
 
+    // An administrator's consent: the provider's words are shown.
+    const consent = setup({
+      browser: async (url) => {
+        await fetch(
+          `${url.searchParams.get("redirect_uri")}?error=access_denied&error_description=${encodeURIComponent("AADSTS65001: Needs admin consent.")}&state=${url.searchParams.get("state")}`,
+        );
+      },
+    });
+    expect(await consent.service.connect("fake")).toMatchObject({
+      ok: false,
+      message: "The provider refused the sign-in: AADSTS65001: Needs admin consent.",
+    });
+
     const refused = setup({
       browser: async (url) => {
         await fetch(
@@ -364,7 +402,7 @@ describe("connecting (CN-01)", () => {
     });
     expect(await refused.service.connect("fake")).toMatchObject({
       ok: false,
-      message: expect.stringContaining("did not accept the sign-in code"),
+      message: "Fakebook did not accept the sign-in: invalid_grant",
     });
 
     const locked = setup();

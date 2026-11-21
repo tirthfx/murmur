@@ -15,6 +15,7 @@ export * from "./settings";
 export * from "./mcp";
 export * from "./media";
 export * from "./setup";
+export * from "./calendar";
 export * from "./connectors";
 export * from "./context";
 export * from "./typing";

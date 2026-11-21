@@ -456,6 +456,7 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
     folderChooseExport: vi.fn().mockResolvedValue({ ok: true, folders: [] }),
     folderClearExport: vi.fn().mockResolvedValue({ ok: true, folders: [] }),
     connectorsView: vi.fn().mockResolvedValue({ connectors: [], cacheTtlMinutes: 15 }),
+    connectorSync: vi.fn().mockResolvedValue({ ok: true, message: "Read 0 events." }),
     mcpStatus: vi.fn().mockResolvedValue(MCP_STATUS_OFF),
     mcpClients: vi
       .fn()

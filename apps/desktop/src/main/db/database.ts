@@ -42,6 +42,7 @@ import m0038 from "./migrations/0038_meeting_import.sql?raw";
 import m0039 from "./migrations/0039_dictation_recaps.sql?raw";
 import m0040 from "./migrations/0040_connectors.sql?raw";
 import m0041 from "./migrations/0041_mcp_setup.sql?raw";
+import m0042 from "./migrations/0042_calendar_events.sql?raw";
 import { migrateUp, parseMigration, type Migration } from "./migrate";
 
 /** Every migration, in the order the files are numbered. */
@@ -87,6 +88,7 @@ export const MIGRATIONS: Migration[] = [
   parseMigration("0039_dictation_recaps.sql", m0039),
   parseMigration("0040_connectors.sql", m0040),
   parseMigration("0041_mcp_setup.sql", m0041),
+  parseMigration("0042_calendar_events.sql", m0042),
 ];
 
 /** `<appData>/Murmur/murmur.db`, shared by the dev build and the packaged app. */

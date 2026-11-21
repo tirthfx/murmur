@@ -9,6 +9,7 @@ import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { VStack } from "@astryxdesign/core/VStack";
 import {
+  CALENDAR_CONNECTOR_IDS,
   CONNECTOR_FEATURES,
   CONNECTOR_STATUS_TEXT,
   SYNC_INTERVALS,
@@ -144,6 +145,7 @@ export function ConnectorsPage() {
   const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null);
   const [waiting, setWaiting] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     try {
@@ -186,6 +188,15 @@ export function ConnectorsPage() {
   async function disconnect(account: ConnectorAccount) {
     setConfirm(null);
     report(await window.murmur.connectorDisconnect(account.id));
+  }
+
+  async function syncNow(account: ConnectorAccount) {
+    setSyncing(account.id);
+    try {
+      report(await window.murmur.connectorSync(account.id));
+    } finally {
+      setSyncing(null);
+    }
   }
 
   async function choose(connector: ConnectorView, patch: Partial<ConnectorChoice>) {
@@ -371,6 +382,20 @@ export function ConnectorsPage() {
                                       }
                                     />
                                   )}
+                                  {account.status === "connected" &&
+                                  (CALENDAR_CONNECTOR_IDS as readonly string[]).includes(
+                                    connector.id,
+                                  ) ? (
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      label={`Read ${account.email} now`}
+                                      isDisabled={syncing === account.id}
+                                      onClick={() => void syncNow(account)}
+                                    >
+                                      Read now
+                                    </Button>
+                                  ) : null}
                                   {confirm === account.id ? (
                                     <HStack gap={1}>
                                       <Button
