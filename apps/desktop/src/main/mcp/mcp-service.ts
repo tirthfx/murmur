@@ -1,26 +1,31 @@
-import { randomBytes } from "node:crypto";
+import type { DatabaseSync } from "node:sqlite";
 import { MCP_STATUS_OFF, type Keychain, type McpSettings, type McpStatus } from "@murmur/shared";
 import type { Logger } from "../helper/types";
 import { HTTP_PATH, startHttpTransport } from "./http-transport";
-import { createMcpServer, type McpCallEvent, type McpServer } from "./mcp-server";
+import { createMcpAudit, type McpAudit } from "./mcp-audit";
+import { createMcpClients, MCP_KEYCHAIN_SERVICE, type McpClients } from "./mcp-clients";
+import { createMcpServer, type McpServer } from "./mcp-server";
 import { createMcpTools, type McpData } from "./mcp-tools";
 import { createRateLimiter } from "./rate-limit";
 import { startSocketTransport, type RunningTransport } from "./socket-transport";
-
-/** The Keychain item that holds the bearer token for HTTP clients. */
-export const MCP_TOKEN_ITEM = { service: "com.murmur.mcp", account: "http-token" } as const;
 
 export interface McpService {
   status(): McpStatus;
   /** Starts and stops what the settings now ask for. Calls queue, so they never overlap. */
   apply(): Promise<McpStatus>;
   stop(): Promise<void>;
-  /** The server, for tests and for the audit that comes with MCP setup. */
+  /** The apps the owner approved, and their tokens. */
+  readonly clients: McpClients;
+  /** What the apps called. */
+  readonly audit: McpAudit;
   readonly server: McpServer;
+  /** "Delete all data and reset": removes every app and the log. */
+  reset(): Promise<void>;
 }
 
 export function createMcpService(deps: {
   settings(): McpSettings;
+  db: DatabaseSync;
   data: McpData;
   keychain: Keychain;
   /** Where the socket is made, in the data folder. */
@@ -28,10 +33,25 @@ export function createMcpService(deps: {
   serverVersion: string;
   logger: Logger;
   now(): number;
-  /** Told about each tool call: who, which tool and the sizes, never the result. */
-  onCall?(event: McpCallEvent): void;
+  newId(): string;
 }): McpService {
   const { logger } = deps;
+
+  let socket: (RunningTransport & { disconnect(clientId: string): void }) | null = null;
+  let http: (RunningTransport & { port: number }) | null = null;
+  const problems = { stdio: null as string | null, http: null as string | null };
+  let queue: Promise<unknown> = Promise.resolve();
+
+  const clients = createMcpClients(deps.db, {
+    keychain: deps.keychain,
+    newId: deps.newId,
+    now: deps.now,
+    logger,
+    // A token that was removed or replaced ends the app's connections now.
+    onEnded: (id) => socket?.disconnect(id),
+  });
+  const audit = createMcpAudit(deps.db);
+
   const server = createMcpServer({
     tools: createMcpTools(deps.data),
     serverName: "murmur",
@@ -40,29 +60,27 @@ export function createMcpService(deps: {
       limit: () => deps.settings().rateLimitPerMinute,
       now: deps.now,
     }),
+    // A tool that writes works only while its switch is on.
+    writeAllowed: (tool) => {
+      const write = deps.settings().write;
+      return tool.name === "create_task"
+        ? write.createTask
+        : tool.name === "add_note"
+          ? write.addNote
+          : false;
+    },
     onCall: (event) => {
-      // Counts and names only: the arguments and the result stay out of the log.
+      // Names and sizes only: the arguments and the result stay out of the log and the table.
       logger.info(
         `[mcp] ${event.client} ${event.tool} ${event.ok ? "ok" : "refused"} (${event.resultBytes} bytes)`,
       );
-      deps.onCall?.(event);
+      try {
+        audit.record({ at: deps.now(), ...event });
+      } catch {
+        logger.warn("[mcp] a call could not be written to the log");
+      }
     },
   });
-
-  let socket: RunningTransport | null = null;
-  let http: (RunningTransport & { port: number }) | null = null;
-  let token: string | null = null;
-  const problems = { stdio: null as string | null, http: null as string | null };
-  let queue: Promise<unknown> = Promise.resolve();
-
-  /** The token kept in the Keychain; made, and kept, the first time it is needed. */
-  async function ensureToken(): Promise<string> {
-    const existing = await deps.keychain.get(MCP_TOKEN_ITEM.service, MCP_TOKEN_ITEM.account);
-    if (existing) return existing;
-    const made = randomBytes(32).toString("base64url");
-    await deps.keychain.set(MCP_TOKEN_ITEM.service, MCP_TOKEN_ITEM.account, made);
-    return made;
-  }
 
   async function reconcile(): Promise<McpStatus> {
     const settings = deps.settings();
@@ -73,17 +91,25 @@ export function createMcpService(deps: {
       await socket.close();
       socket = null;
     }
-    if (!wantHttp || (http && http.port !== settings.http.port)) {
-      if (http) await http.close();
+    if (http && (!wantHttp || http.port !== settings.http.port)) {
+      await http.close();
       http = null;
-      token = wantHttp ? token : null;
     }
 
     problems.stdio = null;
     problems.http = null;
     if (wantSocket && !socket) {
       try {
-        socket = await startSocketTransport({ path: deps.socketPath, server, logger });
+        socket = await startSocketTransport({
+          path: deps.socketPath,
+          server,
+          logger,
+          authenticate: (token) => {
+            const client = clients.authenticate(token);
+            return client ? { id: client.id, name: client.name } : null;
+          },
+          isActive: (id) => clients.get(id) !== null,
+        });
         logger.info("[mcp] the local socket is on");
       } catch (error) {
         problems.stdio = (error as Error).message;
@@ -92,23 +118,18 @@ export function createMcpService(deps: {
     }
     if (wantHttp && !http) {
       try {
-        token = await ensureToken();
-      } catch {
-        problems.http = "Murmur could not use the Keychain for the access token.";
+        http = await startHttpTransport({
+          port: settings.http.port,
+          server,
+          authenticate: (token) => {
+            const client = clients.authenticate(token);
+            return client ? { id: client.id, name: client.name } : null;
+          },
+        });
+        logger.info(`[mcp] listening on 127.0.0.1:${http.port}`);
+      } catch (error) {
+        problems.http = (error as Error).message;
         logger.warn(`[mcp] ${problems.http}`);
-      }
-      if (token !== null) {
-        try {
-          http = await startHttpTransport({
-            port: settings.http.port,
-            server,
-            token: () => token,
-          });
-          logger.info(`[mcp] listening on 127.0.0.1:${http.port}`);
-        } catch (error) {
-          problems.http = (error as Error).message;
-          logger.warn(`[mcp] ${problems.http}`);
-        }
       }
     }
     return status();
@@ -136,6 +157,8 @@ export function createMcpService(deps: {
 
   return {
     server,
+    clients,
+    audit,
     status,
     apply() {
       const next = queue.then(reconcile, reconcile);
@@ -148,7 +171,12 @@ export function createMcpService(deps: {
       if (http) await http.close();
       socket = null;
       http = null;
-      token = null;
+    },
+    async reset() {
+      await clients.reset();
+      audit.clear();
+      // The one token an earlier version kept for HTTP.
+      await deps.keychain.delete(MCP_KEYCHAIN_SERVICE, "http-token").catch(() => false);
     },
   };
 }

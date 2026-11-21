@@ -59,6 +59,8 @@ describe("migrations", () => {
       "instruct_history",
       "instruct_threads",
       "learn_candidates",
+      "mcp_audit",
+      "mcp_clients",
       "meeting_audio_chunks",
       "meeting_dictations",
       "meeting_docs",

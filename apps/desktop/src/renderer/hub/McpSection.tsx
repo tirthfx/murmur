@@ -7,13 +7,15 @@ import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { VStack } from "@astryxdesign/core/VStack";
 import { type McpSettings, type McpStatus } from "@murmur/shared";
+import { McpApps } from "./McpApps";
 
 const validPort = (text: string) =>
   /^\d{4,5}$/.test(text) && Number(text) >= 1024 && Number(text) <= 65535;
 
 /**
  * The local MCP server (CN-11): lets an AI app on this Mac read meeting notes. Off until turned
- * on. The access token, client setup and the write tools come with MCP setup.
+ * on. Apps are approved, one by one, with a token each (McpApps); the two tools that change
+ * something are off until each has its own switch turned on.
  */
 export function McpSection() {
   const [settings, setSettings] = useState<McpSettings | null>(null);
@@ -105,6 +107,18 @@ export function McpSection() {
               <Banner key={text} status="warning" title={text} />
             ))}
             {problem ? <Banner status="error" title={problem} /> : null}
+            <Switch
+              label="Let apps suggest tasks"
+              description="The create_task tool adds a suggested task. You accept or dismiss it in My Tasks."
+              value={settings.write.createTask}
+              onChange={(createTask) => void change({ write: { ...settings.write, createTask } })}
+            />
+            <Switch
+              label="Let apps add to My notes"
+              description="The add_note tool adds text at the end of your notes on a meeting. It never changes what is there."
+              value={settings.write.addNote}
+              onChange={(addNote) => void change({ write: { ...settings.write, addNote } })}
+            />
             <ul className="hub-connector-list" aria-label="Where the server is listening">
               {status?.stdio.wanted ? (
                 <li>
@@ -125,6 +139,7 @@ export function McpSection() {
                 </li>
               ) : null}
             </ul>
+            <McpApps status={status} />
           </VStack>
         ) : null}
       </VStack>

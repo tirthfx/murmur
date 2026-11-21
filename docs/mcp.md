@@ -8,20 +8,38 @@ A small MCP server written for Murmur (ADR-0084): JSON-RPC 2.0 with `initialize`
 
 ## Ways to connect
 
-| Way                   | For                               | How it is protected                                                                                                           |
-| --------------------- | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| **Local socket**      | Desktop apps that start a command | `Application Support/Murmur/mcp.sock`, mode 0600, so only this user can open it. The `murmur-mcp` command relays stdio to it. |
-| **HTTP on 127.0.0.1** | Apps that take a URL              | `POST http://127.0.0.1:7825/mcp` with `Authorization: Bearer <token>`. 401 without it, before the body is read.               |
+| Way                   | For                               | How it is protected                                                                                                                                                               |
+| --------------------- | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Local socket**      | Desktop apps that start a command | `Application Support/Murmur/mcp.sock`, mode 0600, so only this user can open it, and the connection must begin with the app's token. The `murmur-mcp` command relays stdio to it. |
+| **HTTP on 127.0.0.1** | Apps that take a URL              | `POST http://127.0.0.1:7825/mcp` with `Authorization: Bearer <token>`. 401 without a token that belongs to an approved app, before the body is read.                              |
 
 The socket is on by default when the server is on; HTTP is off. The port (default 7825) can be changed; the server never binds to any other address. HTTP also checks the `Host` and `Origin` headers, so a web page cannot reach it by pointing a name at this address, and it answers only `POST /mcp` with JSON (no GET, no streams).
 
-**The token** is 256 random bits, made the first time HTTP is turned on and kept in the Keychain (`com.murmur.mcp`, account `http-token`), never in the database, a file or a log. Issuing one per client, rotating and revoking come with MCP setup (#217); until then there is the one token. To read it for a manual check: `security find-generic-password -s com.murmur.mcp -a http-token -w`.
+## Apps and tokens
 
-**The `murmur-mcp` command** is a shell script (`apps/desktop/packaging/murmur-mcp`, installed at `Contents/Resources/mcp/murmur-mcp` by `npm run package`) that runs `/usr/bin/nc -U` against the socket, so no Node or Electron starts for each client. It takes the socket path as an argument or in `MURMUR_MCP_SOCKET`; the default is `~/Library/Application Support/Murmur/mcp.sock`. Murmur must be running with the server on, or it says so and exits with 1.
+Nothing connects until the owner adds the app (Connectors, Local MCP server, Apps that may use Murmur): a name (unique, up to 60 characters) and a kind (Claude desktop, Cursor, or another app).
 
-## The six tools
+- **One token per app.** 256 random bits, made when the app is added and kept in the Keychain (`com.murmur.mcp`, account `client:<id>`), never in a file of Murmur's or a log. The database has only the token's SHA-256 (`mcp_clients`, migration 0041), to tell whose a token is.
+- **Removing an app** deletes its row first, so its token is refused from that moment (401), then deletes the Keychain item, and ends the app's open socket connections. **A new token** replaces the old one the same way: the old one stops at once, and the config file must be written again.
+- **The app's name** in the log is the one the owner gave it, whatever the app calls itself.
+- **Copy token** puts it on the clipboard through main (the window never receives it) and clears the clipboard after a minute if it is still there.
 
-All are read-only (`readOnlyHint`), take JSON arguments and return one JSON text block.
+## Writing a client's config (Claude desktop, Cursor)
+
+"Set up…" shows what would change in the app's config file and writes nothing. The owner sees the file's path, whether it exists, and a line by line before and after (the token hidden but for its last four characters). Only "Write this file" writes, and only that exact change:
+
+- The file is read again at the click. If it has changed since it was shown (or has appeared), nothing is written and the owner is asked to look again.
+- A preview is good for 10 minutes and for one write; a newer preview of the same app replaces the older one.
+- A file that is not a JSON object (or whose `mcpServers` is not an object) is never touched.
+- A copy of the file as it was is kept beside it as `<file>.murmur-backup`. The new file is written whole (a temporary file renamed over it), with mode 0600 because it holds a token. Every other part of the file is kept.
+
+The entry is `mcpServers.murmur` with `command` (the `murmur-mcp` command), `env.MURMUR_MCP_SOCKET` and `env.MURMUR_MCP_TOKEN`. Files: Claude desktop `~/Library/Application Support/Claude/claude_desktop_config.json`, Cursor `~/.cursor/mcp.json`. The app has to be restarted to read the change. For another app, "How to connect" shows the command, the socket and the address.
+
+**The `murmur-mcp` command** is a shell script (`apps/desktop/packaging/murmur-mcp`, installed at `Contents/Resources/mcp/murmur-mcp` by `npm run package`) that sends the token first (`{"jsonrpc":"2.0","method":"murmur/authorize","params":{"token":"..."}}`, from `MURMUR_MCP_TOKEN`; `printf` is built in, so the token is in no process list) and then relays stdio to the socket with `/usr/bin/nc -U`, so no Node or Electron starts for each client. It takes the socket path as an argument or in `MURMUR_MCP_SOCKET` (default `~/Library/Application Support/Murmur/mcp.sock`). Without a token, or with Murmur not running or the server off, it says so and exits with 1. A connection whose token is wrong, replaced or removed is answered with a JSON-RPC error (-32001) and closed.
+
+## The tools
+
+Six read tools (`readOnlyHint`) and two that write. All take JSON arguments and return one JSON text block.
 
 | Tool              | Arguments                                                   | Returns                                                                                                                                                                                                                                       |
 | ----------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -32,6 +50,8 @@ All are read-only (`readOnlyHint`), take JSON arguments and return one JSON text
 | `list_tasks`      | `status` (default open), `owner`, `from`, `to`, `meetingId` | Tasks with owner, due date and the meeting. `from` and `to` are due dates.                                                                                                                                                                    |
 | `list_folders`    | none                                                        | Folder ids, names and meeting counts, and how many meetings are in the Inbox.                                                                                                                                                                 |
 
+**The two write tools are off** until the owner turns each one on (Connectors, Local MCP server). While a switch is off the tool is not listed, and a call to it is refused ("The create_task tool is turned off in Murmur.") and logged. The switch counts at once.
+
 Dates are `2026-11-21` (that day on this Mac; a closing `to` includes the day) or a full date and time. A mistake in the arguments, an unknown meeting or a turned-off tool comes back as a text result with `isError`, so the client can read it; an unknown tool or method is a protocol error.
 
 ## Limits
@@ -40,18 +60,24 @@ Dates are `2026-11-21` (that day on this Mac; a closing `to` includes the day) o
 - **60 calls a minute** per connection (per client over HTTP); calls to tools count, listing does not. The limit is the setting `mcp.rateLimitPerMinute`. Over it, the result says how many seconds to wait.
 - One message is at most 1 MiB.
 
+## The call log
+
+Every tool call is a line in `mcp_audit`: the time, the app's name, the tool, a SHA-256 of the arguments (keys in order, so the same arguments hash the same), the size of the result, whether it worked and whether the tool writes. **Never the arguments or the result.** Calls that are refused (a switch off, the rate limit, bad arguments) are logged too. The page shows the last 50 and can clear the log; the table keeps at most 5,000 lines and nothing older than 90 days. "Delete all data and reset" removes every app, its token and the log.
+
 ## Never returned
 
 Audio files and their paths, the data folder's paths, sign-ins and connector accounts, Keychain items, the connector config, dictation history, the owner's own notes (search skips them), Settings, and raw database access. A test seeds a meeting with an audio path and checks that no tool result carries it. Meeting text is returned as what was said; the server tells clients it is not instructions, but a client must treat it as untrusted.
 
 ## Settings (`mcp.settings`)
 
-`enabled` false; `transport.stdio` true; `transport.http` false; `http.port` 7825; `rateLimitPerMinute` 60. Changing a setting starts or stops what it needs at once (the Connectors page waits for that). Turning the server off removes the socket file and closes the port: connecting is refused. If the port is taken, or the Keychain cannot give the token, the page says so and the other way keeps working. The server also stops when Murmur quits.
+`enabled` false; `transport.stdio` true; `transport.http` false; `http.port` 7825; `rateLimitPerMinute` 60; `write.createTask` false; `write.addNote` false. Changing a setting starts or stops what it needs at once (the Connectors page waits for that). Turning the server off removes the socket file and closes the port: connecting is refused. If the port is taken, or the Keychain cannot give the token, the page says so and the other way keeps working. The server also stops when Murmur quits.
 
 ## Manual check
 
-1. Connectors, Local MCP server: turn it on. The page shows the socket's path.
-2. Socket: `printf '{"jsonrpc":"2.0","id":1,"method":"tools/list"}\n' | apps/desktop/packaging/murmur-mcp` lists the six tools (use the same file from `Contents/Resources/mcp/` in a packaged app).
-3. HTTP: turn on the web address, then with `TOKEN=$(security find-generic-password -s com.murmur.mcp -a http-token -w)`: `curl -s -X POST http://127.0.0.1:7825/mcp -H 'content-type: application/json' -H "authorization: Bearer $TOKEN" -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'`. Without the header it is 401.
-4. Call `get_transcript` on a long meeting and check it stops at 20 minutes and says where to go on.
-5. Turn the server off and check the socket file is gone and the port refuses connections.
+1. Connectors, Local MCP server: turn it on. Add an app, for example Claude desktop. Choose Set up…, read the changes, and choose Write this file. Restart Claude desktop and check it lists the six tools (and, with the switches on, the two that write).
+2. Ask Claude about a recent meeting, and check Recent calls shows each call by name and size only.
+3. Remove the app and check Claude can no longer use Murmur (and that a second app added later is not affected).
+4. Edit the config file in an editor after choosing Set up… and before Write this file, then write it: it must refuse and ask you to look again.
+5. By hand: `printf '{"jsonrpc":"2.0","method":"murmur/authorize","params":{"token":"TOKEN"}}\n{"jsonrpc":"2.0","id":1,"method":"tools/list"}\n' | nc -U "$HOME/Library/Application Support/Murmur/mcp.sock"`, with the token from Copy token; or with the web address on, `curl -s -X POST http://127.0.0.1:7825/mcp -H 'content-type: application/json' -H "authorization: Bearer TOKEN" -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'`. Without the token it is refused.
+6. Call `get_transcript` on a long meeting and check it stops at 20 minutes and says where to go on.
+7. Turn the server off and check the socket file is gone and the port refuses connections.

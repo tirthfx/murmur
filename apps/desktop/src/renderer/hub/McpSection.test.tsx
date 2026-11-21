@@ -103,6 +103,40 @@ describe("Local MCP server section (CN-11)", () => {
     expect(screen.getByText(/Local socket on:/)).toBeTruthy();
   });
 
+  it("has a switch for each tool that writes, both off, each saved on its own", async () => {
+    current = { ...DEFAULT_MCP_SETTINGS, enabled: true };
+    api.mcpStatus = vi.fn().mockResolvedValue(on());
+    render(<McpSection />);
+    const tasks = await screen.findByRole("switch", { name: "Let apps suggest tasks" });
+    const notes = screen.getByRole("switch", { name: "Let apps add to My notes" });
+    expect((tasks as HTMLInputElement).checked).toBe(false);
+    expect((notes as HTMLInputElement).checked).toBe(false);
+    fireEvent.click(tasks);
+    await waitFor(() =>
+      expect(api.updateSettings).toHaveBeenLastCalledWith({
+        mcp: expect.objectContaining({ write: { createTask: true, addNote: false } }),
+      }),
+    );
+    fireEvent.click(await screen.findByRole("switch", { name: "Let apps add to My notes" }));
+    await waitFor(() =>
+      expect(api.updateSettings).toHaveBeenLastCalledWith({
+        mcp: expect.objectContaining({ write: { createTask: true, addNote: true } }),
+      }),
+    );
+  });
+
+  it("shows the apps and the calls when it is on, and not when it is off", async () => {
+    render(<McpSection />);
+    await screen.findByRole("switch", { name: "Turn on the local MCP server" });
+    expect(screen.queryByText("Apps that may use Murmur")).toBeNull();
+    cleanup();
+    current = { ...DEFAULT_MCP_SETTINGS, enabled: true };
+    api.mcpStatus = vi.fn().mockResolvedValue(on());
+    render(<McpSection />);
+    expect(await screen.findByText("Apps that may use Murmur")).toBeTruthy();
+    expect(screen.getByText("Recent calls")).toBeTruthy();
+  });
+
   it("passes the accessibility check when on", async () => {
     current = { ...DEFAULT_MCP_SETTINGS, enabled: true, transport: { stdio: true, http: true } };
     api.mcpStatus = vi.fn().mockResolvedValue(

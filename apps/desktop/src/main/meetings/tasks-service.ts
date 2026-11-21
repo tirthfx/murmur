@@ -32,6 +32,12 @@ export interface TasksService {
    * Returns how many were added.
    */
   addSuggested(meetingId: string, tasks: readonly SuggestedTask[]): number;
+  /**
+   * A task an app outside Murmur suggested (the local MCP server): `suggested` until the owner
+   * accepts it, never accepted by itself. It may belong to a meeting. A task with the title of
+   * one the meeting (or the list, with no meeting) already has is refused.
+   */
+  addClientSuggestion(draft: unknown, meetingId: string | null): TaskResult;
   update(id: string, draft: unknown): TaskResult;
   act(id: string, action: TaskAction): TaskResult;
   /** Puts a task before another one, or last when `beforeId` is null. */
@@ -277,6 +283,45 @@ export function createTasksService(
         added++;
       }
       return added;
+    },
+
+    addClientSuggestion(input, meetingId) {
+      const result = checked(input);
+      if (!result.ok) return result;
+      if (meetingId !== null && !db.prepare("SELECT 1 FROM meetings WHERE id = ?").get(meetingId))
+        return { ok: false, message: "That meeting was not found." };
+      const key = normal(result.draft.title);
+      const same = (
+        db.prepare("SELECT title FROM tasks WHERE meeting_id IS ?").all(meetingId) as {
+          title: string;
+        }[]
+      ).some((row) => normal(row.title) === key);
+      if (key === "" || same) return { ok: false, message: "That task is there already." };
+      const at = deps.now();
+      const id = deps.newId();
+      insert(
+        apply(
+          result.draft,
+          {
+            id,
+            title: "",
+            notes: "",
+            status: "suggested",
+            source: meetingId === null ? "manual" : "meeting",
+            meeting_id: meetingId,
+            owner_name: null,
+            owner_is_me: 0,
+            due_on: null,
+            source_segment_id: null,
+            position: maxPosition() + 1,
+            created_at: at,
+            updated_at: at,
+            completed_at: null,
+          },
+          at,
+        ),
+      );
+      return done(id);
     },
 
     update(id, input) {

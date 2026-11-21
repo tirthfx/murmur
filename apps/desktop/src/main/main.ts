@@ -6,6 +6,7 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  renameSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -159,6 +160,7 @@ import { createConnectorService } from "./connectors/connector-service";
 import { createConnectorStore } from "./connectors/connector-store";
 import { buildConnectorsView } from "./connectors/connectors-view";
 import { createMcpService } from "./mcp/mcp-service";
+import { createMcpSetup } from "./mcp/mcp-setup";
 import { createHelperKeychain } from "./connectors/helper-keychain";
 import { createConnectorRegistry } from "./connectors/providers";
 import { createAskIndex } from "./meetings/ask-index";
@@ -1892,6 +1894,11 @@ const askRunner =
         logger: createConsoleLogger("[ask]"),
       })
     : null;
+const mcpSocketPath = path.join(profile.appData, "Murmur", "mcp.sock");
+const mcpCommandPath = () =>
+  app.isPackaged
+    ? path.join(process.resourcesPath, "mcp", "murmur-mcp")
+    : path.join(app.getAppPath(), "packaging", "murmur-mcp");
 // CN-11: the local MCP server. Off until turned on; AI clients read meeting notes, summaries,
 // transcripts and tasks through it, and nothing else.
 const mcpService =
@@ -1901,10 +1908,14 @@ const mcpService =
   speakersStore &&
   meetingSummaries &&
   tasksService &&
-  foldersStore
+  foldersStore &&
+  meetingNotes
     ? createMcpService({
         settings: () => settingsStore.get().mcp,
+        db: database,
+        newId: randomUUID,
         data: {
+          notes: meetingNotes,
           meetings: meetingsStore,
           transcript: meetingTranscripts,
           speakers: speakersStore,
@@ -1914,12 +1925,40 @@ const mcpService =
           ask: createAskIndex(database, { now: Date.now }),
         },
         keychain: connectorKeychain,
-        socketPath: path.join(profile.appData, "Murmur", "mcp.sock"),
+        socketPath: mcpSocketPath,
         serverVersion: app.getVersion(),
         logger: createConsoleLogger("[mcp]"),
         now: Date.now,
       })
     : null;
+// CN-11: writing an app's config file, only after the owner approves the diff.
+const mcpSetup = mcpService
+  ? createMcpSetup({
+      clients: mcpService.clients,
+      home: app.getPath("home"),
+      command: mcpCommandPath,
+      socketPath: mcpSocketPath,
+      newId: randomUUID,
+      now: Date.now,
+      files: {
+        read: (file) => {
+          try {
+            return readFileSync(file, "utf8");
+          } catch (error) {
+            if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+            throw error;
+          }
+        },
+        write: (file, text) => {
+          mkdirSync(path.dirname(file), { recursive: true });
+          // The file holds a token, so only this user can read it; replaced whole, never half-written.
+          const temporary = `${file}.murmur-tmp`;
+          writeFileSync(temporary, text, { mode: 0o600 });
+          renameSync(temporary, file);
+        },
+      },
+    })
+  : null;
 if (mcpService) {
   settingsStore.onChange(() => void mcpService.apply());
   // The token is in the Keychain, which the helper reaches: try again once it is ready.
@@ -2912,6 +2951,7 @@ function registerIpc(): void {
     },
     dataReset: async ({ includeModels }) => {
       // Sign-ins first: the tokens are in the Keychain, not in the database that is cleared next.
+      await mcpService?.reset();
       const connectors = await connectorService?.reset();
       if (connectors && connectors.kept > 0)
         console.warn(`[connectors] reset: ${connectors.kept} sign-in(s) could not be removed`);
@@ -3062,6 +3102,48 @@ function registerIpc(): void {
       foldersStore.setAutoExport(id, null);
       return { ok: true, folders: foldersStore.list(), id };
     },
+    mcpClients: () => ({
+      clients: mcpService?.clients.list() ?? [],
+      command: mcpCommandPath(),
+      socketPath: mcpSocketPath,
+    }),
+    mcpIssue: async (name, kind) => {
+      const result = await (mcpService?.clients.issue(name, kind) ?? Promise.resolve(null));
+      if (!result) return { ok: false, message: "The MCP server is not available." };
+      return result.ok ? { ok: true, message: `Added ${result.client.name}.` } : result;
+    },
+    mcpRotate: async (id) =>
+      (await mcpService?.clients.rotate(id)) ?? {
+        ok: false,
+        message: "The MCP server is not available.",
+      },
+    mcpRevoke: async (id) =>
+      (await mcpService?.clients.revoke(id)) ?? {
+        ok: false,
+        message: "The MCP server is not available.",
+      },
+    mcpCopyToken: async (id) => {
+      const token = await mcpService?.clients.token(id);
+      if (!token)
+        return { ok: false, message: "The token is not in the Keychain. Make a new one." };
+      await clipboard.writeText(token);
+      // Cleared after a minute, if it is still what is there.
+      setTimeout(() => {
+        void clipboard.readText().then((text) => {
+          if (text === token) void clipboard.clear();
+        });
+      }, 60_000).unref();
+      return { ok: true, message: "Copied. The clipboard is cleared in a minute." };
+    },
+    mcpConfigPreview: async (id) =>
+      (await mcpSetup?.preview(id)) ?? { ok: false, message: "The MCP server is not available." },
+    mcpConfigWrite: async (previewId) =>
+      (await mcpSetup?.apply(previewId)) ?? {
+        ok: false,
+        message: "The MCP server is not available.",
+      },
+    mcpAudit: () => mcpService?.audit.list(50) ?? [],
+    mcpAuditClear: () => mcpService?.audit.clear(),
     // Waits for any change of setting to be applied, so the page sees where things are now.
     mcpStatus: () => mcpService?.apply() ?? Promise.resolve(MCP_STATUS_OFF),
     connectorsView: () =>

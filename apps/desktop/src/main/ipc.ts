@@ -136,6 +136,11 @@ import {
   type RequestablePermissionKind,
   type ConnectorActionResult,
   type ConnectorsView,
+  type McpActionResult,
+  type McpAuditEntry,
+  type McpClientKind,
+  type McpClientsView,
+  type McpConfigPreviewResult,
   type McpStatus,
 } from "@murmur/shared";
 import { isTrustedIpcSender } from "../security/guards";
@@ -184,6 +189,15 @@ export interface IpcDeps {
   folderClearExport: (id: string) => FolderResult;
   connectorsView: () => Promise<ConnectorsView>;
   mcpStatus: () => Promise<McpStatus>;
+  mcpClients: () => McpClientsView;
+  mcpIssue: (name: string, kind: McpClientKind) => Promise<McpActionResult>;
+  mcpRotate: (id: string) => Promise<McpActionResult>;
+  mcpRevoke: (id: string) => Promise<McpActionResult>;
+  mcpCopyToken: (id: string) => Promise<McpActionResult>;
+  mcpConfigPreview: (id: string) => Promise<McpConfigPreviewResult>;
+  mcpConfigWrite: (previewId: string) => Promise<McpActionResult>;
+  mcpAudit: () => McpAuditEntry[];
+  mcpAuditClear: () => void;
   connectorConnect: (id: string, loginHint?: string) => Promise<ConnectorActionResult>;
   connectorCancel: (id: string) => void;
   connectorDisconnect: (accountId: string) => Promise<ConnectorActionResult>;
@@ -661,6 +675,24 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.folderClearExport(request.args[0] as string);
       case IPC_CHANNELS.mcpStatus:
         return deps.mcpStatus();
+      case IPC_CHANNELS.mcpClients:
+        return deps.mcpClients();
+      case IPC_CHANNELS.mcpIssue:
+        return deps.mcpIssue(request.args[0] as string, request.args[1] as McpClientKind);
+      case IPC_CHANNELS.mcpRotate:
+        return deps.mcpRotate(request.args[0] as string);
+      case IPC_CHANNELS.mcpRevoke:
+        return deps.mcpRevoke(request.args[0] as string);
+      case IPC_CHANNELS.mcpCopyToken:
+        return deps.mcpCopyToken(request.args[0] as string);
+      case IPC_CHANNELS.mcpConfigPreview:
+        return deps.mcpConfigPreview(request.args[0] as string);
+      case IPC_CHANNELS.mcpConfigWrite:
+        return deps.mcpConfigWrite(request.args[0] as string);
+      case IPC_CHANNELS.mcpAudit:
+        return deps.mcpAudit();
+      case IPC_CHANNELS.mcpAuditClear:
+        return deps.mcpAuditClear();
       case IPC_CHANNELS.connectorsView:
         return deps.connectorsView();
       case IPC_CHANNELS.connectorConnect:

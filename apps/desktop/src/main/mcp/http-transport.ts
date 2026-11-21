@@ -1,17 +1,13 @@
-import { createHash, timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { MCP_LIMITS } from "@murmur/shared";
 import type { McpClient, McpServer } from "./mcp-server";
-import type { RunningTransport } from "./socket-transport";
+import type { McpClientIdentity, RunningTransport } from "./socket-transport";
 
 export const HTTP_PATH = "/mcp";
 
-const digest = (value: string) => createHash("sha256").update(value).digest();
-
-/** Whether a bearer header carries this token, compared in constant time. */
-export function bearerMatches(header: string | undefined, token: string): boolean {
-  const match = /^Bearer (\S+)$/.exec(header ?? "");
-  return match !== null && timingSafeEqual(digest(match[1]!), digest(token));
+/** The token in an `Authorization: Bearer <token>` header, or null. */
+export function bearerToken(header: string | undefined): string | null {
+  return /^Bearer (\S+)$/.exec(header ?? "")?.[1] ?? null;
 }
 
 /** A page of the owner's own machine, not of a site that points a name at this address. */
@@ -33,11 +29,13 @@ const isLocalOrigin = (origin: string) => {
 export function startHttpTransport(options: {
   port: number;
   server: McpServer;
-  /** The current token; null refuses every request. Read for each request, so a new one counts at once. */
-  token(): string | null;
+  /**
+   * Whose token this is, or null. Asked for each request, so a token that is removed or replaced
+   * stops working at once.
+   */
+  authenticate(token: string): McpClientIdentity | null;
 }): Promise<RunningTransport & { port: number }> {
   const { server } = options;
-  const client: McpClient = { id: "http", name: null };
 
   const reply = (
     response: ServerResponse,
@@ -82,8 +80,9 @@ export function startHttpTransport(options: {
       if (new URL(request.url ?? "/", "http://127.0.0.1").pathname !== HTTP_PATH)
         return reply(response, 404, JSON.stringify({ error: "Not found." }));
 
-      const token = options.token();
-      if (token === null || !bearerMatches(request.headers.authorization, token))
+      const token = bearerToken(request.headers.authorization);
+      const found = token === null ? null : options.authenticate(token);
+      if (!found)
         return reply(response, 401, JSON.stringify({ error: "A bearer token is needed." }), {
           "www-authenticate": 'Bearer realm="murmur"',
         });
@@ -94,6 +93,7 @@ export function startHttpTransport(options: {
       const body = await readBody(request);
       if (body === null)
         return reply(response, 413, JSON.stringify({ error: "The message is too long." }));
+      const client: McpClient = { id: `client:${found.id}`, name: found.name };
       const answer = await server.handleText(body, client);
       if (answer === null) return reply(response, 202);
       reply(response, 200, answer);

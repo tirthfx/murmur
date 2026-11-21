@@ -457,6 +457,17 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
     folderClearExport: vi.fn().mockResolvedValue({ ok: true, folders: [] }),
     connectorsView: vi.fn().mockResolvedValue({ connectors: [], cacheTtlMinutes: 15 }),
     mcpStatus: vi.fn().mockResolvedValue(MCP_STATUS_OFF),
+    mcpClients: vi
+      .fn()
+      .mockResolvedValue({ clients: [], command: "/app/murmur-mcp", socketPath: "/data/mcp.sock" }),
+    mcpIssue: vi.fn().mockResolvedValue({ ok: true }),
+    mcpRotate: vi.fn().mockResolvedValue({ ok: true }),
+    mcpRevoke: vi.fn().mockResolvedValue({ ok: true }),
+    mcpCopyToken: vi.fn().mockResolvedValue({ ok: true }),
+    mcpConfigPreview: vi.fn().mockResolvedValue({ ok: false, message: "No app." }),
+    mcpConfigWrite: vi.fn().mockResolvedValue({ ok: true }),
+    mcpAudit: vi.fn().mockResolvedValue([]),
+    mcpAuditClear: vi.fn().mockResolvedValue(undefined),
     connectorConnect: vi.fn().mockResolvedValue({ ok: true }),
     connectorCancel: vi.fn().mockResolvedValue(undefined),
     connectorDisconnect: vi.fn().mockResolvedValue({ ok: true }),
