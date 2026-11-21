@@ -3,6 +3,8 @@ import {
   type AudioDevice,
   type FocusDuration,
   type FocusState,
+  formatElapsed,
+  type RecordingState,
   type Settings,
   type SettingsPatch,
 } from "@murmur/shared";
@@ -24,6 +26,8 @@ export interface TrayView {
   items: TrayItem[];
   status: TrayStatus;
   tooltip: string;
+  /** Text next to the icon while a meeting records, such as "12:04". */
+  elapsed?: string;
 }
 
 /** Draws the tray. Electron in production, a recorder in tests. */
@@ -50,6 +54,10 @@ export interface TrayControllerDeps {
   focusState?(): FocusState;
   startFocus?(duration: FocusDuration): void;
   stopFocus?(): void;
+  /** NT-04: the meeting recording; absent where there is none. */
+  meetingState?(): RecordingState;
+  startMeeting?(): void;
+  stopMeeting?(): void;
 }
 
 export interface TrayController {
@@ -80,11 +88,28 @@ export function createTrayController(deps: TrayControllerDeps): TrayController {
   let devices: AudioDevice[] | null = null;
   let deviceKey = "";
 
+  function meeting(): TrayState["meeting"] {
+    const now = deps.meetingState?.();
+    if (!now) return undefined;
+    if (now.status === "recording") {
+      return { status: "recording", elapsed: formatElapsed(deps.clock.now() - now.startedAt) };
+    }
+    return { status: now.status === "idle" ? "idle" : "busy" };
+  }
+
   function state(): TrayState {
     const settings = deps.settings();
+    const current = meeting();
     return {
       recording,
-      status: recording ? "listening" : warning ? "warning" : "idle",
+      ...(current ? { meeting: current } : {}),
+      status: recording
+        ? "listening"
+        : current?.status === "recording"
+          ? "meeting"
+          : warning
+            ? "warning"
+            : "idle",
       devices,
       inputDevice: settings.inputDevice,
       languages: settings.languages,
@@ -110,6 +135,7 @@ export function createTrayController(deps: TrayControllerDeps): TrayController {
       items: trayMenu(current),
       status: current.status,
       tooltip: trayTooltip(current.status, current.language),
+      ...(current.meeting?.status === "recording" ? { elapsed: current.meeting.elapsed } : {}),
     };
   }
 
@@ -194,6 +220,12 @@ export function createTrayController(deps: TrayControllerDeps): TrayController {
           return;
         case "focus-off":
           deps.stopFocus?.();
+          return;
+        case "meeting-start":
+          deps.startMeeting?.();
+          return;
+        case "meeting-stop":
+          deps.stopMeeting?.();
           return;
         case "quit":
           deps.quit();

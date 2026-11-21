@@ -30,6 +30,11 @@ import {
   focusAppEventSchema,
   appsListRequestSchema,
   axInspectRequestSchema,
+  captureStartRequestSchema,
+  captureStopRequestSchema,
+  captureChunkEventSchema,
+  captureLevelEventSchema,
+  captureErrorEventSchema,
   editsWatchRequestSchema,
   typingWatchRequestSchema,
   mediaPlaybackRequestSchema,
@@ -161,6 +166,16 @@ function validateMessage(message: unknown): boolean {
       return appsListRequestSchema.safeParse(message).success;
     case "ax.inspect":
       return axInspectRequestSchema.safeParse(message).success;
+    case "capture.start":
+      return captureStartRequestSchema.safeParse(message).success;
+    case "capture.stop":
+      return captureStopRequestSchema.safeParse(message).success;
+    case "capture.chunk":
+      return captureChunkEventSchema.safeParse(message).success;
+    case "capture.level":
+      return captureLevelEventSchema.safeParse(message).success;
+    case "capture.error":
+      return captureErrorEventSchema.safeParse(message).success;
     case "response": {
       const response = responseSchema.safeParse(message);
       if (!response.success) return false;

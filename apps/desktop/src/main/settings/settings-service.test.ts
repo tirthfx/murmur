@@ -1,3 +1,4 @@
+import { DEFAULT_NOTETAKER } from "@murmur/shared";
 import { describe, expect, it, vi } from "vitest";
 import type { Settings } from "@murmur/shared";
 import { keyPlatform } from "../platform";
@@ -47,6 +48,7 @@ const defaults: Settings = {
   devMode: { enabled: false, disableCleanup: false, forceTyped: false, disableContext: false },
   help: { tours: {} },
   referral: { code: "ABCD2345", invites: 0 },
+  notetaker: DEFAULT_NOTETAKER,
   contextAwareness: true,
   mouseButtons: { hold: null, handsFree: null },
   typingReminder: { enabled: true, snoozedUntil: null },

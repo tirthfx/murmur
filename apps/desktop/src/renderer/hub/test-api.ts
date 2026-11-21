@@ -1,3 +1,4 @@
+import { DEFAULT_NOTETAKER } from "@murmur/shared";
 import { vi } from "vitest";
 import type {
   HistoryPage,
@@ -48,6 +49,7 @@ export const SAMPLE_SETTINGS: SettingsView = {
     devMode: { enabled: false, disableCleanup: false, forceTyped: false, disableContext: false },
     help: { tours: {} },
     referral: { code: "ABCD2345", invites: 0 },
+    notetaker: DEFAULT_NOTETAKER,
     contextAwareness: true,
     mouseButtons: { hold: null, handsFree: null },
     typingReminder: { enabled: true, snoozedUntil: null },

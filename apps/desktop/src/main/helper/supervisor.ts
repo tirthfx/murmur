@@ -2,6 +2,12 @@ import {
   PROTOCOL_VERSION,
   type AudioDevice,
   type AxInspectResult,
+  type CaptureChunk,
+  type CaptureError,
+  type CaptureLevel,
+  type CaptureStartInput,
+  type CaptureStartResult,
+  type CaptureStopResult,
   type AudioInputs,
   type AudioLevel,
   type AudioSilent,
@@ -113,6 +119,9 @@ export class HelperSupervisor implements PlatformHelper {
   private readonly typingHandlers = new Set<(activity: TypingActivity) => void>();
   private readonly editsHandlers = new Set<(change: EditsChanged) => void>();
   private readonly frontAppHandlers = new Set<(app: FrontApp) => void>();
+  private readonly captureChunkHandlers = new Set<(chunk: CaptureChunk) => void>();
+  private readonly captureLevelHandlers = new Set<(level: CaptureLevel) => void>();
+  private readonly captureErrorHandlers = new Set<(error: CaptureError) => void>();
 
   private connection: HelperConnection | null = null;
   private restartTimes: number[] = [];
@@ -396,6 +405,32 @@ export class HelperSupervisor implements PlatformHelper {
     }
   }
 
+  startMeetingCapture(input: CaptureStartInput): Promise<CaptureStartResult> {
+    if (!this.connection || this.status.state !== "ready") {
+      return Promise.reject(new HelperError("HELPER_UNAVAILABLE", "The helper is not running"));
+    }
+    return this.connection.request("capture.start", input);
+  }
+
+  stopMeetingCapture(meetingId: string): Promise<CaptureStopResult> {
+    if (!this.connection || this.status.state !== "ready") {
+      return Promise.reject(new HelperError("HELPER_UNAVAILABLE", "The helper is not running"));
+    }
+    return this.connection.request("capture.stop", { meetingId });
+  }
+
+  onCaptureChunk(handler: (chunk: CaptureChunk) => void): Unsubscribe {
+    return subscribe(this.captureChunkHandlers, handler);
+  }
+
+  onCaptureLevel(handler: (level: CaptureLevel) => void): Unsubscribe {
+    return subscribe(this.captureLevelHandlers, handler);
+  }
+
+  onCaptureError(handler: (error: CaptureError) => void): Unsubscribe {
+    return subscribe(this.captureErrorHandlers, handler);
+  }
+
   async foregroundProcesses(): Promise<string[]> {
     if (!this.connection || this.status.state !== "ready") return [];
     try {
@@ -661,6 +696,15 @@ export class HelperSupervisor implements PlatformHelper {
         break;
       case "focus.app":
         for (const handler of this.frontAppHandlers) handler(event.payload);
+        break;
+      case "capture.chunk":
+        for (const handler of this.captureChunkHandlers) handler(event.payload);
+        break;
+      case "capture.level":
+        for (const handler of this.captureLevelHandlers) handler(event.payload);
+        break;
+      case "capture.error":
+        for (const handler of this.captureErrorHandlers) handler(event.payload);
         break;
     }
   }

@@ -34,6 +34,8 @@ export const barViewSchema = z.strictObject({
   detail: z.string().nullable().optional(),
   /** Focus Mode is on (RW-18): when it ends, or null until turned off. Shown while idle. */
   focus: z.strictObject({ endsAt: z.number().nullable() }).nullable().optional(),
+  /** A meeting is being recorded (NT-04): a red dot in every state, and its time while idle. */
+  meeting: z.strictObject({ startedAt: z.number() }).nullable().optional(),
 });
 export type BarView = z.infer<typeof barViewSchema>;
 

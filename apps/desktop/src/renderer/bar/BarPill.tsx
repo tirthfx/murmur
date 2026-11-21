@@ -65,7 +65,10 @@ export function BarPill({ view, level, now, onAnswer, ...handlers }: BarPillProp
         ? "Focus"
         : `Focus ${focusTimeLeft(view.focus.endsAt, now)}`
       : null;
-  const text = focusText ?? described.text;
+  // NT-04: a meeting recording shows on the idle Bar with its time.
+  const meetingIdle = view.state === "idle" && view.meeting ? view.meeting : null;
+  const text = meetingIdle ? "Meeting" : (focusText ?? described.text);
+  const clockFrom = view.startedAt ?? meetingIdle?.startedAt ?? null;
   const icon = described.icon;
   const recording = view.state === "listening" || view.state === "locked";
   const fill = meterFill(level);
@@ -75,7 +78,8 @@ export function BarPill({ view, level, now, onAnswer, ...handlers }: BarPillProp
       <span className="bar-announce" role="status" aria-live="polite" aria-atomic="true">
         {announcement(view)}
       </span>
-      {icon && <Icon name={icon} />}
+      {view.meeting && <span className="bar-rec-dot" role="img" aria-label="Recording a meeting" />}
+      {icon && !meetingIdle && <Icon name={icon} />}
       {text && <span className="bar-text">{text}</span>}
       {recording && (
         <span className="bar-meter" aria-hidden="true">
@@ -88,9 +92,9 @@ export function BarPill({ view, level, now, onAnswer, ...handlers }: BarPillProp
           ))}
         </span>
       )}
-      {view.startedAt !== null && (
+      {clockFrom !== null && (
         <span className="bar-time" aria-hidden="true">
-          {elapsed(view.startedAt, now)}
+          {elapsed(clockFrom, now)}
         </span>
       )}
     </div>

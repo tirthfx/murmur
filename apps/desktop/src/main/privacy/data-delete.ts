@@ -19,6 +19,8 @@ export interface DataDeleterDeps {
   audioRoot: string;
   /** Pronunciation clips live with the Dictionary. */
   clipsRoot: string | null;
+  /** `<data>/meetings`: one folder of audio chunks per meeting (NT-04). */
+  meetingsRoot: string;
 }
 
 export interface DataDeleter {
@@ -164,6 +166,11 @@ export function createDataDeleter(deps: DataDeleterDeps): DataDeleter {
           files: 0,
           failedFiles: failed.size,
         };
+      case "meetings": {
+        // Chunk rows go with their meeting (ON DELETE CASCADE).
+        const rows = inTransaction(["DELETE FROM meetings"]);
+        return { rows, files: emptyFolder(deps.meetingsRoot), failedFiles: failed.size };
+      }
     }
   }
 
@@ -173,6 +180,7 @@ export function createDataDeleter(deps: DataDeleterDeps): DataDeleter {
         audio: sizeOf(deps.audioRoot),
         notes: sizeOf(deps.notesRoot),
         dictionary: deps.clipsRoot ? sizeOf(deps.clipsRoot) : 0,
+        meetings: sizeOf(deps.meetingsRoot),
       };
       const counts: Record<DeleteCategory, number> = {
         dictations: count(db, "SELECT COUNT(*) AS n FROM history"),
@@ -194,6 +202,7 @@ export function createDataDeleter(deps: DataDeleterDeps): DataDeleter {
           count(db, "SELECT COUNT(*) AS n FROM insights_daily") +
           count(db, "SELECT COUNT(*) AS n FROM milestones"),
         learnedCandidates: count(db, "SELECT COUNT(*) AS n FROM learn_candidates"),
+        meetings: count(db, "SELECT COUNT(*) AS n FROM meetings"),
       };
       return {
         categories: DELETE_CATEGORIES.map((category) => ({

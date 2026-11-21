@@ -25,6 +25,7 @@ import m0021 from "./migrations/0021_note_versions.sql?raw";
 import m0022 from "./migrations/0022_note_images.sql?raw";
 import m0023 from "./migrations/0023_note_rewrites.sql?raw";
 import m0024 from "./migrations/0024_retention_jobs.sql?raw";
+import m0025 from "./migrations/0025_meetings.sql?raw";
 import { migrateUp, parseMigration, type Migration } from "./migrate";
 
 /** Every migration, in the order the files are numbered. */
@@ -53,6 +54,7 @@ export const MIGRATIONS: Migration[] = [
   parseMigration("0022_note_images.sql", m0022),
   parseMigration("0023_note_rewrites.sql", m0023),
   parseMigration("0024_retention_jobs.sql", m0024),
+  parseMigration("0025_meetings.sql", m0025),
 ];
 
 /** `<appData>/Murmur/murmur.db`, shared by the dev build and the packaged app. */

@@ -1,6 +1,14 @@
 import { z } from "zod";
 import type { AxInspectResult } from "./testing";
 import type {
+  CaptureChunk,
+  CaptureError,
+  CaptureLevel,
+  CaptureStartInput,
+  CaptureStartResult,
+  CaptureStopResult,
+} from "./meetings";
+import type {
   AudioDevice,
   AudioInputs,
   AudioLevel,
@@ -160,6 +168,13 @@ export interface PlatformHelper {
    * (not running, no Accessibility). Values only with `showValues`, never for secure fields.
    */
   inspectAccessibility(showValues: boolean): Promise<AxInspectResult | null>;
+  /** NT-04: records a meeting's microphone and system sound into chunk files. */
+  startMeetingCapture(input: CaptureStartInput): Promise<CaptureStartResult>;
+  /** Closes the last chunks; their `capture.chunk` events arrive before this resolves. */
+  stopMeetingCapture(meetingId: string): Promise<CaptureStopResult>;
+  onCaptureChunk(handler: (chunk: CaptureChunk) => void): Unsubscribe;
+  onCaptureLevel(handler: (level: CaptureLevel) => void): Unsubscribe;
+  onCaptureError(handler: (error: CaptureError) => void): Unsubscribe;
   /** The changed words only, at most once per correction. */
   onEditsChanged(handler: (change: EditsChanged) => void): Unsubscribe;
   /** The output's mute switch: null when there is none. */

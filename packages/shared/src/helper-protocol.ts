@@ -15,6 +15,15 @@ import { contextSnapshotPayloadSchema, focusContextSchema } from "./context";
 import { procForegroundResultSchema } from "./processes";
 import { axInspectPayloadSchema, axInspectResultSchema } from "./testing";
 import {
+  captureChunkPayloadSchema,
+  captureErrorPayloadSchema,
+  captureLevelPayloadSchema,
+  captureStartPayloadSchema,
+  captureStartResultSchema,
+  captureStopPayloadSchema,
+  captureStopResultSchema,
+} from "./meetings";
+import {
   keysPressPayloadSchema,
   keysPressResultSchema,
   selectionReadPayloadSchema,
@@ -274,6 +283,14 @@ export const HELPER_REQUESTS = {
     payload: axInspectPayloadSchema,
     result: axInspectResultSchema,
   },
+  "capture.start": {
+    payload: captureStartPayloadSchema,
+    result: captureStartResultSchema,
+  },
+  "capture.stop": {
+    payload: captureStopPayloadSchema,
+    result: captureStopResultSchema,
+  },
 } as const;
 
 export type HelperRequestType = keyof typeof HELPER_REQUESTS;
@@ -305,6 +322,9 @@ export const HELPER_EVENTS = {
   "typing.activity": typingActivityPayloadSchema,
   "edits.changed": editsChangedPayloadSchema,
   "focus.app": frontAppPayloadSchema,
+  "capture.chunk": captureChunkPayloadSchema,
+  "capture.level": captureLevelPayloadSchema,
+  "capture.error": captureErrorPayloadSchema,
 } as const;
 
 export type HelperEventType = keyof typeof HELPER_EVENTS;
@@ -431,6 +451,14 @@ export const focusWatchRequestSchema = requestEnvelope("focus.watch", focusWatch
 export const focusAppEventSchema = eventEnvelope("focus.app", frontAppPayloadSchema);
 export const appsListRequestSchema = requestEnvelope("apps.list", emptyObjectSchema);
 export const axInspectRequestSchema = requestEnvelope("ax.inspect", axInspectPayloadSchema);
+export const captureStartRequestSchema = requestEnvelope(
+  "capture.start",
+  captureStartPayloadSchema,
+);
+export const captureStopRequestSchema = requestEnvelope("capture.stop", captureStopPayloadSchema);
+export const captureChunkEventSchema = eventEnvelope("capture.chunk", captureChunkPayloadSchema);
+export const captureLevelEventSchema = eventEnvelope("capture.level", captureLevelPayloadSchema);
+export const captureErrorEventSchema = eventEnvelope("capture.error", captureErrorPayloadSchema);
 export const contextSnapshotRequestSchema = requestEnvelope(
   "context.snapshot",
   contextSnapshotPayloadSchema,

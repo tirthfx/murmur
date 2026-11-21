@@ -14,7 +14,7 @@ import {
 const tr = (language: string | undefined, key: CatalogueKey) => translate(language ?? "en", key);
 
 /** What the menu bar icon shows next to the microphone. */
-export type TrayStatus = "idle" | "listening" | "warning";
+export type TrayStatus = "idle" | "listening" | "warning" | "meeting";
 
 export interface TrayState {
   recording: boolean;
@@ -33,6 +33,11 @@ export interface TrayState {
   language?: string;
   /** Focus Mode (RW-18); null while it is off in Experimental. */
   focus?: { state: FocusState; duration: FocusDuration } | null;
+  /**
+   * NT-04: the meeting recording. `elapsed` is shown while it records; `busy` while it is
+   * starting or stopping. Absent where the Notetaker is not wired in.
+   */
+  meeting?: { status: "idle" } | { status: "busy" } | { status: "recording"; elapsed: string };
 }
 
 export type TrayAction =
@@ -45,6 +50,8 @@ export type TrayAction =
   | { type: "reminder"; choice: "hour" | "tomorrow" | "off" | "on" }
   | { type: "focus"; duration: FocusDuration }
   | { type: "focus-off" }
+  | { type: "meeting-start" }
+  | { type: "meeting-stop" }
   | { type: "quit" };
 
 /** One menu row, independent of the toolkit that draws it. */
@@ -143,6 +150,28 @@ function reminderItems(status: TrayState["typingReminder"], language?: string): 
   ];
 }
 
+/** NT-04: start a meeting recording, or show the one running with a way to stop it. */
+function meetingItems(meeting: NonNullable<TrayState["meeting"]>, language?: string): TrayItem[] {
+  if (meeting.status === "recording") {
+    return [
+      {
+        kind: "item",
+        label: tr(language, "tray.meeting.recording").replace("{elapsed}", meeting.elapsed),
+        enabled: false,
+      },
+      { kind: "item", label: tr(language, "tray.meeting.stop"), action: { type: "meeting-stop" } },
+    ];
+  }
+  return [
+    {
+      kind: "item",
+      label: tr(language, "tray.meeting.start"),
+      enabled: meeting.status === "idle",
+      action: { type: "meeting-start" },
+    },
+  ];
+}
+
 /**
  * The tray menu (DC-45, minimal M1 set), in order: start or stop, microphone, languages,
  * copy last transcript, quit. Quit is always present and always enabled.
@@ -154,6 +183,7 @@ export function trayMenu(state: TrayState): TrayItem[] {
       label: tr(state.language, state.recording ? "tray.stop" : "tray.start"),
       action: { type: "toggle" },
     },
+    ...(state.meeting ? meetingItems(state.meeting, state.language) : []),
     { kind: "separator" },
     { kind: "item", label: tr(state.language, "tray.microphone"), submenu: microphoneItems(state) },
     {
@@ -213,5 +243,6 @@ export function trayMenu(state: TrayState): TrayItem[] {
 export function trayTooltip(status: TrayStatus, language?: string): string {
   if (status === "listening") return tr(language, "tray.tooltip.listening");
   if (status === "warning") return tr(language, "tray.tooltip.warning");
+  if (status === "meeting") return tr(language, "tray.tooltip.meeting");
   return tr(language, "tray.tooltip");
 }

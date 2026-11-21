@@ -205,3 +205,12 @@ html[data-gallery="true"] #root {
   color: #111;
   border-color: transparent;
 }
+
+/* NT-04: a meeting is being recorded. */
+.bar-rec-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ef4444;
+}
