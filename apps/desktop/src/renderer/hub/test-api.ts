@@ -436,6 +436,8 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
     askThread: vi.fn().mockResolvedValue(null),
     askSend: vi.fn().mockResolvedValue({ ok: false, message: "Not available." }),
     askDelete: vi.fn().mockResolvedValue(undefined),
+    meetingSpeakerRename: vi.fn().mockResolvedValue({ ok: false, message: "Not available." }),
+    meetingSpeakerClip: vi.fn().mockResolvedValue({ ok: false, reason: "no-audio" }),
     meetingDelete: vi.fn().mockResolvedValue(undefined),
     meetingNotesSave: vi.fn().mockResolvedValue(true),
     meetingDocAddLink: vi.fn().mockResolvedValue({ ok: false, message: "x" }),

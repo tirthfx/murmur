@@ -53,6 +53,7 @@ describe("migrations", () => {
       "meeting_jobs",
       "meeting_notes",
       "meeting_segments",
+      "meeting_speakers",
       "meeting_summaries",
       "meetings",
       "memory_items",

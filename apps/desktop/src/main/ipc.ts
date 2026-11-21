@@ -14,6 +14,8 @@ import {
   type AskThread,
   type AskThreadItem,
   type MeetingFindTasksResult,
+  type SpeakerClipResult,
+  type SpeakerRenameResult,
   type TaskAction,
   type TaskDraft,
   type TaskFilter,
@@ -150,6 +152,8 @@ export interface IpcDeps {
   askThread: (id: string) => AskThread | null;
   askSend: (input: AskSendInput) => Promise<AskSendResult>;
   askDelete: (id: string) => void;
+  meetingSpeakerRename: (meetingId: string, speakerId: string, name: string) => SpeakerRenameResult;
+  meetingSpeakerClip: (meetingId: string, speakerId: string) => SpeakerClipResult;
   meetingDelete: (id: string) => void;
   meetingNotesSave: (id: string, body: string) => boolean;
   meetingDocAddLink: (id: string, url: string, title: string) => MeetingDocResult;
@@ -583,6 +587,14 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.tasksUndo();
       case IPC_CHANNELS.meetingFindTasks:
         return deps.meetingFindTasks(request.args[0] as string);
+      case IPC_CHANNELS.meetingSpeakerRename:
+        return deps.meetingSpeakerRename(
+          request.args[0] as string,
+          request.args[1] as string,
+          request.args[2] as string,
+        );
+      case IPC_CHANNELS.meetingSpeakerClip:
+        return deps.meetingSpeakerClip(request.args[0] as string, request.args[1] as string);
       case IPC_CHANNELS.askThreads:
         return deps.askThreads();
       case IPC_CHANNELS.askThread:
