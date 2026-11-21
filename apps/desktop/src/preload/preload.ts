@@ -171,6 +171,10 @@ const api: MurmurApi = {
   askThread: (id) => ipcRenderer.invoke(IPC_CHANNELS.askThread, id),
   askSend: (input) => ipcRenderer.invoke(IPC_CHANNELS.askSend, input),
   askDelete: (id) => ipcRenderer.invoke(IPC_CHANNELS.askDelete, id),
+  meetingSpeakerRename: (meetingId, speakerId, name) =>
+    ipcRenderer.invoke(IPC_CHANNELS.meetingSpeakerRename, meetingId, speakerId, name),
+  meetingSpeakerClip: (meetingId, speakerId) =>
+    ipcRenderer.invoke(IPC_CHANNELS.meetingSpeakerClip, meetingId, speakerId),
   meetingDelete: (id) => ipcRenderer.invoke(IPC_CHANNELS.meetingDelete, id),
   meetingNotesSave: (id, body) => ipcRenderer.invoke(IPC_CHANNELS.meetingNotesSave, id, body),
   meetingDocAddLink: (id, url, title) =>

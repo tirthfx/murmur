@@ -662,3 +662,26 @@ body {
   flex-wrap: wrap;
   gap: 6px;
 }
+
+.hub-speakers {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.hub-speaker-name {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: inherit;
+  cursor: pointer;
+}
+
+.hub-speaker-name:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { SummaryTab } from "./MeetingSummary";
 import { AskPanel, type AskTarget } from "./AskPanel";
 import { SkillsManager } from "./SkillsManager";
+import { SpeakersPanel } from "./SpeakersPanel";
 import { TasksPanel } from "./TasksPanel";
 import { Badge } from "@astryxdesign/core/Badge";
 import { Banner } from "@astryxdesign/core/Banner";
@@ -91,6 +92,17 @@ function rememberTab(meetingId: string, tab: MeetingTab): void {
   }
 }
 
+/** The name of the speaker of a line: the speaker it belongs to, else its channel's ("You", "Remote"). */
+function speakerName(
+  detail: MeetingDetail,
+  segment: { channel: MeetingChannel; speakerId?: string | null },
+): string {
+  const named =
+    detail.speakers.find((speaker) => speaker.id === segment.speakerId) ??
+    detail.speakers.find((speaker) => speaker.channel === segment.channel);
+  return named?.name ?? CHANNEL_LABELS[segment.channel];
+}
+
 function Transcript({ detail, highlight }: { detail: MeetingDetail; highlight: string | null }) {
   const box = useRef<HTMLDivElement>(null);
   const [following, setFollowing] = useState(true);
@@ -132,6 +144,7 @@ function Transcript({ detail, highlight }: { detail: MeetingDetail; highlight: s
 
   return (
     <VStack gap={2}>
+      <SpeakersPanel detail={detail} />
       {waiting ? (
         <Text size="sm" color="secondary" role="status">
           {waiting}
@@ -163,7 +176,7 @@ function Transcript({ detail, highlight }: { detail: MeetingDetail; highlight: s
               {...(segment.id === highlight ? { "data-highlight": "true" } : {})}
             >
               <span className="hub-transcript-time">{formatElapsed(segment.startMs)}</span>
-              <span className="hub-transcript-speaker">{CHANNEL_LABELS[segment.channel]}</span>
+              <span className="hub-transcript-speaker">{speakerName(detail, segment)}</span>
               <span>{segment.text}</span>
             </p>
           ))}
@@ -174,7 +187,7 @@ function Transcript({ detail, highlight }: { detail: MeetingDetail; highlight: s
               data-channel={segment.channel}
             >
               <span className="hub-transcript-time">{formatElapsed(segment.startMs)}</span>
-              <span className="hub-transcript-speaker">{CHANNEL_LABELS[segment.channel]}</span>
+              <span className="hub-transcript-speaker">{speakerName(detail, segment)}</span>
               <span>{segment.text}</span>
             </p>
           ))}
@@ -431,7 +444,10 @@ function MeetingView({
         </HStack>
         <Text size="sm" color="secondary">
           {whenOf(meeting.startedAt)} · {formatElapsed(meeting.durationMs)} ·{" "}
-          {meeting.channels.map((channel) => CHANNEL_LABELS[channel]).join(" and ")}
+          {(detail.speakers.length > 0
+            ? detail.speakers.map((speaker) => speaker.name)
+            : meeting.channels.map((channel) => CHANNEL_LABELS[channel])
+          ).join(" and ")}
         </Text>
         {meeting.warnings.map((warning) => (
           <Banner

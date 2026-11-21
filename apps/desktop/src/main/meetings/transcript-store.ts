@@ -152,7 +152,8 @@ export function createTranscriptStore(db: DatabaseSync): TranscriptStore {
         endMs: row.end_ms,
         text: row.text,
         language: row.language,
-        speakerId: row.speaker_id,
+        // Every line has a speaker: its own, or else the one of its channel ("You" or "Remote").
+        speakerId: row.speaker_id ?? `${row.meeting_id}:${row.channel}`,
         isDictated: row.is_dictated === 1,
         isFinal: row.is_final === 1,
       }));

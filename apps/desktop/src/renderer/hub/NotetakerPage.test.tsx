@@ -75,6 +75,24 @@ function detail(overrides: Partial<MeetingDetail> = {}): MeetingDetail {
     summaries: [],
     summaryStatus: { state: "idle" },
     taskStatus: { state: "idle" },
+    speakers: [
+      {
+        id: "m-1:mic",
+        channel: "mic",
+        name: "You",
+        defaultName: "You",
+        segments: 1,
+        talkMs: 2_000,
+      },
+      {
+        id: "m-1:system",
+        channel: "system",
+        name: "Remote",
+        defaultName: "Remote",
+        segments: 1,
+        talkMs: 3_000,
+      },
+    ],
     ...overrides,
   };
 }
@@ -426,6 +444,80 @@ describe("Notetaker page", () => {
         question: "What comes first?",
         scope: { kind: "meetings", ids: ["m-1"] },
       });
+    });
+  });
+
+  describe("speakers (NT-07)", () => {
+    it("labels every line with its speaker's name, and lists the speakers", async () => {
+      window.murmur.meetingDetail = vi.fn().mockResolvedValue(
+        detail({
+          speakers: [
+            {
+              id: "m-1:mic",
+              channel: "mic",
+              name: "Priya (in room)",
+              defaultName: "You",
+              segments: 1,
+              talkMs: 2_000,
+            },
+            {
+              id: "m-1:system",
+              channel: "system",
+              name: "Dana",
+              defaultName: "Remote",
+              segments: 1,
+              talkMs: 3_000,
+            },
+          ],
+        }),
+      );
+      await openMeeting();
+      await act(async () => screen.getByRole("tab", { name: "Transcript" }).click());
+      const transcript = screen.getByLabelText("Transcript", { selector: "div.hub-transcript" });
+      const lines = [...transcript.querySelectorAll("p")].map((line) => line.textContent);
+      expect(lines).toEqual([
+        "0:02Priya (in room)Shall we start?",
+        "1:05DanaYes, the roadmap first.",
+      ]);
+      expect(screen.getByRole("button", { name: "Play a sample of Dana" })).toBeTruthy();
+      expect(screen.getByText(/Priya \(in room\) and Dana/)).toBeTruthy();
+    });
+
+    it("names the grey live text by its channel's speaker", async () => {
+      window.murmur.meetingDetail = vi.fn().mockResolvedValue(
+        detail({
+          speakers: [
+            {
+              id: "m-1:mic",
+              channel: "mic",
+              name: "You",
+              defaultName: "You",
+              segments: 1,
+              talkMs: 2_000,
+            },
+            {
+              id: "m-1:system",
+              channel: "system",
+              name: "Dana",
+              defaultName: "Remote",
+              segments: 1,
+              talkMs: 3_000,
+            },
+          ],
+        }),
+      );
+      await openMeeting();
+      await act(async () => screen.getByRole("tab", { name: "Transcript" }).click());
+      act(() =>
+        live({
+          meetingId: "m-1",
+          channel: "system",
+          seq: 3,
+          segments: [{ startMs: 70_000, endMs: 72_000, text: "Next point" }],
+        }),
+      );
+      const partial = document.querySelector(".hub-transcript-partial");
+      expect(partial?.textContent).toContain("Dana");
     });
   });
 });

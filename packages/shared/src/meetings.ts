@@ -198,6 +198,44 @@ export interface MeetingListItem extends Meeting {
   progress: TranscriptionProgress;
 }
 
+/** One of the people in a meeting's transcript (NT-07). Level 1: "You" and "Remote". */
+export interface MeetingSpeaker {
+  /** `<meeting id>:mic` or `<meeting id>:system` until speakers are told apart in a channel. */
+  id: string;
+  channel: MeetingChannel;
+  name: string;
+  /** The name Murmur gives it before it is renamed: "You" or "Remote". */
+  defaultName: string;
+  segments: number;
+  /** How long the speaker's lines run, added up. */
+  talkMs: number;
+}
+
+export const SPEAKER_DEFAULT_NAMES: Record<MeetingChannel, string> = {
+  mic: "You",
+  system: "Remote",
+};
+
+export const SPEAKER_NAME_MAX = 60;
+
+export type SpeakerRenameResult =
+  { ok: true; speakers: MeetingSpeaker[] } | { ok: false; message: string };
+
+/** NT-08: a short sample of a speaker, decoded and played in the Hub. */
+export type SpeakerClipResult =
+  | {
+      ok: true;
+      /** The m4a file the line is in. */
+      bytes: Uint8Array;
+      /** Where in that file to start, and how long to play (at most 8 seconds). */
+      offsetSec: number;
+      playSec: number;
+      segmentId: string;
+    }
+  | { ok: false; reason: "audio-deleted" | "no-audio" | "no-speech" };
+
+export const SPEAKER_CLIP_MAX_SEC = 8;
+
 /** Everything the meeting view shows. */
 export interface MeetingDetail {
   meeting: Meeting;
@@ -212,6 +250,8 @@ export interface MeetingDetail {
   summaryStatus: SummaryStatus;
   /** NT-26: whether tasks are being found for this meeting. */
   taskStatus: TaskRunStatus;
+  /** NT-07: who spoke, with their counts and talk time. */
+  speakers: MeetingSpeaker[];
 }
 
 /** What the Tasks tab shows besides the tasks (NT-26). */

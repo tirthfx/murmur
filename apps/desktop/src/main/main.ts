@@ -145,6 +145,8 @@ import { createDetectionSync } from "./meetings/detection-sync";
 import { createMeetingJobs, type MeetingJobs } from "./meetings/meeting-jobs";
 import { createSkillsService } from "./meetings/skills-service";
 import { createAskIndex } from "./meetings/ask-index";
+import { createSpeakerClip } from "./meetings/speaker-clip";
+import { createSpeakersStore } from "./meetings/speakers-store";
 import { AskError, createAskRunner } from "./meetings/ask-runner";
 import { createAskStore } from "./meetings/ask-store";
 import { createTaskRunner, TaskError } from "./meetings/tasks-runner";
@@ -1717,6 +1719,21 @@ const taskRunner =
         logger: createConsoleLogger("[tasks]"),
       })
     : null;
+// NT-07, NT-08: who spoke in a meeting, their names, and a sample of their voice.
+const speakersStore = database ? createSpeakersStore(database, { now: Date.now }) : null;
+const speakerClip =
+  database && speakersStore
+    ? createSpeakerClip(database, {
+        speakers: speakersStore,
+        read: (file) => {
+          try {
+            return new Uint8Array(readFileSync(file));
+          } catch {
+            return null;
+          }
+        },
+      })
+    : null;
 // NT-14: Ask across meetings. BM25 over pieces of the meetings, answered by the local model.
 const askStore = database ? createAskStore(database, { now: Date.now, newId: randomUUID }) : null;
 const askRunner =
@@ -1878,6 +1895,7 @@ function meetingDetail(id: string): MeetingDetail | null {
     summaries: meetingSummaries?.list(id) ?? [],
     summaryStatus: summaryStatus(id),
     taskStatus: taskStatus(id),
+    speakers: speakersStore?.list(id) ?? [],
   };
 }
 
@@ -2596,6 +2614,16 @@ function registerIpc(): void {
     taskAction: (id, action) => tasksService?.act(id, action) ?? noTasks,
     taskReorder: (id, beforeId) => tasksService?.reorder(id, beforeId) ?? noTasks,
     tasksUndo: () => tasksService?.undo() ?? { ok: false },
+    meetingSpeakerRename: (meetingId, speakerId, name) => {
+      const result = speakersStore?.rename(meetingId, speakerId, name) ?? {
+        ok: false as const,
+        message: "Speakers cannot be saved without the database.",
+      };
+      if (result.ok) notifyMeetings(meetingId);
+      return result;
+    },
+    meetingSpeakerClip: (meetingId, speakerId) =>
+      speakerClip?.(meetingId, speakerId) ?? { ok: false, reason: "no-audio" },
     askThreads: () => askStore?.list() ?? [],
     askThread: (id) => askStore?.get(id) ?? null,
     askSend: async (input) => {

@@ -76,6 +76,8 @@ function setup() {
     askThread: vi.fn(),
     askSend: vi.fn(),
     askDelete: vi.fn(),
+    meetingSpeakerRename: vi.fn(),
+    meetingSpeakerClip: vi.fn(),
     meetingDelete: vi.fn(),
     meetingNotesSave: vi.fn(() => true),
     meetingDocAddLink: vi.fn(() => ({ ok: false as const, message: "x" })),

@@ -7,6 +7,8 @@ import type {
   MeetingDoc,
   MeetingListItem,
   RecordingState,
+  SpeakerClipResult,
+  SpeakerRenameResult,
 } from "./meetings";
 import {
   askSendSchema,
@@ -404,6 +406,8 @@ export const IPC_CHANNELS = {
   askThread: "ask:thread",
   askSend: "ask:send",
   askDelete: "ask:delete",
+  meetingSpeakerRename: "meetings:speaker-rename",
+  meetingSpeakerClip: "meetings:speaker-clip",
 } as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
@@ -893,6 +897,14 @@ export const IPC_CONTRACT = {
     args: z.tuple([]),
     result: z.custom<{ ok: true; label: string } | { ok: false }>(),
   },
+  [IPC_CHANNELS.meetingSpeakerRename]: {
+    args: z.tuple([z.string().min(1).max(64), z.string().min(1).max(128), z.string().max(200)]),
+    result: z.custom<SpeakerRenameResult>(),
+  },
+  [IPC_CHANNELS.meetingSpeakerClip]: {
+    args: z.tuple([z.string().min(1).max(64), z.string().min(1).max(128)]),
+    result: z.custom<SpeakerClipResult>(),
+  },
   [IPC_CHANNELS.askThreads]: { args: z.tuple([]), result: z.custom<AskThreadItem[]>() },
   [IPC_CHANNELS.askThread]: {
     args: z.tuple([z.string().min(1).max(64)]),
@@ -1186,6 +1198,14 @@ export interface MurmurApi {
   /** Answers a question from the meetings in its scope (a few seconds to a minute). */
   askSend(input: AskSendInput): Promise<AskSendResult>;
   askDelete(id: string): Promise<void>;
+  /** NT-07: gives a speaker a name for the whole meeting (every line of theirs, at once). */
+  meetingSpeakerRename(
+    meetingId: string,
+    speakerId: string,
+    name: string,
+  ): Promise<SpeakerRenameResult>;
+  /** NT-08: a sample of a speaker from the stored audio; not available once it is deleted. */
+  meetingSpeakerClip(meetingId: string, speakerId: string): Promise<SpeakerClipResult>;
   /** NT-10: saves My notes; false when they are too long. */
   meetingNotesSave(id: string, body: string): Promise<boolean>;
   meetingDocAddLink(id: string, url: string, title: string): Promise<MeetingDocResult>;
