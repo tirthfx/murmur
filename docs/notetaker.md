@@ -118,7 +118,28 @@ Manual check: join a Zoom call (the prompt comes within a few seconds); open a M
 
 ## Skills and summaries (NT-09, NT-15)
 
-**Skills.** A Skill is a name, a description, the sections of its output, a length and a prompt (`packages/shared/src/skills.ts`). Murmur ships 12 built-in Skills, written for Murmur: Meeting summary (the default), Action review, Follow-up note, Customer call notes, Product spec draft, Decision record, One-to-one prep, Interview debrief, Stand-up update, Weekly digest, Email reply draft and Next meeting agenda. Built-ins are read-only. The store can duplicate any Skill into a custom copy ("Name (copy)", table `skills`); editing, importing and exporting come with #188.
+**Skills.** A Skill is a name, a description, the sections of its output, a length and a prompt (`packages/shared/src/skills.ts`). Murmur ships 12 built-in Skills, written for Murmur: Meeting summary (the default), Action review, Follow-up note, Customer call notes, Product spec draft, Decision record, One-to-one prep, Interview debrief, Stand-up update, Weekly digest, Email reply draft and Next meeting agenda. Built-ins are read-only. Custom Skills are described below.
+
+**Custom Skills (NT-16).** The Notetaker page has two tabs, Meetings and Skills. On Skills the owner reads the built-ins, makes a new Skill, duplicates any Skill ("Name (copy)"), edits a custom one, exports one as a `.md` file, imports one, and deletes a custom one (a second click confirms). If the deleted Skill was the default, the default goes back to Meeting summary; summaries already written keep the Skill's name.
+
+- **Versions.** Saving a custom Skill that changed makes its next version (table `skills`, column `version`) and keeps the one it had in `skill_versions`. Saving what is already there makes nothing. "Go back to this" on an earlier version makes it the current text as a new version, so the history is never lost. A summary names the Skill, not its version.
+- **Copies of built-ins.** A copy remembers the built-in and the version it had (`based_on`, `based_on_version`). When a later Murmur raises that built-in's version, the copy shows a "New version" badge and a note. (Built-ins are all at version 1 today.)
+- **Files.** A custom Skill is also written, on every save, to `<data>/Murmur/Skills/<name>-<first 6 of id>.md`, so the folder can go into version control; renaming moves the file and deleting removes it. The folder is a copy for the owner: Murmur does not read it back. Import goes through the Import button.
+- **File format** (`packages/shared/src/skill-file.ts`): a front-matter block between two lines of `---`, then the prompt.
+
+  ```
+  ---
+  name: Customer call notes
+  description: Problems, asks and commitments.
+  length: medium
+  sections:
+    - Problems raised
+    - What they asked for
+  ---
+  Write notes of a call with a customer...
+  ```
+
+  `sections` may also be written `[One, Two]`. Values may be in single or double quotes. `version` and `model` are allowed and ignored. A file with bad front matter is refused and the message names the line (`Line 4: The length must be one of: short, medium, long.`): a missing or unclosed `---`, a line that is not `key: value`, an unknown or repeated field, a bad length, no name, no sections, an empty prompt, or a value over the limit (name 80, description 300, a section 60 and at most 12, prompt 4,000 characters). An imported Skill is always a new custom Skill at version 1.
 
 **Summaries.** Once a recording has been transcribed, a `summarise` job in the meeting queue writes a summary with the default Skill (Settings, System, Meeting summaries: on or off, length, which Skill). The Summary tab shows the newest version, a version picker, a Skill picker with "Write a new version" (another Skill, or the same again, adds a version and keeps the old ones), and thumbs with a reason (missed points, wrong names, too long, too short). While a meeting records, "Quick summary so far" summarises what is transcribed; it is labelled Quick and the final summary replaces it. A summary row keeps the Skill and the model.
 
@@ -134,3 +155,5 @@ Manual check: join a Zoom call (the prompt comes within a few seconds); open a M
 `npx vite-node scripts/bench-summary.mjs` runs the summary on the real model with a made-up meeting (short and long) and reports time, links and sections. Needs the model.
 
 Manual check: record or open a meeting with some talk, wait for the summary (or press "Write a summary"), click a time and check the transcript opens at that line, write another version with a different Skill and check both are in the picker, give a thumbs down with a reason, turn the automatic summary off in Settings.
+
+Manual check (Skills): open Notetaker, Skills, duplicate Action review, change the prompt and save, check "Version 2, 1 earlier" and go back to the first; export it, delete it, import the file and check it comes back; edit the exported file to `length: huge` and check the import names that line; look in the Skills folder for the `.md` files.

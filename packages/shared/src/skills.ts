@@ -21,14 +21,56 @@ export const skillSchema = z.strictObject({
   prompt: z.string().trim().min(1).max(4000),
   /** Built-in Skills are read-only. */
   builtIn: z.boolean(),
-  /** Bumped when a built-in changes, so a copy can show "New version". */
+  /**
+   * A built-in's version is bumped when it changes. A custom Skill's version goes up by one with
+   * every edit; the versions before it are kept (NT-16).
+   */
   version: z.number().int().min(1),
+  /** The built-in a custom Skill was copied from, and the version it had then. */
+  basedOn: z.string().min(1).max(64).nullable(),
+  basedOnVersion: z.number().int().min(1).nullable(),
 });
 export type Skill = z.infer<typeof skillSchema>;
 
+/** What the owner writes when making or editing a custom Skill. */
+export const skillDraftSchema = skillSchema.pick({
+  name: true,
+  description: true,
+  sections: true,
+  length: true,
+  prompt: true,
+});
+export type SkillDraft = z.infer<typeof skillDraftSchema>;
+
+/** An earlier version of a custom Skill, kept so an edit can be undone (NT-16). */
+export interface SkillVersion extends SkillDraft {
+  skillId: string;
+  version: number;
+  /** When this version stopped being the current one. */
+  createdAt: number;
+}
+
+export type SkillResult = { ok: true; skill: Skill } | { ok: false; message: string };
+export type SkillImportResult =
+  | { ok: true; skill: Skill }
+  | { ok: false; message: string; line: number | null }
+  | { ok: false; cancelled: true };
+export type SkillExportResult =
+  { ok: true; path: string } | { ok: false; message: string } | { ok: false; cancelled: true };
+
+/** A copy of a built-in Skill has a newer version of the built-in to look at. */
+export function hasNewBuiltInVersion(
+  skill: Skill,
+  builtIns: readonly Skill[] = BUILT_IN_SKILLS,
+): boolean {
+  if (skill.builtIn || !skill.basedOn || skill.basedOnVersion === null) return false;
+  const built = builtIns.find((candidate) => candidate.id === skill.basedOn);
+  return !!built && built.version > skill.basedOnVersion;
+}
+
 export const DEFAULT_SKILL_ID = "meeting-summary";
 
-type Authored = Omit<Skill, "builtIn" | "version">;
+type Authored = Omit<Skill, "builtIn" | "version" | "basedOn" | "basedOnVersion">;
 
 const AUTHORED: Authored[] = [
   {
@@ -152,6 +194,8 @@ export const BUILT_IN_SKILLS: readonly Skill[] = AUTHORED.map((skill) => ({
   ...skill,
   builtIn: true,
   version: 1,
+  basedOn: null,
+  basedOnVersion: null,
 }));
 
 export const NOT_DISCUSSED = "Not discussed";

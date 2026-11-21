@@ -50,3 +50,4 @@ export * from "./testing";
 export * from "./help";
 export * from "./meetings";
 export * from "./skills";
+export * from "./skill-file";

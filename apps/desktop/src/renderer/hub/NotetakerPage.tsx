@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SummaryTab } from "./MeetingSummary";
+import { SkillsManager } from "./SkillsManager";
 import { Badge } from "@astryxdesign/core/Badge";
 import { Banner } from "@astryxdesign/core/Banner";
 import { Button } from "@astryxdesign/core/Button";
@@ -468,6 +469,7 @@ export function NotetakerPage() {
   const [detail, setDetail] = useState<MeetingDetail | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  const [page, setPage] = useState<"meetings" | "skills">("meetings");
   const openRef = useRef<string | null>(null);
   openRef.current = openId;
 
@@ -567,54 +569,76 @@ export function NotetakerPage() {
         </VStack>
       </section>
 
-      <div className="hub-notetaker">
-        <section aria-label="Meetings">
-          {list === null ? (
-            <Text color="secondary">Loading…</Text>
-          ) : list.length === 0 ? (
-            <Text color="secondary">No meetings yet. Record one to see it here.</Text>
+      <TabList
+        value={page}
+        role="tablist"
+        hasDivider
+        onChange={(value) => setPage(value as "meetings" | "skills")}
+      >
+        <Tab value="meetings" label="Meetings" panelId="notetaker-meetings" />
+        <Tab value="skills" label="Skills" panelId="notetaker-skills" />
+      </TabList>
+
+      {page === "skills" ? (
+        <div id="notetaker-skills" role="tabpanel" aria-label="Skills">
+          <SkillsManager />
+        </div>
+      ) : null}
+      <div
+        hidden={page !== "meetings"}
+        id="notetaker-meetings"
+        role="tabpanel"
+        aria-label="Meetings"
+      >
+        <div className="hub-notetaker">
+          <section aria-label="Meetings">
+            {list === null ? (
+              <Text color="secondary">Loading…</Text>
+            ) : list.length === 0 ? (
+              <Text color="secondary">No meetings yet. Record one to see it here.</Text>
+            ) : (
+              <ul className="hub-meeting-list" aria-label="Meetings">
+                {list.map((item) => (
+                  <li key={item.id}>
+                    <button
+                      type="button"
+                      className="hub-meeting-item"
+                      aria-current={item.id === openId ? "true" : undefined}
+                      onClick={() => setOpenId(item.id)}
+                    >
+                      <Text weight="semibold">{item.title}</Text>
+                      <Text size="sm" color="secondary">
+                        {whenOf(item.startedAt)} · {formatElapsed(item.durationMs)}
+                      </Text>
+                      <span>
+                        <Badge
+                          variant={item.status === "failed" ? "error" : "neutral"}
+                          label={statusText(item)}
+                        />
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+          {detail ? (
+            <MeetingView
+              key={detail.meeting.id}
+              detail={detail}
+              onChange={() => {
+                void loadList();
+                if (openId) void loadDetail(openId);
+              }}
+              onDeleted={() => {
+                setOpenId(null);
+                void loadList();
+              }}
+            />
           ) : (
-            <ul className="hub-meeting-list" aria-label="Meetings">
-              {list.map((item) => (
-                <li key={item.id}>
-                  <button
-                    type="button"
-                    className="hub-meeting-item"
-                    aria-current={item.id === openId ? "true" : undefined}
-                    onClick={() => setOpenId(item.id)}
-                  >
-                    <Text weight="semibold">{item.title}</Text>
-                    <Text size="sm" color="secondary">
-                      {whenOf(item.startedAt)} · {formatElapsed(item.durationMs)}
-                    </Text>
-                    <span>
-                      <Badge
-                        variant={item.status === "failed" ? "error" : "neutral"}
-                        label={statusText(item)}
-                      />
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <Text color="secondary">Choose a meeting to see its notes and transcript.</Text>
           )}
-        </section>
-        {detail ? (
-          <MeetingView
-            key={detail.meeting.id}
-            detail={detail}
-            onChange={() => {
-              void loadList();
-              if (openId) void loadDetail(openId);
-            }}
-            onDeleted={() => {
-              setOpenId(null);
-              void loadList();
-            }}
-          />
-        ) : (
-          <Text color="secondary">Choose a meeting to see its notes and transcript.</Text>
-        )}
+        </div>
       </div>
     </VStack>
   );

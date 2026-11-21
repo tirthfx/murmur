@@ -153,6 +153,13 @@ const api: MurmurApi = {
   meetingSummaryFeedback: (summaryId, feedback) =>
     ipcRenderer.invoke(IPC_CHANNELS.meetingSummaryFeedback, summaryId, feedback),
   skillsList: () => ipcRenderer.invoke(IPC_CHANNELS.skillsList),
+  skillSave: (id, draft) => ipcRenderer.invoke(IPC_CHANNELS.skillSave, id, draft),
+  skillDuplicate: (id) => ipcRenderer.invoke(IPC_CHANNELS.skillDuplicate, id),
+  skillDelete: (id) => ipcRenderer.invoke(IPC_CHANNELS.skillDelete, id),
+  skillVersions: (id) => ipcRenderer.invoke(IPC_CHANNELS.skillVersions, id),
+  skillRestore: (id, version) => ipcRenderer.invoke(IPC_CHANNELS.skillRestore, id, version),
+  skillExport: (id) => ipcRenderer.invoke(IPC_CHANNELS.skillExport, id),
+  skillImport: () => ipcRenderer.invoke(IPC_CHANNELS.skillImport),
   meetingDelete: (id) => ipcRenderer.invoke(IPC_CHANNELS.meetingDelete, id),
   meetingNotesSave: (id, body) => ipcRenderer.invoke(IPC_CHANNELS.meetingNotesSave, id, body),
   meetingDocAddLink: (id, url, title) =>

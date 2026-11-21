@@ -3,6 +3,8 @@ import {
   BUILT_IN_SKILLS,
   type MeetingSummary,
   type Skill,
+  type SkillDraft,
+  type SkillVersion,
   type SummaryFeedback,
   type SummaryFeedbackReason,
 } from "@murmur/shared";
@@ -132,13 +134,26 @@ export function createSummariesStore(db: DatabaseSync): SummariesStore {
 
 // -------------------------------------------------------------------- skills
 
-/** The built-in Skills and the owner's custom copies of them (NT-15). */
+/** The built-in Skills and the owner's custom Skills (NT-15, NT-16). */
 export interface SkillsStore {
   /** Built-ins first, in their order, then custom Skills by name. */
   list(): Skill[];
   get(id: string): Skill | null;
+  /** A new custom Skill. */
+  create(id: string, draft: SkillDraft, at: number): Skill;
   /** A custom copy of a Skill ("Name (copy)"); null when there is no such Skill. */
   duplicate(id: string, newId: string, at: number): Skill | null;
+  /**
+   * Edits a custom Skill into its next version and keeps the one it had. Null when there is
+   * no such custom Skill. Saving what is already there changes nothing.
+   */
+  update(id: string, draft: SkillDraft, at: number): Skill | null;
+  /** The versions a custom Skill had before the current one, newest first. */
+  versions(id: string): SkillVersion[];
+  /** Makes an earlier version the current content, as a new version. */
+  restore(id: string, version: number, at: number): Skill | null;
+  /** Deletes a custom Skill and its versions. False when there is no such custom Skill. */
+  remove(id: string): boolean;
 }
 
 interface SkillRow {
@@ -148,7 +163,13 @@ interface SkillRow {
   sections_json: string;
   length: Skill["length"];
   prompt: string;
+  version: number;
+  based_on: string | null;
+  based_on_version: number | null;
 }
+
+const SKILL_COLUMNS =
+  "id, name, description, sections_json, length, prompt, version, based_on, based_on_version";
 
 const toSkill = (row: SkillRow): Skill => ({
   id: row.id,
@@ -158,50 +179,172 @@ const toSkill = (row: SkillRow): Skill => ({
   length: row.length,
   prompt: row.prompt,
   builtIn: false,
-  version: 1,
+  version: row.version,
+  basedOn: row.based_on,
+  basedOnVersion: row.based_on_version,
 });
+
+const sameDraft = (a: SkillDraft, b: SkillDraft) =>
+  a.name === b.name &&
+  a.description === b.description &&
+  a.length === b.length &&
+  a.prompt === b.prompt &&
+  a.sections.length === b.sections.length &&
+  a.sections.every((section, i) => section === b.sections[i]);
 
 export function createSkillsStore(db: DatabaseSync): SkillsStore {
   const custom = () =>
     (
-      db
-        .prepare(
-          "SELECT id, name, description, sections_json, length, prompt FROM skills ORDER BY name",
-        )
-        .all() as unknown as SkillRow[]
+      db.prepare(`SELECT ${SKILL_COLUMNS} FROM skills ORDER BY name`).all() as unknown as SkillRow[]
     ).map(toSkill);
   const get = (id: string): Skill | null => {
     const built = BUILT_IN_SKILLS.find((skill) => skill.id === id);
     if (built) return built;
-    const row = db
-      .prepare(
-        "SELECT id, name, description, sections_json, length, prompt FROM skills WHERE id = ?",
-      )
-      .get(id) as SkillRow | undefined;
+    const row = db.prepare(`SELECT ${SKILL_COLUMNS} FROM skills WHERE id = ?`).get(id) as
+      SkillRow | undefined;
     return row ? toSkill(row) : null;
+  };
+  const insert = (
+    id: string,
+    draft: SkillDraft,
+    basedOn: { id: string; version: number } | null,
+    at: number,
+  ) =>
+    db
+      .prepare(
+        `INSERT INTO skills (id, name, description, sections_json, length, prompt, based_on, based_on_version, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        id,
+        draft.name,
+        draft.description,
+        JSON.stringify(draft.sections),
+        draft.length,
+        draft.prompt,
+        basedOn?.id ?? null,
+        basedOn?.version ?? null,
+        at,
+        at,
+      );
+  const update = (id: string, draft: SkillDraft, at: number): Skill | null => {
+    const current = db.prepare(`SELECT ${SKILL_COLUMNS} FROM skills WHERE id = ?`).get(id) as
+      SkillRow | undefined;
+    if (!current) return null;
+    const before = toSkill(current);
+    if (sameDraft(before, draft)) return before;
+    db.exec("BEGIN");
+    try {
+      db.prepare(
+        `INSERT INTO skill_versions (skill_id, version, name, description, sections_json, length, prompt, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).run(
+        id,
+        before.version,
+        before.name,
+        before.description,
+        current.sections_json,
+        before.length,
+        before.prompt,
+        at,
+      );
+      db.prepare(
+        `UPDATE skills SET name = ?, description = ?, sections_json = ?, length = ?, prompt = ?,
+           version = version + 1, updated_at = ? WHERE id = ?`,
+      ).run(
+        draft.name,
+        draft.description,
+        JSON.stringify(draft.sections),
+        draft.length,
+        draft.prompt,
+        at,
+        id,
+      );
+      db.exec("COMMIT");
+    } catch (error) {
+      db.exec("ROLLBACK");
+      throw error;
+    }
+    return get(id);
   };
   return {
     list: () => [...BUILT_IN_SKILLS, ...custom()],
     get,
+    create(id, draft, at) {
+      insert(id, draft, null, at);
+      return get(id)!;
+    },
     duplicate(id, newId, at) {
       const source = get(id);
       if (!source) return null;
-      const name = `${source.name} (copy)`.slice(0, 80);
-      db.prepare(
-        `INSERT INTO skills (id, name, description, sections_json, length, prompt, based_on, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).run(
-        newId,
-        name,
-        source.description,
-        JSON.stringify(source.sections),
-        source.length,
-        source.prompt,
-        source.id,
-        at,
+      const draft: SkillDraft = {
+        name: `${source.name} (copy)`.slice(0, 80),
+        description: source.description,
+        sections: source.sections,
+        length: source.length,
+        prompt: source.prompt,
+      };
+      // A copy of a built-in remembers its version; a copy of a copy stays tied to the built-in.
+      const basedOn = source.builtIn
+        ? { id: source.id, version: source.version }
+        : source.basedOn !== null && source.basedOnVersion !== null
+          ? { id: source.basedOn, version: source.basedOnVersion }
+          : null;
+      insert(newId, draft, basedOn, at);
+      return get(newId);
+    },
+    update,
+    versions(id) {
+      return (
+        db
+          .prepare(
+            `SELECT skill_id, version, name, description, sections_json, length, prompt, created_at
+             FROM skill_versions WHERE skill_id = ? ORDER BY version DESC`,
+          )
+          .all(id) as unknown as {
+          skill_id: string;
+          version: number;
+          name: string;
+          description: string;
+          sections_json: string;
+          length: Skill["length"];
+          prompt: string;
+          created_at: number;
+        }[]
+      ).map((row) => ({
+        skillId: row.skill_id,
+        version: row.version,
+        name: row.name,
+        description: row.description,
+        sections: JSON.parse(row.sections_json) as string[],
+        length: row.length,
+        prompt: row.prompt,
+        createdAt: row.created_at,
+      }));
+    },
+    restore(id, version, at) {
+      const row = db
+        .prepare(
+          `SELECT name, description, sections_json, length, prompt FROM skill_versions
+           WHERE skill_id = ? AND version = ?`,
+        )
+        .get(id, version) as
+        Pick<SkillRow, "name" | "description" | "sections_json" | "length" | "prompt"> | undefined;
+      if (!row) return null;
+      return update(
+        id,
+        {
+          name: row.name,
+          description: row.description,
+          sections: JSON.parse(row.sections_json) as string[],
+          length: row.length,
+          prompt: row.prompt,
+        },
         at,
       );
-      return get(newId);
+    },
+    remove(id) {
+      return db.prepare("DELETE FROM skills WHERE id = ?").run(id).changes > 0;
     },
   };
 }

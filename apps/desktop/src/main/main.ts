@@ -7,6 +7,7 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { rm } from "node:fs/promises";
@@ -57,6 +58,7 @@ import {
   FREE_WEEKLY_WORDS,
   PLAN_MESSAGES,
   weeklyLimitReached,
+  DEFAULT_SKILL_ID,
   GENERATION_MESSAGES,
   markdownTitle,
   markdownToRich,
@@ -140,6 +142,7 @@ import { createMeetingDetector, type MeetingDetector } from "./meetings/meeting-
 import { loadMeetingMatchers } from "./meetings/matchers-file";
 import { createDetectionSync } from "./meetings/detection-sync";
 import { createMeetingJobs, type MeetingJobs } from "./meetings/meeting-jobs";
+import { createSkillsService } from "./meetings/skills-service";
 import { createSkillsStore, createSummariesStore } from "./meetings/summaries-store";
 import { createSummaryRunner, SummaryError } from "./meetings/summary-runner";
 import { createTranscriptStore } from "./meetings/transcript-store";
@@ -1616,6 +1619,30 @@ const meetingTranscripts = database ? createTranscriptStore(database) : null;
 const meetingNotes = database ? createMeetingNotesStore(database) : null;
 const meetingSummaries = database ? createSummariesStore(database) : null;
 const meetingSkills = database ? createSkillsStore(database) : null;
+// NT-16: custom Skills. Each is also kept as a `.md` file in the Skills folder.
+const skillsFolder = path.join(profile.appData, "Murmur", "Skills");
+const skillsService = meetingSkills
+  ? createSkillsService({
+      store: meetingSkills,
+      newId: randomUUID,
+      now: Date.now,
+      folder: {
+        write: (fileName, text) => {
+          mkdirSync(skillsFolder, { recursive: true });
+          writeFileSync(path.join(skillsFolder, fileName), text);
+        },
+        remove: (fileName) => rmSync(path.join(skillsFolder, fileName), { force: true }),
+      },
+      onRemoved: (id) => {
+        const current = settingsStore.get().notetaker;
+        if (current.skills.default === id)
+          settingsStore.update({
+            notetaker: { ...current, skills: { ...current.skills, default: DEFAULT_SKILL_ID } },
+          });
+      },
+    })
+  : null;
+const noSkills = { ok: false as const, message: "Skills cannot be saved without the database." };
 // NT-09: summaries on the local model. A dictation or a Rewrite always goes first.
 const summaryRunner =
   meetingsStore && meetingTranscripts && meetingNotes && meetingSummaries && meetingSkills
@@ -2483,6 +2510,52 @@ function registerIpc(): void {
       meetingSummaries?.setFeedback(summaryId, feedback);
     },
     skillsList: () => meetingSkills?.list() ?? [],
+    skillSave: (id, draft) => skillsService?.save(id, draft) ?? noSkills,
+    skillDuplicate: (id) => skillsService?.duplicate(id) ?? noSkills,
+    skillDelete: (id) => skillsService?.remove(id) ?? noSkills,
+    skillVersions: (id) => skillsService?.versions(id) ?? [],
+    skillRestore: (id, version) => skillsService?.restore(id, version) ?? noSkills,
+    skillExport: async (id) => {
+      const file = skillsService?.exportFile(id);
+      if (!file) return { ok: false, message: "That Skill was not found." };
+      const options = {
+        title: "Export a Skill",
+        defaultPath: path.join(app.getPath("documents"), file.fileName),
+        filters: [{ name: "Markdown", extensions: ["md"] }],
+      };
+      const choice = hubWindow
+        ? await dialog.showSaveDialog(hubWindow, options)
+        : await dialog.showSaveDialog(options);
+      if (choice.canceled || !choice.filePath) return { ok: false, cancelled: true };
+      try {
+        writeFileSync(choice.filePath, file.text);
+        return { ok: true, path: choice.filePath };
+      } catch {
+        return { ok: false, message: "The file could not be saved there." };
+      }
+    },
+    skillImport: async () => {
+      if (!skillsService) return { ...noSkills, line: null };
+      const options = {
+        title: "Import a Skill",
+        properties: ["openFile" as const],
+        filters: [{ name: "Markdown", extensions: ["md", "markdown", "txt"] }],
+      };
+      const picked = hubWindow
+        ? await dialog.showOpenDialog(hubWindow, options)
+        : await dialog.showOpenDialog(options);
+      const file = picked.filePaths[0];
+      if (picked.canceled || !file) return { ok: false, cancelled: true };
+      let text: string;
+      try {
+        if (statSync(file).size > 100_000)
+          return { ok: false, message: "That file is too big to be a Skill.", line: null };
+        text = readFileSync(file, "utf8");
+      } catch {
+        return { ok: false, message: "That file could not be read.", line: null };
+      }
+      return skillsService.importFile(text);
+    },
     meetingRename: (id, title) => {
       meetingsStore?.rename(id, title);
       notifyMeetings(id);
