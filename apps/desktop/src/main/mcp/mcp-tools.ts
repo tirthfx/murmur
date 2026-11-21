@@ -203,7 +203,7 @@ export function createMcpTools(data: McpData): McpTool[] {
     name: "get_meeting",
     title: "Get a meeting",
     description:
-      "One meeting: its title, when it was, how long, its folder, the speakers, and what is available to read.",
+      "One meeting: its title, the people invited (names), when it was, how long, its folder, the speakers, and what is available to read.",
     inputSchema: {
       type: "object",
       properties: { meetingId: { type: "string" } },
@@ -225,6 +225,10 @@ export function createMcpTools(data: McpData): McpTool[] {
         folder: folderName(meeting.folderId),
         language: meeting.language,
         speakers: data.speakers.list(meeting.id).map((speaker) => speaker.name),
+        // Names of the people invited, for a meeting started from a calendar event; no emails.
+        attendees: (meeting.attendees ?? []).map(
+          (attendee) => attendee.name ?? attendee.email.split("@")[0],
+        ),
         summaryVersions: data.summaries.list(meeting.id).length,
         transcriptAvailable: meeting.transcriptDeletedAt === null,
       };

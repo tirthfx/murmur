@@ -123,6 +123,13 @@ export type MeetingStatus = (typeof MEETING_STATUSES)[number];
 export const MEETING_SOURCES = ["recorded", "imported", "ad_hoc", "calendar"] as const;
 export type MeetingSource = (typeof MEETING_SOURCES)[number];
 
+/** A person invited to a meeting that was started from a calendar event (NT-02). */
+export interface MeetingAttendee {
+  name: string | null;
+  /** Lower case. */
+  email: string;
+}
+
 export interface Meeting {
   id: string;
   title: string;
@@ -146,6 +153,10 @@ export interface Meeting {
   folderId: string | null;
   /** NT-22: when retention deleted the transcript, or null. */
   transcriptDeletedAt: number | null;
+  /** NT-02: the calendar event it was started from; absent or null for any other meeting. */
+  calendarEventId?: string | null;
+  /** NT-02: who was invited, for a meeting started from a calendar event. */
+  attendees?: MeetingAttendee[];
 }
 
 export interface AudioChunkRow {
@@ -465,6 +476,38 @@ export type ConsentNotice = (typeof CONSENT_NOTICES)[number];
  * Notetaker settings (`notetaker.settings`). Fields added after the first release carry a
  * default, so a value stored by an older build still reads.
  */
+/** NT-02: reminders and starting from a calendar event. */
+export const REMINDER_MINUTES = [0, 1, 5, 10] as const;
+export const calendarSettingsSchema = z.strictObject({
+  /** Minutes before a meeting to remind; 0 is off. */
+  reminderMinutes: z.union([z.literal(0), z.literal(1), z.literal(5), z.literal(10)]),
+  /** Record a call that is detected when its calendar event is on now, without asking. */
+  autoStart: z.boolean(),
+  /** No reminder, and nothing in the menu bar, for an event the owner declined. */
+  skipDeclined: z.boolean(),
+  /** The folder a meeting started from an account's calendar goes in, by account id; missing means the usual folder. */
+  defaultFolders: z.record(z.string().max(64), z.string().max(64)),
+});
+export type CalendarSettings = z.infer<typeof calendarSettingsSchema>;
+export const DEFAULT_CALENDAR_SETTINGS: CalendarSettings = {
+  reminderMinutes: 5,
+  autoStart: false,
+  skipDeclined: true,
+  defaultFolders: {},
+};
+
+/** NT-29: the next meeting in the menu bar. */
+export const LOOKAHEAD_HOURS = [1, 2, 4, 8] as const;
+export const menubarSettingsSchema = z.strictObject({
+  showNextMeeting: z.boolean(),
+  lookaheadHours: z.number().int().min(1).max(24),
+});
+export type MenubarSettings = z.infer<typeof menubarSettingsSchema>;
+export const DEFAULT_MENUBAR_SETTINGS: MenubarSettings = {
+  showNextMeeting: true,
+  lookaheadHours: 4,
+};
+
 export const notetakerSettingsSchema = z.strictObject({
   /** NT-04: record the Mac's sound as well as the microphone. */
   captureSystem: z.boolean(),
@@ -512,6 +555,10 @@ export const notetakerSettingsSchema = z.strictObject({
   recap: z
     .strictObject({ windowMinutes: z.number().int().min(1).max(120) })
     .default({ windowMinutes: 10 }),
+  /** NT-02: reminders and starting from a calendar event. */
+  calendar: calendarSettingsSchema.default(DEFAULT_CALENDAR_SETTINGS),
+  /** NT-29: the next meeting in the menu bar. */
+  menubar: menubarSettingsSchema.default(DEFAULT_MENUBAR_SETTINGS),
   /** NT-21: importing transcript files. */
   import: importSettingsSchema.default(DEFAULT_IMPORT_SETTINGS),
   /** NT-22: how long audio and transcripts are kept. */
@@ -547,4 +594,6 @@ export const DEFAULT_NOTETAKER: NotetakerSettings = {
   import: DEFAULT_IMPORT_SETTINGS,
   dictation: { excludeFromTranscript: true },
   recap: { windowMinutes: 10 },
+  calendar: DEFAULT_CALENDAR_SETTINGS,
+  menubar: DEFAULT_MENUBAR_SETTINGS,
 };

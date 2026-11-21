@@ -17,6 +17,8 @@ import {
   TRANSCRIPT_RETENTION_TEXT,
   MEETING_LANGUAGES,
   RECAP_WINDOWS,
+  REMINDER_MINUTES,
+  LOOKAHEAD_HOURS,
   type ConsentNotice,
   APP_LANGUAGES,
   APP_LANGUAGE_NAMES,
@@ -620,6 +622,90 @@ export function SettingsSection({
                   notetaker: {
                     ...settings.notetaker,
                     recap: { windowMinutes: Number(value) },
+                  },
+                })
+              }
+            />
+          </VStack>
+        </Row>
+        <Row id="meeting-calendar">
+          <VStack gap={2}>
+            <Heading level={3}>Calendar reminders and the menu bar</Heading>
+            <Text size="sm" color="secondary">
+              These work once a calendar is connected on the Connectors page. With none, nothing
+              here does anything.
+            </Text>
+            <Selector
+              label="Remind me before a meeting"
+              options={REMINDER_MINUTES.map((minutes) => ({
+                value: String(minutes),
+                label:
+                  minutes === 0
+                    ? "Off"
+                    : `${minutes} ${minutes === 1 ? "minute" : "minutes"} before`,
+              }))}
+              value={String(settings.notetaker.calendar.reminderMinutes)}
+              onChange={(value) =>
+                update({
+                  notetaker: {
+                    ...settings.notetaker,
+                    calendar: {
+                      ...settings.notetaker.calendar,
+                      reminderMinutes: Number(value) as (typeof REMINDER_MINUTES)[number],
+                    },
+                  },
+                })
+              }
+            />
+            <Switch
+              label="Start recording when a calendar meeting’s call is detected"
+              description="Only for a call whose link is on the event that is on now. An event with no link asks at its start instead."
+              value={settings.notetaker.calendar.autoStart}
+              onChange={(autoStart) =>
+                update({
+                  notetaker: {
+                    ...settings.notetaker,
+                    calendar: { ...settings.notetaker.calendar, autoStart },
+                  },
+                })
+              }
+            />
+            <Switch
+              label="Skip events I declined"
+              value={settings.notetaker.calendar.skipDeclined}
+              onChange={(skipDeclined) =>
+                update({
+                  notetaker: {
+                    ...settings.notetaker,
+                    calendar: { ...settings.notetaker.calendar, skipDeclined },
+                  },
+                })
+              }
+            />
+            <Switch
+              label="Show the next meeting in the menu bar"
+              value={settings.notetaker.menubar.showNextMeeting}
+              onChange={(showNextMeeting) =>
+                update({
+                  notetaker: {
+                    ...settings.notetaker,
+                    menubar: { ...settings.notetaker.menubar, showNextMeeting },
+                  },
+                })
+              }
+            />
+            <Selector
+              label="Look ahead in the menu bar"
+              options={LOOKAHEAD_HOURS.map((hours) => ({
+                value: String(hours),
+                label: `${hours} ${hours === 1 ? "hour" : "hours"}`,
+              }))}
+              value={String(settings.notetaker.menubar.lookaheadHours)}
+              onChange={(value) =>
+                update({
+                  notetaker: {
+                    ...settings.notetaker,
+                    menubar: { ...settings.notetaker.menubar, lookaheadHours: Number(value) },
                   },
                 })
               }

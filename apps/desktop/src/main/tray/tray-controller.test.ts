@@ -177,6 +177,89 @@ describe("tray meeting recording", () => {
   });
 });
 
+describe("tray next meeting (NT-29)", () => {
+  function make(
+    next: ReturnType<NonNullable<Parameters<typeof createTrayController>[0]["nextMeeting"]>>,
+    recording = false,
+  ) {
+    const join = vi.fn();
+    const recordEvent = vi.fn();
+    const state: { next: typeof next } = { next };
+    const tray = createTrayController({
+      host: { render: () => {} },
+      clock: new FakeClock(),
+      logger: createTestLogger(),
+      settings: () => setup().settings(),
+      updateSettings: () => {},
+      listDevices: async () => [],
+      lastTranscript: () => null,
+      toggleDictation: () => {},
+      canRetry: () => false,
+      retryLast: () => {},
+      snoozeReminder: () => {},
+      copy: () => {},
+      quit: () => {},
+      meetingState: () =>
+        recording
+          ? {
+              status: "recording",
+              meetingId: "m",
+              title: "M",
+              startedAt: 0,
+              channels: ["mic"],
+              warnings: [],
+            }
+          : { status: "idle" },
+      nextMeeting: () => state.next,
+      joinMeeting: join,
+      recordEvent,
+    });
+    const labels = () =>
+      tray.view().items.flatMap((item) => (item.kind === "item" ? [item.label] : []));
+    return { tray, join, recordEvent, state, labels };
+  }
+  const NEXT = {
+    eventId: "e1",
+    title: "Design sync",
+    when: "in 12 min",
+    hasLink: true,
+    text: "Design sync in 12 min",
+  };
+
+  it("shows the next meeting next to the icon and in the menu, with join and record", () => {
+    const t = make(NEXT);
+    expect(t.tray.view().nextText).toBe("Design sync in 12 min");
+    expect(t.labels()).toContain("Next: Design sync, in 12 min");
+    expect(t.labels()).toContain("Join the meeting");
+    expect(t.labels()).toContain("Record this meeting");
+    t.tray.perform({ type: "meeting-join", eventId: "e1" });
+    t.tray.perform({ type: "meeting-record-event", eventId: "e1" });
+    expect(t.join).toHaveBeenCalledWith("e1");
+    expect(t.recordEvent).toHaveBeenCalledWith("e1");
+  });
+
+  it("has no join for a meeting with no link, and updates when the next meeting changes or goes", () => {
+    const t = make({ ...NEXT, hasLink: false });
+    expect(t.labels()).not.toContain("Join the meeting");
+    t.state.next = null;
+    expect(t.tray.view().nextText).toBeUndefined();
+    expect(t.labels().some((label) => label.startsWith("Next:"))).toBe(false);
+  });
+
+  it("shows the recording instead while a meeting records", () => {
+    const t = make(NEXT, true);
+    expect(t.tray.view().nextText).toBeUndefined();
+    expect(t.tray.view().elapsed).toBeDefined();
+    expect(t.labels().some((label) => label.startsWith("Next:"))).toBe(false);
+  });
+
+  it("changes nothing when there is no calendar", () => {
+    const t = make(null);
+    expect(t.tray.view().nextText).toBeUndefined();
+    expect(t.labels().some((label) => label.startsWith("Next:"))).toBe(false);
+  });
+});
+
 describe("tray controller", () => {
   it("follows a dictation: label and status", () => {
     const { controller, views, labels } = setup();

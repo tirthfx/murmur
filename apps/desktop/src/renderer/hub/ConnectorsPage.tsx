@@ -18,6 +18,8 @@ import {
   type ConnectorActionResult,
   type ConnectorChoice,
   type ConnectorSettings,
+  type MeetingFolder,
+  type Settings,
   type ConnectorsView,
   type ConnectorView,
 } from "@murmur/shared";
@@ -146,6 +148,8 @@ export function ConnectorsPage() {
   const [waiting, setWaiting] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<string | null>(null);
   const [syncing, setSyncing] = useState<string | null>(null);
+  const [notetaker, setNotetaker] = useState<Settings["notetaker"] | null>(null);
+  const [folders, setFolders] = useState<MeetingFolder[]>([]);
 
   const reload = useCallback(async () => {
     try {
@@ -158,9 +162,13 @@ export function ConnectorsPage() {
   useEffect(() => {
     void reload();
     window.murmur.getSettings().then(
-      (current) => setSettings(current.settings.connectors),
+      (current) => {
+        setSettings(current.settings.connectors);
+        setNotetaker(current.settings.notetaker);
+      },
       () => setSettings(null),
     );
+    window.murmur.foldersList().then(setFolders, () => setFolders([]));
     // A sign-in finishes in the browser and a token can stop working while the page is open.
     const onFocus = () => void reload();
     window.addEventListener("focus", onFocus);
@@ -188,6 +196,18 @@ export function ConnectorsPage() {
   async function disconnect(account: ConnectorAccount) {
     setConfirm(null);
     report(await window.murmur.connectorDisconnect(account.id));
+  }
+
+  /** The folder a meeting started from this calendar goes in; null is the usual one. */
+  async function chooseFolder(account: ConnectorAccount, folderId: string | null) {
+    if (!notetaker) return;
+    const defaults = { ...notetaker.calendar.defaultFolders };
+    if (folderId === null) delete defaults[account.id];
+    else defaults[account.id] = folderId;
+    const updated = await window.murmur.updateSettings({
+      notetaker: { ...notetaker, calendar: { ...notetaker.calendar, defaultFolders: defaults } },
+    });
+    setNotetaker(updated.settings.notetaker);
   }
 
   async function syncNow(account: ConnectorAccount) {
@@ -395,6 +415,28 @@ export function ConnectorsPage() {
                                     >
                                       Read now
                                     </Button>
+                                  ) : null}
+                                  {account.status === "connected" &&
+                                  (CALENDAR_CONNECTOR_IDS as readonly string[]).includes(
+                                    connector.id,
+                                  ) &&
+                                  notetaker ? (
+                                    <Selector
+                                      label={`Meetings from ${account.email} go to`}
+                                      value={
+                                        notetaker.calendar.defaultFolders[account.id] ?? "usual"
+                                      }
+                                      options={[
+                                        { value: "usual", label: "The usual folder" },
+                                        ...folders.map((folder) => ({
+                                          value: folder.id,
+                                          label: folder.name,
+                                        })),
+                                      ]}
+                                      onChange={(value) =>
+                                        void chooseFolder(account, value === "usual" ? null : value)
+                                      }
+                                    />
                                   ) : null}
                                   {confirm === account.id ? (
                                     <HStack gap={1}>

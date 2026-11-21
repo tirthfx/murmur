@@ -45,10 +45,10 @@ export interface FoldersStore {
 const clean = (name: string) => name.replace(/\s+/g, " ").trim();
 
 /**
- * The weights of the match (NT-17): attendees 0.5, title words 0.3, recency 0.2. Meetings have no
- * attendees until the calendar comes (M6), so that weight is left out and the other two are
- * scaled up to make 1. A folder is suggested when some title words match (recency alone never
- * suggests one) and the score reaches `SUGGEST_THRESHOLD`.
+ * The weights of the match (NT-17): attendees 0.5, title words 0.3, recency 0.2. A meeting that
+ * was not started from a calendar event has no attendees, so that weight is left out and the
+ * other two are scaled up to make 1. A folder is suggested when some title words or some people
+ * match (recency alone never suggests one) and the score reaches `SUGGEST_THRESHOLD`.
  */
 export const WEIGHTS = { attendees: 0.5, title: 0.3, recency: 0.2 } as const;
 export const SUGGEST_THRESHOLD = 0.25;
@@ -137,6 +137,30 @@ export function createFoldersStore(
     return `title:${titleWords(meeting?.title ?? "")
       .sort()
       .join(" ")}`;
+  };
+
+  /** The emails of the people invited to a meeting, lower case (none for a meeting not from a calendar). */
+  const meetingPeople = (meetingId: string): string[] => {
+    const row = db.prepare("SELECT attendees_json FROM meetings WHERE id = ?").get(meetingId) as
+      { attendees_json: string } | undefined;
+    try {
+      return [
+        ...new Set(
+          (JSON.parse(row?.attendees_json ?? "[]") as { email: string }[]).map((a) => a.email),
+        ),
+      ];
+    } catch {
+      return [];
+    }
+  };
+  /** Everyone invited to the other meetings in a folder. */
+  const peopleIn = (folderId: string, exceptMeeting: string): Set<string> => {
+    const out = new Set<string>();
+    for (const row of db
+      .prepare("SELECT id FROM meetings WHERE folder_id = ? AND id != ?")
+      .all(folderId, exceptMeeting) as { id: string }[])
+      for (const email of meetingPeople(row.id)) out.add(email);
+    return out;
   };
 
   return {
@@ -241,9 +265,12 @@ export function createFoldersStore(
       return row?.skill ?? null;
     },
 
-    suggest(meetingId, attendees = []) {
+    suggest(meetingId, given = []) {
       const meeting = meetingRow(meetingId);
       if (!meeting || meeting.folder_id !== null) return null;
+      // The people invited, when the meeting was started from a calendar event (NT-02).
+      const invited = meetingPeople(meetingId);
+      const attendees = given.length > 0 ? given : invited;
       const words = titleWords(meeting.title);
       const dismissedKey = keyOf(meetingId, attendees);
       const dismissed = new Set(
@@ -277,16 +304,30 @@ export function createFoldersStore(
         const title =
           words.length === 0 ? 0 : words.filter((word) => inFolder.has(word)).length / words.length;
         const recency = before?.folder_id === folder.id ? 1 : 0;
-        // Attendees come with the calendar (M6); until then the other two weights are scaled up.
+        // With people invited, all three weights count: the share of them who were at meetings
+        // in this folder. Without, the other two are scaled up to make 1.
+        const people =
+          invited.length === 0
+            ? 0
+            : invited.filter((email) => peopleIn(folder.id, meeting.id).has(email)).length /
+              invited.length;
         const score =
-          (WEIGHTS.title * title + WEIGHTS.recency * recency) / (WEIGHTS.title + WEIGHTS.recency);
-        if (title > 0 && score >= SUGGEST_THRESHOLD && (!best || score > best.score))
+          invited.length > 0
+            ? WEIGHTS.attendees * people + WEIGHTS.title * title + WEIGHTS.recency * recency
+            : (WEIGHTS.title * title + WEIGHTS.recency * recency) /
+              (WEIGHTS.title + WEIGHTS.recency);
+        if (
+          (title > 0 || people > 0) &&
+          score >= SUGGEST_THRESHOLD &&
+          (!best || score > best.score)
+        )
           best = { id: folder.id, name: folder.name, score };
       }
       return best ? { folderId: best.id, folderName: best.name } : null;
     },
 
-    dismiss(meetingId, folderId, attendees = []) {
+    dismiss(meetingId, folderId, given = []) {
+      const attendees = given.length > 0 ? given : meetingPeople(meetingId);
       db.prepare(
         `INSERT OR IGNORE INTO folder_suggestion_dismissals (key, folder_id, created_at)
          VALUES (?, ?, ?)`,

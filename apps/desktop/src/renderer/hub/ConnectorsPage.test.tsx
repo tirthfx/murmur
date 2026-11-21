@@ -255,6 +255,47 @@ describe("Connectors page (CN-15)", () => {
     expect(await screen.findByText("Google Calendar answered 503.")).toBeTruthy();
   });
 
+  it("chooses the folder for meetings started from a calendar account, or the usual one", async () => {
+    show(viewOf({ googleCalendar: { readiness: "ready", accounts: [account()] } }));
+    api.foldersList = vi.fn().mockResolvedValue([
+      {
+        id: "f1",
+        name: "Customer calls",
+        meetings: 0,
+        defaultSkillId: null,
+        autoExportPath: null,
+        retentionAudio: null,
+        retentionTranscript: null,
+      },
+    ]);
+    render(<ConnectorsPage />);
+    fireEvent.click(
+      await screen.findByRole("combobox", { name: "Meetings from me@example.com go to" }),
+    );
+    fireEvent.click(await screen.findByRole("option", { name: "Customer calls" }));
+    await waitFor(() =>
+      expect(api.updateSettings).toHaveBeenCalledWith({
+        notetaker: expect.objectContaining({
+          calendar: expect.objectContaining({ defaultFolders: { a1: "f1" } }),
+        }),
+      }),
+    );
+  });
+
+  it("has no folder choice for a connector that is not a calendar", async () => {
+    show(
+      viewOf({
+        gmail: {
+          readiness: "ready",
+          accounts: [account({ id: "m1", connector: "gmail", email: "m@example.com" })],
+        },
+      }),
+    );
+    render(<ConnectorsPage />);
+    await screen.findByText("m@example.com");
+    expect(screen.queryByRole("combobox", { name: /go to$/ })).toBeNull();
+  });
+
   it("turns an account off and on", async () => {
     show(viewOf({ googleCalendar: { readiness: "ready", accounts: [account()] } }));
     render(<ConnectorsPage />);

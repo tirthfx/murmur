@@ -263,6 +263,7 @@ describe("the six read tools (CN-11)", () => {
         folder: "Planning",
         language: null,
         speakers: ["You", "Sam"],
+        attendees: [],
         summaryVersions: 2,
         transcriptAvailable: true,
       });

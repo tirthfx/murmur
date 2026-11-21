@@ -20,8 +20,16 @@ export interface MeetingDetectorDeps {
    */
   showPrompt(app: { id: string; name: string }): boolean;
   hidePrompt(): void;
-  /** Starts a recording the way the owner would (the consent notice still applies). */
-  start(): Promise<StartResult>;
+  /**
+   * Starts a recording the way the owner would (the consent notice still applies). The app is
+   * the call that was seen, so the recording can be tied to a calendar event (NT-02).
+   */
+  start(app: { id: string; name: string }): Promise<StartResult>;
+  /**
+   * True when this call is to be recorded without asking, as when its calendar event is on now
+   * and auto start is on (NT-02). Asked when the call has been seen long enough to act on.
+   */
+  autoRecordFor?(app: { id: string; name: string }): boolean;
   stop(): Promise<unknown>;
   /** The owner chose "Never for this app". */
   neverFor(id: string): void;
@@ -57,6 +65,7 @@ type CallState = "candidate" | "prompted" | "declined" | "recording" | "ending";
 export function createMeetingDetector(deps: MeetingDetectorDeps): MeetingDetector {
   const states = new Map<string, CallState>();
   const timers = new Map<string, TimerHandle>();
+  const names = new Map<string, string>();
   let promptFor: string | null = null;
 
   const clear = (id: string) => {
@@ -85,7 +94,7 @@ export function createMeetingDetector(deps: MeetingDetectorDeps): MeetingDetecto
   }
 
   async function record(id: string): Promise<void> {
-    const result = await deps.start();
+    const result = await deps.start({ id, name: names.get(id) ?? id });
     if (states.get(id) === undefined) return;
     if (result.ok) states.set(id, "recording");
     else {
@@ -101,7 +110,7 @@ export function createMeetingDetector(deps: MeetingDetectorDeps): MeetingDetecto
       states.set(id, "declined");
       return;
     }
-    if (deps.settings().autoRecord) {
+    if (deps.settings().autoRecord || deps.autoRecordFor?.({ id, name }) === true) {
       void record(id);
       return;
     }
@@ -118,6 +127,7 @@ export function createMeetingDetector(deps: MeetingDetectorDeps): MeetingDetecto
       const matcher = deps.matchers().find((candidate) => candidate.id === event.matcherId);
       if (!matcher) return;
       const id = matcher.id;
+      names.set(id, matcher.name);
       const state = states.get(id);
       if (event.active) {
         if (!allowed(id)) return;

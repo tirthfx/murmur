@@ -84,6 +84,13 @@ export const SETTINGS_INDEX: readonly SettingEntry[] = [
     words: "notetaker dictation dictated transcript recap what did i miss minutes",
   },
   {
+    id: "meeting-calendar",
+    page: "system",
+    label: "Calendar reminders and the menu bar",
+    words:
+      "notetaker calendar reminder before meeting auto start declined menu bar next meeting lookahead",
+  },
+  {
     id: "meeting-import",
     page: "system",
     label: "Importing transcripts",
