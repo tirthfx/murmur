@@ -37,6 +37,11 @@ export interface SpeechService {
   /** Transcribes a recorded file. Rejects when the model is not ready. */
   /** `prompt`: words already on screen, to help spell names. */
   transcribe(path: string, prompt?: string): Promise<Transcript>;
+  /**
+   * NT-05: transcribes a meeting chunk, keeping its timing. Waits behind any dictation, which
+   * always goes first: the helper decodes one file at a time.
+   */
+  transcribeMeeting(path: string, languages: string[]): Promise<Transcript>;
 }
 
 function errorMessage(error: unknown): string {
@@ -56,6 +61,38 @@ export function createSpeechService(deps: SpeechServiceDeps): SpeechService {
   let generation = 0;
   let verified = false;
   let subscription: Unsubscribe | null = null;
+
+  // One decode at a time in the helper; a dictation waiting is served before a meeting chunk.
+  let decoding = false;
+  const waiting: { dictation: boolean; go: () => void }[] = [];
+  async function turn(dictation: boolean): Promise<void> {
+    if (!decoding) {
+      decoding = true;
+      return;
+    }
+    await new Promise<void>((go) => waiting.push({ dictation, go }));
+  }
+  function done(): void {
+    const first = waiting.findIndex((entry) => entry.dictation);
+    const next = first >= 0 ? waiting.splice(first, 1)[0] : waiting.shift();
+    if (next) next.go();
+    else decoding = false;
+  }
+  async function decode<T>(dictation: boolean, work: () => Promise<T>): Promise<T> {
+    await turn(dictation);
+    try {
+      return await work();
+    } finally {
+      done();
+    }
+  }
+
+  function notReady(): Error {
+    // A model that is loading or waiting for the helper is worth a retry; see the recorder.
+    return Object.assign(new Error(`The speech model is not ready (${state})`), {
+      code: state === "missing" || state === "corrupt" ? "MODEL_MISSING" : "MODEL_NOT_READY",
+    });
+  }
 
   async function prepare(): Promise<void> {
     const attempt = ++generation;
@@ -127,17 +164,20 @@ export function createSpeechService(deps: SpeechServiceDeps): SpeechService {
       if (subscription && helper.getStatus().state === "ready") void prepare();
     },
     transcribe(path, prompt) {
-      if (state !== "ready") {
-        // A model that is loading or waiting for the helper is worth a retry; see the recorder.
-        const error = Object.assign(new Error(`The speech model is not ready (${state})`), {
-          code: state === "missing" || state === "corrupt" ? "MODEL_MISSING" : "MODEL_NOT_READY",
-        });
-        return Promise.reject(error);
-      }
-      return helper.transcribeFile({
-        path,
-        languages: languages(),
-        ...(prompt ? { prompt } : {}),
+      if (state !== "ready") return Promise.reject(notReady());
+      return decode(true, () =>
+        helper.transcribeFile({
+          path,
+          languages: languages(),
+          ...(prompt ? { prompt } : {}),
+        }),
+      );
+    },
+    transcribeMeeting(path, meetingLanguages) {
+      if (state !== "ready") return Promise.reject(notReady());
+      return decode(false, () => {
+        if (state !== "ready") return Promise.reject(notReady());
+        return helper.transcribeFile({ path, languages: meetingLanguages, keepTiming: true });
       });
     },
   };

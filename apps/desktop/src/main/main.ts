@@ -24,6 +24,7 @@ import {
   nativeTheme,
   Notification,
   ipcMain,
+  powerMonitor,
   screen,
   session,
   shell,
@@ -131,6 +132,8 @@ import { writeExport } from "./privacy/data-export";
 import { createNotesStore } from "./notes/notes-store";
 import { createMeetingsStore } from "./meetings/meetings-store";
 import { createMeetingRecorder } from "./meetings/meeting-recorder";
+import { createMeetingJobs, type MeetingJobs } from "./meetings/meeting-jobs";
+import { createTranscriptStore } from "./meetings/transcript-store";
 import { createNoteImages, type ImageEncoder } from "./notes/note-images";
 import {
   noteFileName,
@@ -1581,6 +1584,24 @@ helper.onEditsChanged((change) => {
 
 // NT-04: meeting recordings. The helper writes the chunk files; main keeps the rows.
 const meetingsStore = database ? createMeetingsStore(database) : null;
+// NT-05: the work queue. Transcription needs only the local model; meetings wait for it.
+const meetingJobs: MeetingJobs | null =
+  database && meetingsStore
+    ? createMeetingJobs({
+        db: database,
+        meetings: meetingsStore,
+        transcripts: createTranscriptStore(database),
+        // The meeting language comes with #193; until then it is detected.
+        transcribe: (file) => speech.transcribeMeeting(file, []),
+        speechReady: () => speech.getState() === "ready",
+        dictating: () => hubDictationState !== "idle",
+        now: () => Date.now(),
+        wait: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+        // The Notetaker page (#184) follows progress; nothing else needs it yet.
+        onProgress: () => {},
+        logger: createConsoleLogger("[meetings]"),
+      })
+    : null;
 let meetingTick: ReturnType<typeof setInterval> | null = null;
 const meetings = meetingsStore
   ? createMeetingRecorder({
@@ -1609,6 +1630,10 @@ const meetings = meetingsStore
         barPort.render(bar.getView());
         tray?.refresh();
       },
+      onFinished: (meeting) => {
+        meetingJobs?.enqueue(meeting.id, "transcribe");
+        meetingJobs?.kick();
+      },
       removePartials: (folder) => {
         try {
           for (const name of readdirSync(folder)) {
@@ -1625,6 +1650,10 @@ const interruptedMeetings = meetings?.recover() ?? 0;
 if (interruptedMeetings > 0) {
   console.log(`[meetings] ended ${interruptedMeetings} recording(s) cut short by a crash`);
 }
+const queuedMeetingJobs = meetingJobs?.resume() ?? 0;
+if (queuedMeetingJobs > 0) console.log(`[meetings] ${queuedMeetingJobs} job(s) waiting`);
+// The model may become ready at any time (a download, a helper restart): look every 15 s.
+setInterval(() => meetingJobs?.kick(), 15_000).unref();
 helper.onStatusChange((status) => {
   if (status.state !== "ready") meetings?.helperDown();
 });
@@ -2645,6 +2674,13 @@ void app.whenReady().then(() => {
   hotkeys.start();
   recorder.start();
   speech.start();
+  // NT-05: sleep closes the recording cleanly; it is not resumed on wake (ADR-0076).
+  powerMonitor.on("suspend", () => {
+    const now = meetings?.state();
+    if (now?.status !== "recording") return;
+    meetingsStore?.addWarning(now.meetingId, "sleep");
+    void meetings?.stop();
+  });
   // The app works without the helper; its status is shown in the Hub.
   helper.start().then(
     // Read-only: nothing is requested at launch, only the current status is checked.

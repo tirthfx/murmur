@@ -1,3 +1,4 @@
+@preconcurrency import AVFoundation
 import Foundation
 
 /// What the recognizer returns for one piece of audio.
@@ -77,6 +78,32 @@ public enum SpeechRecognizerError: Error, Equatable {
     case notLoaded
     case loadFailed(String)
     case decodeFailed(String)
+}
+
+/// Reads a compressed audio file (a meeting's `.m4a` chunk) as 16 kHz mono floats.
+enum AudioFileReader {
+    static func floats(url: URL) throws -> [Float] {
+        let file = try AVAudioFile(forReading: url)
+        let format = file.processingFormat
+        let frames = AVAudioFrameCount(file.length)
+        guard frames > 0 else { return [] }
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames) else { return [] }
+        try file.read(into: buffer)
+        guard let channels = buffer.floatChannelData else { return [] }
+        let count = Int(buffer.frameLength)
+        let channelCount = Int(format.channelCount)
+        var mono = [Float](repeating: 0, count: count)
+        for channel in 0..<channelCount {
+            for index in 0..<count { mono[index] += channels[channel][index] }
+        }
+        if channelCount > 1 {
+            let scale = 1 / Float(channelCount)
+            for index in 0..<count { mono[index] *= scale }
+        }
+        if format.sampleRate == Double(AudioFormat.sampleRate) { return mono }
+        let resampler = try Resampler(inputRate: format.sampleRate)
+        return resampler.process(mono) + resampler.flush()
+    }
 }
 
 enum PCMReader {

@@ -116,8 +116,36 @@ export interface AudioChunkRow {
   durationMs: number;
 }
 
+/** One line of a meeting's transcript (NT-06). Final segments are never changed by Murmur. */
+export interface MeetingSegment {
+  id: string;
+  meetingId: string;
+  channel: MeetingChannel;
+  startMs: number;
+  endMs: number;
+  text: string;
+  language: string | null;
+  speakerId: string | null;
+  isDictated: boolean;
+  isFinal: boolean;
+}
+
+export const MEETING_JOB_KINDS = [
+  "transcribe",
+  "summarise",
+  "extract_tasks",
+  "build_index",
+] as const;
+export type MeetingJobKind = (typeof MEETING_JOB_KINDS)[number];
+
+/** How far the transcription of a meeting has got, for the meeting list. */
+export interface TranscriptionProgress {
+  chunks: number;
+  done: number;
+}
+
 /** What a meeting can be marked with: a channel problem, or a recording cut short. */
-export type MeetingWarning = CaptureWarning | CaptureIssue | "interrupted";
+export type MeetingWarning = CaptureWarning | CaptureIssue | "interrupted" | "sleep";
 
 /** What the Notetaker shows about the recording now. */
 export type RecordingState =
@@ -141,6 +169,7 @@ export const MEETING_WARNING_TEXT: Record<MeetingWarning, string> = {
   sck_stream_stopped: "Recording the Mac's sound stopped part way; your microphone kept recording.",
   write_failed: "Part of the recording could not be saved.",
   interrupted: "The recording stopped unexpectedly. What was saved before then is kept.",
+  sleep: "The recording stopped when the Mac went to sleep. Start a new one to carry on.",
 };
 
 /** "Meeting, 21 Nov 2026 14:05" in the local time zone (NT-03). */

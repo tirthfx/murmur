@@ -149,6 +149,39 @@ final class TranscriptionControllerTests: XCTestCase {
         XCTAssertNil(decodes.first?.options.prompt)
     }
 
+    func testMeetingChunksKeepTheirTimingAndSkipSilence() async throws {
+        let (controller, recognizer, events) = loaded()
+        // Half a second of silence, then a tone: with keepTiming nothing is trimmed.
+        let audio = [Float](repeating: 0, count: 8_000) + Signal.sine(seconds: 1, rate: 16_000, amplitude: 0.2)
+        let url = directory.appendingPathComponent("mic-000001.m4a")
+        let file = try AACChunkEncoder().open(url: url)
+        try file.append(audio)
+        file.close()
+        XCTAssertNil(
+            controller.handle(
+                id: "m-2", type: "transcribe.file",
+                payload: ["path": .string(url.path), "languages": .array([]), "keepTiming": .bool(true)]))
+        waitForReplies(events, count: 1)
+        XCTAssertEqual(events.all.first?.payload["ok"], .bool(true))
+        let decodes = await recognizer.decodes
+        XCTAssertEqual(Double(decodes.first?.count ?? 0), 24_000, accuracy: 2_048)
+
+        // A silent chunk is never decoded.
+        events.clear()
+        let silent = directory.appendingPathComponent("system-000001.m4a")
+        let quiet = try AACChunkEncoder().open(url: silent)
+        try quiet.append([Float](repeating: 0, count: 16_000))
+        quiet.close()
+        XCTAssertNil(
+            controller.handle(
+                id: "m-3", type: "transcribe.file",
+                payload: ["path": .string(silent.path), "languages": .array([]), "keepTiming": .bool(true)]))
+        waitForReplies(events, count: 1)
+        XCTAssertEqual(events.all.first?.payload["result"]?.objectValue?["text"], .string(""))
+        let after = await recognizer.decodes
+        XCTAssertEqual(after.count, 1)
+    }
+
     func testPassesThePromptAndRefusesAnOversizedOne() async throws {
         let (controller, recognizer, events) = loaded()
         let path = try pcmFile(seconds: 1)

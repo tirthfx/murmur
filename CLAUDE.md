@@ -150,7 +150,7 @@ Text generation for Rewrites, Command Mode and Instruct Mode (prompt rules, stre
 
 Scratchpad (the window, notes, tabs, autosave, search, versions, pins, images, Rewrites in notes, Markdown export and import, the shortcut and the on/off switch): see `docs/scratchpad.md`.
 
-Notetaker (meeting recording of the microphone and the Mac's sound in chunk files, the meetings tables, the indicator, crash recovery): see `docs/notetaker.md`.
+Notetaker (meeting recording of the microphone and the Mac's sound in chunk files, the meetings tables, the indicator, crash recovery, the transcription queue that waits for the model and lets dictation go first): see `docs/notetaker.md`.
 
 Insights (daily counts, the cards, streaks, top apps, CSV export, milestones, the progress card): see `docs/insights.md`.
 

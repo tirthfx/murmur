@@ -133,4 +133,37 @@ describe("speech service", () => {
     await expect(service.transcribe("/tmp/a.pcm")).resolves.toMatchObject({ text: "Hello there." });
     expect(helper.transcribeFile).toHaveBeenCalledWith({ path: "/tmp/a.pcm", languages: [] });
   });
+
+  it("decodes one file at a time, and a waiting dictation goes before meeting chunks", async () => {
+    const { service, helper } = setup();
+    service.start();
+    await flush();
+    const order: string[] = [];
+    const releases: (() => void)[] = [];
+    helper.transcribeFile.mockImplementation(async (...args: unknown[]) => {
+      order.push((args[0] as { path: string }).path);
+      await new Promise<void>((resolve) => releases.push(resolve));
+      return { text: "", language: "en", segments: [], decodeMs: 1, audioMs: 1 };
+    });
+    const first = service.transcribeMeeting("/m/mic-1.m4a", []);
+    const second = service.transcribeMeeting("/m/mic-2.m4a", []);
+    const dictation = service.transcribe("/tmp/d.pcm");
+    await flush();
+    expect(order).toEqual(["/m/mic-1.m4a"]);
+    expect(helper.transcribeFile).toHaveBeenCalledWith({
+      path: "/m/mic-1.m4a",
+      languages: [],
+      keepTiming: true,
+    });
+    releases.shift()!();
+    await first;
+    await flush();
+    expect(order).toEqual(["/m/mic-1.m4a", "/tmp/d.pcm"]);
+    releases.shift()!();
+    await dictation;
+    await flush();
+    releases.shift()!();
+    await second;
+    expect(order).toEqual(["/m/mic-1.m4a", "/tmp/d.pcm", "/m/mic-2.m4a"]);
+  });
 });
