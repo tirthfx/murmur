@@ -326,8 +326,10 @@ describe("connecting (CN-01)", () => {
     const first = t.service.connect("fake");
     await vi.waitFor(() => expect(t.opened).toHaveLength(1));
     expect(await t.service.connect("fake")).toMatchObject({ ok: false, reason: "busy" });
+    expect(t.service.isConnecting("fake")).toBe(true);
     t.service.cancelConnect("fake");
     expect(await first).toMatchObject({ ok: false, reason: "cancelled" });
+    expect(t.service.isConnecting("fake")).toBe(false);
     // And it can start again.
     t.setBrowser(approve);
     expect(await t.service.connect("fake")).toMatchObject({ ok: true });

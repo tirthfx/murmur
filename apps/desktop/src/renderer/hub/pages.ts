@@ -23,6 +23,12 @@ export const PAGES = [
     emptyDescription: "Recorded meetings, with their notes and transcripts, will be listed here.",
   },
   {
+    id: "connectors",
+    title: "Connectors",
+    emptyTitle: "Nothing connected",
+    emptyDescription: "Calendars and other services you sign in to will be listed here.",
+  },
+  {
     id: "dictionary",
     title: "Dictionary",
     emptyTitle: "No words saved",

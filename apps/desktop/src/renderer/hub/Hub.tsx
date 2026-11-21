@@ -9,6 +9,7 @@ import { DictionaryPage } from "./DictionaryPage";
 import { SnippetsPage } from "./SnippetsPage";
 import { StylesPage } from "./StylesPage";
 import { InstructPage } from "./InstructPage";
+import { ConnectorsPage } from "./ConnectorsPage";
 import { NotetakerPage } from "./NotetakerPage";
 import { MemoryPage } from "./MemoryPage";
 import { RewritesPage } from "./RewritesPage";
@@ -208,6 +209,8 @@ function HubPages({ onRunSetup }: { onRunSetup: () => void }) {
             <DictationPage />
           ) : page.id === "notetaker" ? (
             <NotetakerPage />
+          ) : page.id === "connectors" ? (
+            <ConnectorsPage />
           ) : page.id === "history" ? (
             <HistoryPage />
           ) : page.id === "insights" ? (

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  DEFAULT_CONNECTOR_SETTINGS,
   DEFAULT_NOTETAKER,
   DEFAULT_SOUNDS,
   type AudioDevice,
@@ -58,6 +59,7 @@ function setup() {
     help: { tours: {} },
     referral: { code: "ABCD2345", invites: 0 },
     notetaker: DEFAULT_NOTETAKER,
+    connectors: DEFAULT_CONNECTOR_SETTINGS,
     contextAwareness: true,
     mouseButtons: { hold: null, handsFree: null },
     typingReminder: { enabled: true, snoozedUntil: null },

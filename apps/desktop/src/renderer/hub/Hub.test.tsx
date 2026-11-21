@@ -53,6 +53,7 @@ describe("Hub", () => {
       "Home",
       "Dictation",
       "Notetaker",
+      "Connectors",
       "Dictionary",
       "Snippets",
       "Styles",

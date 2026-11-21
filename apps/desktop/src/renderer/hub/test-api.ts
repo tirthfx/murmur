@@ -1,4 +1,4 @@
-import { BUILT_IN_SKILLS, DEFAULT_NOTETAKER } from "@murmur/shared";
+import { BUILT_IN_SKILLS, DEFAULT_CONNECTOR_SETTINGS, DEFAULT_NOTETAKER } from "@murmur/shared";
 import { vi } from "vitest";
 import type {
   HistoryPage,
@@ -51,6 +51,7 @@ export const SAMPLE_SETTINGS: SettingsView = {
     help: { tours: {} },
     referral: { code: "ABCD2345", invites: 0 },
     notetaker: DEFAULT_NOTETAKER,
+    connectors: DEFAULT_CONNECTOR_SETTINGS,
     contextAwareness: true,
     mouseButtons: { hold: null, handsFree: null },
     typingReminder: { enabled: true, snoozedUntil: null },
@@ -447,6 +448,13 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
     folderUpdate: vi.fn().mockResolvedValue({ ok: true, folders: [] }),
     folderChooseExport: vi.fn().mockResolvedValue({ ok: true, folders: [] }),
     folderClearExport: vi.fn().mockResolvedValue({ ok: true, folders: [] }),
+    connectorsView: vi.fn().mockResolvedValue({ connectors: [], cacheTtlMinutes: 15 }),
+    connectorConnect: vi.fn().mockResolvedValue({ ok: true }),
+    connectorCancel: vi.fn().mockResolvedValue(undefined),
+    connectorDisconnect: vi.fn().mockResolvedValue({ ok: true }),
+    connectorSetEnabled: vi.fn().mockResolvedValue(undefined),
+    connectorSetClientId: vi.fn().mockResolvedValue({ ok: true }),
+    connectorSetClientSecret: vi.fn().mockResolvedValue({ ok: true }),
     meetingMove: vi.fn().mockResolvedValue({ ok: true, folders: [] }),
     meetingFolderDismiss: vi.fn().mockResolvedValue(undefined),
     meetingExport: vi.fn().mockResolvedValue({ ok: false, cancelled: true }),

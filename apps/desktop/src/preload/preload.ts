@@ -184,6 +184,18 @@ const api: MurmurApi = {
   folderUpdate: (id, patch) => ipcRenderer.invoke(IPC_CHANNELS.folderUpdate, id, patch),
   folderChooseExport: (id) => ipcRenderer.invoke(IPC_CHANNELS.folderChooseExport, id),
   folderClearExport: (id) => ipcRenderer.invoke(IPC_CHANNELS.folderClearExport, id),
+  connectorsView: () => ipcRenderer.invoke(IPC_CHANNELS.connectorsView),
+  connectorConnect: (id, loginHint) =>
+    ipcRenderer.invoke(IPC_CHANNELS.connectorConnect, id, loginHint),
+  connectorCancel: (id) => ipcRenderer.invoke(IPC_CHANNELS.connectorCancel, id),
+  connectorDisconnect: (accountId) =>
+    ipcRenderer.invoke(IPC_CHANNELS.connectorDisconnect, accountId),
+  connectorSetEnabled: (accountId, enabled) =>
+    ipcRenderer.invoke(IPC_CHANNELS.connectorSetEnabled, accountId, enabled),
+  connectorSetClientId: (id, clientId) =>
+    ipcRenderer.invoke(IPC_CHANNELS.connectorSetClientId, id, clientId),
+  connectorSetClientSecret: (id, secret) =>
+    ipcRenderer.invoke(IPC_CHANNELS.connectorSetClientSecret, id, secret),
   meetingMove: (meetingId, folderId) =>
     ipcRenderer.invoke(IPC_CHANNELS.meetingMove, meetingId, folderId),
   meetingFolderDismiss: (meetingId, folderId) =>

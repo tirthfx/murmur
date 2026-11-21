@@ -152,7 +152,7 @@ Scratchpad (the window, notes, tabs, autosave, search, versions, pins, images, R
 
 Notetaker (meeting recording of the microphone and the Mac's sound in chunk files, the meetings tables, the indicator, crash recovery, the transcription queue that waits for the model and lets dictation go first, the Notetaker page and its tabs, live text, the start shortcut and the recording notice, meeting detection, Skills and summaries, custom Skills, tasks and My Tasks, Ask across meetings, speakers and playback, transcript corrections, languages and rerun, folders and shareable files, retention, importing transcripts, dictation during a meeting and recaps): see `docs/notetaker.md`.
 
-Connectors (the framework for calendars, mail and chat: accounts, OAuth with PKCE in the system browser, tokens in the Keychain through the helper, refresh, disconnect, the client-id file, strict local mode): see `docs/connectors.md`.
+Connectors (the framework for calendars, mail and chat: accounts, OAuth with PKCE in the system browser, tokens in the Keychain through the helper, refresh, disconnect, the client-id file, strict local mode, the Connectors page and its feature notices): see `docs/connectors.md`.
 
 Insights (daily counts, the cards, streaks, top apps, CSV export, milestones, the progress card): see `docs/insights.md`.
 

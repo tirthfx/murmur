@@ -26,6 +26,7 @@ import {
   type TranscriptImportConfirmResult,
   type TranscriptImportPreviewResult,
 } from "./transcript-import";
+import type { ConnectorActionResult, ConnectorsView } from "./connectors";
 import {
   folderPatchSchema,
   meetingExportOptionsSchema,
@@ -442,6 +443,13 @@ export const IPC_CHANNELS = {
   folderUpdate: "folders:update",
   folderChooseExport: "folders:choose-export",
   folderClearExport: "folders:clear-export",
+  connectorsView: "connectors:view",
+  connectorConnect: "connectors:connect",
+  connectorCancel: "connectors:cancel",
+  connectorDisconnect: "connectors:disconnect",
+  connectorSetEnabled: "connectors:set-enabled",
+  connectorSetClientId: "connectors:set-client-id",
+  connectorSetClientSecret: "connectors:set-client-secret",
   meetingMove: "meetings:move",
   meetingFolderDismiss: "meetings:folder-dismiss",
   meetingExport: "meetings:export",
@@ -980,6 +988,28 @@ export const IPC_CONTRACT = {
     args: z.tuple([z.string().min(1).max(64)]),
     result: z.custom<FolderResult>(),
   },
+  [IPC_CHANNELS.connectorsView]: { args: z.tuple([]), result: z.custom<ConnectorsView>() },
+  [IPC_CHANNELS.connectorConnect]: {
+    args: z.tuple([z.string().min(1).max(64), z.string().max(320).optional()]),
+    result: z.custom<ConnectorActionResult>(),
+  },
+  [IPC_CHANNELS.connectorCancel]: { args: z.tuple([z.string().min(1).max(64)]), result: z.void() },
+  [IPC_CHANNELS.connectorDisconnect]: {
+    args: z.tuple([z.string().min(1).max(64)]),
+    result: z.custom<ConnectorActionResult>(),
+  },
+  [IPC_CHANNELS.connectorSetEnabled]: {
+    args: z.tuple([z.string().min(1).max(64), z.boolean()]),
+    result: z.void(),
+  },
+  [IPC_CHANNELS.connectorSetClientId]: {
+    args: z.tuple([z.string().min(1).max(64), z.string().max(300).nullable()]),
+    result: z.custom<ConnectorActionResult>(),
+  },
+  [IPC_CHANNELS.connectorSetClientSecret]: {
+    args: z.tuple([z.string().min(1).max(64), z.string().max(300).nullable()]),
+    result: z.custom<ConnectorActionResult>(),
+  },
   [IPC_CHANNELS.meetingMove]: {
     args: z.tuple([z.string().min(1).max(64), z.string().min(1).max(64).nullable()]),
     result: z.custom<FolderResult>(),
@@ -1347,6 +1377,19 @@ export interface MurmurApi {
   /** Asks for a folder on disk where a file is written after each meeting of this folder. */
   folderChooseExport(id: string): Promise<FolderResult>;
   folderClearExport(id: string): Promise<FolderResult>;
+  /** CN-15: every connector with its accounts and state. No token is ever in it. */
+  connectorsView(): Promise<ConnectorsView>;
+  /** Opens the provider's sign-in in the system browser and resolves when it ends. */
+  connectorConnect(id: string, loginHint?: string): Promise<ConnectorActionResult>;
+  /** Stops a sign-in that is waiting for the browser. */
+  connectorCancel(id: string): Promise<void>;
+  /** Revokes the sign-in at the provider, deletes the Keychain item and the cache. */
+  connectorDisconnect(accountId: string): Promise<ConnectorActionResult>;
+  connectorSetEnabled(accountId: string, enabled: boolean): Promise<void>;
+  /** The OAuth client id of the owner's own app; null removes it. */
+  connectorSetClientId(id: string, clientId: string | null): Promise<ConnectorActionResult>;
+  /** The client secret goes to the Keychain and is never sent back; null removes it. */
+  connectorSetClientSecret(id: string, secret: string | null): Promise<ConnectorActionResult>;
   /** Puts a meeting in a folder, or in the Inbox (null). */
   meetingMove(meetingId: string, folderId: string | null): Promise<FolderResult>;
   /** Stops offering this folder for meetings like this one. */

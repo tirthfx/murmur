@@ -52,10 +52,23 @@ Disconnect revokes the token at the provider when it has a revoke endpoint (the 
 
 Connecting is refused with the strict local message and nothing is opened; a request to a provider goes through the network guard. With it on, no connector traffic leaves the Mac.
 
+## The Connectors page (CN-15)
+
+A Hub page, after Notetaker. It reads local state only (`connectors:view`, built by `connectors/connectors-view.ts`), so it needs no network, and it never receives a token.
+
+- **What needs a connector:** a list of the features that use connectors (`CONNECTOR_FEATURES` in `packages/shared/src/connectors.ts`), each On or Off. A feature is on when some account of one of its connectors is connected. When it is off the reason says what to do: connect a named connector, reconnect a named account, turn an account back on, or that the connector is not built yet.
+- **Connectors:** every connector in `CONNECTOR_CATALOGUE` (Google Calendar, Outlook calendar, Gmail, Slack, Notion, Linear, GitHub, Zoom, Fireflies), whether or not its provider is built. Each card has a status (Not built yet, Needs setup, Not connected, Connected, Needs attention, Disabled), what it reads and can write, the scopes in plain words (a scope asked for only when a feature needs it says so), and the features that use it.
+- **Your app:** the OAuth client id (kept in `connectors.json`) and, where the provider needs one, the client secret (saved in the Keychain, never shown again). A connector with no app says what is missing instead of failing; Connect appears when both are set.
+- **Accounts:** each account has its email, status, last sync, a switch to turn it off and on, Reconnect when it needs attention, and Disconnect with a confirming click (it follows the rules above). Connect another account adds a second sign-in.
+- **A needs-attention account** also shows one banner at the top with a Reconnect button, which signs in again with that email as the hint, so the account keeps its id.
+- **Sync interval and read only:** each connected connector has a sync interval (5 minutes to 4 hours; 15 for calendars, 30 for others by default) and, for a connector that can write, a read-only switch that is on until turned off. They are in the setting `connectors.settings` and are used by the syncs that come with each provider. The cache lifetime is 15 minutes.
+- **For features:** `ConnectorNotice` (renderer) takes a feature id and shows one banner with the reason and a Reconnect or Open Connectors button when the feature cannot work, and nothing when it can.
+- The page reads again when the window is focused, so a sign-in finished in the browser or a token that stopped working shows up.
+
 ## Adding a provider
 
-A provider is a `ConnectorProvider` (`connectors/providers.ts`): id, name, authorize and token addresses, an optional revoke address, scopes, extra sign-in parameters, a fixed loopback port when it needs an exact redirect, and `accountLabel`, which asks the provider for the account's email. Add it to the list in `createConnectorRegistry([...])` in `main.ts`. The framework does the rest.
+A provider is a `ConnectorProvider` (`connectors/providers.ts`): id, name, authorize and token addresses, an optional revoke address, scopes, extra sign-in parameters, a fixed loopback port when it needs an exact redirect, and `accountLabel`, which asks the provider for the account's email. Add it to the list in `createConnectorRegistry([...])` in `main.ts`; its id must match an entry in `CONNECTOR_CATALOGUE`. The framework and the page do the rest.
 
 ## Manual check
 
-There is nothing to connect until the first provider (M6). The Keychain part can be checked now: `npm run test:helper` runs the helper's tests with a fake Keychain; the real Keychain is used by the first connector.
+There is nothing to connect until the first provider (M6); the Connectors page lists every connector as Not built yet. The Keychain part can be checked now: `npm run test:helper` runs the helper's tests with a fake Keychain; the real Keychain is used by the first connector.
