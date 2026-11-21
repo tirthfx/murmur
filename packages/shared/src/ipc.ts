@@ -10,6 +10,7 @@ import {
   type MeetingFindTasksResult,
   type MeetingLanguageInput,
   type MeetingListItem,
+  type MeetingRecapResult,
   type MeetingSummarizeResult,
   type RecordingState,
   type RerunResult,
@@ -446,6 +447,7 @@ export const IPC_CHANNELS = {
   meetingExport: "meetings:export",
   meetingRetentionDue: "meetings:retention-due",
   meetingImportPreview: "meetings:import-preview",
+  meetingRecap: "meetings:recap",
   meetingImportConfirm: "meetings:import-confirm",
   meetingImportCancel: "meetings:import-cancel",
   meetingRerun: "meetings:rerun",
@@ -986,6 +988,10 @@ export const IPC_CONTRACT = {
     args: z.tuple([z.string().min(1).max(64), z.string().min(1).max(64)]),
     result: z.void(),
   },
+  [IPC_CHANNELS.meetingRecap]: {
+    args: z.tuple([z.string().min(1).max(64)]),
+    result: z.custom<MeetingRecapResult>(),
+  },
   [IPC_CHANNELS.meetingImportPreview]: {
     args: z.tuple([]),
     result: z.custom<TranscriptImportPreviewResult>(),
@@ -1351,6 +1357,8 @@ export interface MurmurApi {
   meetingRetentionDue(): Promise<MeetingRetentionDue>;
   /** NT-21: asks for a transcript file and says what is in it, without creating anything. */
   meetingImportPreview(): Promise<TranscriptImportPreviewResult>;
+  /** NT-13: writes a short recap of the last minutes of a meeting (a few seconds). */
+  meetingRecap(meetingId: string): Promise<MeetingRecapResult>;
   /** Makes the meeting from the file just previewed. */
   meetingImportConfirm(input: TranscriptImportConfirmInput): Promise<TranscriptImportConfirmResult>;
   meetingImportCancel(token: string): Promise<void>;

@@ -140,13 +140,13 @@ export function clockSeconds(text: string): number {
   return parts.reduce((total, part) => total * 60 + part, 0);
 }
 
-const citedTimes = (text: string): number[] =>
+export const citedTimes = (text: string): number[] =>
   [...text.matchAll(CLOCK)].flatMap((match) =>
     (match[1]!.match(/\d{1,2}(?::\d{2}){1,2}/g) ?? []).map(clockSeconds),
   );
 
 /** The text without its time brackets, and without the space they leave before punctuation. */
-const stripTimes = (text: string): string =>
+export const stripTimes = (text: string): string =>
   text
     .replace(UNFINISHED, "")
     .replace(CLOCK, "")

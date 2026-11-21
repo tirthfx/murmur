@@ -40,6 +40,7 @@ import {
   type DictationState,
   type MeetingDetail,
   type FolderResult,
+  type MeetingChannel,
   type MeetingExportOptions,
   type SummaryStatus,
   type TaskRunStatus,
@@ -150,6 +151,9 @@ import { createMeetingJobs, type MeetingJobs } from "./meetings/meeting-jobs";
 import { createSkillsService } from "./meetings/skills-service";
 import { createAskIndex } from "./meetings/ask-index";
 import { createAutoExport } from "./meetings/auto-export";
+import { createDictationWindows } from "./meetings/dictation-windows";
+import { createRecapRunner, RecapError } from "./meetings/recap-runner";
+import { createRecapsStore } from "./meetings/recaps-store";
 import { createFoldersStore } from "./meetings/folders-store";
 import { createTranscriptImport } from "./meetings/import/transcript-import";
 import { exportFileName, renderMeetingHtml } from "./meetings/meeting-export";
@@ -841,6 +845,26 @@ let focusBadge: BarView["focus"] = null;
 let meetingBadge: BarView["meeting"] = null;
 /** The dictation state the Hub shows (HB-03), following the Bar. */
 let hubDictationState: DictationState = "idle";
+/** The meeting a dictation is being made during, if one is (NT-19). */
+let dictationMeeting: string | null = null;
+/**
+ * A dictation that records while a meeting does is a window on the meeting's timeline: the
+ * microphone lines that overlap it are the dictation, not the meeting (NT-19). The recording is
+ * never paused.
+ */
+function trackDictationWindow(before: DictationState, after: DictationState): void {
+  if (after === "listening" && before !== "listening") {
+    const recording = meetings?.state();
+    if (recording?.status === "recording") {
+      dictationWindows?.open(recording.meetingId, Date.now() - recording.startedAt);
+      dictationMeeting = recording.meetingId;
+    }
+  } else if (before === "listening" && after !== "listening" && dictationMeeting) {
+    const meeting = meetingsStore?.get(dictationMeeting);
+    if (meeting) dictationWindows?.close(dictationMeeting, Date.now() - meeting.startedAt);
+    dictationMeeting = null;
+  }
+}
 /** The Hub's web contents for pushed events; set when the Hub opens (it may not exist yet). */
 let hubEvents: Electron.WebContents | null = null;
 const barPort = {
@@ -848,7 +872,9 @@ const barPort = {
     barWindow.render({ ...view, focus: focusBadge, meeting: meetingBadge });
     const state = dictationStateOf(view.state);
     if (state === hubDictationState) return;
+    const before = hubDictationState;
     hubDictationState = state;
+    trackDictationWindow(before, state);
     if (hubEvents && !hubEvents.isDestroyed()) hubEvents.send(IPC_EVENTS.dictationState, state);
   },
   level: (rmsDb: number) => barWindow.level(rmsDb),
@@ -1655,6 +1681,9 @@ const meetingRetention = database
       logger: createConsoleLogger("[retention]"),
     })
   : null;
+// NT-19: when a dictation recorded during a meeting.
+const dictationWindows = database ? createDictationWindows(database) : null;
+dictationWindows?.closeLost();
 // NT-17: personal folders for meetings. The Inbox is the meetings in no folder.
 const foldersStore = database
   ? createFoldersStore(database, { now: Date.now, newId: randomUUID })
@@ -1884,6 +1913,66 @@ const meetingRerun =
       })
     : null;
 transcriptVersions?.purge(Date.now());
+// NT-13: "What did I miss": a short recap of the last minutes of a meeting.
+const recapsStore = database ? createRecapsStore(database) : null;
+const recapRunner =
+  meetingsStore && meetingTranscripts && recapsStore
+    ? createRecapRunner({
+        position: (id) => {
+          const meeting = meetingsStore.get(id);
+          if (!meeting) return null;
+          const state = meetings?.state();
+          const recording = state?.status === "recording" && state.meetingId === id;
+          return {
+            recording,
+            nowMs: recording ? Date.now() - meeting.startedAt : meeting.durationMs,
+          };
+        },
+        lines: (id) => {
+          const speakers = speakersStore?.list(id) ?? [];
+          const nameOf = (speakerId: string | null, channel: MeetingChannel) =>
+            speakers.find((s) => s.id === speakerId)?.name ??
+            speakers.find((s) => s.channel === channel)?.name ??
+            SPEAKER_DEFAULT_NAMES[channel];
+          const finals = meetingTranscripts
+            .segments(id)
+            .filter((segment) => !segment.isDictated)
+            .map((segment) => ({
+              id: segment.id as string | null,
+              startMs: segment.startMs,
+              speaker: nameOf(segment.speakerId, segment.channel),
+              text: segment.text,
+            }));
+          // What is still grey counts too: it is what the owner sees on the page now.
+          const live = liveTranscriber.partials(id).flatMap((partial) =>
+            partial.segments.map((segment) => ({
+              id: null as string | null,
+              startMs: segment.startMs,
+              speaker: nameOf(null, partial.channel),
+              text: segment.text,
+            })),
+          );
+          return [...finals, ...live].sort((a, b) => a.startMs - b.startMs);
+        },
+        lastSummaryMs: (id) => {
+          const meeting = meetingsStore.get(id);
+          const last = meetingSummaries?.list(id).at(-1);
+          return meeting && last ? Math.max(0, last.createdAt - meeting.startedAt) : null;
+        },
+        windowMinutes: () => settingsStore.get().notetaker.recap.windowMinutes,
+        recaps: recapsStore,
+        modelId: DEFAULT_CLEANUP_MODEL.id,
+        modelReady: cleanupModelReady,
+        generate: meetingGenerate,
+        dictating: () => hubDictationState !== "idle",
+        generating: () => llm.isGenerating(),
+        wait: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+        now: Date.now,
+        newId: randomUUID,
+        onChange: (id) => notifyMeetings(id),
+        logger: createConsoleLogger("[recap]"),
+      })
+    : null;
 // NT-21: meetings from transcript files (VTT, SRT, text, JSON); the preview comes first.
 const transcriptImport =
   database && speakersStore
@@ -2073,6 +2162,9 @@ function meetingDetail(id: string): MeetingDetail | null {
     summaries: meetingSummaries?.list(id) ?? [],
     summaryStatus: summaryStatus(id),
     taskStatus: taskStatus(id),
+    recaps: recapsStore?.list(id) ?? [],
+    recapStatus: recapRunner?.status(id) ?? { state: "idle" as const },
+    showDictated: !settingsStore.get().notetaker.dictation.excludeFromTranscript,
     speakers: speakersStore?.list(id) ?? [],
     transcriptVersions: transcriptVersions?.list(id, Date.now()) ?? [],
     detectedLanguage: meeting.language ? null : meetingTranscripts.detectedLanguage(id),
@@ -2895,6 +2987,20 @@ function registerIpc(): void {
         return { ok: true, path: choice.filePath };
       } catch {
         return { ok: false, message: "The file could not be saved there." };
+      }
+    },
+    meetingRecap: async (id) => {
+      if (!recapRunner) return { ok: false, message: "Recaps need the database." };
+      try {
+        return { ok: true, recap: await recapRunner.run(id) };
+      } catch (error) {
+        return {
+          ok: false,
+          message:
+            error instanceof RecapError
+              ? error.message
+              : "The recap could not be written. Try again.",
+        };
       }
     },
     meetingImportPreview: async () => {

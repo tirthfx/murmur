@@ -200,6 +200,22 @@ describe("Settings section", () => {
     });
   });
 
+  it("sets dictated lines and the recap window (NT-19, NT-13)", async () => {
+    const api = mount({}, "system");
+    expect(await screen.findByText("Dictating and catching up during a meeting")).toBeTruthy();
+    await userEvent.click(
+      screen.getByRole("switch", { name: "Leave dictated lines out of the transcript" }),
+    );
+    expect(api.updateSettings).toHaveBeenLastCalledWith({
+      notetaker: expect.objectContaining({ dictation: { excludeFromTranscript: false } }),
+    });
+    await userEvent.click(screen.getByRole("combobox", { name: "“What did I miss?” looks back" }));
+    await userEvent.click(await screen.findByRole("option", { name: "15 minutes" }));
+    expect(api.updateSettings).toHaveBeenLastCalledWith({
+      notetaker: expect.objectContaining({ recap: { windowMinutes: 15 } }),
+    });
+  });
+
   it("says when nothing is due", async () => {
     mount({}, "system");
     expect(await screen.findByText("Nothing is due in the next 24 hours.")).toBeTruthy();

@@ -18,6 +18,7 @@ import {
   type MeetingExportOptions,
   type MeetingExportResult,
   type MeetingFolder,
+  type MeetingRecapResult,
   type MeetingRetentionDue,
   type TranscriptImportConfirmInput,
   type TranscriptImportConfirmResult,
@@ -183,6 +184,7 @@ export interface IpcDeps {
   meetingExport: (meetingId: string, options: MeetingExportOptions) => Promise<MeetingExportResult>;
   meetingRetentionDue: () => MeetingRetentionDue;
   meetingImportPreview: () => Promise<TranscriptImportPreviewResult>;
+  meetingRecap: (meetingId: string) => Promise<MeetingRecapResult>;
   meetingImportConfirm: (input: TranscriptImportConfirmInput) => TranscriptImportConfirmResult;
   meetingImportCancel: (token: string) => void;
   meetingRerun: (meetingId: string, input: MeetingLanguageInput) => RerunResult;
@@ -650,6 +652,8 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.meetingMove(request.args[0] as string, request.args[1] as string | null);
       case IPC_CHANNELS.meetingFolderDismiss:
         return deps.meetingFolderDismiss(request.args[0] as string, request.args[1] as string);
+      case IPC_CHANNELS.meetingRecap:
+        return deps.meetingRecap(request.args[0] as string);
       case IPC_CHANNELS.meetingImportPreview:
         return deps.meetingImportPreview();
       case IPC_CHANNELS.meetingImportConfirm:
