@@ -188,16 +188,17 @@ export const CONNECTOR_CATALOGUE: readonly ConnectorCatalogueEntry[] = [
     name: "Slack",
     reads:
       "People and channel names, and messages from the channels you choose when a brief or a question includes Slack.",
-    writes: null,
+    writes: "Posting a summary or a task to a channel, only after you check the exact message.",
     scopes: [
       { text: "Read people and channel names", optional: false },
       { text: "Read messages in the channels you choose", optional: false },
+      { text: "Post messages as you", optional: true },
     ],
     setup:
       "A Slack app with the user scopes users:read, channels:read, channels:history, groups:read and im:read, and the redirect address http://127.0.0.1:17821/callback.",
     clientSecret: true,
     defaultSyncMinutes: 30,
-    supportsWrite: false,
+    supportsWrite: true,
   },
   {
     id: "notion",
@@ -326,7 +327,7 @@ export const CONNECTOR_FEATURES: readonly ConnectorFeature[] = [
     name: "Send to Slack",
     detail: "Posts a summary or a task to a channel after you check the text.",
     connectors: ["slack"],
-    built: false,
+    built: true,
   },
   {
     id: "notion-links",

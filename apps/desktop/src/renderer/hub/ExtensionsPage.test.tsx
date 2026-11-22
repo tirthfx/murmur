@@ -69,19 +69,28 @@ describe("Extensions page (CN-12)", () => {
     fireEvent.click(screen.getByRole("switch", { name: "Allow “Draft email”" }));
     await waitFor(() =>
       expect(api.updateSettings).toHaveBeenCalledWith({
-        extensions: { enabled: true, actions: { draft_email: true, create_event: false } },
+        extensions: {
+          enabled: true,
+          actions: { draft_email: true, create_event: false, post_to_slack: false },
+        },
       }),
     );
     fireEvent.click(screen.getByRole("switch", { name: "Turn on extensions" }));
     await waitFor(() =>
       expect(api.updateSettings).toHaveBeenLastCalledWith({
-        extensions: { enabled: false, actions: { draft_email: false, create_event: false } },
+        extensions: {
+          enabled: false,
+          actions: { draft_email: false, create_event: false, post_to_slack: false },
+        },
       }),
     );
   });
 
   it("cannot turn an action on while extensions are off", async () => {
-    await mount({ enabled: false, actions: { draft_email: false, create_event: false } });
+    await mount({
+      enabled: false,
+      actions: { draft_email: false, create_event: false, post_to_slack: false },
+    });
     const toggle = screen.getByRole("switch", { name: "Allow “Draft email”" });
     expect(toggle.getAttribute("aria-disabled")).toBe("true");
   });
@@ -89,7 +98,7 @@ describe("Extensions page (CN-12)", () => {
   it("shows the state and the reason an action is not ready, and the accounts of one that is", async () => {
     const list = within(
       await mount(
-        { enabled: true, actions: { draft_email: true, create_event: true } },
+        { enabled: true, actions: { draft_email: true, create_event: true, post_to_slack: false } },
         view({
           draft_email: { state: "ready", reason: null, hidden: false },
           create_event: {
@@ -111,6 +120,6 @@ describe("Extensions page (CN-12)", () => {
   it("lists what is not built yet", async () => {
     await mount();
     const planned = within(screen.getByRole("list", { name: "Actions not built yet" }));
-    expect(planned.getByText(/Send to Slack/)).toBeTruthy();
+    expect(planned.getByText(/Create a Linear issue/)).toBeTruthy();
   });
 });

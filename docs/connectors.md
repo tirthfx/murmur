@@ -113,7 +113,7 @@ Four read connectors on the framework. Each one reads only what its documented s
 
 **Provider differences handled by the framework.** `ConnectorProvider` gained `scopeParam` and `scopeSeparator` (Slack sends user scopes in `user_scope`, comma separated; Notion sends none), `tokenAuth` and `tokenBody` (Notion proves the app with HTTP Basic and a JSON body), `tokenHeaders` (Notion's version header) and `parseTokenResponse` (Slack nests the user's token in `authed_user`).
 
-**Not built:** posting to Slack ("Send to Slack"), Notion pages as meeting links, private Slack channels and direct messages, walking a Notion page's nested blocks and child databases, GitHub revoke from Murmur (revoke the grant in GitHub), and Ask reading the items. Briefs (`docs/notetaker.md`, Meeting briefs) read these items, and Gmail threads through `connectors/gmail/gmail-threads.ts`.
+**Not built:** Notion pages as meeting links, private Slack channels and direct messages, walking a Notion page's nested blocks and child databases, GitHub revoke from Murmur (revoke the grant in GitHub), and Ask reading the items. Briefs (`docs/notetaker.md`, Meeting briefs) read these items, and Gmail threads through `connectors/gmail/gmail-threads.ts`.
 
 **Manual check:** register your own app at the provider with the redirect address above, enter its client id and secret, connect, then choose what to read (channels, teams, repositories) and press "Read now": the Connectors page says how many items are kept. Take a channel out of the selection and check the count drops at once.
 
@@ -127,6 +127,32 @@ Meetings from Zoom and Fireflies come in through the transcript importer (NT-21,
 - **Not built:** auto-import (`connectors.<id>.autoImport`; imports are always picked by the owner), Zoom audio, Fireflies speakers merged with Murmur's own, and a check against the real Zoom and Fireflies APIs (the answers are read as documented and tested with fakes).
 
 **Manual check:** register your own Zoom app (recording read scope, redirect address above) and connect it; List meetings, pick one with a transcript, check the preview shows the speakers, confirm, and check the meeting is in Notetaker. List again and check it is marked Imported; import it again from the list and check it is refused. For Fireflies, paste your key: a wrong one says Key rejected; with the right one, import a transcript and check the speaker names and the labelled summary.
+
+## Sending to Slack and tags (CN-05, CN-14)
+
+**Send to Slack** is the third built-in action (`post_to_slack`, off until turned on in Extensions). It is on an open task and under a meeting's summary. It needs the Slack connector with **Read only turned off** and the user permission `chat:write`, which is asked for only then (the card shows "Give permission" for an account that lacks it); posting is as the owner, to a public channel they are in. The flow has two steps and no shortcut:
+
+1. **Write.** The message starts from the task or the summary (up to 3,000 characters), is plain text, and can be edited; the owner picks the channel from the workspace's public channels.
+2. **Preview, then Send.** "Preview" builds what would be posted and holds it in Murmur for 15 minutes (`connectors/slack/slack-post.ts`). It shows the channel, the exact message, every tag and every mention that stays plain text. Nothing is posted yet. "Send this message to Slack" posts that held message and nothing else: the call carries only the preview's token, so the text cannot change between the preview and the post, and a preview can be sent once. If Slack fails the preview is kept, so it can be sent again without rewriting it; a busy answer (`429`) is waited out and the same message is sent again.
+
+Slack's own characters (`<`, `>`, `&`) are escaped, so typed text cannot become a link, a `<!channel>` broadcast or a tag, and links are not unfurled. With tagging off (the default) a `@name` is plain text and no list of people is read.
+
+**Tagging (CN-14)** is behind the experimental option `experimental.slackTagging` (off; Settings, Experimental, "Tag people in Slack messages"). With it on, `@dana`, `@dana.lee` or `@dana@example.com` in the message is matched to the workspace's people (`users.list`, bots and deactivated accounts left out): an address matches by email, a name matches a handle, display name or full name ignoring spaces and punctuation, and a first name matches when only one person has it. A mention that matches exactly one person becomes `<@U…>` and is listed in the preview ("These people will be tagged and told"); one that fits two people or no one is **sent as plain text and listed as not tagged**, never guessed. Tags come only from the message text, which is the preview, so no tag can be in a sent message that was not shown. (Slack's user list has emails only with the `users:read.email` permission, which is not asked for, so in practice names match.)
+
+**Not built:** posting to private channels or direct messages, the Slack `sendConfirm` setting (a preview is always required), and checking the Slack calls against a real workspace (tested with fakes).
+
+**Manual check:** with a Slack app of your own, connect Slack, turn Read only off and press "Give permission"; turn on Send to Slack in Extensions. On a task press "Send to Slack", edit the message, choose a channel and preview it; check the message and channel are exactly what you expect, then send it and check it in Slack. With tagging on, mention a colleague and check they are listed before sending; mention two people with the same first name and check the name is listed as not tagged.
+
+## Ask connector actions (CN-13)
+
+Behind the experimental option `experimental.askConnectorActions` (off; "Ask can propose connector actions"). With it off, Ask looks and works exactly as before: no model call about actions, nothing in the window. With it on, a request typed in Ask that **starts as an order** ("Draft a follow-up to Priya about the timeline", "Can you schedule…", "Post the summary to Slack") is shown to the local model, which says whether it is an action or only a question and fills in a form (`connectors/ask-actions.ts`). A question that merely contains a verb ("Did we create an event for the offsite?", "What did we say about drafting it?") never reaches the model for this, and one the model calls an answer makes no proposal; Ask then answers as usual.
+
+- Only an action that is **ready** (on in Extensions, its connector connected and permitted) can be proposed; the proposal is one of draft email, create event or send to Slack.
+- The proposal is a card above the question box: one line saying what is proposed, a note when something needs the owner (no one called "Priya" was found among the people in Murmur's meetings, or two people are, so the owner chooses a contact or types an address; no time was given, so the event starts tomorrow morning), and the same editor as for a task, filled in. Nothing is sent or created and no provider is called until the owner confirms in that editor. For Slack the card shows only the message; the channels are read when the owner goes on to the preview.
+- The confirmation is the action's own click through the runner (`extensions/action-runner.ts`), and the record is kept as source `ask` (`automations`, an id made for the request).
+- **Not built:** creating Linear issues, and picking a contact from a contact card (NT-12): people come from the attendees of meetings Murmur has.
+
+**Manual check:** turn the option on, then in Ask type "Draft a follow-up to <a colleague> about the timeline": a card appears with a draft; nothing is in Gmail until you click Create the draft. Then type "Did we draft a follow-up to <that colleague>?" and check it is answered normally with no card. Turn the option off and check the first request is answered as an ordinary question.
 
 ## Calendar events (NT-28)
 
@@ -148,7 +174,7 @@ The **Extensions** page of the Hub lists what connected apps can do for tasks an
 - **Hidden, not greyed out.** An action that is off, or whose connector has no account, is left out of the task and summary screens (`ExtensionActionState.hidden`); drafts and events it already made stay listed. An action whose account needs attention or lacks a permission is shown with the reason.
 - **Only a click runs an action** (`extensions/action-runner.ts`). All action calls from the window go through `ActionRunner.run(id, input, click)`, which refuses without a `UserClick`, checks the state, validates the input with the action's own schema, and calls the action once. A `UserClick` is made by `fromUserClick()` only in the handlers in `main.ts` for the window's own click (a unit test checks that no other source file uses it). A model's answer can only become an `ActionProposal` through `parseProposal`, which describes an action and its input and runs nothing, even if the text says it is confirmed.
 - **An extension cannot read a token.** Actions are built-in code reached only through two things the runner is given for each (whether it can be used, and the call that does it); the runner holds no connector service, and an action is called with its input alone. Tokens stay in the connector service and the Keychain.
-- **Not built:** posting to Slack ("Send to Slack") and creating Linear issues, which the page lists as not built; extensions from other developers, team-shared extensions (M7), and a sandbox for third-party code.
+- **Not built:** creating Linear issues, which the page lists as not built; extensions from other developers, team-shared extensions (M7), and a sandbox for third-party code. "Send to Slack" is the third action (below).
 
 **Manual check:** open Extensions: both actions are off. On a task, no "Draft email" or "Create event" button appears. Turn on "Draft email" with Gmail connected and drafting allowed: the button appears on an open task. Disconnect Gmail: it disappears again.
 

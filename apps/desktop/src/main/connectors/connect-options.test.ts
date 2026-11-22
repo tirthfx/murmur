@@ -70,4 +70,28 @@ describe("sign-in options (CN-04)", () => {
       expect(connectOptionsFor("googleCalendar", choices(false)).scopes).toBeUndefined();
     });
   });
+
+  describe("Slack (CN-05)", () => {
+    const choices = (readOnly: boolean) => ({
+      ...DEFAULT_CONNECTOR_SETTINGS,
+      choices: { slack: { syncIntervalMinutes: 30, readOnly } },
+    });
+
+    it("asks only for the read scopes while Slack is read only, which is the default", () => {
+      const scopes = connectOptionsFor("slack", DEFAULT_CONNECTOR_SETTINGS).scopes!;
+      expect(scopes).toEqual([
+        "users:read",
+        "channels:read",
+        "channels:history",
+        "groups:read",
+        "im:read",
+      ]);
+      expect(scopes).not.toContain("chat:write");
+      expect(connectOptionsFor("slack", choices(true)).scopes).toEqual(scopes);
+    });
+
+    it("adds the permission to post only when read only is turned off", () => {
+      expect(connectOptionsFor("slack", choices(false)).scopes).toContain("chat:write");
+    });
+  });
 });

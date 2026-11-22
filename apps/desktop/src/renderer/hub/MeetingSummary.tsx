@@ -9,6 +9,7 @@ import { VStack } from "@astryxdesign/core/VStack";
 import { RecapPanel } from "./RecapPanel";
 import { CalendarEventCreate } from "./CalendarEventCreate";
 import { EmailDraft } from "./EmailDraft";
+import { SlackPost } from "./SlackPost";
 import {
   SUMMARY_FEEDBACK_REASONS,
   SUMMARY_FEEDBACK_TEXT,
@@ -256,6 +257,10 @@ export function SummaryTab({
               <CalendarEventCreate
                 source={{ kind: "meeting", id: meeting.id }}
                 label="Create a follow-up event"
+              />
+              <SlackPost
+                source={{ kind: "meeting", id: meeting.id }}
+                label="Send the summary to Slack"
               />
             </>
           )}

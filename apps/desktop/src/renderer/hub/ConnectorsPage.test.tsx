@@ -514,6 +514,43 @@ describe("Connectors page (CN-15)", () => {
     expect(zoom.getByText("Import meetings from Zoom")).toBeTruthy();
   });
 
+  it("offers to ask Slack for the permission to post once read only is off, and not before (CN-05)", async () => {
+    const slackView = (readOnly: boolean, scopes: string[]) => {
+      const entry = CONNECTOR_CATALOGUE.find((c) => c.id === "slack")!;
+      const view = viewOf({
+        slack: {
+          readiness: "ready",
+          accounts: [account({ id: "s1", connector: "slack", email: "acme/dana", scopes })],
+        },
+      });
+      view.connectors = view.connectors.map((c) =>
+        c.id === "slack"
+          ? { ...c, choice: { ...connectorChoice(DEFAULT_CONNECTOR_SETTINGS, entry), readOnly } }
+          : c,
+      );
+      return view;
+    };
+    show(slackView(true, ["users:read"]));
+    const { unmount } = render(<ConnectorsPage />);
+    const readOnly = await card("Slack");
+    await readOnly.findByRole("switch", { name: "Slack is read only" });
+    expect(readOnly.queryByRole("button", { name: /Give permission/ })).toBeNull();
+    unmount();
+    cleanup();
+    show(slackView(false, ["users:read"]));
+    render(<ConnectorsPage />);
+    const slack = await card("Slack");
+    expect(await slack.findByText(/has not yet allowed Murmur to post messages/)).toBeTruthy();
+    fireEvent.click(slack.getByRole("button", { name: "Give permission for acme/dana" }));
+    await waitFor(() => expect(api.connectorConnect).toHaveBeenCalledWith("slack", "acme/dana"));
+    cleanup();
+    show(slackView(false, ["users:read", "chat:write"]));
+    render(<ConnectorsPage />);
+    const given = await card("Slack");
+    await given.findByRole("switch", { name: "Slack is read only" });
+    expect(given.queryByRole("button", { name: /Give permission/ })).toBeNull();
+  });
+
   it("has no read-only switch for a connector that never writes", async () => {
     show(
       viewOf({

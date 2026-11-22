@@ -7,12 +7,17 @@ import { Text } from "@astryxdesign/core/Text";
 import { TextArea } from "@astryxdesign/core/TextArea";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { VStack } from "@astryxdesign/core/VStack";
+import { CalendarEventEditor } from "./CalendarEventCreate";
+import { EmailDraftEditor } from "./EmailDraft";
+import { SlackComposer } from "./SlackPost";
 import {
   ASK_LIMITS,
   ASK_SOURCE_TEXT,
   formatElapsed,
   INBOX,
   isCalendarDate,
+  askSourceId,
+  type AskActionProposal,
   type AskCitation,
   type AskMessage,
   type AskScope,
@@ -20,7 +25,58 @@ import {
   type AskThreadItem,
   type MeetingFolder,
   type MeetingTab,
+  type SlackStart,
 } from "@murmur/shared";
+
+/**
+ * The text of a Slack message from Ask, and a way on to the preview. The channels are read only
+ * when the owner goes on; nothing is sent until the preview is confirmed.
+ */
+function AskSlack({
+  id,
+  text,
+  onDone,
+  onCancel,
+}: {
+  id: string;
+  text: string;
+  onDone: (channel: string) => void;
+  onCancel: () => void;
+}) {
+  const [start, setStart] = useState<SlackStart | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  async function go() {
+    setMessage(null);
+    const result = await window.murmur.slackPostStart({ kind: "ask", id });
+    if (result.ok) setStart({ ...result.start, text });
+    else setMessage(result.message);
+  }
+
+  if (start)
+    return (
+      <SlackComposer
+        source={{ kind: "ask", id }}
+        start={start}
+        onSent={onDone}
+        onCancel={onCancel}
+      />
+    );
+  return (
+    <VStack gap={2}>
+      <Text>{text === "" ? "No message was written yet." : text}</Text>
+      {message ? <Banner status="warning" title={message} /> : null}
+      <HStack gap={2}>
+        <Button variant="primary" label="Choose a channel and preview" onClick={() => void go()}>
+          Choose a channel and preview
+        </Button>
+        <Button variant="secondary" label="Do not send" onClick={onCancel}>
+          Cancel
+        </Button>
+      </HStack>
+    </VStack>
+  );
+}
 
 /** Where a citation opens: a meeting, on a tab, at a transcript line. */
 export interface AskTarget {
@@ -128,6 +184,17 @@ export function AskPanel({
   const [question, setQuestion] = useState("");
   const [sending, setSending] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  // The experimental option (CN-13): with it off nothing about actions is shown or asked.
+  const [actionsOn, setActionsOn] = useState(false);
+  const [proposal, setProposal] = useState<{ id: string; value: AskActionProposal } | null>(null);
+  const [done, setDone] = useState<string | null>(null);
+
+  useEffect(() => {
+    void window.murmur.getSettings().then(
+      (view) => setActionsOn(view.settings.experimental.askConnectorActions),
+      () => setActionsOn(false),
+    );
+  }, []);
 
   useEffect(() => {
     void window.murmur.foldersList().then(setFolders);
@@ -201,8 +268,21 @@ export function AskPanel({
     const scope = scopeNow();
     if (typeof scope === "string") return setProblem(scope);
     setProblem(null);
+    setDone(null);
     setSending(true);
     try {
+      if (actionsOn) {
+        // A request to do something becomes a proposal, shown first; a question goes on as usual.
+        const proposed = await window.murmur.askActionPropose({
+          question: text,
+          meetingId: choice === "meeting" && about ? about.id : null,
+        });
+        if (proposed.ok && proposed.proposal) {
+          setProposal({ id: askSourceId(), value: proposed.proposal });
+          setQuestion("");
+          return;
+        }
+      }
       const result = await window.murmur.askSend({
         threadId: thread?.id ?? null,
         question: text,
@@ -368,6 +448,51 @@ export function AskPanel({
             </ul>
           )}
 
+          {done ? <Banner status="success" title={done} /> : null}
+          {proposal ? (
+            <section aria-label="Proposed action" className="hub-brief">
+              <VStack gap={2}>
+                <Text weight="semibold">Proposed action</Text>
+                <Text>{proposal.value.line}</Text>
+                <Text size="sm" color="secondary">
+                  Nothing has been sent or created. Check it, change it if you like, and confirm it
+                  below.
+                </Text>
+                {proposal.value.note ? <Banner status="info" title={proposal.value.note} /> : null}
+                {proposal.value.action === "draft_email" ? (
+                  <EmailDraftEditor
+                    proposal={proposal.value.form}
+                    source={{ kind: "ask", id: proposal.id }}
+                    onCancel={() => setProposal(null)}
+                    onDone={() => {
+                      setProposal(null);
+                      setDone("The draft is in Gmail’s Drafts folder.");
+                    }}
+                  />
+                ) : proposal.value.action === "create_event" ? (
+                  <CalendarEventEditor
+                    proposal={proposal.value.form}
+                    source={{ kind: "ask", id: proposal.id }}
+                    onCancel={() => setProposal(null)}
+                    onDone={() => {
+                      setProposal(null);
+                      setDone("The event is in your calendar.");
+                    }}
+                  />
+                ) : (
+                  <AskSlack
+                    id={proposal.id}
+                    text={proposal.value.text}
+                    onCancel={() => setProposal(null)}
+                    onDone={(channel) => {
+                      setProposal(null);
+                      setDone(`Sent to ${channel}.`);
+                    }}
+                  />
+                )}
+              </VStack>
+            </section>
+          ) : null}
           {problem ? <Banner status="warning" title={problem} /> : null}
           {sending ? (
             <Text size="sm" color="secondary" role="status">

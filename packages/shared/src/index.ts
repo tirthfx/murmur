@@ -19,6 +19,8 @@ export * from "./brief";
 export * from "./calendar";
 export * from "./connectors";
 export * from "./extensions";
+export * from "./slack-post";
+export * from "./ask-actions";
 export * from "./connector-data";
 export * from "./connector-import";
 export * from "./gmail";

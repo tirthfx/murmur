@@ -146,7 +146,15 @@ import {
   type RecordingsResult,
   type ConnectorDataStatus,
   type ConnectorOptionsResult,
+  type AskActionRequest,
+  type AskActionResult,
   type EmailAutomationRecord,
+  type SlackPostSource,
+  type SlackPrepareInput,
+  type SlackPrepareResult,
+  type SlackSendInput,
+  type SlackSendResult,
+  type SlackStartResult,
   type ExtensionsView,
   type MeetingBrief,
   type EmailDraftInput,
@@ -230,6 +238,11 @@ export interface IpcDeps {
     remoteId: string,
   ) => Promise<TranscriptImportPreviewResult>;
   connectorDataStatus: () => ConnectorDataStatus[];
+  askActionPropose: (request: AskActionRequest) => Promise<AskActionResult>;
+  slackPostState: () => EmailDraftState;
+  slackPostStart: (source: SlackPostSource) => Promise<SlackStartResult>;
+  slackPostPrepare: (input: SlackPrepareInput) => Promise<SlackPrepareResult>;
+  slackPostSend: (input: SlackSendInput) => Promise<SlackSendResult>;
   extensionsView: () => ExtensionsView;
   briefOverview: () => BriefOverview;
   briefGet: (eventKey: string) => MeetingBrief | null;
@@ -730,6 +743,16 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.connectorOptions(request.args[0] as string);
       case IPC_CHANNELS.connectorDataStatus:
         return deps.connectorDataStatus();
+      case IPC_CHANNELS.askActionPropose:
+        return deps.askActionPropose(request.args[0] as AskActionRequest);
+      case IPC_CHANNELS.slackPostState:
+        return deps.slackPostState();
+      case IPC_CHANNELS.slackPostStart:
+        return deps.slackPostStart(request.args[0] as SlackPostSource);
+      case IPC_CHANNELS.slackPostPrepare:
+        return deps.slackPostPrepare(request.args[0] as SlackPrepareInput);
+      case IPC_CHANNELS.slackPostSend:
+        return deps.slackPostSend(request.args[0] as SlackSendInput);
       case IPC_CHANNELS.extensionsView:
         return deps.extensionsView();
       case IPC_CHANNELS.briefOverview:

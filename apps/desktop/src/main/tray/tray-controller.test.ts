@@ -92,6 +92,8 @@ function setup() {
       commandMode: false,
       autoInstruct: false,
       focusMode: false,
+      askConnectorActions: false,
+      slackTagging: false,
     },
   };
   const views: TrayView[] = [];

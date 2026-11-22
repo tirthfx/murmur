@@ -147,6 +147,8 @@ export function createEmailDraftService(deps: EmailDraftDeps): EmailDraftService
   const resolve = (
     source: EmailDraftSource,
   ): { task: Task | null; meeting: Meeting | null } | null => {
+    // A request typed in Ask has no task or meeting behind it; its form is made by Ask.
+    if (source.kind === "ask") return { task: null, meeting: null };
     if (source.kind === "task") {
       const task = deps.tasks.get(source.id);
       if (!task) return null;
@@ -176,6 +178,7 @@ export function createEmailDraftService(deps: EmailDraftDeps): EmailDraftService
           message: source.kind === "task" ? "That task is gone." : "That meeting is gone.",
         };
       const { task, meeting } = found;
+      if (source.kind === "ask") return { ok: false, message: "Ask writes its own draft." };
       const summary = meeting ? latestSummary(meeting.id) : null;
       if (!task && !summary)
         return { ok: false, message: "This meeting has no summary to write from yet." };

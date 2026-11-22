@@ -3,6 +3,7 @@ import {
   PLANNED_EXTENSIONS,
   calendarEventInputSchema,
   emailDraftInputSchema,
+  slackSendInputSchema,
   type ActionProposal,
   type ConnectorAccount,
   type ExtensionAction,
@@ -73,6 +74,7 @@ export interface ActionRunner {
 const INPUT_SCHEMAS: Record<ExtensionActionId, z.ZodType> = {
   draft_email: emailDraftInputSchema,
   create_event: calendarEventInputSchema,
+  post_to_slack: slackSendInputSchema,
 };
 
 const actionOf = (id: ExtensionActionId): ExtensionAction =>

@@ -4,6 +4,9 @@ import {
   calendarScopesFor,
   connectorChoice,
   gmailScopesFor,
+  SLACK_ID,
+  SLACK_SCOPES,
+  SLACK_SCOPE_WRITE,
   type ConnectorSettings,
 } from "@murmur/shared";
 
@@ -21,7 +24,14 @@ export function connectOptionsFor(
 ): { scopes?: string[]; loginHint?: string } {
   let scopes: string[] | null = null;
   if (providerId === "gmail") scopes = gmailScopesFor(settings.gmail);
-  else if ((CALENDAR_CONNECTOR_IDS as readonly string[]).includes(providerId)) {
+  else if (providerId === SLACK_ID) {
+    // Posting as the owner is asked for only when read only is turned off.
+    const entry = CONNECTOR_CATALOGUE.find((candidate) => candidate.id === SLACK_ID);
+    scopes =
+      entry && !connectorChoice(settings, entry).readOnly
+        ? [...SLACK_SCOPES, SLACK_SCOPE_WRITE]
+        : [...SLACK_SCOPES];
+  } else if ((CALENDAR_CONNECTOR_IDS as readonly string[]).includes(providerId)) {
     const entry = CONNECTOR_CATALOGUE.find((candidate) => candidate.id === providerId);
     if (entry && providerScopes.length > 0)
       scopes = calendarScopesFor(

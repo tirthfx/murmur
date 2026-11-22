@@ -135,6 +135,8 @@ export function createEventCreateService(deps: EventCreateDeps): EventCreateServ
   const resolve = (
     source: CalendarEventSource,
   ): { task: Task | null; meeting: Meeting | null } | null => {
+    // A request typed in Ask has no task or meeting behind it; its form is made by Ask.
+    if (source.kind === "ask") return { task: null, meeting: null };
     if (source.kind === "task") {
       const task = deps.tasks.get(source.id);
       if (!task) return null;
@@ -158,6 +160,7 @@ export function createEventCreateService(deps: EventCreateDeps): EventCreateServ
       const found = resolve(source);
       if (!found) return { ok: false, message: gone(source) };
       const { task, meeting } = found;
+      if (source.kind === "ask") return { ok: false, message: "Ask writes its own event." };
       const settings = deps.settings();
 
       // A task with a due day is proposed that morning; otherwise (or when it has passed) tomorrow.

@@ -23,7 +23,7 @@ const OTHER = "__other__";
  * it is just characters here. Nothing is created until "Create the draft in Gmail" is clicked, and
  * even then it is only a draft, never a sent message.
  */
-function Editor({
+export function EmailDraftEditor({
   proposal,
   source,
   onDone,
@@ -183,7 +183,7 @@ export function EmailDraft({ source, label }: { source: EmailDraftSource; label?
       ) : null}
       {message ? <Banner status="warning" title={message} /> : null}
       {proposal ? (
-        <Editor
+        <EmailDraftEditor
           proposal={proposal}
           source={source}
           onCancel={() => setProposal(null)}

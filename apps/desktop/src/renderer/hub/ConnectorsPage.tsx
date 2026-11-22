@@ -16,6 +16,7 @@ import {
   CONNECTOR_FEATURES,
   CONNECTOR_STATUS_TEXT,
   GMAIL_SCOPE_COMPOSE,
+  SLACK_SCOPE_WRITE,
   GMAIL_SCOPE_READ,
   SYNC_INTERVALS,
   gmailMissingScopes,
@@ -681,18 +682,22 @@ export function ConnectorsPage() {
                           </HStack>
                         ) : null}
 
-                        {(CALENDAR_CONNECTOR_IDS as readonly string[]).includes(connector.id) &&
+                        {((CALENDAR_CONNECTOR_IDS as readonly string[]).includes(connector.id) ||
+                          connector.id === "slack") &&
                         !connector.choice.readOnly
                           ? connector.accounts
                               .filter((entry) => entry.status === "connected")
                               .map((entry) => {
-                                const write = CALENDAR_WRITE_SCOPES[connector.id];
+                                const write =
+                                  connector.id === "slack"
+                                    ? SLACK_SCOPE_WRITE
+                                    : CALENDAR_WRITE_SCOPES[connector.id];
                                 if (!write || hasScope(entry.scopes, write)) return null;
                                 return (
                                   <Banner
                                     key={entry.id}
                                     status="info"
-                                    title={`${entry.email}: ${connector.name} has not yet allowed Murmur to create events`}
+                                    title={`${entry.email}: ${connector.name} has not yet allowed Murmur to ${connector.id === "slack" ? "post messages" : "create events"}`}
                                     endContent={
                                       <Button
                                         size="sm"

@@ -75,6 +75,8 @@ export const GMAIL_LIMITS = {
 export const emailDraftSourceSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("task"), id: z.string().min(1).max(64) }),
   z.strictObject({ kind: z.literal("meeting"), id: z.string().min(1).max(64) }),
+  /** A request typed in Ask (CN-13): the id is the Ask thread's. */
+  z.strictObject({ kind: z.literal("ask"), id: z.string().min(1).max(64) }),
 ]);
 export type EmailDraftSource = z.infer<typeof emailDraftSourceSchema>;
 
@@ -125,7 +127,7 @@ export interface EmailDraftState {
 export interface EmailAutomationRecord {
   id: string;
   /** `task` or `meeting`, and its id. */
-  sourceKind: "task" | "meeting";
+  sourceKind: "task" | "meeting" | "ask";
   sourceId: string;
   to: string;
   subject: string;

@@ -57,7 +57,7 @@ const whenText = (ms: number) =>
  * clicked. People are added to the event, but they are told only when invitations are allowed in
  * Settings and the box here is ticked as well.
  */
-function Editor({
+export function CalendarEventEditor({
   proposal,
   source,
   onDone,
@@ -263,7 +263,7 @@ export function CalendarEventCreate({
       ) : null}
       {message ? <Banner status="warning" title={message} /> : null}
       {proposal ? (
-        <Editor
+        <CalendarEventEditor
           proposal={proposal}
           source={source}
           onCancel={() => setProposal(null)}
