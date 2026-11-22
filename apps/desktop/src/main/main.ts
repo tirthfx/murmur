@@ -3853,6 +3853,16 @@ function registerIpc(): void {
     teamSetIdleLock: (minutes) => teamService.setIdleLock(minutes),
     teamDisconnect: () => teamService.disconnect(),
     teamNoticesSeen: () => teamService.noticesSeen(),
+    teamOpenAdmin: async () => {
+      const server = teamService.view().serverUrl;
+      if (!/^https?:\/\//i.test(server))
+        return { ok: false, message: "Connect to a team server first." };
+      const address = new URL("admin/", server).toString();
+      if (addressRefused(address))
+        return { ok: false, message: "Your organization does not allow this address." };
+      await shell.openExternal(address);
+      return { ok: true };
+    },
     isLocked: () => teamService.isLocked(),
     emailDraftState: () => draftState("draft_email"),
     emailDraftPropose: async (source) => {

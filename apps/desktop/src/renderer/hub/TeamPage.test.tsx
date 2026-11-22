@@ -137,6 +137,8 @@ describe("Team page", () => {
     expect(screen.getByText(/3 dictionary entries and 1 snippet/)).toBeTruthy();
     expect(screen.getByText(/Your own\s+entries are used first/)).toBeTruthy();
 
+    fireEvent.click(screen.getByRole("button", { name: "Open the admin console" }));
+    expect(api.teamOpenAdmin).toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Update the shared entries now" }));
     fireEvent.click(screen.getByRole("button", { name: "Lock Murmur now" }));
     fireEvent.click(screen.getByRole("button", { name: "Sign out of the team server" }));
@@ -145,6 +147,12 @@ describe("Team page", () => {
     expect(api.teamLock).toHaveBeenCalled();
     expect(api.teamSignOut).toHaveBeenCalled();
     expect(api.teamDisconnect).toHaveBeenCalled();
+  });
+
+  it("offers the admin console to admins only", async () => {
+    mount({ ...SIGNED_IN, teams: [{ id: "t1", name: "Acme", myRole: "member" }] });
+    await screen.findByText(/Signed in as Ada/);
+    expect(screen.queryByRole("button", { name: "Open the admin console" })).toBeNull();
   });
 
   it("shows a sync problem, and proposals that were turned down, which can be dismissed", async () => {

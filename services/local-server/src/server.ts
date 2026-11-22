@@ -39,7 +39,9 @@ import { networkRoutes } from "./routes/network.ts";
 import { planRoutes } from "./routes/plan.ts";
 import { identityRoutes } from "./routes/identity.ts";
 import { scimRoutes } from "./routes/scim.ts";
+import { adminRoutes } from "./routes/admin.ts";
 import { authRoutes } from "./routes/auth.ts";
+import { ADMIN_HEADER, cookieToken, createAdminPages } from "./admin.ts";
 import type { RouteDeps } from "./routes/context.ts";
 import { policyRoutes } from "./routes/policy.ts";
 import { teamRoutes } from "./routes/teams.ts";
@@ -229,6 +231,7 @@ export function createLocalServer(config: ServerConfig): LocalServer {
   };
   const routes: Route[] = [
     ...authRoutes(deps),
+    ...adminRoutes(deps, now),
     ...auditRoutes(deps),
     ...teamRoutes(deps),
     ...vocabularyRoutes(deps),
@@ -279,6 +282,7 @@ export function createLocalServer(config: ServerConfig): LocalServer {
     }
     guard(req);
     const url = new URL(req.url ?? "/", "http://local");
+    if (adminPages.handle(req, res, url.pathname)) return;
     let found: { route: Route; params: Record<string, string> } | null = null;
     for (const route of routes) {
       if (route.method !== req.method) continue;
@@ -290,7 +294,15 @@ export function createLocalServer(config: ServerConfig): LocalServer {
     }
     if (!found) throw new HttpError(404, "not_found", "There is nothing at that address.");
 
-    const token = bearer(req);
+    // The console's session is a cookie. A request that changes something must also carry a header
+    // a page on another site cannot add, and a SCIM provider never uses a cookie.
+    const header = bearer(req);
+    const cookie = header === null && found.route.access !== "scim" ? cookieToken(req) : null;
+    if (cookie !== null && req.method !== "GET" && req.method !== "HEAD") {
+      if (req.headers[ADMIN_HEADER] !== "1")
+        throw new HttpError(403, "csrf", "That request did not come from the admin console.");
+    }
+    const token = header ?? cookie;
     const user = token ? accounts.authenticate(token) : null;
     authorize(found.route.access, user, found.params);
     // The plan decides which features exist; this comes after who is asking, so a stranger learns
@@ -319,6 +331,7 @@ export function createLocalServer(config: ServerConfig): LocalServer {
     send(res, await found.route.handler(ctx));
   }
 
+  const adminPages = createAdminPages({ accounts, teams, plan });
   const http = createHttpServer((req, res) => {
     dispatch(req, res).catch((error: unknown) => {
       const isScim = (req.url ?? "").startsWith("/scim/");

@@ -212,6 +212,7 @@ const api: MurmurApi = {
   teamSetIdleLock: (minutes) => ipcRenderer.invoke(IPC_CHANNELS.teamSetIdleLock, minutes),
   teamDisconnect: () => ipcRenderer.invoke(IPC_CHANNELS.teamDisconnect),
   teamNoticesSeen: () => ipcRenderer.invoke(IPC_CHANNELS.teamNoticesSeen),
+  teamOpenAdmin: () => ipcRenderer.invoke(IPC_CHANNELS.teamOpenAdmin),
   onPolicyChanged: (handler) => {
     const listener = (_event: unknown, view: Parameters<typeof handler>[0]) => handler(view);
     ipcRenderer.on(IPC_EVENTS.policyChanged, listener);

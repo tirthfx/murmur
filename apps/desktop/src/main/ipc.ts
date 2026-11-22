@@ -266,6 +266,7 @@ export interface IpcDeps {
   teamSetIdleLock: (minutes: number) => TeamResult;
   teamDisconnect: () => Promise<TeamResult>;
   teamNoticesSeen: () => Promise<TeamResult>;
+  teamOpenAdmin: () => Promise<{ ok: boolean; message?: string }>;
   /** Whether Murmur is locked (team mode): meetings, notes and questions are refused. */
   isLocked?: () => boolean;
   briefOverview: () => BriefOverview;
@@ -809,6 +810,8 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.teamDisconnect();
       case IPC_CHANNELS.teamNoticesSeen:
         return deps.teamNoticesSeen();
+      case IPC_CHANNELS.teamOpenAdmin:
+        return deps.teamOpenAdmin();
       case IPC_CHANNELS.briefOverview:
         return deps.briefOverview();
       case IPC_CHANNELS.briefGet:
