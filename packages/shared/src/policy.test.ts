@@ -190,6 +190,21 @@ describe("merging layers", () => {
     expect(crossed.retention.transcript).toEqual({ max: 90, min: 90 });
   });
 
+  it("turns on read-only connectors and approval for deletion if any layer asks", () => {
+    expect(mergePolicy([]).connectorsReadOnly).toBe(false);
+    const merged = mergePolicy([
+      {},
+      { "connectors.readOnly": true },
+      { "deletion.requiresApproval": true },
+    ]);
+    expect(merged).toMatchObject({ connectorsReadOnly: true, deletionRequiresApproval: true });
+    // A later layer cannot turn them off.
+    expect(
+      mergePolicy([{ "connectors.readOnly": true }, { "connectors.readOnly": false }])
+        .connectorsReadOnly,
+    ).toBe(true);
+  });
+
   it("keeps the first admin contact", () => {
     expect(mergePolicy([org, { adminContact: "other@example.com" }]).adminContact).toBe(
       "it@example.com",

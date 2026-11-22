@@ -35,12 +35,18 @@ export function policyRoutes({ policy, teams }: RouteDeps): Route[] {
       async handler(ctx) {
         const body = await ctx.json();
         const result = orThrow(
-          policy.set(me(ctx).id, team(ctx), {
-            scope: body["scope"] ?? "team",
-            scopeId: body["scopeId"],
-            set: body["set"],
-            unset: body["unset"],
-          }),
+          policy.set(
+            me(ctx).id,
+            team(ctx),
+            {
+              scope: body["scope"] ?? "team",
+              scopeId: body["scopeId"],
+              set: body["set"],
+              unset: body["unset"],
+            },
+            "admin",
+            me(ctx).isOwner,
+          ),
         );
         return reply(200, { ...result.layer, changed: result.changed });
       },

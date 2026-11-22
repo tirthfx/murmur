@@ -41,6 +41,8 @@ const EXPECTED: Record<ActionName, Role[] | "server"> = {
   "usage.settings": ["owner", "admin"],
   "leaderboard.view": ["owner", "admin", "manager", "member", "viewer"],
   "identity.manage": ["owner", "admin"],
+  "network.manage": "server",
+  "compliance.manage": ["owner", "admin"],
 };
 
 describe("the permission matrix", () => {

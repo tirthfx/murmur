@@ -265,6 +265,37 @@ local build does not have (that is a gate for M8).
   a personal account the chance to join (`capture`): `GET /v1/me/capture-offers`, then
   `POST …/capture/accept` or `…/decline`. Nothing moves an account by itself.
 
+## IP allowlist, compliance mode and the managed file (TM-21 to TM-23)
+
+- **IP allowlist** (`GET`, `PUT /v1/network/allowlist`, server owner). Each entry is a CIDR range or
+  an address, IPv4 or IPv6 (up to 100). It is checked from the **socket's own address** before
+  anything else, so a refused address gets 403 `ip_not_allowed` and learns nothing; `X-Forwarded-For`
+  and similar headers are never read. **This machine is always allowed**, so removing the last other
+  entry never locks the owner out. A refusal is an audit entry (`network.denied`), at most one a
+  minute for an address. By default the server listens on this machine only, so the list matters
+  once you start it with `MURMUR_SERVER_LAN=1` (it then listens on all addresses and accepts an
+  address as the `Host`). If you lock yourself out, on the host machine run
+  `npm run allowlist:reset --workspace @murmur/local-server`.
+- **Compliance mode** (`GET`, `PUT …/compliance`, admins): `none`, `strict_data` or `records`. A mode
+  is a bundle of policy values (`src/compliance-bundles.json`), written at the team layer with the
+  source `compliance`, so the console can say "Set by compliance mode". **It is a setting, not a
+  certification**, and every response says so.
+  - `strict_data`: audio kept at most 7 days, transcripts 365, no export to file, no share links, no
+    MCP, all connectors read only; meeting views and exports reported by the apps are audited.
+  - `records`: audio and transcripts kept at least 365 days, deletion needs approval; deletions
+    reported by the apps are audited.
+  - Changing the mode clears what the old bundle set and writes the new one. Only the **owner** can
+    override one value, which is logged (`compliance.overridden`, with the old and the new value);
+    an admin's attempt is 403 `compliance_locked`.
+  - Apps report `meeting_viewed`, `export` and `deletion` with `POST …/compliance/report`; the audit
+    log gets a meeting id or a kind and a count, only when the mode asks for it.
+- **The managed file** (TM-21, the contract): `/Library/Application Support/Murmur/managed.json`,
+  which device management would deliver. Murmur only reads it. `{ "version": 1, "serverUrl"?,
+"policy"?, "updates"?: { "policy": "automatic" | "notify" | "off", "feedUrl"? } }`; `policy` takes
+  the same settings as team policy. A file that does not follow this is **ignored and logged**,
+  never half applied (`packages/shared/src/managed.ts`, `apps/desktop/src/main/managed`). Showing
+  the badge, locking settings and the update line in the Hub is #255.
+
 ## Audit log (TM-12)
 
 Every sign-in, failed sign-in (the first miss and each lock, not every miss), new account, password
