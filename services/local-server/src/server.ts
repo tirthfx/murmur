@@ -28,11 +28,13 @@ import { authRoutes } from "./routes/auth.ts";
 import type { RouteDeps } from "./routes/context.ts";
 import { policyRoutes } from "./routes/policy.ts";
 import { teamRoutes } from "./routes/teams.ts";
+import { usageRoutes } from "./routes/usage.ts";
 import { vocabularyRoutes } from "./routes/vocabulary.ts";
 import { createSettings } from "./settings.ts";
 import { createSiem, type Siem } from "./siem.ts";
-import { createTeamSettings } from "./team-settings.ts";
+import { createTeamSettings, createUsageSettings } from "./team-settings.ts";
 import { createTeams, type Teams } from "./teams.ts";
+import { createUsage, type Usage } from "./usage.ts";
 import { createVocabulary, type Vocabulary } from "./vocabulary.ts";
 
 export { SERVER_VERSION } from "./version.ts";
@@ -68,6 +70,7 @@ export interface LocalServer {
   invites: Invites;
   vocabulary: Vocabulary;
   policy: Policy;
+  usage: Usage;
   /** Every route and who may call it: the permission matrix tests walk this. */
   routes: readonly RouteInfo[];
   db: DatabaseSync;
@@ -111,6 +114,8 @@ export function createLocalServer(config: ServerConfig): LocalServer {
   const teamSettings = createTeamSettings(db);
   const vocabulary = createVocabulary({ db, now, audit: record, settings: teamSettings });
   const policy = createPolicy({ db, now, audit: record, teams });
+  const usageSettings = createUsageSettings(db);
+  const usage = createUsage({ db, now, audit: record, settings: usageSettings, teams });
   const log = config.log ?? (() => undefined);
   let timer: NodeJS.Timeout | null = null;
 
@@ -124,6 +129,8 @@ export function createLocalServer(config: ServerConfig): LocalServer {
     teamSettings,
     vocabulary,
     policy,
+    usage,
+    usageSettings,
     autoFlush,
   };
   const routes: Route[] = [
@@ -132,6 +139,7 @@ export function createLocalServer(config: ServerConfig): LocalServer {
     ...teamRoutes(deps),
     ...vocabularyRoutes(deps),
     ...policyRoutes(deps),
+    ...usageRoutes(deps),
   ];
 
   function bearer(req: IncomingMessage): string | null {
@@ -214,6 +222,7 @@ export function createLocalServer(config: ServerConfig): LocalServer {
     invites,
     vocabulary,
     policy,
+    usage,
     routes: routes.map(({ method, path, access }) => ({ method, path, access })),
     db,
     listen: () =>
@@ -231,6 +240,7 @@ export function createLocalServer(config: ServerConfig): LocalServer {
                 day = today;
                 audit.prune(audit.retentionDays());
                 vocabulary.pruneHistory();
+                usage.prune();
               }
             }, 5_000);
             timer.unref();

@@ -274,6 +274,42 @@ export const MIGRATIONS: readonly Migration[] = [
       ALTER TABLE team_revisions ADD COLUMN policy_revision INTEGER NOT NULL DEFAULT 0;
     `,
   },
+  {
+    version: 6,
+    name: "usage_and_leaderboard",
+    sql: `
+      -- Daily counts per person, metric and app group. Counts only: never a word of text.
+      -- A person's department is read when a report is run, so moving them moves their history
+      -- with them (TM-05).
+      CREATE TABLE usage_daily (
+        team_id TEXT NOT NULL REFERENCES teams (id) ON DELETE CASCADE,
+        user_id TEXT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        day     TEXT NOT NULL,
+        metric  TEXT NOT NULL,
+        bucket  TEXT NOT NULL DEFAULT '',
+        count   INTEGER NOT NULL,
+        PRIMARY KEY (team_id, user_id, day, metric, bucket)
+      );
+      CREATE INDEX usage_daily_day ON usage_daily (team_id, day);
+
+      -- A batch that was received, so a client that sends it again is not counted twice.
+      CREATE TABLE usage_batches (
+        team_id     TEXT NOT NULL REFERENCES teams (id) ON DELETE CASCADE,
+        user_id     TEXT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        batch_id    TEXT NOT NULL,
+        received_at INTEGER NOT NULL,
+        PRIMARY KEY (team_id, user_id, batch_id)
+      );
+
+      -- A member's own choice about showing on the leaderboard.
+      CREATE TABLE leaderboard_choices (
+        team_id TEXT NOT NULL REFERENCES teams (id) ON DELETE CASCADE,
+        user_id TEXT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        visible INTEGER NOT NULL,
+        PRIMARY KEY (team_id, user_id)
+      );
+    `,
+  },
 ];
 
 export function migrate(db: DatabaseSync, migrations: readonly Migration[] = MIGRATIONS): number {

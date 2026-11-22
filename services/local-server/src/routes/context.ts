@@ -4,8 +4,9 @@ import type { Invites } from "../invites.ts";
 import type { Policy } from "../policy.ts";
 import type { Settings } from "../settings.ts";
 import type { Siem } from "../siem.ts";
-import type { TeamSettings } from "../team-settings.ts";
+import type { TeamSettings, UsageSettingsStore } from "../team-settings.ts";
 import type { Teams } from "../teams.ts";
+import type { Usage } from "../usage.ts";
 import type { Vocabulary } from "../vocabulary.ts";
 import type { Ctx } from "../http.ts";
 import { HttpError } from "../http.ts";
@@ -22,6 +23,8 @@ export interface RouteDeps {
   teamSettings: TeamSettings;
   vocabulary: Vocabulary;
   policy: Policy;
+  usage: Usage;
+  usageSettings: UsageSettingsStore;
   /** Whether the SIEM queue is sent as entries are written. */
   autoFlush: boolean;
 }

@@ -136,4 +136,114 @@ export function createTeamSettings(db: DatabaseSync) {
   };
 }
 
+// ---- usage and the leaderboard (TM-09, TM-10) ----
+
+export const LEADERBOARD_METRICS = ["words", "meetings", "streak"] as const;
+export type LeaderboardMetric = (typeof LEADERBOARD_METRICS)[number];
+
+export interface UsageSettings {
+  /** Typing speed used for "time saved": words dictated divided by this. */
+  typingWpm: number;
+  /** How long the daily rollups are kept. */
+  retentionDays: number;
+  /** Keep real app names. Off: apps are grouped (Mail, Browser, Other...). */
+  appNames: boolean;
+}
+export interface LeaderboardSettings {
+  enabled: boolean;
+  metric: LeaderboardMetric;
+  /** Members are listed unless they opt out. Off: they are hidden unless they opt in. */
+  visibleByDefault: boolean;
+}
+
+export const USAGE_DEFAULTS: UsageSettings = { typingWpm: 40, retentionDays: 400, appNames: false };
+export const LEADERBOARD_DEFAULTS: LeaderboardSettings = {
+  enabled: true,
+  metric: "words",
+  visibleByDefault: true,
+};
+
+type Spec<T> = {
+  [K in keyof T]: { key: string; check(value: unknown): string | null };
+};
+
+const int = (min: number, max: number, label: string) => (value: unknown) =>
+  typeof value === "number" && Number.isInteger(value) && value >= min && value <= max
+    ? null
+    : `${label}: a whole number from ${min} to ${max}.`;
+const bool = (label: string) => (value: unknown) =>
+  typeof value === "boolean" ? null : `${label}: true or false.`;
+
+const USAGE_SPEC: Spec<UsageSettings> = {
+  typingWpm: { key: "team.usage.typingWpm", check: int(10, 150, "Typing speed") },
+  retentionDays: { key: "team.usage.retentionDays", check: int(30, 3650, "Keep usage for") },
+  appNames: { key: "team.usage.appNames", check: bool("App names") },
+};
+const LEADERBOARD_SPEC: Spec<LeaderboardSettings> = {
+  enabled: { key: "team.leaderboard.enabled", check: bool("The leaderboard") },
+  metric: {
+    key: "team.leaderboard.metric",
+    check: (value) =>
+      (LEADERBOARD_METRICS as readonly unknown[]).includes(value)
+        ? null
+        : `The metric is ${LEADERBOARD_METRICS.join(", ")}.`,
+  },
+  visibleByDefault: { key: "team.leaderboard.visibleByDefault", check: bool("Visible by default") },
+};
+
+/** A group of team settings with defaults: read them, and check and save a change. */
+function settingsGroup<T extends object>(db: DatabaseSync, spec: Spec<T>, defaults: T) {
+  const read = (teamId: string): T => {
+    const out = { ...defaults };
+    for (const name of Object.keys(spec) as (keyof T)[]) {
+      const row = db
+        .prepare("SELECT value_json FROM team_settings WHERE team_id = ? AND key = ?")
+        .get(teamId, spec[name].key) as { value_json: string } | undefined;
+      if (row) {
+        try {
+          out[name] = JSON.parse(row.value_json) as T[keyof T];
+        } catch {
+          // A value that cannot be read is the default.
+        }
+      }
+    }
+    return out;
+  };
+  return {
+    get: read,
+    set(
+      teamId: string,
+      patch: Record<string, unknown>,
+    ):
+      | { ok: true; changed: Record<string, string | number | boolean> }
+      | { ok: false; message: string } {
+      const current = read(teamId);
+      const changed: Record<string, string | number | boolean> = {};
+      for (const name of Object.keys(patch)) {
+        if (!Object.hasOwn(spec, name))
+          return { ok: false, message: `"${name}" is not a setting.` };
+        const problem = spec[name as keyof T].check(patch[name]);
+        if (problem) return { ok: false, message: problem };
+      }
+      for (const name of Object.keys(patch) as (keyof T & string)[]) {
+        if (patch[name] === current[name]) continue;
+        db.prepare(
+          `INSERT INTO team_settings (team_id, key, value_json) VALUES (?, ?, ?)
+           ON CONFLICT (team_id, key) DO UPDATE SET value_json = excluded.value_json`,
+        ).run(teamId, spec[name].key, JSON.stringify(patch[name]));
+        changed[name] = patch[name] as string | number | boolean;
+      }
+      return { ok: true, changed };
+    },
+  };
+}
+
+export function createUsageSettings(db: DatabaseSync) {
+  return {
+    usage: settingsGroup(db, USAGE_SPEC, USAGE_DEFAULTS),
+    leaderboard: settingsGroup(db, LEADERBOARD_SPEC, LEADERBOARD_DEFAULTS),
+  };
+}
+export type UsageSettingsStore = ReturnType<typeof createUsageSettings>;
+
 export type TeamSettings = ReturnType<typeof createTeamSettings>;
