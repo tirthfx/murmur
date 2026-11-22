@@ -103,6 +103,7 @@ function setup() {
     slackPostSend: vi.fn(),
     extensionsView: vi.fn(),
     isLocked: () => lockedNow,
+    policyView: vi.fn(),
     teamView: vi.fn(),
     teamConnect: vi.fn(),
     teamSetup: vi.fn(),

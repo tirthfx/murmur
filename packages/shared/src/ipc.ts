@@ -32,6 +32,7 @@ import type { RecordingsResult } from "./connector-import";
 import type { AskActionResult } from "./ask-actions";
 import { askActionRequestSchema, type AskActionRequest } from "./ask-actions";
 import type { ExtensionsView } from "./extensions";
+import type { PolicyView } from "./policy";
 import {
   teamConnectSchema,
   teamRedeemSchema,
@@ -511,6 +512,7 @@ export const IPC_CHANNELS = {
   connectorImportPrepare: "connectors:import-prepare",
   connectorDataStatus: "connectors:data-status",
   extensionsView: "extensions:view",
+  policyView: "policy:view",
   teamView: "team:view",
   teamConnect: "team:connect",
   teamSetup: "team:setup",
@@ -1156,6 +1158,7 @@ export const IPC_CONTRACT = {
     result: z.custom<SlackSendResult>(),
   },
   [IPC_CHANNELS.extensionsView]: { args: z.tuple([]), result: z.custom<ExtensionsView>() },
+  [IPC_CHANNELS.policyView]: { args: z.tuple([]), result: z.custom<PolicyView>() },
   [IPC_CHANNELS.teamView]: { args: z.tuple([]), result: z.custom<TeamView>() },
   [IPC_CHANNELS.teamConnect]: {
     args: z.tuple([teamConnectSchema]),
@@ -1668,6 +1671,8 @@ export interface MurmurApi {
   /** CN-12: the built-in actions connected apps can do, with their state. They are switched in settings. */
   extensionsView(): Promise<ExtensionsView>;
   /** Team mode (TM-01, TM-06). */
+  /** TM-13 to TM-16, TM-21: what the managed file and the team policy set (shown, not changed). */
+  policyView(): Promise<PolicyView>;
   teamView(): Promise<TeamView>;
   teamConnect(input: { serverUrl: string }): Promise<TeamResult>;
   teamSetup(input: { name: string; email: string; password: string }): Promise<TeamResult>;
@@ -1687,6 +1692,7 @@ export interface MurmurApi {
   teamNoticesSeen(): Promise<TeamResult>;
   /** The team state changed: locked, signed in or out, or a sync finished. */
   onTeamChanged(handler: (view: TeamView) => void): () => void;
+  onPolicyChanged(handler: (view: PolicyView) => void): () => void;
   /** NT-11: the meetings that are coming, whether each has a brief, and each source's state. */
   briefOverview(): Promise<BriefOverview>;
   /** NT-11: the brief last built for a meeting, or null. */
@@ -1783,4 +1789,5 @@ export const IPC_EVENTS = {
   meetingsChanged: "meetings:changed",
   meetingLive: "meetings:live",
   teamChanged: "team:changed",
+  policyChanged: "policy:changed",
 } as const;

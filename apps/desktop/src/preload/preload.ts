@@ -199,6 +199,7 @@ const api: MurmurApi = {
   slackPostPrepare: (input) => ipcRenderer.invoke(IPC_CHANNELS.slackPostPrepare, input),
   slackPostSend: (input) => ipcRenderer.invoke(IPC_CHANNELS.slackPostSend, input),
   extensionsView: () => ipcRenderer.invoke(IPC_CHANNELS.extensionsView),
+  policyView: () => ipcRenderer.invoke(IPC_CHANNELS.policyView),
   teamView: () => ipcRenderer.invoke(IPC_CHANNELS.teamView),
   teamConnect: (input) => ipcRenderer.invoke(IPC_CHANNELS.teamConnect, input),
   teamSetup: (input) => ipcRenderer.invoke(IPC_CHANNELS.teamSetup, input),
@@ -211,6 +212,11 @@ const api: MurmurApi = {
   teamSetIdleLock: (minutes) => ipcRenderer.invoke(IPC_CHANNELS.teamSetIdleLock, minutes),
   teamDisconnect: () => ipcRenderer.invoke(IPC_CHANNELS.teamDisconnect),
   teamNoticesSeen: () => ipcRenderer.invoke(IPC_CHANNELS.teamNoticesSeen),
+  onPolicyChanged: (handler) => {
+    const listener = (_event: unknown, view: Parameters<typeof handler>[0]) => handler(view);
+    ipcRenderer.on(IPC_EVENTS.policyChanged, listener);
+    return () => ipcRenderer.removeListener(IPC_EVENTS.policyChanged, listener);
+  },
   onTeamChanged: (handler) => {
     const listener = (_event: unknown, view: Parameters<typeof handler>[0]) => handler(view);
     ipcRenderer.on(IPC_EVENTS.teamChanged, listener);

@@ -1,6 +1,8 @@
 import {
   TEAM_LIMITS,
+  effectivePolicySchema,
   TEAM_MESSAGES,
+  type EffectivePolicy,
   type InsightsDay,
   type Keychain,
   type TeamNotice,
@@ -37,6 +39,8 @@ export interface TeamFile {
   user: { name: string; email: string } | null;
   /** The last shared vocabulary of each team, so it works while the server is out of reach. */
   cache: Record<string, { revision: number; set: SharedSet }>;
+  /** The last effective policy of each team, enforced while the server is out of reach. */
+  policies: Record<string, EffectivePolicy>;
   usage: UsageMemory;
 }
 
@@ -47,6 +51,7 @@ const EMPTY_FILE: TeamFile = {
   locked: false,
   user: null,
   cache: {},
+  policies: {},
   usage: EMPTY_USAGE_MEMORY,
 };
 
@@ -61,6 +66,8 @@ export interface TeamDeps {
   /** Throws when strict local mode refuses this address. */
   networkCheck(url: string): void;
   vocabulary: SharedVocabulary;
+  /** Receives the policies of the teams the person is in (none when signed out). */
+  policy?: { setTeam(policies: readonly EffectivePolicy[]): void };
   insights: { days(first: string | null): InsightsDay[] };
   meetings: { list(limit?: number): UsageMeeting[] };
   onChange(view: TeamView): void;
@@ -105,6 +112,7 @@ export function createTeamService(deps: TeamDeps) {
         ...parsed,
         usage: { ...EMPTY_USAGE_MEMORY, ...(parsed.usage ?? {}) },
         cache: parsed.cache ?? {},
+        policies: parsed.policies ?? {},
       };
     } catch {
       return { ...EMPTY_FILE };
@@ -188,11 +196,12 @@ export function createTeamService(deps: TeamDeps) {
     token = null;
     await deps.keychain.delete(TEAM_KEYCHAIN.service, TEAM_KEYCHAIN.account).catch(() => false);
     deps.vocabulary.clear();
+    deps.policy?.setTeam([]);
     teams = [];
     notices = [];
     state = file.enabled ? "signed_out" : "off";
     syncProblem = problem;
-    file = { ...file, locked: false, user: null };
+    file = { ...file, locked: false, user: null, policies: {} };
     save();
     emit();
   }
@@ -263,6 +272,7 @@ export function createTeamService(deps: TeamDeps) {
 
       const sets: SharedSet[] = [];
       let found: TeamNotice[] = [];
+      const policies: Record<string, EffectivePolicy> = { ...file.policies };
       for (const team of teams) {
         const since = revisions.get(team.id);
         const merged = await authed(
@@ -302,14 +312,25 @@ export function createTeamService(deps: TeamDeps) {
             [];
           found = [...found, ...list.map((n) => ({ id: n.id, summary: n.summary, note: n.note }))];
         }
+
+        const effective = await authed("GET", `v1/teams/${team.id}/policy/effective`);
+        if (effective.status === 200) {
+          const parsed = effectivePolicySchema.safeParse(effective.json?.["policy"]);
+          if (parsed.success) policies[team.id] = parsed.data;
+        } else if (effective.status === 403) {
+          // The server's plan has no policy (or the person may not see it): none applies.
+          delete policies[team.id];
+        }
       }
       deps.vocabulary.set(sets);
       notices = found;
+      const inTeams = (id: string) => teams.some((t) => t.id === id);
+      const kept = Object.fromEntries(Object.entries(policies).filter(([id]) => inTeams(id)));
+      deps.policy?.setTeam(Object.values(kept));
       file = {
         ...file,
-        cache: Object.fromEntries(
-          Object.entries(file.cache).filter(([id]) => teams.some((t) => t.id === id)),
-        ),
+        policies: kept,
+        cache: Object.fromEntries(Object.entries(file.cache).filter(([id]) => inTeams(id))),
       };
       save();
       await usage.flush().catch(() => 0);
@@ -373,6 +394,7 @@ export function createTeamService(deps: TeamDeps) {
       // What was pulled last time is in use at once, before the server answers.
       const cached = Object.values(file.cache).map((entry) => entry.set);
       deps.vocabulary.set(cached);
+      deps.policy?.setTeam(Object.values(file.policies));
       state = file.locked ? "locked" : "signed_in";
       startTimers();
       void sync();
@@ -418,7 +440,7 @@ export function createTeamService(deps: TeamDeps) {
       if (previous.serverUrl !== file.serverUrl) {
         // A different server: whatever was kept for the old one goes.
         await endSession("");
-        file = { ...file, user: null, cache: {}, usage: EMPTY_USAGE_MEMORY };
+        file = { ...file, user: null, cache: {}, policies: {}, usage: EMPTY_USAGE_MEMORY };
       }
       if (state === "off") state = "signed_out";
       save();

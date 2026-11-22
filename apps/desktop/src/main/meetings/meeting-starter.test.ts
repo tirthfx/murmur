@@ -4,7 +4,7 @@ import { CANCELLED_MESSAGE, createMeetingStarter } from "./meeting-starter";
 
 const silent = { info() {}, warn() {}, error() {} };
 
-function setup(consent: NotetakerSettings["consent"], answer = true) {
+function setup(consent: NotetakerSettings["consent"], answer = true, refuse?: () => string | null) {
   let state: RecordingState = { status: "idle" };
   let current = { ...consent };
   const order: string[] = [];
@@ -42,6 +42,7 @@ function setup(consent: NotetakerSettings["consent"], answer = true) {
     },
     confirmNotice,
     now: () => 99,
+    ...(refuse ? { refuse } : {}),
     logger: silent,
   });
   return { starter, recorder, store, confirmNotice, order, consent: () => current };
@@ -121,5 +122,34 @@ describe("meeting starter", () => {
     const t = setup({ notice: "always", seen: true });
     await t.starter.start("ad_hoc", { eventId: "e", title: "T", attendees: [] });
     expect(t.order).toEqual(["notice", "capture"]);
+  });
+});
+
+describe("a refused start (TM-14, TM-25)", () => {
+  it("sends no capture.start and shows no notice, from the hotkey or any other start", async () => {
+    const t = setup({ notice: "always", seen: false }, true, () => "Notetaker is off.");
+    expect(await t.starter.toggle()).toEqual({ ok: false, message: "Notetaker is off." });
+    expect(await t.starter.start("calendar", { eventId: "e", title: "t", attendees: [] })).toEqual({
+      ok: false,
+      message: "Notetaker is off.",
+    });
+    expect(t.recorder.start).not.toHaveBeenCalled();
+    expect(t.confirmNotice).not.toHaveBeenCalled();
+  });
+
+  it("is asked again each time, so a change applies at once", async () => {
+    let refusal: string | null = "Free is used up.";
+    const t = setup({ notice: "off", seen: false }, true, () => refusal);
+    expect((await t.starter.toggle()).ok).toBe(false);
+    refusal = null;
+    expect((await t.starter.toggle()).ok).toBe(true);
+  });
+
+  it("never stops a recording from being stopped", async () => {
+    let refusal: string | null = null;
+    const t = setup({ notice: "off", seen: false }, true, () => refusal);
+    await t.starter.toggle();
+    refusal = "Notetaker is off.";
+    expect(await t.starter.toggle()).toEqual({ ok: true, action: "stopped" });
   });
 });

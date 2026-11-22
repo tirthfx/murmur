@@ -4,7 +4,7 @@ import { EmptyState } from "@astryxdesign/core/EmptyState";
 import { Heading } from "@astryxdesign/core/Heading";
 import { SideNav, SideNavHeading, SideNavItem, SideNavSection } from "@astryxdesign/core/SideNav";
 import { Text } from "@astryxdesign/core/Text";
-import type { AppInfo } from "@murmur/shared";
+import { MANAGED_MESSAGES, type AppInfo } from "@murmur/shared";
 import { DictionaryPage } from "./DictionaryPage";
 import { SnippetsPage } from "./SnippetsPage";
 import { StylesPage } from "./StylesPage";
@@ -25,6 +25,7 @@ import { TourCard } from "./TourCard";
 import { DictationPage } from "./DictationPage";
 import { InsightsPage } from "./InsightsPage";
 import { Onboarding } from "./Onboarding";
+import { usePolicy } from "./usePolicy";
 import { SettingsPage } from "./SettingsPage";
 import type { Tour } from "@murmur/shared";
 import {
@@ -93,7 +94,20 @@ function HubPages({ onRunSetup }: { onRunSetup: () => void }) {
     () => resolvePage(pageFromHash(window.location.hash) ?? "home", {}).id,
   );
   const info = useAppInfo();
-  const pages = visiblePages(features);
+  // TM-14: a page the organization has turned off is not listed.
+  const policy = usePolicy();
+  const policyFeatures: PageFeatures = {
+    scratchpad: !policy.featuresOff.includes("scratchpad"),
+    rewrites: !policy.featuresOff.includes("transforms"),
+    connectors: !policy.featuresOff.includes("connectors"),
+  };
+  const allFeatures: PageFeatures = {
+    ...features,
+    ...(Object.fromEntries(
+      Object.entries(policyFeatures).filter(([, on]) => on === false),
+    ) as PageFeatures),
+  };
+  const pages = visiblePages(allFeatures);
   useEffect(() => {
     let active = true;
     window.murmur.getSettings().then(
@@ -104,8 +118,8 @@ function HubPages({ onRunSetup }: { onRunSetup: () => void }) {
       active = false;
     };
   }, [pageId]);
-  const featuresRef = useRef(features);
-  featuresRef.current = features;
+  const featuresRef = useRef(allFeatures);
+  featuresRef.current = allFeatures;
 
   // HB-01: the hash names the page; main remembers it for the next start.
   const setPageId = useCallback((id: string) => {
@@ -148,7 +162,7 @@ function HubPages({ onRunSetup }: { onRunSetup: () => void }) {
 
   // Main can ask for a page: the last one at start, or one after a Bar prompt.
   useEffect(() => window.murmur.onOpenPage(setPageId), [setPageId]);
-  const page = resolvePage(pageId, features);
+  const page = resolvePage(pageId, allFeatures);
 
   // TM-01: while Murmur is locked, no page is shown, only the password.
   const [teamLocked, setTeamLocked] = useState(false);
@@ -175,10 +189,24 @@ function HubPages({ onRunSetup }: { onRunSetup: () => void }) {
         </>
       }
       footer={
-        info ? (
-          <Text size="xsm" color="secondary" data-testid="app-version">
-            Version {info.version}
-          </Text>
+        info || policy.managed ? (
+          <>
+            {policy.managed ? (
+              <Text size="xsm" color="secondary" data-testid="managed-badge">
+                {MANAGED_MESSAGES.badge}
+              </Text>
+            ) : null}
+            {policy.updates.managed ? (
+              <Text size="xsm" color="secondary" data-testid="updates-managed">
+                {MANAGED_MESSAGES.updates}
+              </Text>
+            ) : null}
+            {info ? (
+              <Text size="xsm" color="secondary" data-testid="app-version">
+                Version {info.version}
+              </Text>
+            ) : null}
+          </>
         ) : undefined
       }
     >

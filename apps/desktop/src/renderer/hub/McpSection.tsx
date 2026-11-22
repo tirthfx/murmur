@@ -8,6 +8,7 @@ import { TextInput } from "@astryxdesign/core/TextInput";
 import { VStack } from "@astryxdesign/core/VStack";
 import { type McpSettings, type McpStatus } from "@murmur/shared";
 import { McpApps } from "./McpApps";
+import { PolicyFeatureNotice } from "./PolicyNotice";
 
 const validPort = (text: string) =>
   /^\d{4,5}$/.test(text) && Number(text) >= 1024 && Number(text) <= 65535;
@@ -60,6 +61,7 @@ export function McpSection() {
         <Text weight="semibold" id="mcp-heading">
           Local MCP server
         </Text>
+        <PolicyFeatureNotice feature="mcp" />
         <Text color="secondary">
           Lets an AI app on this Mac, such as Claude or Cursor, read your meeting titles, summaries,
           transcripts and tasks. It runs only on this Mac, is off until you turn it on, and never
