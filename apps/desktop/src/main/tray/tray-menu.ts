@@ -47,6 +47,8 @@ export interface TrayState {
     when: string;
     /** Whether it has a call link to join. */
     hasLink: boolean;
+    /** NT-11: whether a brief has been built for it. */
+    hasBrief?: boolean;
   } | null;
 }
 
@@ -66,6 +68,8 @@ export type TrayAction =
   | { type: "meeting-join"; eventId: string }
   /** NT-02: records the next meeting with its title and people. */
   | { type: "meeting-record-event"; eventId: string }
+  /** NT-11: shows the next meeting's brief. */
+  | { type: "meeting-brief"; eventId: string }
   | { type: "quit" };
 
 /** One menu row, independent of the toolkit that draws it. */
@@ -206,6 +210,15 @@ function nextItems(
             kind: "item" as const,
             label: tr(language, "tray.meeting.join"),
             action: { type: "meeting-join" as const, eventId: next.eventId },
+          },
+        ]
+      : []),
+    ...(next.hasBrief
+      ? [
+          {
+            kind: "item" as const,
+            label: tr(language, "tray.meeting.brief"),
+            action: { type: "meeting-brief" as const, eventId: next.eventId },
           },
         ]
       : []),

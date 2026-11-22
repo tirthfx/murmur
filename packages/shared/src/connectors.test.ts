@@ -147,7 +147,7 @@ describe("a feature that needs a connector (CN-15)", () => {
       slack: { accounts: [{ id: "s", status: "connected" } as never] },
       gmail: { accounts: [{ id: "g", status: "connected" } as never] },
     });
-    for (const id of ["briefs", "slack-send", "notion-links", "import-services"])
+    for (const id of ["slack-send", "notion-links", "import-services"])
       expect(connectorFeatureState(feature(id), connected)).toMatchObject({
         enabled: false,
         reason: "Not built yet. Connecting an account does not turn it on.",

@@ -61,6 +61,7 @@ import {
   type CalendarEvent,
   MCP_STATUS_OFF,
   DEFAULT_CONNECTOR_SETTINGS,
+  DEFAULT_BRIEF_SETTINGS,
   DEFAULT_MCP_SETTINGS,
   DEFAULT_NOTETAKER,
   isClientCredential,
@@ -177,6 +178,10 @@ import { createEventCreateService, isCalendarOpenUrl } from "./connectors/calend
 import { connectOptionsFor } from "./connectors/connect-options";
 import { createAutomationsStore } from "./connectors/gmail/automations-store";
 import { createEmailDraftService } from "./connectors/gmail/email-draft";
+import { createGmailThreads } from "./connectors/gmail/gmail-threads";
+import { createBriefBuilder, eventKeyOf as briefEventKey } from "./meetings/brief-builder";
+import { createBriefService } from "./meetings/brief-service";
+import { createBriefsStore } from "./meetings/briefs-store";
 import { gmailProvider } from "./connectors/gmail/gmail";
 import { createConnectorData } from "./connectors/data/connector-data";
 import { githubProvider } from "./connectors/github/github";
@@ -1942,6 +1947,58 @@ const eventCreate =
         onCreated: (accountId) => void calendarSync?.syncAccount(accountId),
       })
     : null;
+// NT-11: a brief before a calendar meeting, from earlier meetings, open tasks and the connectors.
+const briefsStore = database ? createBriefsStore(database) : null;
+const briefs =
+  briefsStore &&
+  connectorService &&
+  connectorStore &&
+  calendarStore &&
+  meetingsStore &&
+  meetingSummaries &&
+  tasksService &&
+  connectorData
+    ? createBriefService({
+        calendar: calendarStore,
+        settings: () => ({
+          brief: settingsStore.get().notetaker.brief,
+          skipDeclined: settingsStore.get().notetaker.calendar.skipDeclined,
+        }),
+        store: briefsStore,
+        builder: createBriefBuilder({
+          settings: () => ({
+            brief: settingsStore.get().notetaker.brief,
+            gmail: settingsStore.get().connectors.gmail,
+          }),
+          accounts: () => connectorService.list(),
+          meetings: meetingsStore,
+          summaries: meetingSummaries,
+          tasks: tasksService,
+          connectorItems: (connector) => connectorData.items({ connector }),
+          gmailThreads: createGmailThreads({
+            connectors: connectorService,
+            connectorStore,
+            now: Date.now,
+          }),
+          generate: meetingGenerate,
+          now: Date.now,
+        }),
+        accounts: () => connectorService.list(),
+        now: Date.now,
+        logger: createConsoleLogger("[brief]"),
+        // The menu bar shows a way to open the brief once there is one.
+        onBuilt: () => tray?.refresh(),
+      })
+    : null;
+briefs?.start();
+/** The meeting the menu bar asked the Brief tab to show; handed over once. */
+let briefTarget: string | null = null;
+const noBriefs = {
+  calendarConnected: false,
+  events: [],
+  sources: [],
+  settings: DEFAULT_BRIEF_SETTINGS,
+};
 const noEventCreate = { available: false, reason: "Events need a calendar and the database." };
 const taskRunner =
   meetingsStore && meetingTranscripts && tasksService
@@ -2669,6 +2726,7 @@ function createTray(): void {
             title: event.title,
             when: untilText(event.startMs, now),
             hasLink: event.joinUrl !== null,
+            hasBrief: briefsStore?.get(briefEventKey(event)) != null,
             text: menuBarText(event, now),
           }
         : null;
@@ -2684,6 +2742,12 @@ function createTray(): void {
     recordEvent: (key) => {
       const event = eventByKey(key);
       if (event) startFromEvent(event);
+    },
+    openBrief: (key) => {
+      const event = eventByKey(key);
+      if (!event) return;
+      briefTarget = briefEventKey(event);
+      openHubPage("notetaker");
     },
   });
   tray = controller;
@@ -3438,6 +3502,26 @@ function registerIpc(): void {
       return result.ok
         ? { ok: true, message: `Read ${result.count} ${result.count === 1 ? "event" : "events"}.` }
         : result;
+    },
+    briefOverview: () => briefs?.overview() ?? noBriefs,
+    briefGet: (eventKey) => briefs?.get(eventKey) ?? null,
+    briefForMeeting: (meetingId) => {
+      const eventId = meetingsStore?.get(meetingId)?.calendarEventId;
+      return eventId ? (briefsStore?.getForEvent(eventId) ?? null) : null;
+    },
+    briefBuild: async (eventKey) =>
+      briefs?.build(eventKey) ?? { ok: false, message: "Briefs need a calendar and the database." },
+    briefOpen: async (url) => {
+      // Only an address from a connected service's own reads is opened.
+      if (!/^https:\/\/(github\.com|linear\.app|(www\.)?notion\.so)\//i.test(url))
+        return { ok: false };
+      await shell.openExternal(url);
+      return { ok: true };
+    },
+    briefTarget: () => {
+      const target = briefTarget;
+      briefTarget = null;
+      return target;
     },
     emailDraftState: () => emailDrafts?.state() ?? noEmailDrafts,
     emailDraftPropose: async (source) =>

@@ -113,7 +113,7 @@ Four read connectors on the framework. Each one reads only what its documented s
 
 **Provider differences handled by the framework.** `ConnectorProvider` gained `scopeParam` and `scopeSeparator` (Slack sends user scopes in `user_scope`, comma separated; Notion sends none), `tokenAuth` and `tokenBody` (Notion proves the app with HTTP Basic and a JSON body), `tokenHeaders` (Notion's version header) and `parseTokenResponse` (Slack nests the user's token in `authed_user`).
 
-**Not built:** posting to Slack ("Send to Slack"), Notion pages as meeting links, private Slack channels and direct messages, walking a Notion page's nested blocks and child databases, GitHub revoke from Murmur (revoke the grant in GitHub), and the briefs and Ask that read the items (#223). Until briefs exist the items are kept and counted on the Connectors page but nothing else shows them.
+**Not built:** posting to Slack ("Send to Slack"), Notion pages as meeting links, private Slack channels and direct messages, walking a Notion page's nested blocks and child databases, GitHub revoke from Murmur (revoke the grant in GitHub), and Ask reading the items. Briefs (`docs/notetaker.md`, Meeting briefs) read these items, and Gmail threads through `connectors/gmail/gmail-threads.ts`.
 
 **Manual check:** register your own app at the provider with the redirect address above, enter its client id and secret, connect, then choose what to read (channels, teams, repositories) and press "Read now": the Connectors page says how many items are kept. Take a channel out of the selection and check the count drops at once.
 

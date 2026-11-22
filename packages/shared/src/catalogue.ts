@@ -35,6 +35,7 @@ const en = {
   "tray.meeting.next": "Next: {title}, {when}",
   "tray.meeting.join": "Join the meeting",
   "tray.meeting.recordEvent": "Record this meeting",
+  "tray.meeting.brief": "Open the brief",
   "tray.quit": "Quit Murmur",
   "tray.tooltip": "Murmur",
   "tray.tooltip.listening": "Murmur: listening",

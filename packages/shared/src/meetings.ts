@@ -15,6 +15,7 @@ import { DEFAULT_ASK_SETTINGS, askSettingsSchema } from "./ask";
 import { DEFAULT_FOLDERS_SETTINGS, foldersSettingsSchema, type FolderSuggestion } from "./folders";
 import { DEFAULT_TASKS_SETTINGS, tasksSettingsSchema } from "./tasks";
 import { transcriptSchema } from "./speech";
+import { DEFAULT_BRIEF_SETTINGS, briefSettingsSchema } from "./brief";
 
 /**
  * Notetaker (M5). Meetings are recorded by the helper as two channels of chunk files; main
@@ -576,6 +577,8 @@ export const notetakerSettingsSchema = z.strictObject({
   menubar: menubarSettingsSchema.default(DEFAULT_MENUBAR_SETTINGS),
   /** NT-27, NT-28: what a task or a summary can turn into. */
   automations: automationsSettingsSchema.default(DEFAULT_AUTOMATIONS_SETTINGS),
+  /** NT-11: briefs before a meeting. */
+  brief: briefSettingsSchema.default(DEFAULT_BRIEF_SETTINGS),
   /** NT-21: importing transcript files. */
   import: importSettingsSchema.default(DEFAULT_IMPORT_SETTINGS),
   /** NT-22: how long audio and transcripts are kept. */
@@ -614,4 +617,5 @@ export const DEFAULT_NOTETAKER: NotetakerSettings = {
   calendar: DEFAULT_CALENDAR_SETTINGS,
   menubar: DEFAULT_MENUBAR_SETTINGS,
   automations: DEFAULT_AUTOMATIONS_SETTINGS,
+  brief: DEFAULT_BRIEF_SETTINGS,
 };

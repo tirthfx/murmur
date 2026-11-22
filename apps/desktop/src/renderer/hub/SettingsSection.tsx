@@ -17,6 +17,9 @@ import {
   TRANSCRIPT_RETENTION_TEXT,
   MEETING_LANGUAGES,
   RECAP_WINDOWS,
+  BRIEF_LEAD_MINUTES,
+  BRIEF_SOURCE_IDS,
+  BRIEF_SOURCE_TEXT,
   EVENT_DURATIONS,
   REMINDER_MINUTES,
   LOOKAHEAD_HOURS,
@@ -711,6 +714,71 @@ export function SettingsSection({
                 })
               }
             />
+          </VStack>
+        </Row>
+        <Row id="meeting-brief">
+          <VStack gap={2}>
+            <Heading level={3}>Meeting briefs</Heading>
+            <Text size="sm" color="secondary">
+              A brief before a calendar meeting, built on this Mac from earlier meetings, open tasks
+              and the services you connected. The Upcoming tab of the Notetaker page shows it.
+            </Text>
+            <Switch
+              label="Build a brief before each meeting"
+              value={settings.notetaker.brief.auto}
+              onChange={(auto) =>
+                update({
+                  notetaker: {
+                    ...settings.notetaker,
+                    brief: { ...settings.notetaker.brief, auto },
+                  },
+                })
+              }
+            />
+            <Selector
+              label="Build it this long before the start"
+              options={[
+                ...new Set<number>([...BRIEF_LEAD_MINUTES, settings.notetaker.brief.leadMinutes]),
+              ]
+                .sort((a, b) => a - b)
+                .map((minutes) => ({ value: String(minutes), label: `${minutes} minutes` }))}
+              value={String(settings.notetaker.brief.leadMinutes)}
+              onChange={(value) =>
+                update({
+                  notetaker: {
+                    ...settings.notetaker,
+                    brief: { ...settings.notetaker.brief, leadMinutes: Number(value) },
+                  },
+                })
+              }
+            />
+            {BRIEF_SOURCE_IDS.map((id) => {
+              const connector = BRIEF_SOURCE_TEXT[id].connector !== null;
+              return (
+                <Switch
+                  key={id}
+                  label={`Use ${BRIEF_SOURCE_TEXT[id].label}`}
+                  {...(connector
+                    ? {
+                        description:
+                          "Only when it is connected on the Connectors page. A source that is off is left out of the next brief.",
+                      }
+                    : {})}
+                  value={settings.notetaker.brief.sources[id]}
+                  onChange={(on) =>
+                    update({
+                      notetaker: {
+                        ...settings.notetaker,
+                        brief: {
+                          ...settings.notetaker.brief,
+                          sources: { ...settings.notetaker.brief.sources, [id]: on },
+                        },
+                      },
+                    })
+                  }
+                />
+              );
+            })}
           </VStack>
         </Row>
         <Row id="meeting-follow-up">
