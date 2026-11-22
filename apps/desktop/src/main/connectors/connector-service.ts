@@ -201,13 +201,17 @@ export function createConnectorService(deps: ConnectorServiceDeps): ConnectorSer
     scopes: token.scopes.length > 0 ? token.scopes : (previous?.scopes ?? []),
   });
 
-  const parseToken = async (response: Response): Promise<TokenResponse | null> => {
+  const parseToken = async (
+    provider: ConnectorProvider,
+    response: Response,
+  ): Promise<TokenResponse | null> => {
     let body: unknown;
     try {
       body = await response.json();
     } catch {
       return null;
     }
+    if (provider.parseTokenResponse) return provider.parseTokenResponse(body);
     const parsed = tokenResponseSchema.safeParse(body);
     if (!parsed.success) return null;
     return {
@@ -228,6 +232,32 @@ export function createConnectorService(deps: ConnectorServiceDeps): ConnectorSer
     return secret ? { client_id: clientId, client_secret: secret } : null;
   };
 
+  /**
+   * A request to the provider's token address with the app's own credentials: in the body, or as
+   * HTTP Basic when the provider asks for that, as a form or as JSON.
+   */
+  const tokenRequest = (
+    provider: ConnectorProvider,
+    values: Record<string, string>,
+    auth: Record<string, string>,
+  ): RequestInit => {
+    const headers: Record<string, string> = {
+      ...FORM_HEADERS,
+      ...provider.tokenHeaders,
+    };
+    let fields = { ...values, ...auth };
+    if (provider.tokenAuth === "basic") {
+      const { client_id, client_secret, ...rest } = fields;
+      fields = rest;
+      headers.authorization = `Basic ${Buffer.from(`${client_id ?? ""}:${client_secret ?? ""}`).toString("base64")}`;
+    }
+    if (provider.tokenBody === "json") {
+      headers["content-type"] = "application/json";
+      return { method: "POST", headers, body: JSON.stringify(fields) };
+    }
+    return { method: "POST", headers, body: form(fields) };
+  };
+
   /** One refresh at a time per account: a second caller waits for the first. */
   const refresh = (account: ConnectorAccount, blob: TokenBlob): Promise<TokenBlob> => {
     const running = refreshing.get(account.id);
@@ -245,11 +275,14 @@ export function createConnectorService(deps: ConnectorServiceDeps): ConnectorSer
         throw new ConnectorError("failed", `The ${provider.name} app is not set up any more.`);
       let response: Response;
       try {
-        response = await http(provider.tokenUrl, {
-          method: "POST",
-          headers: FORM_HEADERS,
-          body: form({ grant_type: "refresh_token", refresh_token: blob.refreshToken, ...auth }),
-        });
+        response = await http(
+          provider.tokenUrl,
+          tokenRequest(
+            provider,
+            { grant_type: "refresh_token", refresh_token: blob.refreshToken },
+            auth,
+          ),
+        );
       } catch {
         throw new ConnectorError("network", `Murmur could not reach ${provider.name}.`);
       }
@@ -267,7 +300,7 @@ export function createConnectorService(deps: ConnectorServiceDeps): ConnectorSer
           );
         throw new ConnectorError("network", `${provider.name} is not answering just now.`);
       }
-      const token = await parseToken(response);
+      const token = await parseToken(provider, response);
       if (!token)
         throw new ConnectorError("failed", `${provider.name} sent an answer Murmur cannot read.`);
       const next = toBlob(token, blob);
@@ -384,12 +417,13 @@ export function createConnectorService(deps: ConnectorServiceDeps): ConnectorSer
           response_type: "code",
           client_id: auth.client_id!,
           redirect_uri: loopback.redirectUri,
-          scope: scopes.join(" "),
           state,
           code_challenge: pkce.challenge,
           code_challenge_method: pkce.method,
           ...provider.authorizeParams,
         };
+        const scopeParam = provider.scopeParam === undefined ? "scope" : provider.scopeParam;
+        if (scopeParam !== null) query[scopeParam] = scopes.join(provider.scopeSeparator ?? " ");
         if (options.loginHint) query.login_hint = options.loginHint;
         for (const [name, value] of Object.entries(query)) url.searchParams.set(name, value);
 
@@ -404,17 +438,19 @@ export function createConnectorService(deps: ConnectorServiceDeps): ConnectorSer
 
         let response: Response;
         try {
-          response = await http(provider.tokenUrl, {
-            method: "POST",
-            headers: FORM_HEADERS,
-            body: form({
-              grant_type: "authorization_code",
-              code: result.code,
-              redirect_uri: loopback.redirectUri,
-              code_verifier: pkce.verifier,
-              ...auth,
-            }),
-          });
+          response = await http(
+            provider.tokenUrl,
+            tokenRequest(
+              provider,
+              {
+                grant_type: "authorization_code",
+                code: result.code,
+                redirect_uri: loopback.redirectUri,
+                code_verifier: pkce.verifier,
+              },
+              auth,
+            ),
+          );
         } catch {
           return {
             ok: false,
@@ -432,7 +468,7 @@ export function createConnectorService(deps: ConnectorServiceDeps): ConnectorSer
               : `${provider.name} did not accept the sign-in code (${response.status}).`,
           };
         }
-        const token = await parseToken(response);
+        const token = await parseToken(provider, response);
         if (!token)
           return {
             ok: false,

@@ -34,6 +34,18 @@ export interface ConnectorProvider {
   callbackPath?: string;
   /** The provider wants a client secret even with PKCE. It is kept in the Keychain. */
   needsClientSecret?: boolean;
+  /** The sign-in parameter that carries the scopes: `scope` (default), `user_scope` (Slack's user token), or none. */
+  scopeParam?: "scope" | "user_scope" | null;
+  /** What separates the scopes in that parameter: a space (default) or a comma. */
+  scopeSeparator?: " " | ",";
+  /** How the app proves itself at the token address: in the body (default) or as HTTP Basic. */
+  tokenAuth?: "body" | "basic";
+  /** The token request is a form (default) or JSON. */
+  tokenBody?: "form" | "json";
+  /** Extra headers sent with a token request. */
+  tokenHeaders?: Readonly<Record<string, string>>;
+  /** Reads an answer to a token request that is not the standard shape; null when it cannot be read. */
+  parseTokenResponse?(body: unknown): TokenResponse | null;
   /**
    * Learns which account just signed in: its email, or the name the provider shows. It may call
    * the provider with the new access token.

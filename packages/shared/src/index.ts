@@ -17,6 +17,7 @@ export * from "./media";
 export * from "./setup";
 export * from "./calendar";
 export * from "./connectors";
+export * from "./connector-data";
 export * from "./gmail";
 export * from "./context";
 export * from "./typing";

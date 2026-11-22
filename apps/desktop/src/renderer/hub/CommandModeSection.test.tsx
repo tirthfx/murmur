@@ -54,15 +54,20 @@ describe("Command Mode section", () => {
     await userEvent.clear(input);
     await userEvent.type(input, "x");
     await userEvent.click(screen.getByRole("button", { name: "Save the wake phrase" }));
-    expect((await screen.findAllByText(/Use 2 to 40 letters/)).length).toBeGreaterThan(0);
+    // userEvent is slow on a busy CI machine, so wait longer than the default second.
+    expect(
+      (await screen.findAllByText(/Use 2 to 40 letters/, undefined, { timeout: 5000 })).length,
+    ).toBeGreaterThan(0);
     expect(api.updateSettings).not.toHaveBeenCalled();
     await userEvent.clear(input);
     await userEvent.type(input, "Okay Notes");
     await userEvent.click(screen.getByRole("button", { name: "Save the wake phrase" }));
-    await waitFor(() =>
-      expect(api.updateSettings).toHaveBeenCalledWith({
-        commandMode: { wakePhrase: "Okay Notes", wakePhraseEnabled: true },
-      }),
+    await waitFor(
+      () =>
+        expect(api.updateSettings).toHaveBeenCalledWith({
+          commandMode: { wakePhrase: "Okay Notes", wakePhraseEnabled: true },
+        }),
+      { timeout: 5000 },
     );
-  });
+  }, 15_000);
 });

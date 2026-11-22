@@ -11,6 +11,7 @@ import { VStack } from "@astryxdesign/core/VStack";
 import {
   CALENDAR_CONNECTOR_IDS,
   CALENDAR_WRITE_SCOPES,
+  DATA_CONNECTOR_IDS,
   CONNECTOR_FEATURES,
   CONNECTOR_STATUS_TEXT,
   GMAIL_SCOPE_COMPOSE,
@@ -22,6 +23,7 @@ import {
   type ConnectorAccount,
   type ConnectorActionResult,
   type ConnectorChoice,
+  type ConnectorDataStatus,
   type ConnectorSettings,
   type GmailSettings,
   type MeetingFolder,
@@ -29,6 +31,7 @@ import {
   type ConnectorsView,
   type ConnectorView,
 } from "@murmur/shared";
+import { ConnectorSelection } from "./ConnectorSelection";
 import { McpSection } from "./McpSection";
 
 type BadgeVariant = "neutral" | "info" | "success" | "warning" | "error";
@@ -154,12 +157,14 @@ export function ConnectorsPage() {
   const [waiting, setWaiting] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<string | null>(null);
   const [syncing, setSyncing] = useState<string | null>(null);
+  const [dataStatus, setDataStatus] = useState<ConnectorDataStatus[]>([]);
   const [notetaker, setNotetaker] = useState<Settings["notetaker"] | null>(null);
   const [folders, setFolders] = useState<MeetingFolder[]>([]);
 
   const reload = useCallback(async () => {
     try {
       setView(await window.murmur.connectorsView());
+      setDataStatus(await window.murmur.connectorDataStatus());
     } catch {
       setMessage({ text: "The connectors could not be read.", ok: false });
     }
@@ -214,6 +219,15 @@ export function ConnectorsPage() {
       notetaker: { ...notetaker, calendar: { ...notetaker.calendar, defaultFolders: defaults } },
     });
     setNotetaker(updated.settings.notetaker);
+  }
+
+  /** Saves what a read connector may read, then reads the account again with the new choice. */
+  async function saveData(patch: Partial<ConnectorSettings>, accountIds: readonly string[]) {
+    if (!settings) return;
+    const updated = await window.murmur.updateSettings({ connectors: { ...settings, ...patch } });
+    setSettings(updated.settings.connectors);
+    for (const id of accountIds) await window.murmur.connectorSync(id);
+    await reload();
   }
 
   async function syncNow(account: ConnectorAccount) {
@@ -418,9 +432,12 @@ export function ConnectorsPage() {
                                     />
                                   )}
                                   {account.status === "connected" &&
-                                  (CALENDAR_CONNECTOR_IDS as readonly string[]).includes(
+                                  ((CALENDAR_CONNECTOR_IDS as readonly string[]).includes(
                                     connector.id,
-                                  ) ? (
+                                  ) ||
+                                    (DATA_CONNECTOR_IDS as readonly string[]).includes(
+                                      connector.id,
+                                    )) ? (
                                     <Button
                                       size="sm"
                                       variant="ghost"
@@ -520,6 +537,24 @@ export function ConnectorsPage() {
                               </Button>
                             </div>
                           )
+                        ) : null}
+
+                        {(DATA_CONNECTOR_IDS as readonly string[]).includes(connector.id) &&
+                        connector.accounts.length > 0 &&
+                        settings ? (
+                          <ConnectorSelection
+                            connector={connector}
+                            settings={settings}
+                            status={dataStatus}
+                            save={(patch) =>
+                              saveData(
+                                patch,
+                                connector.accounts
+                                  .filter((entry) => entry.status === "connected")
+                                  .map((entry) => entry.id),
+                              )
+                            }
+                          />
                         ) : null}
 
                         {connector.id === "gmail" && connector.accounts.length > 0 && settings ? (

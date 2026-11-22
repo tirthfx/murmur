@@ -7,6 +7,9 @@ import {
 import { createConnectorConfig } from "./connector-config";
 import { buildConnectorsView } from "./connectors-view";
 
+const { gmail, slack, notion, linear, github } = DEFAULT_CONNECTOR_SETTINGS;
+const DEFAULT_CONNECTOR_SETTINGS_EXTRAS = { gmail, slack, notion, linear, github };
+
 const account = (over: Partial<ConnectorAccount> = {}): ConnectorAccount => ({
   id: "a1",
   connector: "googleCalendar",
@@ -117,7 +120,7 @@ describe("Connectors page view (CN-15)", () => {
       settings: {
         cacheTtlMinutes: 30,
         choices: { slack: { syncIntervalMinutes: 60, readOnly: false } },
-        gmail: { briefContext: false, draftEnabled: false, maxThreadsPerBrief: 5 },
+        ...DEFAULT_CONNECTOR_SETTINGS_EXTRAS,
       },
     }).view;
     expect(view.cacheTtlMinutes).toBe(30);
