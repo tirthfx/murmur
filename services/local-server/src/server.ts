@@ -30,10 +30,13 @@ import { createIdentity, type Identity, type TxtResolver } from "./identity.ts";
 import { createInvites, type Invites } from "./invites.ts";
 import { ACTIONS, allows } from "./permissions.ts";
 import { createNetwork, type Network } from "./network.ts";
+import { gateOf } from "./plan-gates.ts";
+import { createPlan, type Plan } from "./plan.ts";
 import { createPolicy, type Policy } from "./policy.ts";
 import { auditRoutes } from "./routes/audit.ts";
 import { complianceRoutes } from "./routes/compliance.ts";
 import { networkRoutes } from "./routes/network.ts";
+import { planRoutes } from "./routes/plan.ts";
 import { identityRoutes } from "./routes/identity.ts";
 import { scimRoutes } from "./routes/scim.ts";
 import { authRoutes } from "./routes/auth.ts";
@@ -102,6 +105,7 @@ export interface LocalServer {
   scim: Scim;
   compliance: Compliance;
   network: Network;
+  plan: Plan;
   /** Every route and who may call it: the permission matrix tests walk this. */
   routes: readonly RouteInfo[];
   db: DatabaseSync;
@@ -192,6 +196,7 @@ export function createLocalServer(config: ServerConfig): LocalServer {
   const teamSettings = createTeamSettings(db);
   const vocabulary = createVocabulary({ db, now, audit: record, settings: teamSettings });
   const policy = createPolicy({ db, now, audit: record, teams });
+  const plan = createPlan({ settings, audit: record });
   const network = createNetwork({ db, settings, now, audit: record });
   const compliance = createCompliance({
     settings: createComplianceSettings(db),
@@ -219,6 +224,7 @@ export function createLocalServer(config: ServerConfig): LocalServer {
     scim,
     compliance,
     network,
+    plan,
     autoFlush,
   };
   const routes: Route[] = [
@@ -232,6 +238,7 @@ export function createLocalServer(config: ServerConfig): LocalServer {
     ...scimRoutes(deps),
     ...complianceRoutes(deps),
     ...networkRoutes(deps),
+    ...planRoutes(deps),
   ];
 
   function bearer(req: IncomingMessage): string | null {
@@ -286,6 +293,13 @@ export function createLocalServer(config: ServerConfig): LocalServer {
     const token = bearer(req);
     const user = token ? accounts.authenticate(token) : null;
     authorize(found.route.access, user, found.params);
+    // The plan decides which features exist; this comes after who is asking, so a stranger learns
+    // nothing about the plan.
+    const needed = gateOf(found.route);
+    if (needed) {
+      const missing = plan.require(needed);
+      if (missing) throw new HttpError(missing.status, missing.code, missing.message);
+    }
     let scimTeamId: string | null = null;
     if (found.route.access === "scim") {
       // A provider uses the team's SCIM token, not a session. A wrong token changes nothing.
@@ -358,6 +372,7 @@ export function createLocalServer(config: ServerConfig): LocalServer {
     scim,
     compliance,
     network,
+    plan,
     routes: routes.map(({ method, path, access }) => ({ method, path, access })),
     db,
     listen: () =>

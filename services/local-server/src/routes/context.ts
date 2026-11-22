@@ -4,6 +4,7 @@ import type { Compliance } from "../compliance.ts";
 import type { Identity } from "../identity.ts";
 import type { Invites } from "../invites.ts";
 import type { Network } from "../network.ts";
+import type { Plan } from "../plan.ts";
 import type { Policy } from "../policy.ts";
 import type { Scim } from "../scim.ts";
 import type { Settings } from "../settings.ts";
@@ -31,6 +32,7 @@ export interface RouteDeps {
   identity: Identity;
   scim: Scim;
   compliance: Compliance;
+  plan: Plan;
   network: Network;
   usageSettings: UsageSettingsStore;
   /** Whether the SIEM queue is sent as entries are written. */

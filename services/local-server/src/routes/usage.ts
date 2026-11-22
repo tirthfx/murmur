@@ -17,9 +17,16 @@ function filtersOf(url: URL): UsageFilters {
 }
 
 /** Usage events in, dashboards and export out, and the leaderboard (TM-09, TM-10). */
-export function usageRoutes({ usage, teams, usageSettings, audit }: RouteDeps): Route[] {
+export function usageRoutes({ usage, teams, usageSettings, audit, plan }: RouteDeps): Route[] {
   const who = (ctx: Ctx) => teams.whoIn(me(ctx), ctx.params["teamId"]!);
   const team = (ctx: Ctx) => ctx.params["teamId"]!;
+  /** On the Team plan only admins see the dashboards; managers and the department filters are Growth. */
+  const adminViewOnly = (ctx: Ctx) => {
+    const w = who(ctx);
+    const admin = w.isServerOwner || w.role === "owner" || w.role === "admin";
+    const missing = admin ? null : plan.require("usageDashboardsFull");
+    if (missing) throw new HttpError(missing.status, missing.code, missing.message);
+  };
 
   return [
     {
@@ -37,6 +44,7 @@ export function usageRoutes({ usage, teams, usageSettings, audit }: RouteDeps): 
       path: "/v1/teams/:teamId/usage",
       access: { action: "usage.view" },
       handler(ctx) {
+        adminViewOnly(ctx);
         const found = orThrow(
           usage.report(
             who(ctx),
@@ -54,6 +62,7 @@ export function usageRoutes({ usage, teams, usageSettings, audit }: RouteDeps): 
       path: "/v1/teams/:teamId/usage/export",
       access: { action: "usage.view" },
       handler(ctx) {
+        adminViewOnly(ctx);
         const result = orThrow(
           usage.export(
             who(ctx),

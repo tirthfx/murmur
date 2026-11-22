@@ -42,6 +42,7 @@ const EXPECTED: Record<ActionName, Role[] | "server"> = {
   "leaderboard.view": ["owner", "admin", "manager", "member", "viewer"],
   "identity.manage": ["owner", "admin"],
   "network.manage": "server",
+  "plan.manage": "server",
   "compliance.manage": ["owner", "admin"],
 };
 

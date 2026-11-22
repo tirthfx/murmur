@@ -18,7 +18,14 @@ function auditFilter(url: URL): AuditFilter {
 }
 
 /** The audit log, its export and verification, and the retention and SIEM settings (TM-12). */
-export function auditRoutes({ audit, siem, settings, policy, autoFlush }: RouteDeps): Route[] {
+export function auditRoutes({
+  audit,
+  siem,
+  settings,
+  policy,
+  plan,
+  autoFlush,
+}: RouteDeps): Route[] {
   return [
     {
       method: "GET",
@@ -78,6 +85,13 @@ export function auditRoutes({ audit, siem, settings, policy, autoFlush }: RouteD
             throw new HttpError(400, "invalid_retention", "Keep the log between 30 and 3650 days.");
           settings.set("team.audit.retentionDays", days);
           changed["retentionDays"] = days;
+        }
+        if (
+          (body["siemMode"] !== undefined || body["siemWebhookUrl"] !== undefined) &&
+          plan.require("auditSiem")
+        ) {
+          const missing = plan.require("auditSiem")!;
+          throw new HttpError(missing.status, missing.code, missing.message);
         }
         const patch: Partial<SiemConfig> = {};
         if (body["siemMode"] !== undefined)
