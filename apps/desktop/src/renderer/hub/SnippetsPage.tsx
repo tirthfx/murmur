@@ -1,3 +1,4 @@
+import { ShareWithTeam } from "./ShareWithTeam";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@astryxdesign/core/Badge";
 import { Banner } from "@astryxdesign/core/Banner";
@@ -174,6 +175,14 @@ export function SnippetsPage() {
                     </Text>
                   </VStack>
                   <HStack gap={1}>
+                    <ShareWithTeam
+                      name={snippet.trigger}
+                      input={{
+                        kind: "snippet",
+                        trigger: snippet.trigger,
+                        expansion: snippet.plain,
+                      }}
+                    />
                     <Button
                       size="sm"
                       variant="ghost"

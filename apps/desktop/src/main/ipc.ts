@@ -163,6 +163,8 @@ import {
   type TeamSetupInput,
   type TeamSignInInput,
   type PolicyView,
+  type TeamProposeInput,
+  type TeamProposeResult,
   type TeamView,
   isLockedChannel,
   type MeetingBrief,
@@ -267,6 +269,7 @@ export interface IpcDeps {
   teamDisconnect: () => Promise<TeamResult>;
   teamNoticesSeen: () => Promise<TeamResult>;
   teamOpenAdmin: () => Promise<{ ok: boolean; message?: string }>;
+  teamPropose: (input: TeamProposeInput) => Promise<TeamProposeResult>;
   /** Whether Murmur is locked (team mode): meetings, notes and questions are refused. */
   isLocked?: () => boolean;
   briefOverview: () => BriefOverview;
@@ -812,6 +815,8 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.teamNoticesSeen();
       case IPC_CHANNELS.teamOpenAdmin:
         return deps.teamOpenAdmin();
+      case IPC_CHANNELS.teamPropose:
+        return deps.teamPropose(request.args[0] as TeamProposeInput);
       case IPC_CHANNELS.briefOverview:
         return deps.briefOverview();
       case IPC_CHANNELS.briefGet:

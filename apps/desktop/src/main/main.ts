@@ -157,9 +157,11 @@ import {
   MEETING_AUDIO,
   MEETING_TRANSCRIPT,
   effectivePeriod,
+  retentionReport,
 } from "./policy/retention";
 import { createPolicyService } from "./policy/policy-service";
 import { createTeamService } from "./team/team-service";
+import { createUsageCounts } from "./team/usage-counts";
 import { createMilestonesStore } from "./milestones/milestones-store";
 import { createNotifier } from "./notifications/notifier";
 import { createNetworkGuard } from "./privacy/network-guard";
@@ -655,10 +657,19 @@ const retention = database
     })
   : null;
 
+/** TM-15: tells the team servers (counts only) that a run removed data under a policy limit. */
+function reportRetention(removed: Record<string, number>): void {
+  const counts = retentionReport(removed, policy.current().retention);
+  if (counts) void teamService.reportRetention(counts);
+}
+
 function runRetention(): void {
   try {
     const removed = retention?.runIfDue(Date.now());
-    if (removed) console.log(`[retention] ${JSON.stringify(removed)}`);
+    if (removed) {
+      console.log(`[retention] ${JSON.stringify(removed)}`);
+      reportRetention(removed);
+    }
   } catch (error) {
     console.warn(`[retention] could not run: ${String(error)}`);
   }
@@ -1876,6 +1887,7 @@ const skillsService = meetingSkills
 // has only the accounts and a cache. The providers (Google Calendar, ...) are added to this
 // list one by one in M6.
 const connectorKeychain = createHelperKeychain(helper);
+const usageCounts = database ? createUsageCounts(database) : null;
 // TM-01, TM-06, TM-09: team mode. Off until the owner connects to a team server; the session is a
 // Keychain item, and what is kept on disk has no token and no password.
 const teamFile = path.join(profile.appData, "Murmur", "team.json");
@@ -1904,6 +1916,7 @@ const teamService = createTeamService({
   vocabulary: sharedVocabulary,
   policy,
   insights: { days: (first) => insights?.days(first) ?? [] },
+  counts: () => usageCounts?.daily() ?? [],
   meetings: { list: (limit) => meetingsStore?.list(limit) ?? [] },
   onChange: (view) => {
     if (hubEvents && !hubEvents.isDestroyed()) hubEvents.send(IPC_EVENTS.teamChanged, view);
@@ -3553,7 +3566,8 @@ function registerIpc(): void {
     },
     retentionView: () => retention?.view() ?? { lastRunAt: null, nextRunAt: null, removed: {} },
     retentionRun: () => {
-      retention?.run(Date.now());
+      const removed = retention?.run(Date.now());
+      if (removed) reportRetention(removed);
       return retention?.view() ?? { lastRunAt: null, nextRunAt: null, removed: {} };
     },
     notesList: (query) => notes?.list(query) ?? [],
@@ -3853,6 +3867,7 @@ function registerIpc(): void {
     teamSetIdleLock: (minutes) => teamService.setIdleLock(minutes),
     teamDisconnect: () => teamService.disconnect(),
     teamNoticesSeen: () => teamService.noticesSeen(),
+    teamPropose: (input) => teamService.propose(input),
     teamOpenAdmin: async () => {
       const server = teamService.view().serverUrl;
       if (!/^https?:\/\//i.test(server))

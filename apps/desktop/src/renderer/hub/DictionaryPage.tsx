@@ -1,3 +1,4 @@
+import { ShareWithTeam } from "./ShareWithTeam";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Badge } from "@astryxdesign/core/Badge";
 import { Banner } from "@astryxdesign/core/Banner";
@@ -307,6 +308,14 @@ export function DictionaryPage() {
                         Keep
                       </Button>
                     ) : null}
+                    <ShareWithTeam
+                      name={entry.term}
+                      input={{
+                        kind: "dictionary",
+                        term: entry.term,
+                        replacement: entry.replacement,
+                      }}
+                    />
                     <Button
                       size="sm"
                       variant="ghost"

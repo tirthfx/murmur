@@ -5,6 +5,7 @@ import {
   MEETING_AUDIO,
   MEETING_TRANSCRIPT,
   effectivePeriod,
+  retentionReport,
 } from "./retention";
 
 const none = { max: null, min: null };
@@ -38,5 +39,25 @@ describe("effectivePeriod", () => {
 
   it("keeps a choice it does not know", () => {
     expect(effectivePeriod(MEETING_AUDIO, "other" as never, { max: 7, min: null })).toBe("other");
+  });
+});
+
+describe("retentionReport", () => {
+  const limited = { audio: { max: 7, min: null }, transcript: { max: null, min: null } };
+  const open = { audio: none, transcript: none };
+
+  it("sums recordings and transcripts from the daily job's counts", () => {
+    expect(
+      retentionReport(
+        { audio: 2, meetingAudio: 3, historyText: 10, meetingTranscripts: 1, voiceSamples: 9 },
+        limited,
+      ),
+    ).toEqual({ audio: 5, transcripts: 11 });
+  });
+
+  it("is nothing when no limit is in force, nothing was removed, or a rule failed", () => {
+    expect(retentionReport({ audio: 4 }, open)).toBeNull();
+    expect(retentionReport({ audio: 0, historyText: 0 }, limited)).toBeNull();
+    expect(retentionReport({ audio: -1, meetingAudio: -1 }, limited)).toBeNull();
   });
 });

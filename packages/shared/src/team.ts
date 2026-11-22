@@ -68,6 +68,22 @@ export const teamRedeemSchema = z.strictObject({
   email: z.string().trim().max(200).optional(),
   password: z.string().max(200).optional(),
 });
+/** An entry the person proposes to the team (TM-06, TM-07): the server decides if it goes live. */
+export const teamProposeSchema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("dictionary"),
+    term: z.string().trim().min(1).max(100),
+    replacement: z.string().max(1000).nullable(),
+  }),
+  z.strictObject({
+    kind: z.literal("snippet"),
+    trigger: z.string().trim().min(1).max(100),
+    expansion: z.string().min(1).max(20000),
+  }),
+]);
+export type TeamProposeInput = z.infer<typeof teamProposeSchema>;
+export type TeamProposeResult =
+  { ok: true; status: "live" | "pending"; teamName: string } | { ok: false; message: string };
 export type TeamConnectInput = z.infer<typeof teamConnectSchema>;
 export type TeamSetupInput = z.infer<typeof teamSetupSchema>;
 export type TeamSignInInput = z.infer<typeof teamSignInSchema>;
