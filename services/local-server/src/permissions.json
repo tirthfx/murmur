@@ -1,0 +1,21 @@
+{
+  "roles": ["owner", "admin", "manager", "member", "viewer"],
+  "actions": {
+    "team.create": { "scope": "server", "roles": ["owner"] },
+    "team.view": { "scope": "team", "roles": ["owner", "admin", "manager", "member", "viewer"] },
+    "team.update": { "scope": "team", "roles": ["owner", "admin"] },
+    "team.delete": { "scope": "team", "roles": ["owner"] },
+    "members.list": { "scope": "team", "roles": ["owner", "admin", "manager", "member", "viewer"] },
+    "members.manage": { "scope": "team", "roles": ["owner", "admin"] },
+    "departments.list": {
+      "scope": "team",
+      "roles": ["owner", "admin", "manager", "member", "viewer"]
+    },
+    "departments.manage": { "scope": "team", "roles": ["owner", "admin"] },
+    "invites.manage": { "scope": "team", "roles": ["owner", "admin"] },
+    "requests.manage": { "scope": "team", "roles": ["owner", "admin"] },
+    "users.manage": { "scope": "server", "roles": ["owner"] },
+    "audit.view": { "scope": "server", "roles": ["owner"] },
+    "audit.manage": { "scope": "server", "roles": ["owner"] }
+  }
+}

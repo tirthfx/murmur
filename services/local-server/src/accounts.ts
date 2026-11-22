@@ -138,6 +138,12 @@ export function createAccounts(db: DatabaseSync, config: AccountsConfig) {
       };
     },
 
+    /** Signs a person in without a password: they just proved who they are another way (an invite). */
+    startSession(userId: string, clientId = ""): SessionGrant | null {
+      const row = userById.get(userId) as unknown as UserRow | undefined;
+      return row && row.status === "active" ? grant(row, clientId) : null;
+    },
+
     /** A further local account, made by someone allowed to (the caller checks that). */
     createAccount(input: NewAccount, actorId: string | null = null, clientId = "") {
       const made = insertUser(input, false);

@@ -8,16 +8,32 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { createAccounts, type Accounts, type UserView } from "./accounts.ts";
-import { createAudit, type Audit, type AuditFilter } from "./audit.ts";
+import { createAudit, type Audit } from "./audit.ts";
 import { openDatabase } from "./database.ts";
+import {
+  HttpError,
+  matchPath,
+  readJson,
+  send,
+  type Access,
+  type Ctx,
+  type Route,
+  type RouteInfo,
+} from "./http.ts";
+import { createInvites, type Invites } from "./invites.ts";
+import { ACTIONS, allows } from "./permissions.ts";
+import { auditRoutes } from "./routes/audit.ts";
+import { authRoutes } from "./routes/auth.ts";
+import type { RouteDeps } from "./routes/context.ts";
+import { teamRoutes } from "./routes/teams.ts";
 import { createSettings } from "./settings.ts";
-import { createSiem, type Siem, type SiemConfig } from "./siem.ts";
+import { createSiem, type Siem } from "./siem.ts";
+import { createTeams, type Teams } from "./teams.ts";
 
-export const SERVER_VERSION = 1;
+export { SERVER_VERSION } from "./version.ts";
 export const DEFAULT_PORT = 7830;
 /** Until the allowlist (TM-22) exists, the server listens on this machine only. */
 export const LOOPBACK_HOSTS = ["127.0.0.1", "::1"];
-const MAX_BODY = 64 * 1024;
 
 export interface ServerConfig {
   /** A database file, or `:memory:` in tests. */
@@ -43,67 +59,14 @@ export interface LocalServer {
   accounts: Accounts;
   audit: Audit;
   siem: Siem;
+  teams: Teams;
+  invites: Invites;
+  /** Every route and who may call it: the permission matrix tests walk this. */
+  routes: readonly RouteInfo[];
   db: DatabaseSync;
 }
 
-class HttpError extends Error {
-  status: number;
-  code: string;
-  extra: Record<string, unknown>;
-  constructor(status: number, code: string, message: string, extra: Record<string, unknown> = {}) {
-    super(message);
-    this.status = status;
-    this.code = code;
-    this.extra = extra;
-  }
-}
-
-function send(res: ServerResponse, status: number, body?: unknown): void {
-  if (body === undefined) {
-    res.writeHead(status).end();
-    return;
-  }
-  const text = JSON.stringify(body);
-  res
-    .writeHead(status, {
-      "content-type": "application/json; charset=utf-8",
-      "content-length": Buffer.byteLength(text),
-      "cache-control": "no-store",
-    })
-    .end(text);
-}
-
-async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {
-  if (!/^application\/json\b/i.test(req.headers["content-type"] ?? ""))
-    throw new HttpError(415, "json_required", "Send the request as application/json.");
-  const chunks: Buffer[] = [];
-  let size = 0;
-  for await (const chunk of req as AsyncIterable<Buffer>) {
-    size += chunk.length;
-    if (size > MAX_BODY) throw new HttpError(413, "too_large", "That request is too large.");
-    chunks.push(chunk);
-  }
-  try {
-    const parsed: unknown = JSON.parse(Buffer.concat(chunks).toString("utf8"));
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed))
-      return parsed as Record<string, unknown>;
-  } catch {
-    // Falls through to the error below.
-  }
-  throw new HttpError(400, "bad_json", "The request body must be a JSON object.");
-}
-
-const text = (body: Record<string, unknown>, key: string): string => {
-  const value = body[key];
-  return typeof value === "string" ? value : "";
-};
-
-function bearer(req: IncomingMessage): string | null {
-  const match = /^Bearer (\S+)$/.exec(req.headers.authorization ?? "");
-  return match?.[1] ?? null;
-}
-
-/** The local server (M7): accounts and sessions first; teams, policy and the admin console build on it. */
+/** The local server (M7): accounts, the audit log, teams and what they build on. */
 export function createLocalServer(config: ServerConfig): LocalServer {
   const host = config.host ?? "127.0.0.1";
   if (!LOOPBACK_HOSTS.includes(host))
@@ -130,26 +93,34 @@ export function createLocalServer(config: ServerConfig): LocalServer {
       if (autoFlush) void siem.flush().catch(() => undefined);
     },
   });
+  const record = (input: Parameters<Audit["record"]>[0]) => audit.record(input);
   const accounts = createAccounts(db, {
     sessionDays: config.sessionDays ?? 30,
     now,
-    audit: (input) => audit.record(input),
+    audit: record,
   });
+  const teams = createTeams({ db, now, audit: record });
+  const invites = createInvites({ db, now, audit: record, settings, teams, accounts });
   const log = config.log ?? (() => undefined);
   let timer: NodeJS.Timeout | null = null;
 
-  function authenticate(req: IncomingMessage): { user: UserView; token: string } {
-    const token = bearer(req);
-    const user = token ? accounts.authenticate(token) : null;
-    if (!user || !token) throw new HttpError(401, "unauthorized", "Sign in first.");
-    return { user, token };
+  const deps: RouteDeps = { accounts, audit, siem, settings, teams, invites, autoFlush };
+  const routes: Route[] = [...authRoutes(deps), ...auditRoutes(deps), ...teamRoutes(deps)];
+
+  function bearer(req: IncomingMessage): string | null {
+    const match = /^Bearer (\S+)$/.exec(req.headers.authorization ?? "");
+    return match?.[1] ?? null;
   }
 
-  function requireOwner(req: IncomingMessage): UserView {
-    const { user } = authenticate(req);
-    // Teams and roles (TM-04) replace this with the permission matrix.
-    if (!user.isOwner) throw new HttpError(403, "forbidden", "Only the owner can do that.");
-    return user;
+  /** The matrix check for a route that names an action. */
+  function authorize(access: Access, user: UserView | null, params: Record<string, string>): void {
+    if (access === "public" || access === "optional") return;
+    if (!user) throw new HttpError(401, "unauthorized", "Sign in first.");
+    if (access === "signed_in") return;
+    const rule = ACTIONS[access.action];
+    const role = rule.scope === "team" ? teams.roleOf(user, params["teamId"] ?? "") : null;
+    if (!allows(access.action, { role, isServerOwner: user.isOwner }))
+      throw new HttpError(403, "forbidden", "You are not allowed to do that.");
   }
 
   /** A page in a browser could call a loopback address; these checks keep it from being answered. */
@@ -162,203 +133,49 @@ export function createLocalServer(config: ServerConfig): LocalServer {
       throw new HttpError(403, "bad_origin", "Requests from other pages are not answered.");
   }
 
-  function auditFilter(url: URL): AuditFilter {
-    const filter: AuditFilter = {};
-    const get = (key: string) => url.searchParams.get(key) || undefined;
-    const actor = get("actor");
-    const action = get("action");
-    const target = get("target");
-    if (actor) filter.actor = actor;
-    if (action) filter.action = action;
-    if (target) filter.target = target;
-    if (url.searchParams.has("from")) filter.from = Number(url.searchParams.get("from"));
-    if (url.searchParams.has("to")) filter.to = Number(url.searchParams.get("to"));
-    return filter;
-  }
-
-  async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  async function dispatch(req: IncomingMessage, res: ServerResponse): Promise<void> {
     guard(req);
     const url = new URL(req.url ?? "/", "http://local");
-    const key = `${req.method} ${url.pathname}`;
-
-    switch (key) {
-      case "GET /v1/health":
-        return send(res, 200, { ok: true, version: SERVER_VERSION, setUp: accounts.isSetUp() });
-
-      case "POST /v1/setup": {
-        const body = await readJson(req);
-        const result = accounts.setupOwner(
-          {
-            name: text(body, "name"),
-            email: text(body, "email"),
-            password: text(body, "password"),
-          },
-          text(body, "clientId"),
-        );
-        if (!result.ok)
-          throw new HttpError(
-            result.code === "already_set_up" ? 409 : 400,
-            result.code,
-            result.message,
-          );
-        return send(res, 201, result.session);
+    let found: { route: Route; params: Record<string, string> } | null = null;
+    for (const route of routes) {
+      if (route.method !== req.method) continue;
+      const params = matchPath(route.path, url.pathname);
+      if (params) {
+        found = { route, params };
+        break;
       }
-
-      case "POST /v1/sessions": {
-        const body = await readJson(req);
-        const result = accounts.signIn(
-          text(body, "email"),
-          text(body, "password"),
-          text(body, "clientId"),
-        );
-        if (!result.ok) {
-          const status =
-            result.code === "delayed" ? 429 : result.code === "deactivated" ? 403 : 401;
-          throw new HttpError(
-            status,
-            result.code,
-            result.message,
-            result.retryAfterSeconds !== undefined
-              ? { retryAfterSeconds: result.retryAfterSeconds }
-              : {},
-          );
-        }
-        return send(res, 200, result.session);
-      }
-
-      case "DELETE /v1/sessions/current": {
-        const { token } = authenticate(req);
-        accounts.signOut(token);
-        return send(res, 204);
-      }
-
-      case "GET /v1/me":
-        return send(res, 200, authenticate(req).user);
-
-      case "POST /v1/me/password": {
-        const { user, token } = authenticate(req);
-        const body = await readJson(req);
-        const result = accounts.changePassword(
-          user.id,
-          text(body, "currentPassword"),
-          text(body, "newPassword"),
-          token,
-        );
-        if (!result.ok) throw new HttpError(400, result.code, result.message);
-        return send(res, 204);
-      }
-
-      case "GET /v1/users":
-        requireOwner(req);
-        return send(res, 200, { users: accounts.listUsers() });
-
-      case "POST /v1/users": {
-        const owner = requireOwner(req);
-        const body = await readJson(req);
-        const result = accounts.createAccount(
-          {
-            name: text(body, "name"),
-            email: text(body, "email"),
-            password: text(body, "password"),
-          },
-          owner.id,
-        );
-        if (!result.ok)
-          throw new HttpError(
-            result.code === "email_taken" ? 409 : 400,
-            result.code,
-            result.message,
-          );
-        return send(res, 201, result.user);
-      }
-
-      case "GET /v1/audit": {
-        requireOwner(req);
-        const page = audit.list(auditFilter(url), {
-          limit: Number(url.searchParams.get("limit") ?? 50) || 50,
-          ...(url.searchParams.has("before")
-            ? { before: Number(url.searchParams.get("before")) }
-            : {}),
-        });
-        return send(res, 200, page);
-      }
-
-      case "GET /v1/audit/export": {
-        const owner = requireOwner(req);
-        const body = audit.exportJsonLines(auditFilter(url));
-        audit.record({
-          actorId: owner.id,
-          action: "audit.exported",
-          detail: { rows: body === "" ? 0 : body.trimEnd().split("\n").length },
-        });
-        res
-          .writeHead(200, {
-            "content-type": "application/x-ndjson; charset=utf-8",
-            "content-disposition": 'attachment; filename="murmur-audit.jsonl"',
-            "cache-control": "no-store",
-          })
-          .end(body);
-        return;
-      }
-
-      case "POST /v1/audit/verify":
-        requireOwner(req);
-        return send(res, 200, audit.verify());
-
-      case "GET /v1/audit/settings": {
-        requireOwner(req);
-        return send(res, 200, { retentionDays: audit.retentionDays(), siem: siem.status() });
-      }
-
-      case "PUT /v1/audit/settings": {
-        const owner = requireOwner(req);
-        const body = await readJson(req);
-        const changed: Record<string, string | number> = {};
-        if (body["retentionDays"] !== undefined) {
-          const days = Number(body["retentionDays"]);
-          if (!Number.isInteger(days) || days < 30 || days > 3650)
-            throw new HttpError(400, "invalid_retention", "Keep the log between 30 and 3650 days.");
-          settings.set("team.audit.retentionDays", days);
-          changed["retentionDays"] = days;
-        }
-        const siemPatch: Partial<SiemConfig> = {};
-        if (body["siemMode"] !== undefined)
-          siemPatch.mode = text(body, "siemMode") as SiemConfig["mode"];
-        if (body["siemWebhookUrl"] !== undefined)
-          siemPatch.webhookUrl = text(body, "siemWebhookUrl");
-        if (Object.keys(siemPatch).length > 0) {
-          const result = siem.setConfig(siemPatch);
-          if (!result.ok) throw new HttpError(400, "invalid_siem", result.message);
-          if (siemPatch.mode !== undefined) changed["siemMode"] = siemPatch.mode;
-          if (siemPatch.webhookUrl !== undefined) changed["siemWebhook"] = "changed";
-        }
-        audit.record({ actorId: owner.id, action: "audit.settings_changed", detail: changed });
-        return send(res, 200, { retentionDays: audit.retentionDays(), siem: siem.status() });
-      }
-
-      case "POST /v1/audit/siem/retry": {
-        const owner = requireOwner(req);
-        const count = siem.retryFailed();
-        audit.record({ actorId: owner.id, action: "audit.siem_retried", detail: { count } });
-        if (autoFlush) void siem.flush().catch(() => undefined);
-        return send(res, 200, siem.status());
-      }
-
-      default:
-        throw new HttpError(404, "not_found", "There is nothing at that address.");
     }
+    if (!found) throw new HttpError(404, "not_found", "There is nothing at that address.");
+
+    const token = bearer(req);
+    const user = token ? accounts.authenticate(token) : null;
+    authorize(found.route.access, user, found.params);
+    const ctx: Ctx = {
+      req,
+      url,
+      params: found.params,
+      user,
+      token,
+      host: req.headers.host ?? "127.0.0.1",
+      json: () => readJson(req),
+    };
+    send(res, await found.route.handler(ctx));
   }
 
   const http = createHttpServer((req, res) => {
-    route(req, res).catch((error: unknown) => {
+    dispatch(req, res).catch((error: unknown) => {
       if (error instanceof HttpError) {
         log(`${req.method} ${req.url?.split("?")[0]} ${error.status} ${error.code}`);
-        return send(res, error.status, {
-          error: { code: error.code, message: error.message, ...error.extra },
+        return send(res, {
+          status: error.status,
+          body: { error: { code: error.code, message: error.message, ...error.extra } },
         });
       }
       log(`${req.method} ${req.url?.split("?")[0]} 500`);
-      send(res, 500, { error: { code: "server_error", message: "Something went wrong." } });
+      send(res, {
+        status: 500,
+        body: { error: { code: "server_error", message: "Something went wrong." } },
+      });
     });
   });
 
@@ -366,6 +183,9 @@ export function createLocalServer(config: ServerConfig): LocalServer {
     accounts,
     audit,
     siem,
+    teams,
+    invites,
+    routes: routes.map(({ method, path, access }) => ({ method, path, access })),
     db,
     listen: () =>
       new Promise((resolve, reject) => {
