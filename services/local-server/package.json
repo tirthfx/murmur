@@ -6,6 +6,7 @@
   "description": "Murmur local server: accounts, teams and admin on 127.0.0.1",
   "scripts": {
     "start": "node src/main.ts",
+    "audit:verify": "node src/cli.ts verify",
     "typecheck": "tsc --noEmit"
   }
 }

@@ -57,6 +57,52 @@ export const MIGRATIONS: readonly Migration[] = [
       );
     `,
   },
+  {
+    version: 2,
+    name: "settings_audit_siem",
+    sql: `
+      -- Server settings, one JSON value each (the audit and SIEM options now; policy later).
+      CREATE TABLE server_settings (
+        key        TEXT PRIMARY KEY,
+        value_json TEXT NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+
+      -- Append-only and hash-chained: each row holds the hash of the one before it (TM-12).
+      CREATE TABLE audit_events (
+        seq         INTEGER PRIMARY KEY,
+        ts          INTEGER NOT NULL,
+        actor_id    TEXT,
+        action      TEXT NOT NULL,
+        target_type TEXT NOT NULL DEFAULT '',
+        target_id   TEXT NOT NULL DEFAULT '',
+        detail_json TEXT NOT NULL DEFAULT '{}',
+        client_id   TEXT NOT NULL DEFAULT '',
+        prev_hash   TEXT NOT NULL,
+        hash        TEXT NOT NULL UNIQUE
+      );
+      CREATE INDEX audit_events_ts ON audit_events (ts);
+      CREATE INDEX audit_events_actor ON audit_events (actor_id);
+      CREATE INDEX audit_events_action ON audit_events (action);
+
+      -- Where the chain starts after old rows were removed by retention.
+      CREATE TABLE audit_anchor (
+        id        INTEGER PRIMARY KEY CHECK (id = 1),
+        last_seq  INTEGER NOT NULL,
+        last_hash TEXT NOT NULL
+      );
+
+      -- Events waiting to be sent to the SIEM file or webhook.
+      CREATE TABLE siem_queue (
+        seq             INTEGER PRIMARY KEY REFERENCES audit_events (seq) ON DELETE CASCADE,
+        status          TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'sent', 'failed')),
+        attempts        INTEGER NOT NULL DEFAULT 0,
+        next_attempt_at INTEGER NOT NULL DEFAULT 0,
+        last_error      TEXT NOT NULL DEFAULT ''
+      );
+      CREATE INDEX siem_queue_status ON siem_queue (status, next_attempt_at);
+    `,
+  },
 ];
 
 export function migrate(db: DatabaseSync, migrations: readonly Migration[] = MIGRATIONS): number {

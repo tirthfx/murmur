@@ -47,6 +47,50 @@ All bodies are JSON. Send `Authorization: Bearer <token>` after signing in.
 Errors are `{ "error": { "code", "message" } }`. A delayed sign-in is 429 with
 `retryAfterSeconds`.
 
+## Audit log (TM-12)
+
+Every sign-in, failed sign-in (the first miss and each lock, not every miss), new account, password
+change, setup, export and audit setting change is written to `audit_events`. Later issues add
+invites, roles, policy and the rest through `audit.record`.
+
+- **Append-only and hash-chained.** Each row stores the SHA-256 of the one before it, taken over
+  the row's canonical JSON (keys in sorted order). Changing, deleting or inserting a row breaks the
+  chain from that row on.
+- **Verify:** `npm run audit:verify --workspace @murmur/local-server` walks the chain from the
+  start, prints the number of entries, or the first entry that does not match and exits with 1.
+  `POST /v1/audit/verify` does the same.
+- **No content, ever.** An entry's detail is a flat object of strings (200 characters at most),
+  numbers, booleans or null. A field whose name suggests content, audio or a secret (`transcript`,
+  `text`, `content`, `note`, `password`, `token`, `hash`, `key` and the like) is refused, so a
+  mistake in a caller fails in its test. Passwords, hashes and tokens are never written.
+- **Filters:** `actor`, `action` (`auth.` for all of an area, or the whole name), `target` (an id
+  or a type), `from` and `to` (milliseconds), `limit` and `before` for paging.
+  `GET /v1/audit/export` gives the same filter as JSON lines, and the export is itself an entry.
+- **Retention:** `team.audit.retentionDays` (365; 30 to 3650). Once a day the server removes older
+  entries, keeps the newest, and writes `audit.retention_pruned` with the count. What is left still
+  verifies, from an anchor row that remembers where the chain was cut.
+
+### SIEM streaming (a simulation)
+
+Real only for a receiver you run. Set `siemMode` to `file` (a JSON line is appended to
+`audit.jsonl` next to the database, mode 600) or `webhook` (a POST to `siemWebhookUrl`, which
+must be on this machine or a private network: `localhost`, `127.x`, `10.x`, `172.16-31.x`,
+`192.168.x`, `*.local`; no redirects). Each new entry is queued and sent; a failed send is tried
+three times with a wait of 1 and 5 seconds between, then stays in the queue as **failed** with the
+last error, shown by `GET /v1/audit/settings`. `POST /v1/audit/siem/retry` puts failed entries back.
+Nothing is queued while the mode is off.
+
+| Route                       | Does                                           |
+| --------------------------- | ---------------------------------------------- |
+| `GET /v1/audit`             | the entries, newest first, with `next`         |
+| `GET /v1/audit/export`      | JSON lines                                     |
+| `POST /v1/audit/verify`     | `{ ok, count, brokenSeq?, reason? }`           |
+| `GET /v1/audit/settings`    | retention and the SIEM state with its failures |
+| `PUT /v1/audit/settings`    | `retentionDays`, `siemMode`, `siemWebhookUrl`  |
+| `POST /v1/audit/siem/retry` | sends the failed entries again                 |
+
+Until the permission matrix (TM-04) these are for the owner only.
+
 ## What it refuses
 
 - A `Host` that is not this machine, and a request with a different `Origin`: a web page cannot
