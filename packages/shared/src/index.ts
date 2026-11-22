@@ -68,3 +68,4 @@ export * from "./transcript-import";
 export * from "./meeting-retention";
 export * from "./policy";
 export * from "./managed";
+export * from "./team";

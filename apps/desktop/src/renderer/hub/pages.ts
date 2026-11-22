@@ -97,6 +97,12 @@ export const PAGES = [
     emptyDescription: "Usage summaries will be drawn here after some dictation.",
   },
   {
+    id: "team",
+    title: "Team",
+    emptyTitle: "Team mode is off",
+    emptyDescription: "Connect to a team server to share a dictionary and snippets.",
+  },
+  {
     id: "settings",
     title: "Settings",
     emptyTitle: "Settings are on the way",

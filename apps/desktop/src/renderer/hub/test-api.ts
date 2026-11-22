@@ -16,8 +16,24 @@ import type {
   SettingsView,
   SetupStatus,
   StylesView,
+  TeamView,
   VoiceProfileView,
 } from "@murmur/shared";
+
+/** Team mode off: what the Hub sees until a server is connected. */
+export const SAMPLE_TEAM_VIEW: TeamView = {
+  enabled: false,
+  serverUrl: "",
+  state: "off",
+  serverSetUp: null,
+  user: null,
+  teams: [],
+  idleLockMinutes: 15,
+  lastSyncAt: null,
+  syncProblem: "",
+  sharedCounts: { dictionary: 0, snippets: 0 },
+  notices: [],
+};
 
 export const SAMPLE_SETTINGS: SettingsView = {
   settings: {
@@ -475,6 +491,21 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
     slackPostPrepare: vi.fn().mockResolvedValue({ ok: false, message: "Not available." }),
     slackPostSend: vi.fn().mockResolvedValue({ ok: false, message: "Not available." }),
     extensionsView: vi.fn().mockResolvedValue({ enabled: true, actions: [], planned: [] }),
+    teamView: vi.fn().mockResolvedValue(SAMPLE_TEAM_VIEW),
+    teamConnect: vi.fn().mockResolvedValue({ ok: true, view: SAMPLE_TEAM_VIEW }),
+    teamSetup: vi.fn().mockResolvedValue({ ok: true, view: SAMPLE_TEAM_VIEW }),
+    teamSignIn: vi.fn().mockResolvedValue({ ok: true, view: SAMPLE_TEAM_VIEW }),
+    teamSignOut: vi.fn().mockResolvedValue({ ok: true, view: SAMPLE_TEAM_VIEW }),
+    teamLock: vi.fn().mockResolvedValue({ ok: true, view: SAMPLE_TEAM_VIEW }),
+    teamUnlock: vi.fn().mockResolvedValue({ ok: true, view: SAMPLE_TEAM_VIEW }),
+    teamRedeem: vi
+      .fn()
+      .mockResolvedValue({ ok: true, status: "joined", teamName: "", view: SAMPLE_TEAM_VIEW }),
+    teamSyncNow: vi.fn().mockResolvedValue({ ok: true, view: SAMPLE_TEAM_VIEW }),
+    teamSetIdleLock: vi.fn().mockResolvedValue({ ok: true, view: SAMPLE_TEAM_VIEW }),
+    teamDisconnect: vi.fn().mockResolvedValue({ ok: true, view: SAMPLE_TEAM_VIEW }),
+    teamNoticesSeen: vi.fn().mockResolvedValue({ ok: true, view: SAMPLE_TEAM_VIEW }),
+    onTeamChanged: vi.fn(() => () => {}),
     briefOverview: vi.fn().mockResolvedValue({
       calendarConnected: false,
       events: [],

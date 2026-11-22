@@ -10,6 +10,8 @@ import { SnippetsPage } from "./SnippetsPage";
 import { StylesPage } from "./StylesPage";
 import { InstructPage } from "./InstructPage";
 import { ExtensionsPage } from "./ExtensionsPage";
+import { TeamLock } from "./TeamLock";
+import { TeamPage } from "./TeamPage";
 import { ConnectorsPage } from "./ConnectorsPage";
 import { NotetakerPage } from "./NotetakerPage";
 import { MemoryPage } from "./MemoryPage";
@@ -148,6 +150,21 @@ function HubPages({ onRunSetup }: { onRunSetup: () => void }) {
   useEffect(() => window.murmur.onOpenPage(setPageId), [setPageId]);
   const page = resolvePage(pageId, features);
 
+  // TM-01: while Murmur is locked, no page is shown, only the password.
+  const [teamLocked, setTeamLocked] = useState(false);
+  useEffect(() => {
+    let active = true;
+    void window.murmur
+      .teamView()
+      .then((view) => active && setTeamLocked(view.state === "locked"))
+      .catch(() => undefined);
+    const off = window.murmur.onTeamChanged((view) => setTeamLocked(view.state === "locked"));
+    return () => {
+      active = false;
+      off();
+    };
+  }, []);
+
   const sideNav = (
     <SideNav
       aria-label="Hub pages"
@@ -183,8 +200,12 @@ function HubPages({ onRunSetup }: { onRunSetup: () => void }) {
       <div className="hub-drag-region" aria-hidden="true" />
       <AppShell sideNav={sideNav} contentPadding={0}>
         <div className="hub-page">
-          <Heading level={1}>{page.title}</Heading>
-          {page.id === "settings" ? (
+          <Heading level={1}>{teamLocked ? "Locked" : page.title}</Heading>
+          {teamLocked ? (
+            <TeamLock />
+          ) : page.id === "team" ? (
+            <TeamPage />
+          ) : page.id === "settings" ? (
             <SettingsPage onRunSetup={onRunSetup} />
           ) : page.id === "dictionary" ? (
             <DictionaryPage />
