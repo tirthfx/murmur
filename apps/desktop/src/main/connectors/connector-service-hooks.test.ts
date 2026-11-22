@@ -161,3 +161,123 @@ describe("provider hooks for providers that are not standard (CN-05, CN-06)", ()
     expect(new URLSearchParams(call.body).get("client_secret")).toBe("secret-1");
   });
 });
+
+describe("signing in with a personal key (CN-10)", () => {
+  function setupKey(
+    verify: NonNullable<ConnectorProvider["apiKey"]>["verify"],
+    refusal: string | null = null,
+  ) {
+    const db = openDatabase(":memory:");
+    const store = createConnectorStore(db);
+    const keychain = new MemoryKeychain();
+    const requests: { url: string; auth: string | null }[] = [];
+    let ids = 0;
+    const provider: ConnectorProvider = {
+      id: "keyed",
+      name: "Keybook",
+      authorizeUrl: "",
+      tokenUrl: "",
+      revokeUrl: null,
+      scopes: [],
+      loopbackPort: null,
+      accountLabel: async () => "unused",
+      apiKey: { verify },
+    };
+    const service = createConnectorService({
+      registry: createConnectorRegistry([provider]),
+      store,
+      keychain,
+      config: { clientId: () => null, clientSecret: async () => null },
+      http: async (url, init) => {
+        requests.push({ url, auth: new Headers(init?.headers).get("authorization") });
+        return new Response("{}", { status: 200 });
+      },
+      openExternal: async () => undefined,
+      now: () => 1000,
+      newId: () => `acct-${++ids}`,
+      networkRefusal: () => refusal,
+      logger: { info: () => undefined, warn: () => undefined, error: () => undefined },
+    });
+    return { service, store, keychain, requests };
+  }
+
+  it("keeps the key in the Keychain once the service says whose it is, and uses it as the bearer token", async () => {
+    const t = setupKey(async () => ({ ok: true, label: "Me@Example.com" }));
+    const outcome = await t.service.connectWithKey("keyed", "  fk-secret  ");
+    expect(outcome).toMatchObject({
+      ok: true,
+      account: { email: "me@example.com", status: "connected", scopes: [] },
+    });
+    const stored = JSON.parse([...t.keychain.items.values()][0]!) as {
+      accessToken: string;
+      refreshToken: null;
+    };
+    expect(stored).toMatchObject({ accessToken: "fk-secret", refreshToken: null });
+    // The database has the account and no key.
+    expect(JSON.stringify(t.store.list())).not.toContain("fk-secret");
+    await t.service.authorizedFetch("acct-1", "https://api.keybook.test/x");
+    expect(t.requests[0]).toEqual({ url: "https://api.keybook.test/x", auth: "Bearer fk-secret" });
+  });
+
+  it("says Key rejected and stores nothing when the key is not accepted", async () => {
+    const t = setupKey(async () => ({ ok: false, reason: "rejected" }));
+    expect(await t.service.connectWithKey("keyed", "wrong")).toEqual({
+      ok: false,
+      reason: "failed",
+      message: "Key rejected.",
+    });
+    expect(t.keychain.items.size).toBe(0);
+    expect(t.store.list()).toEqual([]);
+  });
+
+  it("says the service could not be reached, and stores nothing, when it cannot be asked", async () => {
+    for (const verify of [
+      async () => ({ ok: false, reason: "unreachable" }) as const,
+      async (): Promise<never> => {
+        throw new TypeError("fetch failed");
+      },
+    ]) {
+      const t = setupKey(verify);
+      expect(await t.service.connectWithKey("keyed", "k")).toMatchObject({
+        ok: false,
+        message: "Murmur could not reach Keybook.",
+      });
+      expect(t.keychain.items.size).toBe(0);
+    }
+  });
+
+  it("refuses a key that is not one piece of text, a connector with no key sign-in, and strict local mode, before asking", async () => {
+    let asked = 0;
+    const t = setupKey(async () => {
+      asked++;
+      return { ok: true, label: "a" };
+    });
+    for (const bad of ["", "two words", "x".repeat(301)])
+      expect(await t.service.connectWithKey("keyed", bad)).toMatchObject({ ok: false });
+    expect(await t.service.connectWithKey("nope", "k")).toMatchObject({ ok: false });
+    const strict = setupKey(async () => {
+      asked++;
+      return { ok: true, label: "a" };
+    }, "Strict local mode is on.");
+    expect(await strict.service.connectWithKey("keyed", "k")).toMatchObject({
+      ok: false,
+      message: "Strict local mode is on.",
+    });
+    expect(asked).toBe(0);
+  });
+
+  it("connecting the same account again replaces the key and keeps one account", async () => {
+    const t = setupKey(async () => ({ ok: true, label: "me@example.com" }));
+    await t.service.connectWithKey("keyed", "first");
+    await t.service.connectWithKey("keyed", "second");
+    expect(t.store.list()).toHaveLength(1);
+    expect(JSON.parse([...t.keychain.items.values()][0]!)).toMatchObject({ accessToken: "second" });
+  });
+
+  it("lists a key connector as configured without an OAuth client id", () => {
+    const t = setupKey(async () => ({ ok: true, label: "a" }));
+    expect(t.service.providers()).toEqual([
+      { id: "keyed", name: "Keybook", scopes: [], configured: true },
+    ]);
+  });
+});

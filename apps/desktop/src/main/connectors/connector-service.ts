@@ -55,6 +55,11 @@ export interface ConnectorService {
     providerId: string,
     options?: { scopes?: readonly string[]; loginHint?: string },
   ): Promise<ConnectOutcome>;
+  /**
+   * Signs in with a personal key (Fireflies): the service says whose key it is, and only then is the
+   * key kept, in the Keychain, as the account's token. A key that is not accepted stores nothing.
+   */
+  connectWithKey(providerId: string, key: string): Promise<ConnectOutcome>;
   /** Stops a sign-in that is waiting for the browser. */
   cancelConnect(providerId: string): void;
   /** Whether a sign-in to this provider is waiting for the browser. */
@@ -372,7 +377,7 @@ export function createConnectorService(deps: ConnectorServiceDeps): ConnectorSer
         id: provider.id,
         name: provider.name,
         scopes: [...provider.scopes],
-        configured: config.clientId(provider.id) !== null,
+        configured: provider.apiKey !== undefined || config.clientId(provider.id) !== null,
       })),
     list: () => store.list(),
 
@@ -520,6 +525,64 @@ export function createConnectorService(deps: ConnectorServiceDeps): ConnectorSer
       } finally {
         connecting.delete(providerId);
         loopback.close();
+      }
+    },
+
+    async connectWithKey(providerId, key) {
+      const provider = registry.get(providerId);
+      if (!provider?.apiKey)
+        return { ok: false, reason: "failed", message: "That connector does not use a key." };
+      const refusal = deps.networkRefusal?.() ?? null;
+      if (refusal !== null) return { ok: false, reason: "failed", message: refusal };
+      const value = key.trim();
+      if (value === "" || value.length > 300 || /\s/.test(value))
+        return {
+          ok: false,
+          reason: "failed",
+          message: "A key is one piece of text with no spaces.",
+        };
+      const checked = await provider.apiKey
+        .verify({ key: value, http })
+        .catch(() => ({ ok: false, reason: "unreachable" }) as const);
+      if (!checked.ok)
+        return {
+          ok: false,
+          reason: "failed",
+          message:
+            checked.reason === "rejected"
+              ? "Key rejected."
+              : `Murmur could not reach ${provider.name}.`,
+        };
+      const label = checked.label.trim().toLowerCase();
+      if (label === "")
+        return {
+          ok: false,
+          reason: "failed",
+          message: `${provider.name} did not say whose key it is.`,
+        };
+      const blob = toBlob(
+        { accessToken: value, refreshToken: null, expiresIn: null, scopes: [] },
+        null,
+      );
+      try {
+        await writeBlob(provider.id, label, blob);
+      } catch (error) {
+        return { ok: false, reason: "failed", message: (error as Error).message };
+      }
+      try {
+        const account = store.upsertAccount({
+          id: deps.newId(),
+          connector: provider.id,
+          email: label,
+          scopes: [],
+          at: deps.now(),
+        });
+        logger.info(`connector ${provider.id} connected with a key (${account.id})`);
+        changed();
+        return { ok: true, account };
+      } catch {
+        await keychain.delete(connectorKeychainService(provider.id), label).catch(() => false);
+        return { ok: false, reason: "failed", message: "Murmur could not save the account." };
       }
     },
 

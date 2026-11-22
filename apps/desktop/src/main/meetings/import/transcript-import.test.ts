@@ -3,7 +3,7 @@ import { openDatabase } from "../../db/database";
 import { createMeetingsStore } from "../meetings-store";
 import { createSpeakersStore } from "../speakers-store";
 import { createTranscriptStore } from "../transcript-store";
-import { IMPORT_FORMAT_TEXT } from "./formats";
+import { IMPORT_FORMAT_TEXT, type ParsedTranscript } from "./formats";
 import { MAX_IMPORT_BYTES, createTranscriptImport, titleFromFileName } from "./transcript-import";
 
 const ZOOM_VTT = `WEBVTT
@@ -342,5 +342,153 @@ describe("importing a transcript (NT-21)", () => {
       title: "Board meeting",
       startedAt: Date.UTC(2026, 2, 5, 14),
     });
+  });
+});
+
+describe("importing a meeting a connector fetched (CN-09, CN-10)", () => {
+  const transcript = (over: Partial<ParsedTranscript> = {}): ParsedTranscript => ({
+    format: "vtt",
+    title: null,
+    startedAt: null,
+    timesEstimated: false,
+    segments: [
+      { startMs: 0, endMs: 3000, speaker: "Dana Lee", text: "Let's start." },
+      { startMs: 4000, endMs: 6000, speaker: "Sam Ortiz", text: "Okay." },
+    ],
+    ...over,
+  });
+  const remote = (t: ReturnType<typeof setup>, over: Record<string, unknown> = {}) => {
+    const result = t.importer.prepareRemote({
+      name: "Zoom: Launch sync",
+      transcript: transcript(),
+      title: "Launch sync",
+      startedAt: Date.UTC(2026, 10, 21, 10),
+      externalRef: "zoom:abc==",
+      ...over,
+    });
+    if (!result.ok) throw new Error(result.message);
+    return result.preview;
+  };
+
+  it("describes it like a file, with no duplicate for a new recording", () => {
+    const t = setup();
+    expect(remote(t)).toMatchObject({
+      fileName: "Zoom: Launch sync",
+      title: "Launch sync",
+      lines: 2,
+      durationMs: 6000,
+      speakers: ["Dana Lee", "Sam Ortiz"],
+      duplicate: null,
+    });
+  });
+
+  it("makes one meeting with the service's id, its speakers and lines, and no audio", () => {
+    const t = setup();
+    const preview = remote(t);
+    const result = t.importer.confirm({
+      token: preview.token,
+      title: preview.title,
+      startedAt: preview.startedAt,
+    });
+    expect(result.ok).toBe(true);
+    const row = t.db.prepare("SELECT source, status, external_ref FROM meetings").get() as {
+      source: string;
+      status: string;
+      external_ref: string;
+    };
+    expect(row).toEqual({ source: "imported", status: "ready", external_ref: "zoom:abc==" });
+    expect(t.db.prepare("SELECT COUNT(*) AS n FROM meeting_segments").get()).toEqual({ n: 2 });
+    expect(t.db.prepare("SELECT COUNT(*) AS n FROM meeting_audio_chunks").get()).toEqual({ n: 0 });
+    expect(t.importer.isImported("zoom:abc==")).toBe(true);
+    expect(t.importer.isImported("zoom:other")).toBe(false);
+  });
+
+  it("does not import the same recording twice, and says so in the preview and at confirm", () => {
+    const t = setup();
+    const first = remote(t);
+    expect(
+      t.importer.confirm({ token: first.token, title: first.title, startedAt: first.startedAt }).ok,
+    ).toBe(true);
+    const again = remote(t, { title: "Renamed", startedAt: Date.UTC(2026, 10, 30) });
+    expect(again.duplicate).toMatchObject({ reason: "same-recording", title: "Launch sync" });
+    const blocked = t.importer.confirm({
+      token: again.token,
+      title: again.title,
+      startedAt: again.startedAt,
+    });
+    expect(blocked).toEqual({
+      ok: false,
+      message: "This meeting is already imported as “Launch sync”.",
+    });
+    expect(t.db.prepare("SELECT COUNT(*) AS n FROM meetings").get()).toEqual({ n: 1 });
+  });
+
+  it("also flags a meeting with the same title at the same time, which can be imported anyway", () => {
+    const t = setup();
+    const file = t.preview("Launch sync.vtt", ZOOM_VTT, Date.UTC(2026, 10, 21, 10));
+    t.importer.confirm({
+      token: file.token,
+      title: "Launch sync",
+      startedAt: Date.UTC(2026, 10, 21, 10),
+    });
+    expect(remote(t).duplicate).toMatchObject({ reason: "same-title" });
+  });
+
+  it("keeps the service's own summary as a summary labelled as imported", () => {
+    const t = setup();
+    const preview = remote(t, { summary: "## Overview\n- They agreed on Thursday" });
+    t.importer.confirm({
+      token: preview.token,
+      title: preview.title,
+      startedAt: preview.startedAt,
+    });
+    const rows = t.db
+      .prepare(
+        "SELECT version, skill_id, skill_name, model_id, quick, markdown FROM meeting_summaries",
+      )
+      .all();
+    expect(rows).toEqual([
+      {
+        version: 1,
+        skill_id: "fireflies",
+        skill_name: "Fireflies summary (imported)",
+        model_id: "fireflies",
+        quick: 0,
+        markdown: "## Overview\n- They agreed on Thursday",
+      },
+    ]);
+  });
+
+  it("makes no summary when the service sent none, and nothing at all when the transcript is empty", () => {
+    const t = setup();
+    const preview = remote(t, { summary: "  " });
+    t.importer.confirm({
+      token: preview.token,
+      title: preview.title,
+      startedAt: preview.startedAt,
+    });
+    expect(t.db.prepare("SELECT COUNT(*) AS n FROM meeting_summaries").get()).toEqual({ n: 0 });
+    const empty = t.importer.prepareRemote({
+      name: "x",
+      transcript: transcript({ segments: [] }),
+      title: "Empty",
+      startedAt: 1,
+      externalRef: "zoom:empty",
+    });
+    expect(empty).toEqual({ ok: false, message: "That meeting has no transcript to import." });
+  });
+
+  it("rolls back everything when the summary cannot be written", () => {
+    const t = setup();
+    const preview = remote(t, { summary: "text" });
+    t.db.exec("DROP TABLE meeting_summaries");
+    const result = t.importer.confirm({
+      token: preview.token,
+      title: preview.title,
+      startedAt: preview.startedAt,
+    });
+    expect(result.ok).toBe(false);
+    expect(t.db.prepare("SELECT COUNT(*) AS n FROM meetings").get()).toEqual({ n: 0 });
+    expect(t.db.prepare("SELECT COUNT(*) AS n FROM meeting_segments").get()).toEqual({ n: 0 });
   });
 });

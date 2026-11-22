@@ -12,6 +12,7 @@ import {
   CALENDAR_CONNECTOR_IDS,
   CALENDAR_WRITE_SCOPES,
   DATA_CONNECTOR_IDS,
+  IMPORT_CONNECTOR_IDS,
   CONNECTOR_FEATURES,
   CONNECTOR_STATUS_TEXT,
   GMAIL_SCOPE_COMPOSE,
@@ -31,6 +32,7 @@ import {
   type ConnectorsView,
   type ConnectorView,
 } from "@murmur/shared";
+import { ConnectorImport, KeyForm } from "./ConnectorImport";
 import { ConnectorSelection } from "./ConnectorSelection";
 import { McpSection } from "./McpSection";
 
@@ -379,18 +381,20 @@ export function ConnectorsPage() {
                         {connector.readiness === "not-set-up" ? (
                           <Text size="sm">Before you can connect, set up: {connector.setup}</Text>
                         ) : null}
-                        <details open={connector.readiness === "not-set-up"}>
-                          <summary>
-                            <Text size="sm" as="span">
-                              Your {connector.name} app
-                            </Text>
-                          </summary>
-                          <AppDetails
-                            key={`${connector.id}:${connector.clientId ?? ""}`}
-                            connector={connector}
-                            onResult={report}
-                          />
-                        </details>
+                        {connector.auth === "key" ? null : (
+                          <details open={connector.readiness === "not-set-up"}>
+                            <summary>
+                              <Text size="sm" as="span">
+                                Your {connector.name} app
+                              </Text>
+                            </summary>
+                            <AppDetails
+                              key={`${connector.id}:${connector.clientId ?? ""}`}
+                              connector={connector}
+                              onResult={report}
+                            />
+                          </details>
+                        )}
 
                         {connector.accounts.length > 0 ? (
                           <ul
@@ -505,7 +509,24 @@ export function ConnectorsPage() {
                           </ul>
                         ) : null}
 
-                        {connector.readiness === "ready" ? (
+                        {connector.auth === "key" && connector.readiness === "ready" ? (
+                          <KeyForm
+                            connector={connector}
+                            onResult={(result) =>
+                              report(
+                                result.ok
+                                  ? {
+                                      ok: true,
+                                      ...(result.message ? { message: result.message } : {}),
+                                    }
+                                  : {
+                                      ok: false,
+                                      message: result.message ?? "The key was not accepted.",
+                                    },
+                              )
+                            }
+                          />
+                        ) : connector.readiness === "ready" ? (
                           waiting === connector.id || connector.connecting ? (
                             <HStack gap={2} align="center">
                               <Text size="sm">Waiting for your browser…</Text>
@@ -538,6 +559,27 @@ export function ConnectorsPage() {
                             </div>
                           )
                         ) : null}
+
+                        {(IMPORT_CONNECTOR_IDS as readonly string[]).includes(connector.id) &&
+                        settings
+                          ? connector.accounts
+                              .filter((entry) => entry.status === "connected")
+                              .map((entry) => (
+                                <ConnectorImport
+                                  key={entry.id}
+                                  connector={connector}
+                                  account={entry}
+                                  settings={settings}
+                                  save={(patch) => saveData(patch, [])}
+                                  onImported={() =>
+                                    setMessage({
+                                      text: "Imported the meeting. It is in the Notetaker page.",
+                                      ok: true,
+                                    })
+                                  }
+                                />
+                              ))
+                          : null}
 
                         {(DATA_CONNECTOR_IDS as readonly string[]).includes(connector.id) &&
                         connector.accounts.length > 0 &&

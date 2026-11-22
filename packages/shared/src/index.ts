@@ -19,6 +19,7 @@ export * from "./brief";
 export * from "./calendar";
 export * from "./connectors";
 export * from "./connector-data";
+export * from "./connector-import";
 export * from "./gmail";
 export * from "./context";
 export * from "./typing";

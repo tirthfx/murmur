@@ -1,5 +1,11 @@
 import { z } from "zod";
 import {
+  DEFAULT_FIREFLIES_SETTINGS,
+  DEFAULT_ZOOM_SETTINGS,
+  firefliesSettingsSchema,
+  zoomSettingsSchema,
+} from "./connector-import";
+import {
   DEFAULT_GITHUB_SETTINGS,
   DEFAULT_LINEAR_SETTINGS,
   DEFAULT_NOTION_SETTINGS,
@@ -125,6 +131,8 @@ export interface ConnectorCatalogueEntry {
   defaultSyncMinutes: number;
   /** Whether there is a write scope, so a read-only switch means something. */
   supportsWrite: boolean;
+  /** How the owner signs in: an OAuth app of their own (default), or a personal key. */
+  auth?: "oauth" | "key";
 }
 
 export const CONNECTOR_CATALOGUE: readonly ConnectorCatalogueEntry[] = [
@@ -254,6 +262,7 @@ export const CONNECTOR_CATALOGUE: readonly ConnectorCatalogueEntry[] = [
     clientSecret: false,
     defaultSyncMinutes: 30,
     supportsWrite: false,
+    auth: "key",
   },
 ] as const;
 
@@ -331,7 +340,7 @@ export const CONNECTOR_FEATURES: readonly ConnectorFeature[] = [
     name: "Import from Zoom and Fireflies",
     detail: "Brings in a transcript you did not record yourself.",
     connectors: ["zoom", "fireflies"],
-    built: false,
+    built: true,
   },
 ] as const;
 
@@ -356,6 +365,9 @@ export const connectorSettingsSchema = z.strictObject({
   notion: notionSettingsSchema.default(DEFAULT_NOTION_SETTINGS),
   linear: linearSettingsSchema.default(DEFAULT_LINEAR_SETTINGS),
   github: githubSettingsSchema.default(DEFAULT_GITHUB_SETTINGS),
+  /** CN-09, CN-10: importing meetings from Zoom and Fireflies. */
+  zoom: zoomSettingsSchema.default(DEFAULT_ZOOM_SETTINGS),
+  fireflies: firefliesSettingsSchema.default(DEFAULT_FIREFLIES_SETTINGS),
 });
 export type ConnectorSettings = z.infer<typeof connectorSettingsSchema>;
 
@@ -367,6 +379,8 @@ export const DEFAULT_CONNECTOR_SETTINGS: ConnectorSettings = {
   notion: DEFAULT_NOTION_SETTINGS,
   linear: DEFAULT_LINEAR_SETTINGS,
   github: DEFAULT_GITHUB_SETTINGS,
+  zoom: DEFAULT_ZOOM_SETTINGS,
+  fireflies: DEFAULT_FIREFLIES_SETTINGS,
 };
 
 /** The sync interval and read-only switch of a connector, with the defaults filled in. */
@@ -396,6 +410,8 @@ export interface ConnectorView {
   setup: string;
   clientSecret: boolean;
   supportsWrite: boolean;
+  /** `key` for a connector that signs in with a personal key. */
+  auth?: "oauth" | "key";
   readiness: ConnectorReadiness;
   /** The client id the owner entered, which is not secret; null when none. */
   clientId: string | null;

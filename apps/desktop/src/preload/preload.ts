@@ -187,6 +187,11 @@ const api: MurmurApi = {
   connectorsView: () => ipcRenderer.invoke(IPC_CHANNELS.connectorsView),
   connectorSync: (accountId) => ipcRenderer.invoke(IPC_CHANNELS.connectorSync, accountId),
   connectorOptions: (accountId) => ipcRenderer.invoke(IPC_CHANNELS.connectorOptions, accountId),
+  connectorConnectKey: (id, key) => ipcRenderer.invoke(IPC_CHANNELS.connectorConnectKey, id, key),
+  connectorRecordings: (accountId) =>
+    ipcRenderer.invoke(IPC_CHANNELS.connectorRecordings, accountId),
+  connectorImportPrepare: (accountId, remoteId) =>
+    ipcRenderer.invoke(IPC_CHANNELS.connectorImportPrepare, accountId, remoteId),
   connectorDataStatus: () => ipcRenderer.invoke(IPC_CHANNELS.connectorDataStatus),
   briefOverview: () => ipcRenderer.invoke(IPC_CHANNELS.briefOverview),
   briefGet: (eventKey) => ipcRenderer.invoke(IPC_CHANNELS.briefGet, eventKey),

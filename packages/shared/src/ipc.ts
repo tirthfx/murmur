@@ -28,6 +28,7 @@ import {
 } from "./transcript-import";
 import type { ConnectorActionResult, ConnectorsView } from "./connectors";
 import type { ConnectorDataStatus, ConnectorOptionsResult } from "./connector-data";
+import type { RecordingsResult } from "./connector-import";
 import type { BriefOverview, BriefResult, MeetingBrief } from "./brief";
 import {
   calendarEventInputSchema,
@@ -482,6 +483,9 @@ export const IPC_CHANNELS = {
   connectorSetClientSecret: "connectors:set-client-secret",
   connectorSync: "connectors:sync",
   connectorOptions: "connectors:options",
+  connectorConnectKey: "connectors:connect-key",
+  connectorRecordings: "connectors:recordings",
+  connectorImportPrepare: "connectors:import-prepare",
   connectorDataStatus: "connectors:data-status",
   briefOverview: "brief:overview",
   briefGet: "brief:get",
@@ -1073,6 +1077,18 @@ export const IPC_CONTRACT = {
     args: z.tuple([z.string().min(1).max(64)]),
     result: z.custom<ConnectorActionResult>(),
   },
+  [IPC_CHANNELS.connectorConnectKey]: {
+    args: z.tuple([z.string().min(1).max(64), z.string().max(400)]),
+    result: z.custom<ConnectorActionResult>(),
+  },
+  [IPC_CHANNELS.connectorRecordings]: {
+    args: z.tuple([z.string().min(1).max(64)]),
+    result: z.custom<RecordingsResult>(),
+  },
+  [IPC_CHANNELS.connectorImportPrepare]: {
+    args: z.tuple([z.string().min(1).max(64), z.string().min(1).max(400)]),
+    result: z.custom<TranscriptImportPreviewResult>(),
+  },
   [IPC_CHANNELS.connectorOptions]: {
     args: z.tuple([z.string().min(1).max(64)]),
     result: z.custom<ConnectorOptionsResult>(),
@@ -1543,6 +1559,15 @@ export interface MurmurApi {
   connectorSetClientSecret(id: string, secret: string | null): Promise<ConnectorActionResult>;
   /** CN-02, CN-03: reads a calendar account's events now. */
   connectorSync(accountId: string): Promise<ConnectorActionResult>;
+  /** CN-10: signs in with a personal key (Fireflies). The key goes to the Keychain and is never sent back. */
+  connectorConnectKey(id: string, key: string): Promise<ConnectorActionResult>;
+  /** CN-09, CN-10: the meetings of a Zoom or Fireflies account that could be imported. Downloads nothing. */
+  connectorRecordings(accountId: string): Promise<RecordingsResult>;
+  /** CN-09, CN-10: fetches one meeting and describes it like a transcript file; confirm it with `meetingImportConfirm`. */
+  connectorImportPrepare(
+    accountId: string,
+    remoteId: string,
+  ): Promise<TranscriptImportPreviewResult>;
   /** CN-05, CN-07: the channels or teams an account offers for the owner to select. */
   connectorOptions(accountId: string): Promise<ConnectorOptionsResult>;
   /** CN-05 to CN-08: how many items each Slack, Notion, Linear and GitHub account has kept, and when it was read. */
