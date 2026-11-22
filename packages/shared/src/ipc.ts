@@ -33,6 +33,15 @@ import type { AskActionResult } from "./ask-actions";
 import { askActionRequestSchema, type AskActionRequest } from "./ask-actions";
 import type { ExtensionsView } from "./extensions";
 import {
+  teamConnectSchema,
+  teamRedeemSchema,
+  teamSetupSchema,
+  teamSignInSchema,
+  type TeamRedeemResult,
+  type TeamResult,
+  type TeamView,
+} from "./team";
+import {
   slackPostSourceSchema,
   slackPrepareInputSchema,
   slackSendInputSchema,
@@ -502,6 +511,18 @@ export const IPC_CHANNELS = {
   connectorImportPrepare: "connectors:import-prepare",
   connectorDataStatus: "connectors:data-status",
   extensionsView: "extensions:view",
+  teamView: "team:view",
+  teamConnect: "team:connect",
+  teamSetup: "team:setup",
+  teamSignIn: "team:sign-in",
+  teamSignOut: "team:sign-out",
+  teamLock: "team:lock",
+  teamUnlock: "team:unlock",
+  teamRedeem: "team:redeem",
+  teamSyncNow: "team:sync-now",
+  teamSetIdleLock: "team:set-idle-lock",
+  teamDisconnect: "team:disconnect",
+  teamNoticesSeen: "team:notices-seen",
   askActionPropose: "ask:action-propose",
   slackPostState: "slack-post:state",
   slackPostStart: "slack-post:start",
@@ -1135,6 +1156,30 @@ export const IPC_CONTRACT = {
     result: z.custom<SlackSendResult>(),
   },
   [IPC_CHANNELS.extensionsView]: { args: z.tuple([]), result: z.custom<ExtensionsView>() },
+  [IPC_CHANNELS.teamView]: { args: z.tuple([]), result: z.custom<TeamView>() },
+  [IPC_CHANNELS.teamConnect]: {
+    args: z.tuple([teamConnectSchema]),
+    result: z.custom<TeamResult>(),
+  },
+  [IPC_CHANNELS.teamSetup]: { args: z.tuple([teamSetupSchema]), result: z.custom<TeamResult>() },
+  [IPC_CHANNELS.teamSignIn]: { args: z.tuple([teamSignInSchema]), result: z.custom<TeamResult>() },
+  [IPC_CHANNELS.teamSignOut]: { args: z.tuple([]), result: z.custom<TeamResult>() },
+  [IPC_CHANNELS.teamLock]: { args: z.tuple([]), result: z.custom<TeamResult>() },
+  [IPC_CHANNELS.teamUnlock]: {
+    args: z.tuple([z.string().min(1).max(200)]),
+    result: z.custom<TeamResult>(),
+  },
+  [IPC_CHANNELS.teamRedeem]: {
+    args: z.tuple([teamRedeemSchema]),
+    result: z.custom<TeamRedeemResult>(),
+  },
+  [IPC_CHANNELS.teamSyncNow]: { args: z.tuple([]), result: z.custom<TeamResult>() },
+  [IPC_CHANNELS.teamSetIdleLock]: {
+    args: z.tuple([z.number().int().min(1).max(240)]),
+    result: z.custom<TeamResult>(),
+  },
+  [IPC_CHANNELS.teamDisconnect]: { args: z.tuple([]), result: z.custom<TeamResult>() },
+  [IPC_CHANNELS.teamNoticesSeen]: { args: z.tuple([]), result: z.custom<TeamResult>() },
   [IPC_CHANNELS.briefOverview]: { args: z.tuple([]), result: z.custom<BriefOverview>() },
   [IPC_CHANNELS.briefGet]: {
     args: z.tuple([z.string().min(1).max(300)]),
@@ -1622,6 +1667,26 @@ export interface MurmurApi {
   slackPostSend(input: SlackSendInput): Promise<SlackSendResult>;
   /** CN-12: the built-in actions connected apps can do, with their state. They are switched in settings. */
   extensionsView(): Promise<ExtensionsView>;
+  /** Team mode (TM-01, TM-06). */
+  teamView(): Promise<TeamView>;
+  teamConnect(input: { serverUrl: string }): Promise<TeamResult>;
+  teamSetup(input: { name: string; email: string; password: string }): Promise<TeamResult>;
+  teamSignIn(input: { email: string; password: string }): Promise<TeamResult>;
+  teamSignOut(): Promise<TeamResult>;
+  teamLock(): Promise<TeamResult>;
+  teamUnlock(password: string): Promise<TeamResult>;
+  teamRedeem(input: {
+    code: string;
+    name?: string;
+    email?: string;
+    password?: string;
+  }): Promise<TeamRedeemResult>;
+  teamSyncNow(): Promise<TeamResult>;
+  teamSetIdleLock(minutes: number): Promise<TeamResult>;
+  teamDisconnect(): Promise<TeamResult>;
+  teamNoticesSeen(): Promise<TeamResult>;
+  /** The team state changed: locked, signed in or out, or a sync finished. */
+  onTeamChanged(handler: (view: TeamView) => void): () => void;
   /** NT-11: the meetings that are coming, whether each has a brief, and each source's state. */
   briefOverview(): Promise<BriefOverview>;
   /** NT-11: the brief last built for a meeting, or null. */
@@ -1717,4 +1782,5 @@ export const IPC_EVENTS = {
   openPage: "hub:open-page",
   meetingsChanged: "meetings:changed",
   meetingLive: "meetings:live",
+  teamChanged: "team:changed",
 } as const;

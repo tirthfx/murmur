@@ -156,6 +156,14 @@ import {
   type SlackSendResult,
   type SlackStartResult,
   type ExtensionsView,
+  type TeamConnectInput,
+  type TeamRedeemInput,
+  type TeamRedeemResult,
+  type TeamResult,
+  type TeamSetupInput,
+  type TeamSignInInput,
+  type TeamView,
+  isLockedChannel,
   type MeetingBrief,
   type EmailDraftInput,
   type EmailDraftProposalResult,
@@ -244,6 +252,20 @@ export interface IpcDeps {
   slackPostPrepare: (input: SlackPrepareInput) => Promise<SlackPrepareResult>;
   slackPostSend: (input: SlackSendInput) => Promise<SlackSendResult>;
   extensionsView: () => ExtensionsView;
+  teamView: () => TeamView;
+  teamConnect: (input: TeamConnectInput) => Promise<TeamResult>;
+  teamSetup: (input: TeamSetupInput) => Promise<TeamResult>;
+  teamSignIn: (input: TeamSignInInput) => Promise<TeamResult>;
+  teamSignOut: () => Promise<TeamResult>;
+  teamLock: () => TeamResult;
+  teamUnlock: (password: string) => Promise<TeamResult>;
+  teamRedeem: (input: TeamRedeemInput) => Promise<TeamRedeemResult>;
+  teamSyncNow: () => Promise<TeamResult>;
+  teamSetIdleLock: (minutes: number) => TeamResult;
+  teamDisconnect: () => Promise<TeamResult>;
+  teamNoticesSeen: () => Promise<TeamResult>;
+  /** Whether Murmur is locked (team mode): meetings, notes and questions are refused. */
+  isLocked?: () => boolean;
   briefOverview: () => BriefOverview;
   briefGet: (eventKey: string) => MeetingBrief | null;
   briefBuild: (eventKey: string) => Promise<BriefResult>;
@@ -418,6 +440,10 @@ export function createIpcHandler(deps: IpcDeps) {
     const request = parseIpcRequest(channel, args);
     if (!request.ok) {
       throw new Error(`IPC rejected: ${request.reason}`);
+    }
+    // Locked: nothing that shows a meeting, a note, a question or a task is answered.
+    if (deps.isLocked?.() && isLockedChannel(channel)) {
+      throw new Error("IPC rejected: locked");
     }
     switch (channel) {
       case IPC_CHANNELS.getAppInfo:
@@ -755,6 +781,30 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.slackPostSend(request.args[0] as SlackSendInput);
       case IPC_CHANNELS.extensionsView:
         return deps.extensionsView();
+      case IPC_CHANNELS.teamView:
+        return deps.teamView();
+      case IPC_CHANNELS.teamConnect:
+        return deps.teamConnect(request.args[0] as TeamConnectInput);
+      case IPC_CHANNELS.teamSetup:
+        return deps.teamSetup(request.args[0] as TeamSetupInput);
+      case IPC_CHANNELS.teamSignIn:
+        return deps.teamSignIn(request.args[0] as TeamSignInInput);
+      case IPC_CHANNELS.teamSignOut:
+        return deps.teamSignOut();
+      case IPC_CHANNELS.teamLock:
+        return deps.teamLock();
+      case IPC_CHANNELS.teamUnlock:
+        return deps.teamUnlock(request.args[0] as string);
+      case IPC_CHANNELS.teamRedeem:
+        return deps.teamRedeem(request.args[0] as TeamRedeemInput);
+      case IPC_CHANNELS.teamSyncNow:
+        return deps.teamSyncNow();
+      case IPC_CHANNELS.teamSetIdleLock:
+        return deps.teamSetIdleLock(request.args[0] as number);
+      case IPC_CHANNELS.teamDisconnect:
+        return deps.teamDisconnect();
+      case IPC_CHANNELS.teamNoticesSeen:
+        return deps.teamNoticesSeen();
       case IPC_CHANNELS.briefOverview:
         return deps.briefOverview();
       case IPC_CHANNELS.briefGet:

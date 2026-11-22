@@ -148,6 +148,8 @@ import { createCleanupService } from "./cleanup/cleanup-service";
 import { databasePath, openDatabase } from "./db/database";
 import { createHistoryStore, type HistoryStore } from "./history/history-store";
 import { createInsightsStore } from "./insights/insights-store";
+import { createSharedVocabulary } from "./team/shared-vocabulary";
+import { createTeamService } from "./team/team-service";
 import { createMilestonesStore } from "./milestones/milestones-store";
 import { createNotifier } from "./notifications/notifier";
 import { createNetworkGuard } from "./privacy/network-guard";
@@ -439,6 +441,8 @@ const learner = database && dictionary ? createCorrectionLearner(database, dicti
 let lastInserted: string | null = null;
 // Snippets (PZ-08).
 const snippets = database ? createSnippetStore(database) : null;
+// TM-06: the team's shared dictionary and snippets, laid over the personal ones for dictation.
+const sharedVocabulary = createSharedVocabulary();
 // Styles per context and the owner's app categories (PZ-11, PZ-13).
 const styles = database ? createStyleStore(database) : null;
 // Memory (PZ-18, PZ-19), and the one "remember that" fact waiting on the Bar.
@@ -1255,8 +1259,25 @@ const recorder = createRecorder({
   lastRetryable: () => history?.lastRetryable(Date.now()) ?? null,
   isResolved: (historyId) => history?.isResolved(historyId) ?? false,
   waitForSpeech: () => speech.whenReady(),
-  ...(dictionary ? { dictionary } : {}),
-  ...(snippets ? { snippets } : {}),
+  ...(dictionary
+    ? {
+        dictionary: {
+          rules: () => sharedVocabulary.rules(dictionary.rules()),
+          recordUses: (ids: string[]) =>
+            dictionary.recordUses(ids.filter((id) => !id.startsWith("team:"))),
+        },
+      }
+    : {}),
+  ...(snippets
+    ? {
+        snippets: {
+          list: () => sharedVocabulary.snippets(snippets.list()),
+          recordUse: (id: string) => {
+            if (!id.startsWith("team:")) snippets.recordUse(id);
+          },
+        },
+      }
+    : {}),
   afterInsert: (text: string) => {
     if (!learner || !settingsStore.get().learnCorrections) return;
     lastInserted = text;
@@ -1779,6 +1800,39 @@ const skillsService = meetingSkills
 // has only the accounts and a cache. The providers (Google Calendar, ...) are added to this
 // list one by one in M6.
 const connectorKeychain = createHelperKeychain(helper);
+// TM-01, TM-06, TM-09: team mode. Off until the owner connects to a team server; the session is a
+// Keychain item, and what is kept on disk has no token and no password.
+const teamFile = path.join(profile.appData, "Murmur", "team.json");
+const teamService = createTeamService({
+  readFile: () => {
+    try {
+      return readFileSync(teamFile, "utf8");
+    } catch {
+      return null;
+    }
+  },
+  writeFile: (text) => {
+    mkdirSync(path.dirname(teamFile), { recursive: true });
+    writeFileSync(teamFile, text, { mode: 0o600 });
+  },
+  keychain: connectorKeychain,
+  fetch: (url, init) => fetch(url, init),
+  now: () => Date.now(),
+  idleSeconds: () => powerMonitor.getSystemIdleTime(),
+  networkCheck: (url) => {
+    // A server on this Mac is not the network; any other address is refused in strict local mode.
+    const host = new URL(url).hostname;
+    if (host === "127.0.0.1" || host === "localhost" || host === "[::1]") return;
+    networkGuard.check("team server");
+  },
+  vocabulary: sharedVocabulary,
+  insights: { days: (first) => insights?.days(first) ?? [] },
+  meetings: { list: (limit) => meetingsStore?.list(limit) ?? [] },
+  onChange: (view) => {
+    if (hubEvents && !hubEvents.isDestroyed()) hubEvents.send(IPC_EVENTS.teamChanged, view);
+  },
+  log: (line) => console.log(line),
+});
 const connectorStore = database ? createConnectorStore(database) : null;
 const connectorsFile = path.join(profile.appData, "Murmur", "connectors.json");
 const connectorConfig = createConnectorConfig({
@@ -3674,6 +3728,19 @@ function registerIpc(): void {
         : { ok: false, message: result.message };
     },
     extensionsView: () => actionRunner.view(),
+    teamView: () => teamService.view(),
+    teamConnect: (input) => teamService.connect(input),
+    teamSetup: (input) => teamService.setup(input),
+    teamSignIn: (input) => teamService.signIn(input),
+    teamSignOut: () => teamService.signOut(),
+    teamLock: () => teamService.lock(),
+    teamUnlock: (password) => teamService.unlock(password),
+    teamRedeem: (input) => teamService.redeem(input),
+    teamSyncNow: () => teamService.syncNow(),
+    teamSetIdleLock: (minutes) => teamService.setIdleLock(minutes),
+    teamDisconnect: () => teamService.disconnect(),
+    teamNoticesSeen: () => teamService.noticesSeen(),
+    isLocked: () => teamService.isLocked(),
     emailDraftState: () => draftState("draft_email"),
     emailDraftPropose: async (source) => {
       const state = draftState("draft_email");
@@ -4399,6 +4466,7 @@ function registerIpc(): void {
 }
 
 void app.whenReady().then(() => {
+  void teamService.start();
   // HB-24: the weekly summary is checked at start and every hour.
   weeklySummary();
   setInterval(weeklySummary, 60 * 60_000).unref();

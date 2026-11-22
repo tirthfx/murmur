@@ -199,6 +199,23 @@ const api: MurmurApi = {
   slackPostPrepare: (input) => ipcRenderer.invoke(IPC_CHANNELS.slackPostPrepare, input),
   slackPostSend: (input) => ipcRenderer.invoke(IPC_CHANNELS.slackPostSend, input),
   extensionsView: () => ipcRenderer.invoke(IPC_CHANNELS.extensionsView),
+  teamView: () => ipcRenderer.invoke(IPC_CHANNELS.teamView),
+  teamConnect: (input) => ipcRenderer.invoke(IPC_CHANNELS.teamConnect, input),
+  teamSetup: (input) => ipcRenderer.invoke(IPC_CHANNELS.teamSetup, input),
+  teamSignIn: (input) => ipcRenderer.invoke(IPC_CHANNELS.teamSignIn, input),
+  teamSignOut: () => ipcRenderer.invoke(IPC_CHANNELS.teamSignOut),
+  teamLock: () => ipcRenderer.invoke(IPC_CHANNELS.teamLock),
+  teamUnlock: (password) => ipcRenderer.invoke(IPC_CHANNELS.teamUnlock, password),
+  teamRedeem: (input) => ipcRenderer.invoke(IPC_CHANNELS.teamRedeem, input),
+  teamSyncNow: () => ipcRenderer.invoke(IPC_CHANNELS.teamSyncNow),
+  teamSetIdleLock: (minutes) => ipcRenderer.invoke(IPC_CHANNELS.teamSetIdleLock, minutes),
+  teamDisconnect: () => ipcRenderer.invoke(IPC_CHANNELS.teamDisconnect),
+  teamNoticesSeen: () => ipcRenderer.invoke(IPC_CHANNELS.teamNoticesSeen),
+  onTeamChanged: (handler) => {
+    const listener = (_event: unknown, view: Parameters<typeof handler>[0]) => handler(view);
+    ipcRenderer.on(IPC_EVENTS.teamChanged, listener);
+    return () => ipcRenderer.removeListener(IPC_EVENTS.teamChanged, listener);
+  },
   briefOverview: () => ipcRenderer.invoke(IPC_CHANNELS.briefOverview),
   briefGet: (eventKey) => ipcRenderer.invoke(IPC_CHANNELS.briefGet, eventKey),
   briefBuild: (eventKey) => ipcRenderer.invoke(IPC_CHANNELS.briefBuild, eventKey),

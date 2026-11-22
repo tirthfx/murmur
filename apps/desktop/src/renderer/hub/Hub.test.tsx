@@ -65,6 +65,7 @@ describe("Hub", () => {
       "My Voice",
       "Memory",
       "Insights",
+      "Team",
       "Settings",
       "Help",
     ]);

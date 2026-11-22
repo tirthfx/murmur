@@ -1,0 +1,92 @@
+import { z } from "zod";
+
+/**
+ * Team mode in the app (TM-01 client, TM-06): the app signs in to a team server, keeps a session
+ * in the Keychain, locks when the Mac has been idle, and pulls the team's shared dictionary and
+ * snippets. Nothing about it is on until the owner turns it on and connects to a server.
+ */
+export const TEAM_LIMITS = {
+  idleLockMinutes: { min: 1, max: 240, default: 15 },
+  /** How often the shared vocabulary is asked for when the server does not say. */
+  syncMinutes: 5,
+} as const;
+
+export const TEAM_STATES = ["off", "signed_out", "locked", "signed_in"] as const;
+export type TeamState = (typeof TEAM_STATES)[number];
+
+export interface TeamSummary {
+  id: string;
+  name: string;
+  myRole: string;
+}
+
+/** A proposal that was turned down, told to the person at their next sign-in. */
+export interface TeamNotice {
+  id: string;
+  summary: string;
+  note: string;
+}
+
+export interface TeamView {
+  enabled: boolean;
+  serverUrl: string;
+  state: TeamState;
+  /** Whether the server already has an owner: null until it has been asked. */
+  serverSetUp: boolean | null;
+  user: { name: string; email: string } | null;
+  teams: TeamSummary[];
+  idleLockMinutes: number;
+  lastSyncAt: number | null;
+  /** How the last sync went, in words, or "" when all is well. */
+  syncProblem: string;
+  /** The shared entries in use now. */
+  sharedCounts: { dictionary: number; snippets: number };
+  notices: TeamNotice[];
+}
+
+export type TeamResult =
+  { ok: true; view: TeamView } | { ok: false; message: string; retryAfterSeconds?: number };
+
+export type TeamRedeemResult =
+  | { ok: true; status: "joined" | "pending"; teamName: string; view: TeamView }
+  | { ok: false; message: string };
+
+export const teamConnectSchema = z.strictObject({ serverUrl: z.string().trim().min(1).max(300) });
+export const teamSetupSchema = z.strictObject({
+  name: z.string().trim().min(1).max(100),
+  email: z.string().trim().min(3).max(200),
+  password: z.string().min(1).max(200),
+});
+export const teamSignInSchema = z.strictObject({
+  email: z.string().trim().min(3).max(200),
+  password: z.string().min(1).max(200),
+});
+export const teamRedeemSchema = z.strictObject({
+  code: z.string().trim().min(1).max(200),
+  /** For someone with no account yet. */
+  name: z.string().trim().max(100).optional(),
+  email: z.string().trim().max(200).optional(),
+  password: z.string().max(200).optional(),
+});
+export type TeamConnectInput = z.infer<typeof teamConnectSchema>;
+export type TeamSetupInput = z.infer<typeof teamSetupSchema>;
+export type TeamSignInInput = z.infer<typeof teamSignInSchema>;
+export type TeamRedeemInput = z.infer<typeof teamRedeemSchema>;
+
+export const TEAM_MESSAGES = {
+  locked: "Murmur is locked. Enter your password to continue.",
+  unreachable: "Could not reach the team server.",
+  sessionEnded: "Your team session ended. Sign in again.",
+  wrongPassword: "The email or the password is not right.",
+  strictLocal:
+    "Strict local mode is on, so Murmur will not connect to a team server on the network.",
+} as const;
+
+/** Channels that show meetings, notes, questions or tasks: refused while Murmur is locked. */
+const LOCKED_PREFIXES = ["meetings:", "ask:", "brief:", "tasks:"] as const;
+/** What still works while locked, so a recording in progress can be stopped. */
+const STILL_OPEN = new Set(["meetings:start", "meetings:stop"]);
+
+export function isLockedChannel(channel: string): boolean {
+  return !STILL_OPEN.has(channel) && LOCKED_PREFIXES.some((prefix) => channel.startsWith(prefix));
+}
