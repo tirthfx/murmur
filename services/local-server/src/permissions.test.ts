@@ -34,6 +34,8 @@ const EXPECTED: Record<ActionName, Role[] | "server"> = {
   "vocabulary.review": ["owner", "admin", "manager"],
   "vocabulary.manage": ["owner", "admin"],
   "vocabulary.settings": ["owner", "admin"],
+  "policy.view": ["owner", "admin", "manager", "member", "viewer"],
+  "policy.manage": ["owner", "admin"],
 };
 
 describe("the permission matrix", () => {

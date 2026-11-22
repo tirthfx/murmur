@@ -1,6 +1,7 @@
 import type { Accounts } from "../accounts.ts";
 import type { Audit } from "../audit.ts";
 import type { Invites } from "../invites.ts";
+import type { Policy } from "../policy.ts";
 import type { Settings } from "../settings.ts";
 import type { Siem } from "../siem.ts";
 import type { TeamSettings } from "../team-settings.ts";
@@ -20,6 +21,7 @@ export interface RouteDeps {
   invites: Invites;
   teamSettings: TeamSettings;
   vocabulary: Vocabulary;
+  policy: Policy;
   /** Whether the SIEM queue is sent as entries are written. */
   autoFlush: boolean;
 }

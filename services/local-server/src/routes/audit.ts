@@ -18,7 +18,7 @@ function auditFilter(url: URL): AuditFilter {
 }
 
 /** The audit log, its export and verification, and the retention and SIEM settings (TM-12). */
-export function auditRoutes({ audit, siem, settings, autoFlush }: RouteDeps): Route[] {
+export function auditRoutes({ audit, siem, settings, policy, autoFlush }: RouteDeps): Route[] {
   return [
     {
       method: "GET",
@@ -83,6 +83,8 @@ export function auditRoutes({ audit, siem, settings, autoFlush }: RouteDeps): Ro
         if (body["siemMode"] !== undefined)
           patch.mode = text(body, "siemMode") as SiemConfig["mode"];
         if (body["siemWebhookUrl"] !== undefined) patch.webhookUrl = text(body, "siemWebhookUrl");
+        if (patch.webhookUrl && policy.hostBlockedAnywhere(patch.webhookUrl))
+          throw new HttpError(400, "blocked_by_policy", "A team's policy blocks that address.");
         if (Object.keys(patch).length > 0) {
           const result = siem.setConfig(patch);
           if (!result.ok) throw new HttpError(400, "invalid_siem", result.message);

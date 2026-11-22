@@ -253,6 +253,27 @@ export const MIGRATIONS: readonly Migration[] = [
       CREATE INDEX vocabulary_notices_user ON vocabulary_notices (user_id, seen_at);
     `,
   },
+  {
+    version: 5,
+    name: "policy",
+    sql: `
+      -- One row per setting per layer. The layers are the whole team, a department and one
+      -- member; the scope id is '' for the team. source says who set it (an admin, or a
+      -- compliance bundle), so the console can show "Set by compliance mode".
+      CREATE TABLE policy_values (
+        team_id    TEXT NOT NULL REFERENCES teams (id) ON DELETE CASCADE,
+        scope      TEXT NOT NULL CHECK (scope IN ('team', 'department', 'member')),
+        scope_id   TEXT NOT NULL DEFAULT '',
+        key        TEXT NOT NULL,
+        value_json TEXT NOT NULL,
+        source     TEXT NOT NULL DEFAULT 'admin' CHECK (source IN ('admin', 'compliance')),
+        updated_by TEXT REFERENCES users (id),
+        updated_at INTEGER NOT NULL,
+        PRIMARY KEY (team_id, scope, scope_id, key)
+      );
+      ALTER TABLE team_revisions ADD COLUMN policy_revision INTEGER NOT NULL DEFAULT 0;
+    `,
+  },
 ];
 
 export function migrate(db: DatabaseSync, migrations: readonly Migration[] = MIGRATIONS): number {
