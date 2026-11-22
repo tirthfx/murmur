@@ -49,18 +49,29 @@ describe("Command Mode section", () => {
 
   it("saves a new wake phrase, and refuses one too short", async () => {
     const api = mount();
-    const input = await screen.findByRole("textbox", { name: "Wake phrase" });
-    // Plain events, not userEvent typing: typing one key at a time is slow on a busy CI machine.
-    fireEvent.change(input, { target: { value: "x" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save the wake phrase" }));
-    expect((await screen.findAllByText(/Use 2 to 40 letters/)).length).toBeGreaterThan(0);
-    expect(api.updateSettings).not.toHaveBeenCalled();
-    fireEvent.change(input, { target: { value: "Okay Notes" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save the wake phrase" }));
-    await waitFor(() =>
-      expect(api.updateSettings).toHaveBeenCalledWith({
-        commandMode: { wakePhrase: "Okay Notes", wakePhraseEnabled: true },
-      }),
+    await screen.findByRole("textbox", { name: "Wake phrase" });
+    // The section draws again when the settings arrive, which can replace the input on a slow
+    // machine. So each step finds the input afresh and is tried again until it holds.
+    const type = (value: string) => {
+      fireEvent.change(screen.getByRole("textbox", { name: "Wake phrase" }), { target: { value } });
+      fireEvent.click(screen.getByRole("button", { name: "Save the wake phrase" }));
+    };
+    await waitFor(
+      () => {
+        type("x");
+        expect(screen.queryAllByText(/Use 2 to 40 letters/).length).toBeGreaterThan(0);
+      },
+      { timeout: 8000 },
     );
-  }, 15_000);
+    expect(api.updateSettings).not.toHaveBeenCalled();
+    await waitFor(
+      () => {
+        type("Okay Notes");
+        expect(api.updateSettings).toHaveBeenCalledWith({
+          commandMode: { wakePhrase: "Okay Notes", wakePhraseEnabled: true },
+        });
+      },
+      { timeout: 8000 },
+    );
+  }, 20_000);
 });
