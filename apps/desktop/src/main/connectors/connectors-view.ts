@@ -31,7 +31,9 @@ export async function buildConnectorsView(deps: {
       const clientId = built ? deps.config.clientId(entry.id) : null;
       const secretSaved =
         built && entry.clientSecret ? await deps.config.clientSecretSaved(entry.id) : false;
-      const set = clientId !== null && (!entry.clientSecret || secretSaved);
+      // A connector that signs in with a personal key has no app to set up.
+      const set =
+        entry.auth === "key" || (clientId !== null && (!entry.clientSecret || secretSaved));
       return {
         id: entry.id,
         name: entry.name,
@@ -41,6 +43,7 @@ export async function buildConnectorsView(deps: {
         setup: entry.setup,
         clientSecret: entry.clientSecret,
         supportsWrite: entry.supportsWrite,
+        ...(entry.auth ? { auth: entry.auth } : {}),
         readiness: !built ? "unavailable" : set ? "ready" : "not-set-up",
         clientId,
         clientSecretSaved: secretSaved,

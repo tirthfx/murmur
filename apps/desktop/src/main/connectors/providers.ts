@@ -34,6 +34,16 @@ export interface ConnectorProvider {
   callbackPath?: string;
   /** The provider wants a client secret even with PKCE. It is kept in the Keychain. */
   needsClientSecret?: boolean;
+  /**
+   * Signs in with a personal key instead of an OAuth app (Fireflies). `verify` asks the service
+   * who the key belongs to: the label of the account, or why it was not accepted.
+   */
+  apiKey?: {
+    verify(input: {
+      key: string;
+      http: Http;
+    }): Promise<{ ok: true; label: string } | { ok: false; reason: "rejected" | "unreachable" }>;
+  };
   /** The sign-in parameter that carries the scopes: `scope` (default), `user_scope` (Slack's user token), or none. */
   scopeParam?: "scope" | "user_scope" | null;
   /** What separates the scopes in that parameter: a space (default) or a comma. */

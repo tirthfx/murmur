@@ -20,7 +20,11 @@ export interface TranscriptImportPreview {
   /** The file has no times, so they were estimated from the length of each line. */
   timesEstimated: boolean;
   /** The file, or a meeting with the same title at the same time, is already imported. */
-  duplicate: { meetingId: string; title: string; reason: "same-file" | "same-title" } | null;
+  duplicate: {
+    meetingId: string;
+    title: string;
+    reason: "same-file" | "same-title" | "same-recording";
+  } | null;
 }
 
 export type TranscriptImportPreviewResult =

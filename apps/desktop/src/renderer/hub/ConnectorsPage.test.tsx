@@ -324,6 +324,8 @@ describe("Connectors page (CN-15)", () => {
           notion: DEFAULT_CONNECTOR_SETTINGS.notion,
           linear: DEFAULT_CONNECTOR_SETTINGS.linear,
           github: DEFAULT_CONNECTOR_SETTINGS.github,
+          zoom: DEFAULT_CONNECTOR_SETTINGS.zoom,
+          fireflies: DEFAULT_CONNECTOR_SETTINGS.fireflies,
         },
       }),
     );
@@ -340,6 +342,8 @@ describe("Connectors page (CN-15)", () => {
           notion: DEFAULT_CONNECTOR_SETTINGS.notion,
           linear: DEFAULT_CONNECTOR_SETTINGS.linear,
           github: DEFAULT_CONNECTOR_SETTINGS.github,
+          zoom: DEFAULT_CONNECTOR_SETTINGS.zoom,
+          fireflies: DEFAULT_CONNECTOR_SETTINGS.fireflies,
         },
       }),
     );
@@ -483,6 +487,31 @@ describe("Connectors page (CN-15)", () => {
       await google.findByRole("switch", { name: "Google Calendar is read only" });
       expect(google.queryByRole("button", { name: /Give permission/ })).toBeNull();
     });
+  });
+
+  it("signs in to Fireflies with a key, with no app to set up and no browser", async () => {
+    show(viewOf({ fireflies: { readiness: "ready" } }));
+    render(<ConnectorsPage />);
+    const fireflies = await card("Fireflies");
+    expect(fireflies.queryByText("Your Fireflies app")).toBeNull();
+    expect(fireflies.queryByRole("button", { name: /^Connect/ })).toBeNull();
+    const key = fireflies.getByLabelText("Fireflies API key") as HTMLInputElement;
+    expect(key.type).toBe("password");
+    fireEvent.change(key, { target: { value: "fk-1" } });
+    fireEvent.click(fireflies.getByRole("button", { name: "Save the Fireflies key" }));
+    await waitFor(() => expect(api.connectorConnectKey).toHaveBeenCalledWith("fireflies", "fk-1"));
+  });
+
+  it("offers to import meetings from a connected Zoom account", async () => {
+    show(
+      viewOf({
+        zoom: { readiness: "ready", accounts: [account({ id: "z1", connector: "zoom" })] },
+      }),
+    );
+    render(<ConnectorsPage />);
+    const zoom = await card("Zoom");
+    expect(await zoom.findByRole("button", { name: "List the meetings in Zoom" })).toBeTruthy();
+    expect(zoom.getByText("Import meetings from Zoom")).toBeTruthy();
   });
 
   it("has no read-only switch for a connector that never writes", async () => {

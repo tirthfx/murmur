@@ -1,11 +1,12 @@
 import { createHash } from "node:crypto";
 import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
-import type {
-  MeetingChannel,
-  TranscriptImportConfirmInput,
-  TranscriptImportConfirmResult,
-  TranscriptImportPreview,
+import {
+  PROVIDER_SUMMARY,
+  type MeetingChannel,
+  type TranscriptImportConfirmInput,
+  type TranscriptImportConfirmResult,
+  type TranscriptImportPreview,
 } from "@murmur/shared";
 import type { SpeakersStore } from "../speakers-store";
 import {
@@ -41,6 +42,22 @@ export interface TranscriptImport {
     /** When the file was last changed: the meeting's date when the file has none. */
     modifiedAt: number;
   }): { ok: true; preview: TranscriptImportPreview } | { ok: false; message: string };
+  /**
+   * Describes a transcript a connector fetched (Zoom, Fireflies), the same way as a file: the same
+   * preview and the same checks. `externalRef` is the service's own id of the meeting
+   * (`zoom:<uuid>`); an already imported one is a duplicate that cannot be imported again.
+   * `summary` is the service's own summary, kept as a summary labelled as imported.
+   */
+  prepareRemote(input: {
+    name: string;
+    transcript: ParsedTranscript;
+    title: string;
+    startedAt: number;
+    externalRef: string;
+    summary?: string | null;
+  }): { ok: true; preview: TranscriptImportPreview } | { ok: false; message: string };
+  /** Whether a meeting from this service id was imported already. */
+  isImported(externalRef: string): boolean;
   /** Makes the meeting of a preview, in one transaction: all of it or none of it. */
   confirm(input: TranscriptImportConfirmInput): TranscriptImportConfirmResult;
   discard(token: string): void;
@@ -51,6 +68,10 @@ interface Pending {
   hash: string;
   fileName: string;
   createdAt: number;
+  /** The service's own id of the meeting, when it came from a connector. */
+  externalRef: string | null;
+  /** The service's own summary, when it sent one. */
+  summary: string | null;
 }
 
 /** A preview is forgotten after this long. */
@@ -95,7 +116,14 @@ export function createTranscriptImport(
     hash: string,
     title: string,
     startedAt: number,
+    externalRef: string | null = null,
   ): TranscriptImportPreview["duplicate"] {
+    if (externalRef !== null) {
+      const byRef = db
+        .prepare("SELECT id, title FROM meetings WHERE external_ref = ? LIMIT 1")
+        .get(externalRef) as { id: string; title: string } | undefined;
+      if (byRef) return { meetingId: byRef.id, title: byRef.title, reason: "same-recording" };
+    }
     const byFile = db
       .prepare("SELECT id, title FROM meetings WHERE import_hash = ? LIMIT 1")
       .get(hash) as { id: string; title: string } | undefined;
@@ -134,7 +162,14 @@ export function createTranscriptImport(
         ).values(),
       ];
       const token = deps.newId();
-      pending.set(token, { transcript, hash, fileName: file.name, createdAt: deps.now() });
+      pending.set(token, {
+        transcript,
+        hash,
+        fileName: file.name,
+        createdAt: deps.now(),
+        externalRef: null,
+        summary: null,
+      });
       return {
         ok: true,
         preview: {
@@ -153,14 +188,66 @@ export function createTranscriptImport(
       };
     },
 
+    prepareRemote(input) {
+      forget();
+      const { transcript } = input;
+      if (transcript.segments.length === 0)
+        return { ok: false, message: "That meeting has no transcript to import." };
+      const hash = createHash("sha256").update(input.externalRef).digest("hex");
+      const durationMs = Math.max(...transcript.segments.map((segment) => segment.endMs));
+      const speakers = [
+        ...new Map(
+          transcript.segments
+            .map((segment) => segment.speaker)
+            .filter((name): name is string => name !== null)
+            .map((name) => [name.toLowerCase(), name]),
+        ).values(),
+      ];
+      const token = deps.newId();
+      pending.set(token, {
+        transcript,
+        hash,
+        fileName: input.name,
+        createdAt: deps.now(),
+        externalRef: input.externalRef,
+        summary: input.summary?.trim() ? input.summary : null,
+      });
+      return {
+        ok: true,
+        preview: {
+          token,
+          fileName: input.name,
+          format: transcript.format,
+          formatName: IMPORT_FORMAT_TEXT[transcript.format],
+          title: input.title.slice(0, 200),
+          startedAt: input.startedAt,
+          durationMs,
+          lines: transcript.segments.length,
+          speakers,
+          timesEstimated: transcript.timesEstimated,
+          duplicate: duplicateOf(hash, input.title, input.startedAt, input.externalRef),
+        },
+      };
+    },
+
+    isImported(externalRef) {
+      return (
+        db
+          .prepare("SELECT 1 AS found FROM meetings WHERE external_ref = ? LIMIT 1")
+          .get(externalRef) !== undefined
+      );
+    },
+
     confirm(input) {
       forget();
       const item = pending.get(input.token);
       if (!item)
         return { ok: false, message: "That file is no longer ready to import. Choose it again." };
-      const duplicate = duplicateOf(item.hash, input.title, input.startedAt);
+      const duplicate = duplicateOf(item.hash, input.title, input.startedAt, item.externalRef);
       if (duplicate?.reason === "same-file")
         return { ok: false, message: `This file is already imported as “${duplicate.title}”.` };
+      if (duplicate?.reason === "same-recording")
+        return { ok: false, message: `This meeting is already imported as “${duplicate.title}”.` };
       const id = deps.newId();
       const { segments } = item.transcript;
       const durationMs = Math.max(...segments.map((segment) => segment.endMs));
@@ -178,8 +265,8 @@ export function createTranscriptImport(
       try {
         db.prepare(
           `INSERT INTO meetings (id, title, started_at, ended_at, source, status, channels, duration_ms,
-             folder, folder_id, import_hash)
-           VALUES (?, ?, ?, ?, 'imported', 'ready', ?, ?, ?, ?, ?)`,
+             folder, folder_id, import_hash, external_ref)
+           VALUES (?, ?, ?, ?, 'imported', 'ready', ?, ?, ?, ?, ?, ?)`,
         ).run(
           id,
           input.title.slice(0, 200),
@@ -190,6 +277,7 @@ export function createTranscriptImport(
           path.join(deps.meetingsRoot, id),
           deps.folderId(),
           item.hash,
+          item.externalRef,
         );
         // The speakers of the file: the owner on the microphone, the others as added speakers.
         const speakerOf = new Map<string, string | null>();
@@ -221,6 +309,23 @@ export function createTranscriptImport(
             at,
           );
         });
+        // The service's own summary is a separate summary, labelled as imported, so the meeting's
+        // own model does not replace it by itself.
+        if (item.summary !== null) {
+          db.prepare(
+            `INSERT INTO meeting_summaries
+               (id, meeting_id, version, skill_id, skill_name, model_id, quick, markdown, created_at)
+             VALUES (?, ?, 1, ?, ?, ?, 0, ?, ?)`,
+          ).run(
+            deps.newId(),
+            id,
+            PROVIDER_SUMMARY.skillId,
+            PROVIDER_SUMMARY.skillName,
+            PROVIDER_SUMMARY.modelId,
+            item.summary,
+            at,
+          );
+        }
         db.exec("COMMIT");
       } catch (error) {
         db.exec("ROLLBACK");

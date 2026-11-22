@@ -459,6 +459,9 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
     connectorsView: vi.fn().mockResolvedValue({ connectors: [], cacheTtlMinutes: 15 }),
     connectorSync: vi.fn().mockResolvedValue({ ok: true, message: "Read 0 events." }),
     connectorOptions: vi.fn().mockResolvedValue({ ok: true, options: [] }),
+    connectorConnectKey: vi.fn().mockResolvedValue({ ok: true }),
+    connectorRecordings: vi.fn().mockResolvedValue({ ok: true, recordings: [] }),
+    connectorImportPrepare: vi.fn().mockResolvedValue({ ok: false, message: "Not available." }),
     connectorDataStatus: vi.fn().mockResolvedValue([]),
     briefOverview: vi.fn().mockResolvedValue({
       calendarConnected: false,

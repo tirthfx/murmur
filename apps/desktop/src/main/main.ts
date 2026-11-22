@@ -184,10 +184,13 @@ import { createBriefService } from "./meetings/brief-service";
 import { createBriefsStore } from "./meetings/briefs-store";
 import { gmailProvider } from "./connectors/gmail/gmail";
 import { createConnectorData } from "./connectors/data/connector-data";
+import { createConnectorImport } from "./connectors/data/connector-import";
+import { firefliesProvider } from "./connectors/fireflies/fireflies";
 import { githubProvider } from "./connectors/github/github";
 import { linearProvider } from "./connectors/linear/linear";
 import { notionProvider } from "./connectors/notion/notion";
 import { slackProvider } from "./connectors/slack/slack";
+import { zoomProvider } from "./connectors/zoom/zoom";
 import { createCalendarSync } from "./connectors/calendar/calendar-sync";
 import { googleCalendarProvider } from "./connectors/calendar/google-calendar";
 import { outlookCalendarProvider } from "./connectors/calendar/outlook-calendar";
@@ -1786,6 +1789,8 @@ const connectorRegistry = createConnectorRegistry([
   notionProvider,
   linearProvider,
   githubProvider,
+  zoomProvider,
+  firefliesProvider,
 ]);
 const connectorService = connectorStore
   ? createConnectorService({
@@ -2283,6 +2288,17 @@ const transcriptImport =
           const wanted = settingsStore.get().notetaker.import.defaultFolder;
           return wanted !== "inbox" && foldersStore?.get(wanted) ? wanted : null;
         },
+      })
+    : null;
+// CN-09, CN-10: meetings from Zoom and Fireflies go through the same importer and its preview.
+const connectorImport =
+  connectorService && transcriptImport
+    ? createConnectorImport({
+        connectors: connectorService,
+        importer: transcriptImport,
+        settings: () => settingsStore.get().connectors,
+        now: Date.now,
+        logger: createConsoleLogger("[import]"),
       })
     : null;
 // NT-18: a meeting as one HTML file that opens offline; audio is never in it.
@@ -3482,6 +3498,20 @@ function registerIpc(): void {
       }
     },
     connectorSetEnabled: (accountId, enabled) => connectorService?.setEnabled(accountId, enabled),
+    connectorConnectKey: async (id, key) => {
+      if (!connectorService) return { ok: false, message: "Connectors are not available." };
+      const outcome = await connectorService.connectWithKey(id, key);
+      return outcome.ok
+        ? { ok: true, message: `Connected ${outcome.account.email}.` }
+        : { ok: false, message: outcome.message };
+    },
+    connectorRecordings: async (accountId) =>
+      connectorImport?.list(accountId) ?? { ok: false, message: "Import needs the database." },
+    connectorImportPrepare: async (accountId, remoteId) =>
+      connectorImport?.prepare(accountId, remoteId) ?? {
+        ok: false,
+        message: "Import needs the database.",
+      },
     connectorOptions: async (accountId) =>
       connectorData?.options(accountId) ?? { ok: false, message: "Connectors are not available." },
     connectorDataStatus: () => connectorData?.status() ?? [],
@@ -3649,8 +3679,16 @@ function registerIpc(): void {
       if (!transcriptImport) return { ok: false, message: "Import needs the database." };
       const result = transcriptImport.confirm(input);
       if (result.ok) {
-        // The summary is written like for a recording, and then the tasks.
-        if (settingsStore.get().notetaker.import.regenerateSummary) {
+        // The summary is written like for a recording, and then the tasks. A meeting that came
+        // with its service's own summary keeps it: the local summary is not written over it by
+        // itself, and the tasks are looked for in the transcript instead.
+        const hasProviderSummary = (meetingSummaries?.list(result.meetingId).length ?? 0) > 0;
+        if (hasProviderSummary) {
+          if (settingsStore.get().notetaker.tasks.extract) {
+            meetingJobs?.enqueue(result.meetingId, "extract_tasks");
+            meetingJobs?.kick();
+          }
+        } else if (settingsStore.get().notetaker.import.regenerateSummary) {
           meetingJobs?.enqueue(result.meetingId, "summarise");
           meetingJobs?.kick();
         }

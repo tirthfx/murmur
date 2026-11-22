@@ -23,6 +23,118 @@ export function readDate(text: string): number | null {
 }
 
 /**
+ * What an import is described as, with the title and the date the owner can change, and the
+ * checks for a duplicate. Nothing is made until Import is clicked. A file (NT-21) and a meeting
+ * from Zoom or Fireflies (CN-09, CN-10) use this same form, so the preview and the duplicate checks
+ * are the same.
+ */
+export function ImportPreview({
+  preview,
+  onImported,
+}: {
+  preview: TranscriptImportPreview;
+  onImported: (meetingId: string) => void;
+}) {
+  const [title, setTitle] = useState(preview.title);
+  const [date, setDate] = useState(written(preview.startedAt));
+  const [message, setMessage] = useState<string | null>(null);
+  const [anyway, setAnyway] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  async function confirm() {
+    const startedAt = readDate(date);
+    if (startedAt === null) return setMessage("Write the date as YYYY-MM-DD HH:MM.");
+    if (title.trim() === "") return setMessage("Give the meeting a title.");
+    setMessage(null);
+    setBusy(true);
+    try {
+      const result = await window.murmur.meetingImportConfirm({
+        token: preview.token,
+        title: title.trim(),
+        startedAt,
+      });
+      if (result.ok) onImported(result.meetingId);
+      else setMessage(result.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const duplicate = preview.duplicate;
+  // The same file or the same recording is never imported twice; a meeting with the same title
+  // at the same time can be, after the owner says so.
+  const blocked =
+    duplicate?.reason === "same-file" ||
+    duplicate?.reason === "same-recording" ||
+    (duplicate !== null && !anyway);
+
+  return (
+    <VStack gap={2}>
+      {message ? <Banner status="warning" title={message} /> : null}
+      <Text size="sm" color="secondary">
+        {preview.fileName}: {preview.formatName}. 1 meeting, {preview.lines}{" "}
+        {preview.lines === 1 ? "line" : "lines"}, {formatElapsed(preview.durationMs)}.
+      </Text>
+      <Text size="sm">
+        Speakers:{" "}
+        {preview.speakers.length > 0 ? preview.speakers.join(", ") : "none named in the file"}.
+      </Text>
+      {preview.timesEstimated ? (
+        <Banner
+          status="info"
+          title="This file has no times. They are estimated from the length of each line."
+        />
+      ) : null}
+      {duplicate ? (
+        <Banner
+          status="warning"
+          title={
+            duplicate.reason === "same-file"
+              ? `This file is already imported as “${duplicate.title}”.`
+              : duplicate.reason === "same-recording"
+                ? `This meeting is already imported as “${duplicate.title}”.`
+                : `A meeting called “${duplicate.title}” started at about the same time.`
+          }
+          {...(duplicate.reason === "same-title"
+            ? {
+                endContent: (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    label="Import it anyway"
+                    onClick={() => setAnyway(true)}
+                  >
+                    Import anyway
+                  </Button>
+                ),
+              }
+            : {})}
+        />
+      ) : null}
+      <HStack gap={2} align="end" wrap="wrap">
+        <TextInput label="Title" value={title} onChange={setTitle} />
+        <TextInput
+          label="Date and time"
+          placeholder="YYYY-MM-DD HH:MM"
+          value={date}
+          onChange={setDate}
+        />
+      </HStack>
+      <div>
+        <Button
+          variant="primary"
+          label="Import this transcript"
+          isDisabled={blocked || busy}
+          onClick={() => void confirm()}
+        >
+          Import
+        </Button>
+      </div>
+    </VStack>
+  );
+}
+
+/**
  * NT-21: bring in a transcript file (WebVTT, SubRip, plain text, JSON) as a meeting. The file is
  * read first and described (format, date, length, speakers); nothing is made until it is
  * confirmed. The meeting has no audio, and its speakers and times come from the file.
@@ -35,53 +147,19 @@ export function ImportPanel({
   onClose: () => void;
 }) {
   const [preview, setPreview] = useState<TranscriptImportPreview | null>(null);
-  const [title, setTitle] = useState("");
-  const [date, setDate] = useState("");
   const [message, setMessage] = useState<string | null>(null);
-  const [anyway, setAnyway] = useState(false);
-  const [busy, setBusy] = useState(false);
 
   async function choose() {
     setMessage(null);
-    setAnyway(false);
     if (preview) void window.murmur.meetingImportCancel(preview.token);
     const result = await window.murmur.meetingImportPreview();
     if (result.ok) {
       setPreview(result.preview);
-      setTitle(result.preview.title);
-      setDate(written(result.preview.startedAt));
     } else if ("message" in result) {
       setPreview(null);
       setMessage(result.message);
     }
   }
-
-  async function confirm() {
-    if (!preview) return;
-    const startedAt = readDate(date);
-    if (startedAt === null) return setMessage("Write the date as YYYY-MM-DD HH:MM.");
-    if (title.trim() === "") return setMessage("Give the meeting a title.");
-    setMessage(null);
-    setBusy(true);
-    try {
-      const result = await window.murmur.meetingImportConfirm({
-        token: preview.token,
-        title: title.trim(),
-        startedAt,
-      });
-      if (result.ok) {
-        setPreview(null);
-        onImported(result.meetingId);
-      } else {
-        setMessage(result.message);
-      }
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const duplicate = preview?.duplicate ?? null;
-  const blocked = duplicate?.reason === "same-file" || (duplicate !== null && !anyway);
 
   return (
     <section aria-label="Import a transcript">
@@ -112,66 +190,14 @@ export function ImportPanel({
         </HStack>
         {message ? <Banner status="warning" title={message} /> : null}
         {preview ? (
-          <VStack gap={2}>
-            <Text size="sm" color="secondary">
-              {preview.fileName}: {preview.formatName}. 1 meeting, {preview.lines}{" "}
-              {preview.lines === 1 ? "line" : "lines"}, {formatElapsed(preview.durationMs)}.
-            </Text>
-            <Text size="sm">
-              Speakers:{" "}
-              {preview.speakers.length > 0 ? preview.speakers.join(", ") : "none named in the file"}
-              .
-            </Text>
-            {preview.timesEstimated ? (
-              <Banner
-                status="info"
-                title="This file has no times. They are estimated from the length of each line."
-              />
-            ) : null}
-            {duplicate ? (
-              <Banner
-                status="warning"
-                title={
-                  duplicate.reason === "same-file"
-                    ? `This file is already imported as “${duplicate.title}”.`
-                    : `A meeting called “${duplicate.title}” started at about the same time.`
-                }
-                {...(duplicate.reason === "same-title"
-                  ? {
-                      endContent: (
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          label="Import it anyway"
-                          onClick={() => setAnyway(true)}
-                        >
-                          Import anyway
-                        </Button>
-                      ),
-                    }
-                  : {})}
-              />
-            ) : null}
-            <HStack gap={2} align="end" wrap="wrap">
-              <TextInput label="Title" value={title} onChange={setTitle} />
-              <TextInput
-                label="Date and time"
-                placeholder="YYYY-MM-DD HH:MM"
-                value={date}
-                onChange={setDate}
-              />
-            </HStack>
-            <div>
-              <Button
-                variant="primary"
-                label="Import this transcript"
-                isDisabled={blocked || busy}
-                onClick={() => void confirm()}
-              >
-                Import
-              </Button>
-            </div>
-          </VStack>
+          <ImportPreview
+            key={preview.token}
+            preview={preview}
+            onImported={(meetingId) => {
+              setPreview(null);
+              onImported(meetingId);
+            }}
+          />
         ) : null}
       </VStack>
     </section>

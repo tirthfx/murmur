@@ -143,6 +143,7 @@ import {
   type CalendarEventSource,
   type CalendarEventState,
   type ConnectorActionResult,
+  type RecordingsResult,
   type ConnectorDataStatus,
   type ConnectorOptionsResult,
   type EmailAutomationRecord,
@@ -221,6 +222,12 @@ export interface IpcDeps {
   connectorSetEnabled: (accountId: string, enabled: boolean) => void;
   connectorSync: (accountId: string) => Promise<ConnectorActionResult>;
   connectorOptions: (accountId: string) => Promise<ConnectorOptionsResult>;
+  connectorConnectKey: (id: string, key: string) => Promise<ConnectorActionResult>;
+  connectorRecordings: (accountId: string) => Promise<RecordingsResult>;
+  connectorImportPrepare: (
+    accountId: string,
+    remoteId: string,
+  ) => Promise<TranscriptImportPreviewResult>;
   connectorDataStatus: () => ConnectorDataStatus[];
   briefOverview: () => BriefOverview;
   briefGet: (eventKey: string) => MeetingBrief | null;
@@ -711,6 +718,12 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.folderClearExport(request.args[0] as string);
       case IPC_CHANNELS.connectorSync:
         return deps.connectorSync(request.args[0] as string);
+      case IPC_CHANNELS.connectorConnectKey:
+        return deps.connectorConnectKey(request.args[0] as string, request.args[1] as string);
+      case IPC_CHANNELS.connectorRecordings:
+        return deps.connectorRecordings(request.args[0] as string);
+      case IPC_CHANNELS.connectorImportPrepare:
+        return deps.connectorImportPrepare(request.args[0] as string, request.args[1] as string);
       case IPC_CHANNELS.connectorOptions:
         return deps.connectorOptions(request.args[0] as string);
       case IPC_CHANNELS.connectorDataStatus:
