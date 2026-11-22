@@ -525,6 +525,7 @@ export const IPC_CHANNELS = {
   teamSetIdleLock: "team:set-idle-lock",
   teamDisconnect: "team:disconnect",
   teamNoticesSeen: "team:notices-seen",
+  teamOpenAdmin: "team:open-admin",
   askActionPropose: "ask:action-propose",
   slackPostState: "slack-post:state",
   slackPostStart: "slack-post:start",
@@ -1183,6 +1184,10 @@ export const IPC_CONTRACT = {
   },
   [IPC_CHANNELS.teamDisconnect]: { args: z.tuple([]), result: z.custom<TeamResult>() },
   [IPC_CHANNELS.teamNoticesSeen]: { args: z.tuple([]), result: z.custom<TeamResult>() },
+  [IPC_CHANNELS.teamOpenAdmin]: {
+    args: z.tuple([]),
+    result: z.custom<{ ok: boolean; message?: string }>(),
+  },
   [IPC_CHANNELS.briefOverview]: { args: z.tuple([]), result: z.custom<BriefOverview>() },
   [IPC_CHANNELS.briefGet]: {
     args: z.tuple([z.string().min(1).max(300)]),
@@ -1690,6 +1695,8 @@ export interface MurmurApi {
   teamSetIdleLock(minutes: number): Promise<TeamResult>;
   teamDisconnect(): Promise<TeamResult>;
   teamNoticesSeen(): Promise<TeamResult>;
+  /** TM-11: opens the team server's admin console in the browser (for admins; the server decides). */
+  teamOpenAdmin(): Promise<{ ok: boolean; message?: string }>;
   /** The team state changed: locked, signed in or out, or a sync finished. */
   onTeamChanged(handler: (view: TeamView) => void): () => void;
   onPolicyChanged(handler: (view: PolicyView) => void): () => void;

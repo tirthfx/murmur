@@ -116,6 +116,7 @@ function setup() {
     teamSetIdleLock: vi.fn(),
     teamDisconnect: vi.fn(),
     teamNoticesSeen: vi.fn(),
+    teamOpenAdmin: vi.fn(),
     briefOverview: vi.fn(),
     briefGet: vi.fn(),
     briefBuild: vi.fn(),

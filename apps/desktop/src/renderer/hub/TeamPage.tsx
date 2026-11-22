@@ -314,6 +314,16 @@ export function TeamPage() {
             >
               Update now
             </Button>
+            {view.teams.some((team) => ["owner", "admin", "manager"].includes(team.myRole)) ? (
+              <Button
+                size="sm"
+                variant="secondary"
+                label="Open the admin console"
+                onClick={() => void window.murmur.teamOpenAdmin()}
+              >
+                Admin console
+              </Button>
+            ) : null}
             <Button
               size="sm"
               variant="secondary"

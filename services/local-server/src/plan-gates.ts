@@ -27,6 +27,8 @@ export const UNGATED: readonly string[] = [
   "POST /v1/setup",
   "POST /v1/sessions",
   "DELETE /v1/sessions/current",
+  "POST /v1/admin/session",
+  "DELETE /v1/admin/session",
   "GET /v1/me",
   "POST /v1/me/password",
   "GET /v1/users",

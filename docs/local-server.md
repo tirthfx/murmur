@@ -32,16 +32,18 @@ npm start --workspace @murmur/local-server
 
 All bodies are JSON. Send `Authorization: Bearer <token>` after signing in.
 
-| Route                         | Who       | Does                              |
-| ----------------------------- | --------- | --------------------------------- |
-| `GET /v1/health`              | anyone    | `{ ok, version, setUp }`          |
-| `POST /v1/setup`              | first run | makes the owner and signs them in |
-| `POST /v1/sessions`           | anyone    | signs in (`email`, `password`)    |
-| `DELETE /v1/sessions/current` | signed in | signs out                         |
-| `GET /v1/me`                  | signed in | the account                       |
-| `POST /v1/me/password`        | signed in | `currentPassword`, `newPassword`  |
-| `GET /v1/users`               | owner     | the accounts                      |
-| `POST /v1/users`              | owner     | adds an account                   |
+| Route                         | Who       | Does                                                           |
+| ----------------------------- | --------- | -------------------------------------------------------------- |
+| `GET /v1/health`              | anyone    | `{ ok, version, setUp }`                                       |
+| `POST /v1/setup`              | first run | makes the owner and signs them in                              |
+| `POST /v1/sessions`           | anyone    | signs in (`email`, `password`)                                 |
+| `DELETE /v1/sessions/current` | signed in | signs out                                                      |
+| `GET /v1/me`                  | signed in | the account                                                    |
+| `POST /v1/me/password`        | signed in | `currentPassword`, `newPassword`                               |
+| `GET /v1/users`               | owner     | the accounts                                                   |
+| `POST /v1/users`              | owner     | adds an account                                                |
+| `POST /v1/admin/session`      | anyone    | signs in to the admin console (cookie, no token in the answer) |
+| `DELETE /v1/admin/session`    | signed in | ends it and clears the cookie                                  |
 
 Errors are `{ "error": { "code", "message" } }`. A delayed sign-in is 429 with
 `retryAfterSeconds`.
@@ -366,6 +368,38 @@ Nothing is queued while the mode is off.
 | `POST /v1/audit/siem/retry` | sends the failed entries again                 |
 
 Until the permission matrix (TM-04) these are for the owner only.
+
+## The admin console (TM-11)
+
+`http://127.0.0.1:7830/admin` (the same port; for admins, opened from the Hub's Team page). It is
+plain HTML, CSS and JavaScript modules in `services/local-server/admin` with no build step and no
+dependency (ADR-0093), served by the server itself. It has ten pages: **Members**, **Invites and
+requests**, **Teams and departments**, **Dictionary and Snippets** (governance, review queue, locks,
+conflicts, CSV import), **Policies**, **Usage**, **Audit log**, **Identity** (SSO, SCIM and domains,
+every section with the simulation label), **Plan and compliance** and **Settings** (audit retention
+and streaming, the address allowlist). Shared Skills are not built, so there is no Skills page.
+
+- **Every action is an API call** to a route in the table above (`admin/api.js` names each one as
+  `"METHOD /path"`), and a test checks every such name against the server's route table. The console
+  has no access to the database, never calls the SCIM or development-provider routes, never uses
+  `innerHTML`, and reaches the network only through that helper.
+- **Sign-in** is `POST /v1/admin/session`: the same checks as `POST /v1/sessions` (throttle,
+  deactivated accounts, enforced SSO), then the token goes into an `HttpOnly; SameSite=Strict`
+  cookie and **not** into the answer, so no script can read it. `DELETE /v1/admin/session` ends it.
+- **Who may open it:** the server owner, or an owner, admin or manager of any team. Anyone else
+  gets the **403 page** (at sign-in, and at `GET /admin` with any other session), and a server plan
+  without the admin console (below Team) says so after sign-in. What each page may do is still
+  decided by the permission matrix on every call; a manager sees what a manager may.
+- **Cookie requests** that change something must carry `x-murmur-admin: 1` (a page on another
+  site cannot add it) and pass the Origin check; a SCIM route never accepts a cookie. A Bearer
+  request needs neither.
+- **No stored password or token is shown.** The two things made once are shown once, with a note:
+  an invite's code and link, and a SCIM token. The server keeps only their hashes.
+- The files are served only from that folder (a fixed name pattern, no path segments but
+  `pages/`), with a strict content security policy (`script-src 'self'`), `no-store`, `DENY` for
+  frames, and only for this machine's own name or address like the rest of the server.
+- Not built: the `team.admin.requireMfa` simulation of a TOTP step, and Astryx components (the
+  spec asks for a React bundle; see the ADR).
 
 ## What it refuses
 

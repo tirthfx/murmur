@@ -28,5 +28,23 @@ export default tseslint.config(
       },
     },
   },
+  {
+    // The admin console's pages run in a browser (TM-11).
+    files: ["services/local-server/admin/**/*.js"],
+    languageOptions: {
+      globals: {
+        window: "readonly",
+        document: "readonly",
+        location: "readonly",
+        fetch: "readonly",
+        Node: "readonly",
+        Event: "readonly",
+        URL: "readonly",
+        URLSearchParams: "readonly",
+        Blob: "readonly",
+        setTimeout: "readonly",
+      },
+    },
+  },
   prettier,
 );
