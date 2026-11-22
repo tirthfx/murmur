@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { InsightsDay } from "@murmur/shared";
+import type { DayCounts } from "./usage-counts";
 
 /**
  * Counts for the team's usage dashboard (TM-09): how many words and dictations, by kind of app,
@@ -85,6 +86,8 @@ function totalsOf(day: InsightsDay): Record<string, number> {
 /** What is new since the last time: each day's growth, and each meeting not yet counted. */
 export function buildBatch(input: {
   days: readonly InsightsDay[];
+  /** Skills run, Ask threads and meeting minutes processed, as daily totals. */
+  counts?: readonly DayCounts[];
   meetings: readonly UsageMeeting[];
   memory: UsageMemory;
   now: number;
@@ -103,6 +106,22 @@ export function buildBatch(input: {
     }
   }
 
+  // The other counts have no app group; each is the day's total, and only growth is sent.
+  for (const day of input.counts ?? []) {
+    if (day.date < cutoff) continue;
+    const before = input.memory.sent[day.date] ?? {};
+    for (const metric of ["skills_run", "ask_sessions", "meeting_minutes_processed"] as const) {
+      const delta = day[metric] - (before[metric] ?? 0);
+      if (delta > 0)
+        events.push({
+          day: day.date,
+          metric,
+          count: delta,
+          total: { key: metric, value: day[metric] },
+        });
+    }
+  }
+
   const known = new Set(input.memory.meetings);
   for (const meeting of input.meetings) {
     if (known.has(meeting.id) || meeting.endedAt === null) continue;
@@ -117,6 +136,7 @@ export function buildBatch(input: {
 
 export interface UsageDeps {
   days(): InsightsDay[];
+  counts?(): DayCounts[];
   meetings(): UsageMeeting[];
   /** Posts a batch; true when the server took it (or had it already). */
   post(batchId: string, events: UsageEvent[]): Promise<boolean>;
@@ -172,6 +192,7 @@ export function createUsageReporter(deps: UsageDeps) {
 
       const events = buildBatch({
         days: deps.days(),
+        ...(deps.counts ? { counts: deps.counts() } : {}),
         meetings: deps.meetings(),
         memory,
         now: deps.now(),

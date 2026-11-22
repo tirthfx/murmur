@@ -6,6 +6,7 @@ import {
 } from "../../../../../services/local-server/src/server.ts";
 import { createSharedVocabulary } from "./shared-vocabulary";
 import { TEAM_KEYCHAIN, createTeamService, type TeamService } from "./team-service";
+import type { DayCounts } from "./usage-counts";
 import type { UsageMeeting } from "./usage-reporter";
 
 /**
@@ -29,6 +30,7 @@ interface Rig {
   ticks: (() => void)[];
   refuse: { host: string | null };
   policies: { value: EffectivePolicy[] };
+  counts: { value: DayCounts[] };
 }
 
 function rig(existing?: { file: { text: string | null }; keys: Map<string, string> }): Rig {
@@ -47,6 +49,7 @@ function rig(existing?: { file: { text: string | null }; keys: Map<string, strin
   const ticks: (() => void)[] = [];
   const refuse = { host: null as string | null };
   const policies = { value: [] as EffectivePolicy[] };
+  const counts = { value: [] as DayCounts[] };
   const service = createTeamService({
     readFile: () => file.text,
     writeFile: (text) => (file.text = text),
@@ -61,6 +64,7 @@ function rig(existing?: { file: { text: string | null }; keys: Map<string, strin
     vocabulary,
     policy: { setTeam: (list) => (policies.value = [...list]) },
     insights: { days: () => days.value },
+    counts: () => counts.value,
     meetings: { list: () => meetings.value },
     onChange: (view) => views.push(view),
     setInterval: (handler) => {
@@ -69,7 +73,20 @@ function rig(existing?: { file: { text: string | null }; keys: Map<string, strin
     },
     clearInterval: () => undefined,
   });
-  return { service, file, keys, vocabulary, views, idle, days, meetings, ticks, refuse, policies };
+  return {
+    service,
+    file,
+    keys,
+    vocabulary,
+    views,
+    idle,
+    days,
+    meetings,
+    ticks,
+    refuse,
+    policies,
+    counts,
+  };
 }
 
 // Responses are read loosely on purpose.
@@ -422,6 +439,31 @@ describe("invites", () => {
   });
 });
 
+describe("usage counts: skills, Ask and meeting minutes processed", () => {
+  it("reach the team's dashboard once, and only the growth after that", async () => {
+    const { r, token, team } = await seeded();
+    const d = new Date(clock);
+    const local = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    r.counts.value = [
+      { date: local, skills_run: 4, ask_sessions: 2, meeting_minutes_processed: 75 },
+    ];
+    await r.service.syncNow();
+    await r.service.syncNow();
+    const read = async () =>
+      (await api("GET", `/v1/teams/${team}/usage?from=${local}&to=${local}`, token)).json!;
+    expect((await read())["totals"]).toMatchObject({
+      skills_run: 4,
+      ask_sessions: 2,
+      meeting_minutes_processed: 75,
+    });
+    r.counts.value = [
+      { date: local, skills_run: 5, ask_sessions: 2, meeting_minutes_processed: 75 },
+    ];
+    await r.service.syncNow();
+    expect((await read())["totals"]).toMatchObject({ skills_run: 5, ask_sessions: 2 });
+  });
+});
+
 describe("usage counts", () => {
   const day = (date: string, words: number, dictations: number): InsightsDay => ({
     date,
@@ -534,5 +576,98 @@ describe("the team's policy", () => {
     await api("DELETE", "/v1/sessions/current", token);
     await r.service.syncNow();
     expect(r.policies.value).toEqual([]);
+  });
+});
+
+describe("telling the team that retention ran under a limit", () => {
+  it("writes a counts-only audit entry on the server, for a team whose policy limits retention", async () => {
+    const { r, token, team } = await seeded();
+    await api("PUT", `/v1/teams/${team}/policy`, token, { set: { "retention.audio.max": 7 } });
+    await r.service.syncNow();
+    await r.service.reportRetention({ audio: 3, transcripts: 5 });
+    const log = await api("GET", "/v1/audit?limit=20&action=policy.retention_applied", token);
+    const entry = (log.json!["events"] as Json[])[0]!;
+    expect(entry["detail"]).toMatchObject({ recordings: 3, meetings: 5 });
+    expect(JSON.stringify(entry)).not.toMatch(/transcript|audio/);
+  });
+
+  it("says nothing when the team sets no retention limit", async () => {
+    const { r, token } = await seeded();
+    await r.service.syncNow();
+    await r.service.reportRetention({ audio: 3, transcripts: 5 });
+    const log = await api("GET", "/v1/audit?limit=20&action=policy.retention_applied", token);
+    expect(log.json!["events"]).toEqual([]);
+  });
+});
+
+describe("proposing an entry to the team", () => {
+  it("goes live at once for someone who may approve it, and shows in the merged list", async () => {
+    const { r, token, team } = await seeded();
+    await r.service.syncNow();
+    const made = await r.service.propose({
+      kind: "dictionary",
+      term: "Kubernetes",
+      replacement: null,
+    });
+    expect(made).toEqual({ ok: true, status: "live", teamName: "Acme" });
+    const snip = await r.service.propose({
+      kind: "snippet",
+      trigger: "addr",
+      expansion: "1 Main St",
+    });
+    expect(snip).toMatchObject({ ok: true, status: "live" });
+    const list = await api("GET", `/v1/teams/${team}/dictionary`, token);
+    expect(JSON.stringify(list.json)).toContain("Kubernetes");
+  });
+
+  it("waits for a review when a member proposes it, and says what the server refused", async () => {
+    const { r, token, team } = await seeded();
+    const bea = await api("POST", "/v1/users", token, {
+      name: "Bea",
+      email: "bea@example.com",
+      password: PASSWORD,
+    });
+    server.teams.addMember(team, bea.json!["id"], "member", null, {
+      actorId: bea.json!["id"],
+      via: "test",
+    });
+    const member = rig();
+    await member.service.connect({ serverUrl: base });
+    expect((await member.service.signIn({ email: "bea@example.com", password: PASSWORD })).ok).toBe(
+      true,
+    );
+    await member.service.syncNow();
+    const sent = await member.service.propose({
+      kind: "dictionary",
+      term: "Zendesk",
+      replacement: null,
+    });
+    expect(sent).toMatchObject({ ok: true, status: "pending", teamName: "Acme" });
+    const dupe = await member.service.propose({
+      kind: "dictionary",
+      term: "Acme",
+      replacement: null,
+    });
+    expect(dupe).toMatchObject({ ok: false });
+    expect((dupe as { message: string }).message).toContain("already");
+    const pending = await api("GET", `/v1/teams/${team}/vocabulary/pending`, token);
+    expect(JSON.stringify(pending.json)).toContain("Zendesk");
+    void r;
+  });
+
+  it("needs a signed-in person in a team, and says so when the server is out of reach", async () => {
+    const fresh = rig();
+    expect(
+      await fresh.service.propose({ kind: "dictionary", term: "x", replacement: null }),
+    ).toEqual({
+      ok: false,
+      message: "Sign in to a team first.",
+    });
+    const { r } = await seeded();
+    await r.service.syncNow();
+    await server.close();
+    const gone = await r.service.propose({ kind: "dictionary", term: "Late", replacement: null });
+    expect(gone).toEqual({ ok: false, message: "Could not reach the team server." });
+    server = createLocalServer({ dbPath: ":memory:", port: 0 });
   });
 });

@@ -6,6 +6,8 @@ import {
   type InsightsDay,
   type Keychain,
   type TeamNotice,
+  type TeamProposeInput,
+  type TeamProposeResult,
   type TeamRedeemInput,
   type TeamRedeemResult,
   type TeamResult,
@@ -14,6 +16,7 @@ import {
   type TeamView,
 } from "@murmur/shared";
 import type { SharedSet, SharedVocabulary } from "./shared-vocabulary";
+import type { DayCounts } from "./usage-counts";
 import {
   EMPTY_USAGE_MEMORY,
   createUsageReporter,
@@ -69,6 +72,8 @@ export interface TeamDeps {
   /** Receives the policies of the teams the person is in (none when signed out). */
   policy?: { setTeam(policies: readonly EffectivePolicy[]): void };
   insights: { days(first: string | null): InsightsDay[] };
+  /** Skills run, Ask threads and meeting minutes processed, as daily totals. */
+  counts?: () => DayCounts[];
   meetings: { list(limit?: number): UsageMeeting[] };
   onChange(view: TeamView): void;
   setInterval?: (handler: () => void, ms: number) => unknown;
@@ -238,6 +243,7 @@ export function createTeamService(deps: TeamDeps) {
 
   const usage = createUsageReporter({
     days: () => deps.insights.days(null),
+    ...(deps.counts ? { counts: deps.counts } : {}),
     meetings: () => deps.meetings.list(500),
     now: deps.now,
     load: () => file.usage,
@@ -577,6 +583,54 @@ export function createTeamService(deps: TeamDeps) {
       save();
       emit();
       return { ok: true, view: view() };
+    },
+
+    /** Proposes an entry to the person's team; the server says if it is live or waits for review. */
+    async propose(input: TeamProposeInput): Promise<TeamProposeResult> {
+      if (state !== "signed_in") return { ok: false, message: "Sign in to a team first." };
+      const team = teams[0];
+      if (!team) return { ok: false, message: "You are not in a team yet." };
+      const body =
+        input.kind === "dictionary"
+          ? { term: input.term, replacement: input.replacement ?? undefined }
+          : { trigger: input.trigger, expansion: input.expansion };
+      try {
+        const answer = await authed(
+          "POST",
+          `v1/teams/${team.id}/${input.kind === "dictionary" ? "dictionary" : "snippets"}`,
+          body,
+        );
+        if (answer.status === 201) return { ok: true, status: "live", teamName: team.name };
+        if (answer.status === 202) return { ok: true, status: "pending", teamName: team.name };
+        return { ok: false, message: errorOf(answer, "The team did not take that.") };
+      } catch (error) {
+        return {
+          ok: false,
+          message:
+            error instanceof Unreachable ? TEAM_MESSAGES.unreachable : TEAM_MESSAGES.strictLocal,
+        };
+      }
+    },
+
+    /**
+     * Tells the teams whose policy limits retention that a run removed data under it (TM-15):
+     * counts only. It is not repeated if the server is out of reach.
+     */
+    async reportRetention(counts: { audio: number; transcripts: number }): Promise<void> {
+      if (state !== "signed_in" && state !== "locked") return;
+      for (const team of teams) {
+        const limits = file.policies[team.id]?.retention;
+        if (!limits) continue;
+        const limited = [limits.audio, limits.transcript].some(
+          (limit) => limit.max !== null || limit.min !== null,
+        );
+        if (!limited) continue;
+        await authed("POST", `v1/teams/${team.id}/policy/report`, {
+          event: "retention_applied",
+          audio: counts.audio,
+          transcripts: counts.transcripts,
+        }).catch(() => undefined);
+      }
     },
 
     async noticesSeen(): Promise<TeamResult> {

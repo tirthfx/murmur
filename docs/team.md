@@ -56,6 +56,18 @@ month** (counted from the 1st, this Mac's time); Ask across meetings needs Pro, 
 Pro, the MCP server needs Pro. A refusal says "Available on Pro". The share-link policy switches
 (`shareLinksTeam`, `shareLinksAnyone`) have no client feature yet: the app makes no links.
 
-## Not here yet
+## Sharing your own entries, more counts and the retention report (TM-06, TM-07, TM-09, TM-15)
 
-Proposing your own entries to the team from the Dictionary and Snippets pages.
+- **Share with the team.** While you are signed in to a team, each Dictionary entry and each snippet
+  has a **Share** button. It sends the entry to the team server; the words say if it went live at
+  once (when you may approve it), waits for a review, or was refused, and why. Your own entry stays
+  where it is. A snippet is sent as plain text (a rich body is not).
+- **More usage counts.** Besides words and dictations by kind of app and meetings recorded, each
+  sync sends the growth in **skills run** (summaries written by a Skill, not quick ones), **Ask
+  sessions** (threads started) and **meeting minutes processed** (minutes of meetings whose
+  transcription finished), by this Mac's day. Numbers only, resend-safe like the others.
+- **Retention report.** When the daily job removes data and a team's policy limits retention, the
+  app tells that team how many recordings and transcripts were removed (counts only; the server
+  writes `policy.retention_applied`). It is not repeated if the server is out of reach.
+- **Admin console.** Admins see an **Admin console** button on the Team page; it opens the server's
+  `/admin` page in the browser (`docs/local-server.md`), unless the policy blocks that address.

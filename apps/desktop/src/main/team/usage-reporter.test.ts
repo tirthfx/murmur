@@ -172,3 +172,83 @@ describe("sending", () => {
     expect(t.posts.reduce((sum, p) => sum + p.events.length, 0)).toBe(sent);
   });
 });
+
+describe("skills run, Ask sessions and meeting minutes processed", () => {
+  const counts = (date: string, skills: number, asks: number, minutes: number) => ({
+    date,
+    skills_run: skills,
+    ask_sessions: asks,
+    meeting_minutes_processed: minutes,
+  });
+
+  it("are sent as the day's growth, with no app group", () => {
+    const events = buildBatch({
+      days: [],
+      counts: [counts("2026-11-22", 3, 0, 45)],
+      meetings: [],
+      memory: EMPTY_USAGE_MEMORY,
+      now: NOW,
+    });
+    expect(
+      events.map(({ day, metric, count, bucket }) => ({ day, metric, count, bucket })),
+    ).toEqual([
+      { day: "2026-11-22", metric: "skills_run", count: 3, bucket: undefined },
+      { day: "2026-11-22", metric: "meeting_minutes_processed", count: 45, bucket: undefined },
+    ]);
+  });
+
+  it("send only what is new on the next sync, and nothing when nothing grew", async () => {
+    let memory: UsageMemory = EMPTY_USAGE_MEMORY;
+    let current = [counts("2026-11-22", 2, 1, 10)];
+    const sent: UsageEvent[][] = [];
+    const reporter = createUsageReporter({
+      days: () => [],
+      counts: () => current,
+      meetings: () => [],
+      post: async (_id, events) => {
+        sent.push(events);
+        return true;
+      },
+      load: () => memory,
+      save: (next) => (memory = next),
+      now: () => NOW,
+      newId: () => `b${sent.length + 1}`,
+    });
+    await reporter.flush();
+    expect(sent[0]!.map((e) => `${e.metric}:${e.count}`)).toEqual([
+      "skills_run:2",
+      "ask_sessions:1",
+      "meeting_minutes_processed:10",
+    ]);
+    await reporter.flush();
+    expect(sent).toHaveLength(1);
+    current = [counts("2026-11-22", 2, 4, 10)];
+    await reporter.flush();
+    expect(sent[1]!.map((e) => `${e.metric}:${e.count}`)).toEqual(["ask_sessions:3"]);
+  });
+
+  it("are sent again with the same batch id when the answer was lost, and counted once", async () => {
+    let memory: UsageMemory = EMPTY_USAGE_MEMORY;
+    const ids: string[] = [];
+    let accept = false;
+    const reporter = createUsageReporter({
+      days: () => [],
+      counts: () => [counts("2026-11-22", 1, 0, 0)],
+      meetings: () => [],
+      post: async (id) => {
+        ids.push(id);
+        return accept;
+      },
+      load: () => memory,
+      save: (next) => (memory = next),
+      now: () => NOW,
+      newId: () => "first",
+    });
+    await reporter.flush();
+    accept = true;
+    await reporter.flush();
+    expect(ids).toEqual(["first", "first"]);
+    await reporter.flush();
+    expect(ids).toHaveLength(2);
+  });
+});

@@ -63,3 +63,23 @@ export function effectivePeriod<T>(
   const best = enough.sort((a, b) => a.days - b.days)[0];
   return best ? best.value : (periods.find((period) => period.days === null)?.value ?? current);
 }
+
+/**
+ * What the daily job removed, as the two counts a policy report carries (TM-15): recordings
+ * (dictation and meeting audio) and transcripts (dictation text and meeting transcripts). Null
+ * when no limit is in force, or nothing was removed; a rule that failed (-1) counts as none.
+ */
+export function retentionReport(
+  removed: Readonly<Record<string, number>>,
+  limits: { audio: RetentionLimit; transcript: RetentionLimit },
+): { audio: number; transcripts: number } | null {
+  const limited = [limits.audio, limits.transcript].some(
+    (limit) => limit.max !== null || limit.min !== null,
+  );
+  if (!limited) return null;
+  const sum = (...names: string[]) =>
+    names.reduce((total, name) => total + Math.max(0, removed[name] ?? 0), 0);
+  const audio = sum("audio", "meetingAudio");
+  const transcripts = sum("historyText", "meetingTranscripts");
+  return audio + transcripts > 0 ? { audio, transcripts } : null;
+}
