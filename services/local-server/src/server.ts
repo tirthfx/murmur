@@ -26,9 +26,12 @@ import { auditRoutes } from "./routes/audit.ts";
 import { authRoutes } from "./routes/auth.ts";
 import type { RouteDeps } from "./routes/context.ts";
 import { teamRoutes } from "./routes/teams.ts";
+import { vocabularyRoutes } from "./routes/vocabulary.ts";
 import { createSettings } from "./settings.ts";
 import { createSiem, type Siem } from "./siem.ts";
+import { createTeamSettings } from "./team-settings.ts";
 import { createTeams, type Teams } from "./teams.ts";
+import { createVocabulary, type Vocabulary } from "./vocabulary.ts";
 
 export { SERVER_VERSION } from "./version.ts";
 export const DEFAULT_PORT = 7830;
@@ -61,6 +64,7 @@ export interface LocalServer {
   siem: Siem;
   teams: Teams;
   invites: Invites;
+  vocabulary: Vocabulary;
   /** Every route and who may call it: the permission matrix tests walk this. */
   routes: readonly RouteInfo[];
   db: DatabaseSync;
@@ -101,11 +105,28 @@ export function createLocalServer(config: ServerConfig): LocalServer {
   });
   const teams = createTeams({ db, now, audit: record });
   const invites = createInvites({ db, now, audit: record, settings, teams, accounts });
+  const teamSettings = createTeamSettings(db);
+  const vocabulary = createVocabulary({ db, now, audit: record, settings: teamSettings });
   const log = config.log ?? (() => undefined);
   let timer: NodeJS.Timeout | null = null;
 
-  const deps: RouteDeps = { accounts, audit, siem, settings, teams, invites, autoFlush };
-  const routes: Route[] = [...authRoutes(deps), ...auditRoutes(deps), ...teamRoutes(deps)];
+  const deps: RouteDeps = {
+    accounts,
+    audit,
+    siem,
+    settings,
+    teams,
+    invites,
+    teamSettings,
+    vocabulary,
+    autoFlush,
+  };
+  const routes: Route[] = [
+    ...authRoutes(deps),
+    ...auditRoutes(deps),
+    ...teamRoutes(deps),
+    ...vocabularyRoutes(deps),
+  ];
 
   function bearer(req: IncomingMessage): string | null {
     const match = /^Bearer (\S+)$/.exec(req.headers.authorization ?? "");
@@ -185,6 +206,7 @@ export function createLocalServer(config: ServerConfig): LocalServer {
     siem,
     teams,
     invites,
+    vocabulary,
     routes: routes.map(({ method, path, access }) => ({ method, path, access })),
     db,
     listen: () =>
@@ -201,6 +223,7 @@ export function createLocalServer(config: ServerConfig): LocalServer {
               if (today !== day) {
                 day = today;
                 audit.prune(audit.retentionDays());
+                vocabulary.pruneHistory();
               }
             }, 5_000);
             timer.unref();

@@ -38,6 +38,15 @@ export interface Actor {
   role: Role | null;
 }
 
+/** Who is acting, and where they stand in a team: what the vocabulary rules look at. */
+export interface Who {
+  userId: string;
+  name: string;
+  isServerOwner: boolean;
+  role: Role | null;
+  departmentId: string | null;
+}
+
 export interface TeamsDeps {
   db: DatabaseSync;
   now(): number;
@@ -104,6 +113,15 @@ export function createTeams(deps: TeamsDeps) {
   return {
     roleOf,
     actorFor,
+    whoIn(user: UserView, teamId: string): Who {
+      return {
+        userId: user.id,
+        name: user.name,
+        isServerOwner: user.isOwner,
+        role: roleOf(user, teamId),
+        departmentId: memberRow(teamId, user.id)?.department_id ?? null,
+      };
+    },
     outranks,
     member: (teamId: string, userId: string) => memberRow(teamId, userId) ?? null,
     exists: (teamId: string) => teamRow(teamId) !== undefined,

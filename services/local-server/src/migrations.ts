@@ -172,6 +172,87 @@ export const MIGRATIONS: readonly Migration[] = [
       CREATE INDEX join_requests_user ON join_requests (user_id);
     `,
   },
+  {
+    version: 4,
+    name: "shared_vocabulary",
+    sql: `
+      -- Team settings, one JSON value each (governance mode, snippet rules).
+      CREATE TABLE team_settings (
+        team_id    TEXT NOT NULL REFERENCES teams (id) ON DELETE CASCADE,
+        key        TEXT NOT NULL,
+        value_json TEXT NOT NULL,
+        PRIMARY KEY (team_id, key)
+      );
+
+      -- Goes up whenever shared content changes, so a client can ask "anything new since?".
+      CREATE TABLE team_revisions (
+        team_id  TEXT PRIMARY KEY REFERENCES teams (id) ON DELETE CASCADE,
+        revision INTEGER NOT NULL DEFAULT 0
+      );
+
+      -- Shared dictionary entries and snippets (TM-06, TM-07). Governance state is on the row.
+      -- A department that is deleted takes its entries with it.
+      CREATE TABLE vocabulary_items (
+        id            TEXT PRIMARY KEY,
+        team_id       TEXT NOT NULL REFERENCES teams (id) ON DELETE CASCADE,
+        kind          TEXT NOT NULL CHECK (kind IN ('dictionary', 'snippet')),
+        scope         TEXT NOT NULL CHECK (scope IN ('company', 'department')),
+        department_id TEXT REFERENCES departments (id) ON DELETE CASCADE,
+        key           TEXT NOT NULL,
+        payload_json  TEXT NOT NULL,
+        status        TEXT NOT NULL CHECK (status IN ('active', 'pending', 'rejected', 'deleted')),
+        pending_json  TEXT,
+        locked        INTEGER NOT NULL DEFAULT 0,
+        proposed_by   TEXT REFERENCES users (id),
+        approved_by   TEXT REFERENCES users (id),
+        version       INTEGER NOT NULL DEFAULT 1,
+        created_at    INTEGER NOT NULL,
+        updated_at    INTEGER NOT NULL,
+        CHECK ((scope = 'company') = (department_id IS NULL))
+      );
+      CREATE INDEX vocabulary_items_team ON vocabulary_items (team_id, kind, status);
+      -- One live entry per term (or trigger) in a place.
+      CREATE UNIQUE INDEX vocabulary_items_unique
+        ON vocabulary_items (team_id, kind, scope, COALESCE(department_id, ''), key)
+        WHERE status IN ('active', 'pending');
+
+      -- Who changed an entry, when, and what it was: the way back for a rollback.
+      CREATE TABLE vocabulary_versions (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        item_id      TEXT NOT NULL REFERENCES vocabulary_items (id) ON DELETE CASCADE,
+        version      INTEGER NOT NULL,
+        action       TEXT NOT NULL,
+        payload_json TEXT NOT NULL,
+        status       TEXT NOT NULL,
+        changed_by   TEXT REFERENCES users (id),
+        changed_at   INTEGER NOT NULL
+      );
+      CREATE INDEX vocabulary_versions_item ON vocabulary_versions (item_id, version);
+
+      CREATE TABLE vocabulary_comments (
+        id         TEXT PRIMARY KEY,
+        item_id    TEXT NOT NULL REFERENCES vocabulary_items (id) ON DELETE CASCADE,
+        author_id  TEXT NOT NULL REFERENCES users (id),
+        body       TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      );
+      CREATE INDEX vocabulary_comments_item ON vocabulary_comments (item_id);
+
+      -- Told to a proposer at their next sign-in when their proposal was rejected.
+      CREATE TABLE vocabulary_notices (
+        id         TEXT PRIMARY KEY,
+        team_id    TEXT NOT NULL REFERENCES teams (id) ON DELETE CASCADE,
+        user_id    TEXT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        item_id    TEXT NOT NULL,
+        kind       TEXT NOT NULL,
+        summary    TEXT NOT NULL,
+        note       TEXT NOT NULL DEFAULT '',
+        created_at INTEGER NOT NULL,
+        seen_at    INTEGER
+      );
+      CREATE INDEX vocabulary_notices_user ON vocabulary_notices (user_id, seen_at);
+    `,
+  },
 ];
 
 export function migrate(db: DatabaseSync, migrations: readonly Migration[] = MIGRATIONS): number {

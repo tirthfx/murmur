@@ -90,6 +90,63 @@ Errors are `{ "error": { "code", "message" } }`. A delayed sign-in is 429 with
 The audit log routes are for the server owner only until the admin console (#247) decides what a
 team admin may see of it.
 
+## Shared dictionary and snippets (TM-06 to TM-08)
+
+A team keeps one shared dictionary and one set of snippets. An entry has a **scope** (the whole
+team, or one department), a version, who proposed it and who approved it. A person's own entries
+stay on their machine and always win over these; the client merges them (#245).
+
+- **Dictionary entry:** a term (up to 60 characters), an optional replacement (500) and an optional
+  pronunciation hint (100). A term is unique in its place, ignoring capitals.
+- **Snippet:** a trigger (2 to 60 characters) and an expansion (up to 20 KB), `plain` or `markdown`.
+  Variables are `{{date}}`, `{{me}}` and `{{team}}` only, and only those the team allows; anything
+  else (`{{shell}}`) is refused on save. Plain text only when the team turns rich text off. An admin
+  can **lock** a snippet so members use it but cannot change or delete it (403 `locked`).
+- **Governance mode** (a team setting, default `review`):
+  - `open`: a member's new entry, change or deletion goes live at once, and shows in the history
+    and the audit log;
+  - `review`: it waits in the **review queue**. A reviewer approves it, rejects it (with a
+    comment), or comments. Admins review everything; a Manager reviews what is shared with their
+    own department. A reviewer's own entries are live at once;
+  - `locked`: only admins change anything.
+- **A change to a live entry** (edit or delete) waits too, one at a time, and the approved text is
+  used until it is approved. The proposer can edit or withdraw an entry that was never approved.
+- **Rejections** are told to the proposer at their next sign-in: `GET …/vocabulary/mine` returns
+  `notices`, and `POST …/vocabulary/notices/seen` clears them.
+- **History and rollback.** Every live version is kept (who, when, the text). An admin goes back to
+  an earlier version, which becomes a new version and writes `vocabulary.rolled_back`; a deleted
+  entry comes back the same way. Versions older than `rollbackRetentionDays` (180) are removed
+  daily, except the newest.
+- **CSV import** (admins): `term,replacement,scope`, where scope is empty or `company` for the
+  whole team, or a department's name. The first call (`confirm` false) imports nothing and
+  reports what would go in, every duplicate (in the file or already present) and every bad row. With
+  `confirm: true` the new rows go in and the duplicates are skipped. Up to 1000 rows.
+- **Conflicts** (admins): terms present in more than one scope, and snippet triggers that equal a
+  dictionary term or replacement.
+- **Sync.** `GET …/vocabulary/merged` returns the entries a person's dictation uses: the team's and
+  their department's, with the department's winning for the same term, plus `{ me, team }` for the
+  variables and the team's `syncMinutes` (5). Pass `?since=<revision>` to get only `{ unchanged }`
+  when nothing changed.
+- The audit log records each step (`vocabulary.proposed`, `.created`, `.approved`, `.rejected`,
+  `.updated`, `.deleted`, `.rolled_back`, `.lock_changed`, `.imported`, `.settings_changed`) with the
+  kind and scope, never a term, a trigger or a snippet's text.
+
+Settings (`GET` and `PUT …/vocabulary/settings`; admins change them): `governanceMode`,
+`rollbackRetentionDays`, `defaultScope`, `syncMinutes`, `allowRichText`, `allowVariables`.
+
+| Route                                                                                     | Needs         |
+| ----------------------------------------------------------------------------------------- | ------------- |
+| `GET`, `POST /v1/teams/:teamId/dictionary` and `/snippets`                                | view, propose |
+| `POST …/dictionary/import`                                                                | admin         |
+| `PATCH`, `DELETE …/vocabulary/items/:itemId`                                              | propose       |
+| `GET …/items/:itemId` (with comments and versions), `…/approve`, `…/reject`, `…/comments` | reviewer      |
+| `POST …/items/:itemId/rollback`, `…/lock`                                                 | admin         |
+| `GET …/vocabulary/merged`                                                                 | any role      |
+| `GET …/vocabulary/pending`                                                                | reviewer      |
+| `GET …/vocabulary/mine`, `POST …/vocabulary/notices/seen`                                 | propose       |
+| `GET …/vocabulary/conflicts`                                                              | admin         |
+| `GET`, `PUT …/vocabulary/settings`                                                        | view, admin   |
+
 ## Audit log (TM-12)
 
 Every sign-in, failed sign-in (the first miss and each lock, not every miss), new account, password

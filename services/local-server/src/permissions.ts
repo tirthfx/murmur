@@ -15,6 +15,11 @@ export type ActionName = keyof typeof matrix.actions;
 interface ActionRule {
   scope: "team" | "server";
   roles: readonly Role[];
+  /**
+   * Roles that hold the action only for their own department (a Manager approves what is shared
+   * with their department, not another's). The router lets them through; the service checks.
+   */
+  departmentScoped?: readonly Role[];
 }
 
 export const ACTIONS = matrix.actions as Record<ActionName, ActionRule>;

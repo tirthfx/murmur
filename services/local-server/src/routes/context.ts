@@ -3,7 +3,9 @@ import type { Audit } from "../audit.ts";
 import type { Invites } from "../invites.ts";
 import type { Settings } from "../settings.ts";
 import type { Siem } from "../siem.ts";
+import type { TeamSettings } from "../team-settings.ts";
 import type { Teams } from "../teams.ts";
+import type { Vocabulary } from "../vocabulary.ts";
 import type { Ctx } from "../http.ts";
 import { HttpError } from "../http.ts";
 import type { UserView } from "../accounts.ts";
@@ -16,6 +18,8 @@ export interface RouteDeps {
   settings: Settings;
   teams: Teams;
   invites: Invites;
+  teamSettings: TeamSettings;
+  vocabulary: Vocabulary;
   /** Whether the SIEM queue is sent as entries are written. */
   autoFlush: boolean;
 }
