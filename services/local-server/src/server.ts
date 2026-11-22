@@ -4,9 +4,14 @@ import {
   type ServerResponse,
 } from "node:http";
 import type { AddressInfo } from "node:net";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { createAccounts, type Accounts, type UserView } from "./accounts.ts";
+import { createAudit, type Audit, type AuditFilter } from "./audit.ts";
 import { openDatabase } from "./database.ts";
+import { createSettings } from "./settings.ts";
+import { createSiem, type Siem, type SiemConfig } from "./siem.ts";
 
 export const SERVER_VERSION = 1;
 export const DEFAULT_PORT = 7830;
@@ -24,12 +29,20 @@ export interface ServerConfig {
   now?: () => number;
   /** One line about what happened. Never a password, a hash or a token. */
   log?: (line: string) => void;
+  /** Where SIEM file mode writes. Next to the database by default. */
+  siemFile?: string;
+  /** Send audit entries to the SIEM as they are written, and retry on a timer (on by default). */
+  siemAutoFlush?: boolean;
+  /** Receives a webhook line; for tests. */
+  siemPost?: (url: string, line: string) => Promise<number>;
 }
 
 export interface LocalServer {
   listen(): Promise<{ host: string; port: number }>;
   close(): Promise<void>;
   accounts: Accounts;
+  audit: Audit;
+  siem: Siem;
   db: DatabaseSync;
 }
 
@@ -97,8 +110,33 @@ export function createLocalServer(config: ServerConfig): LocalServer {
     throw new Error("The local server listens on this machine only (127.0.0.1 or ::1).");
   const now = config.now ?? Date.now;
   const db = openDatabase(config.dbPath);
-  const accounts = createAccounts(db, { sessionDays: config.sessionDays ?? 30, now });
+  const settings = createSettings(db, now);
+  const siem = createSiem({
+    db,
+    settings,
+    now,
+    filePath:
+      config.siemFile ??
+      join(config.dbPath === ":memory:" ? tmpdir() : dirname(config.dbPath), "audit.jsonl"),
+    ...(config.siemPost ? { post: config.siemPost } : {}),
+  });
+  const autoFlush = config.siemAutoFlush ?? true;
+  const audit = createAudit({
+    db,
+    settings,
+    now,
+    onRecorded: (event) => {
+      siem.enqueue(event);
+      if (autoFlush) void siem.flush().catch(() => undefined);
+    },
+  });
+  const accounts = createAccounts(db, {
+    sessionDays: config.sessionDays ?? 30,
+    now,
+    audit: (input) => audit.record(input),
+  });
   const log = config.log ?? (() => undefined);
+  let timer: NodeJS.Timeout | null = null;
 
   function authenticate(req: IncomingMessage): { user: UserView; token: string } {
     const token = bearer(req);
@@ -122,6 +160,20 @@ export function createLocalServer(config: ServerConfig): LocalServer {
     const origin = req.headers.origin;
     if (origin !== undefined && origin !== `http://${req.headers.host}`)
       throw new HttpError(403, "bad_origin", "Requests from other pages are not answered.");
+  }
+
+  function auditFilter(url: URL): AuditFilter {
+    const filter: AuditFilter = {};
+    const get = (key: string) => url.searchParams.get(key) || undefined;
+    const actor = get("actor");
+    const action = get("action");
+    const target = get("target");
+    if (actor) filter.actor = actor;
+    if (action) filter.action = action;
+    if (target) filter.target = target;
+    if (url.searchParams.has("from")) filter.from = Number(url.searchParams.get("from"));
+    if (url.searchParams.has("to")) filter.to = Number(url.searchParams.get("to"));
+    return filter;
   }
 
   async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -201,13 +253,16 @@ export function createLocalServer(config: ServerConfig): LocalServer {
         return send(res, 200, { users: accounts.listUsers() });
 
       case "POST /v1/users": {
-        requireOwner(req);
+        const owner = requireOwner(req);
         const body = await readJson(req);
-        const result = accounts.createAccount({
-          name: text(body, "name"),
-          email: text(body, "email"),
-          password: text(body, "password"),
-        });
+        const result = accounts.createAccount(
+          {
+            name: text(body, "name"),
+            email: text(body, "email"),
+            password: text(body, "password"),
+          },
+          owner.id,
+        );
         if (!result.ok)
           throw new HttpError(
             result.code === "email_taken" ? 409 : 400,
@@ -215,6 +270,78 @@ export function createLocalServer(config: ServerConfig): LocalServer {
             result.message,
           );
         return send(res, 201, result.user);
+      }
+
+      case "GET /v1/audit": {
+        requireOwner(req);
+        const page = audit.list(auditFilter(url), {
+          limit: Number(url.searchParams.get("limit") ?? 50) || 50,
+          ...(url.searchParams.has("before")
+            ? { before: Number(url.searchParams.get("before")) }
+            : {}),
+        });
+        return send(res, 200, page);
+      }
+
+      case "GET /v1/audit/export": {
+        const owner = requireOwner(req);
+        const body = audit.exportJsonLines(auditFilter(url));
+        audit.record({
+          actorId: owner.id,
+          action: "audit.exported",
+          detail: { rows: body === "" ? 0 : body.trimEnd().split("\n").length },
+        });
+        res
+          .writeHead(200, {
+            "content-type": "application/x-ndjson; charset=utf-8",
+            "content-disposition": 'attachment; filename="murmur-audit.jsonl"',
+            "cache-control": "no-store",
+          })
+          .end(body);
+        return;
+      }
+
+      case "POST /v1/audit/verify":
+        requireOwner(req);
+        return send(res, 200, audit.verify());
+
+      case "GET /v1/audit/settings": {
+        requireOwner(req);
+        return send(res, 200, { retentionDays: audit.retentionDays(), siem: siem.status() });
+      }
+
+      case "PUT /v1/audit/settings": {
+        const owner = requireOwner(req);
+        const body = await readJson(req);
+        const changed: Record<string, string | number> = {};
+        if (body["retentionDays"] !== undefined) {
+          const days = Number(body["retentionDays"]);
+          if (!Number.isInteger(days) || days < 30 || days > 3650)
+            throw new HttpError(400, "invalid_retention", "Keep the log between 30 and 3650 days.");
+          settings.set("team.audit.retentionDays", days);
+          changed["retentionDays"] = days;
+        }
+        const siemPatch: Partial<SiemConfig> = {};
+        if (body["siemMode"] !== undefined)
+          siemPatch.mode = text(body, "siemMode") as SiemConfig["mode"];
+        if (body["siemWebhookUrl"] !== undefined)
+          siemPatch.webhookUrl = text(body, "siemWebhookUrl");
+        if (Object.keys(siemPatch).length > 0) {
+          const result = siem.setConfig(siemPatch);
+          if (!result.ok) throw new HttpError(400, "invalid_siem", result.message);
+          if (siemPatch.mode !== undefined) changed["siemMode"] = siemPatch.mode;
+          if (siemPatch.webhookUrl !== undefined) changed["siemWebhook"] = "changed";
+        }
+        audit.record({ actorId: owner.id, action: "audit.settings_changed", detail: changed });
+        return send(res, 200, { retentionDays: audit.retentionDays(), siem: siem.status() });
+      }
+
+      case "POST /v1/audit/siem/retry": {
+        const owner = requireOwner(req);
+        const count = siem.retryFailed();
+        audit.record({ actorId: owner.id, action: "audit.siem_retried", detail: { count } });
+        if (autoFlush) void siem.flush().catch(() => undefined);
+        return send(res, 200, siem.status());
       }
 
       default:
@@ -237,17 +364,33 @@ export function createLocalServer(config: ServerConfig): LocalServer {
 
   return {
     accounts,
+    audit,
+    siem,
     db,
     listen: () =>
       new Promise((resolve, reject) => {
         http.once("error", reject);
         http.listen(config.port ?? DEFAULT_PORT, host, () => {
           const address = http.address() as AddressInfo;
+          if (autoFlush) {
+            // Retries wait on this timer; the daily retention of the log runs here too.
+            let day = Math.floor(now() / 86_400_000);
+            timer = setInterval(() => {
+              void siem.flush().catch(() => undefined);
+              const today = Math.floor(now() / 86_400_000);
+              if (today !== day) {
+                day = today;
+                audit.prune(audit.retentionDays());
+              }
+            }, 5_000);
+            timer.unref();
+          }
           resolve({ host, port: address.port });
         });
       }),
     close: () =>
       new Promise((resolve) => {
+        if (timer) clearInterval(timer);
         http.close(() => {
           db.close();
           resolve();

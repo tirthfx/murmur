@@ -1,5 +1,6 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
+import type { AuditInput } from "./audit.ts";
 import {
   DUMMY_HASH,
   PASSWORD_HISTORY,
@@ -31,6 +32,8 @@ export type AccountResult<T> =
 export interface AccountsConfig {
   sessionDays: number;
   now(): number;
+  /** Writes an entry to the audit log (TM-12). Optional so the accounts can be tested alone. */
+  audit?(input: AuditInput): void;
 }
 
 /** TM-01: five wrong passwords in a row, then the next attempt waits 30 seconds. */
@@ -122,6 +125,13 @@ export function createAccounts(db: DatabaseSync, config: AccountsConfig) {
       if (userCount() > 0) return fail("already_set_up", "This server already has an owner.");
       const made = insertUser(input, true);
       if (!made.ok) return made;
+      config.audit?.({
+        actorId: made.user.id,
+        action: "server.setup",
+        targetType: "user",
+        targetId: made.user.id,
+        clientId,
+      });
       return {
         ok: true,
         session: grant(userById.get(made.user.id) as unknown as UserRow, clientId),
@@ -129,7 +139,18 @@ export function createAccounts(db: DatabaseSync, config: AccountsConfig) {
     },
 
     /** A further local account, made by someone allowed to (the caller checks that). */
-    createAccount: (input: NewAccount) => insertUser(input, false),
+    createAccount(input: NewAccount, actorId: string | null = null, clientId = "") {
+      const made = insertUser(input, false);
+      if (made.ok)
+        config.audit?.({
+          actorId,
+          action: "account.created",
+          targetType: "user",
+          targetId: made.user.id,
+          clientId,
+        });
+      return made;
+    },
 
     signIn(
       emailInput: string,
@@ -160,11 +181,29 @@ export function createAccounts(db: DatabaseSync, config: AccountsConfig) {
           `INSERT INTO sign_in_throttle (email, failures, locked_until) VALUES (?, ?, ?)
            ON CONFLICT (email) DO UPDATE SET failures = excluded.failures, locked_until = excluded.locked_until`,
         ).run(email, failures, lock);
+        // The first miss and each lock are written; the ones between are not, so a flood of
+        // wrong passwords cannot fill the log.
+        if (failures === 1 || lock > 0)
+          config.audit?.({
+            actorId: row?.id ?? null,
+            action: "auth.sign_in_failed",
+            targetType: "email",
+            targetId: email,
+            detail: { failures, locked: lock > 0 },
+            clientId,
+          });
         return fail("invalid_credentials", "The email or the password is not right.");
       }
       if (row.status !== "active")
         return fail("deactivated", "This account has been turned off. Ask the owner.");
       db.prepare("DELETE FROM sign_in_throttle WHERE email = ?").run(email);
+      config.audit?.({
+        actorId: row.id,
+        action: "auth.sign_in",
+        targetType: "user",
+        targetId: row.id,
+        clientId,
+      });
       return { ok: true, session: grant(row, clientId) };
     },
 
@@ -223,6 +262,12 @@ export function createAccounts(db: DatabaseSync, config: AccountsConfig) {
       db.prepare(
         "UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND token_hash != ? AND revoked_at IS NULL",
       ).run(now, userId, hashToken(keepToken));
+      config.audit?.({
+        actorId: userId,
+        action: "auth.password_changed",
+        targetType: "user",
+        targetId: userId,
+      });
       return { ok: true };
     },
 
