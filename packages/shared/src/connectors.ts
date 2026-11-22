@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DEFAULT_GMAIL_SETTINGS, gmailSettingsSchema } from "./gmail";
 
 /**
  * Connectors (CN-01). A connector is a provider the owner signed in to (a calendar, a mail
@@ -325,10 +326,16 @@ export const connectorSettingsSchema = z.strictObject({
   /** How long fetched data may be used before it is fetched again. */
   cacheTtlMinutes: z.number().int().min(1).max(1440),
   choices: z.record(z.string().max(64), connectorChoiceSchema),
+  /** CN-04: what Murmur may do with Gmail. */
+  gmail: gmailSettingsSchema.default(DEFAULT_GMAIL_SETTINGS),
 });
 export type ConnectorSettings = z.infer<typeof connectorSettingsSchema>;
 
-export const DEFAULT_CONNECTOR_SETTINGS: ConnectorSettings = { cacheTtlMinutes: 15, choices: {} };
+export const DEFAULT_CONNECTOR_SETTINGS: ConnectorSettings = {
+  cacheTtlMinutes: 15,
+  choices: {},
+  gmail: DEFAULT_GMAIL_SETTINGS,
+};
 
 /** The sync interval and read-only switch of a connector, with the defaults filled in. */
 export function connectorChoice(

@@ -27,6 +27,16 @@ import {
   type TranscriptImportPreviewResult,
 } from "./transcript-import";
 import type { ConnectorActionResult, ConnectorsView } from "./connectors";
+import {
+  emailDraftInputSchema,
+  emailDraftSourceSchema,
+  type EmailAutomationRecord,
+  type EmailDraftInput,
+  type EmailDraftSource,
+  type EmailDraftProposalResult,
+  type EmailDraftResult,
+  type EmailDraftState,
+} from "./gmail";
 import type {
   McpActionResult,
   McpAuditEntry,
@@ -459,6 +469,11 @@ export const IPC_CHANNELS = {
   connectorSetClientId: "connectors:set-client-id",
   connectorSetClientSecret: "connectors:set-client-secret",
   connectorSync: "connectors:sync",
+  emailDraftState: "email-draft:state",
+  emailDraftPropose: "email-draft:propose",
+  emailDraftCreate: "email-draft:create",
+  emailDraftList: "email-draft:list",
+  emailDraftOpen: "email-draft:open",
   mcpStatus: "mcp:status",
   mcpClients: "mcp:clients",
   mcpIssue: "mcp:issue",
@@ -1033,6 +1048,23 @@ export const IPC_CONTRACT = {
     args: z.tuple([z.string().min(1).max(64)]),
     result: z.custom<ConnectorActionResult>(),
   },
+  [IPC_CHANNELS.emailDraftState]: { args: z.tuple([]), result: z.custom<EmailDraftState>() },
+  [IPC_CHANNELS.emailDraftPropose]: {
+    args: z.tuple([emailDraftSourceSchema]),
+    result: z.custom<EmailDraftProposalResult>(),
+  },
+  [IPC_CHANNELS.emailDraftCreate]: {
+    args: z.tuple([emailDraftInputSchema]),
+    result: z.custom<EmailDraftResult>(),
+  },
+  [IPC_CHANNELS.emailDraftList]: {
+    args: z.tuple([emailDraftSourceSchema]),
+    result: z.custom<EmailAutomationRecord[]>(),
+  },
+  [IPC_CHANNELS.emailDraftOpen]: {
+    args: z.tuple([z.string().min(1).max(600)]),
+    result: z.custom<{ ok: boolean }>(),
+  },
   [IPC_CHANNELS.mcpStatus]: { args: z.tuple([]), result: z.custom<McpStatus>() },
   [IPC_CHANNELS.mcpClients]: { args: z.tuple([]), result: z.custom<McpClientsView>() },
   [IPC_CHANNELS.mcpIssue]: {
@@ -1443,6 +1475,16 @@ export interface MurmurApi {
   connectorSetClientSecret(id: string, secret: string | null): Promise<ConnectorActionResult>;
   /** CN-02, CN-03: reads a calendar account's events now. */
   connectorSync(accountId: string): Promise<ConnectorActionResult>;
+  /** NT-27: whether "Draft email" works now, and why not when it does not. */
+  emailDraftState(): Promise<EmailDraftState>;
+  /** NT-27: the words and the people for a draft, from a task or a meeting's summary. Creates nothing. */
+  emailDraftPropose(source: EmailDraftSource): Promise<EmailDraftProposalResult>;
+  /** NT-27: creates the draft the owner confirmed in Gmail's Drafts folder. Mail is never sent. */
+  emailDraftCreate(input: EmailDraftInput): Promise<EmailDraftResult>;
+  /** NT-27: the drafts already made from a task or a meeting. */
+  emailDraftList(source: EmailDraftSource): Promise<EmailAutomationRecord[]>;
+  /** NT-27: opens a draft in the browser. Only an address in Gmail is opened. */
+  emailDraftOpen(url: string): Promise<{ ok: boolean }>;
   /** CN-11: whether the local MCP server is listening, and where, once a change of setting has been applied. Its switches are in settings. */
   mcpStatus(): Promise<McpStatus>;
   /** The apps the owner approved. Tokens are never in it. */

@@ -9,6 +9,7 @@ import { Text } from "@astryxdesign/core/Text";
 import { TextArea } from "@astryxdesign/core/TextArea";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { VStack } from "@astryxdesign/core/VStack";
+import { EmailDraft } from "./EmailDraft";
 import {
   TASK_LIMITS,
   TASK_OWNER_FILTERS,
@@ -454,6 +455,9 @@ export function TasksPanel({
                     </Button>
                     {sourceOf(task)}
                   </HStack>
+                  {task.status === "open" ? (
+                    <EmailDraft source={{ kind: "task", id: task.id }} />
+                  ) : null}
                 </VStack>
               )}
             </li>

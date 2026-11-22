@@ -314,6 +314,7 @@ describe("calendar sync (CN-02, CN-03)", () => {
       settings: {
         cacheTtlMinutes: 15,
         choices: { googleCalendar: { syncIntervalMinutes: 60, readOnly: true } },
+        gmail: { briefContext: false, draftEnabled: false, maxThreadsPerBrief: 5 },
       },
     });
     t.addAccount("x1", "gmail", "me@example.com", "t", "r");

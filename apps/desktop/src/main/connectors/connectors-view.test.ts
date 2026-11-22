@@ -117,6 +117,7 @@ describe("Connectors page view (CN-15)", () => {
       settings: {
         cacheTtlMinutes: 30,
         choices: { slack: { syncIntervalMinutes: 60, readOnly: false } },
+        gmail: { briefContext: false, draftEnabled: false, maxThreadsPerBrief: 5 },
       },
     }).view;
     expect(view.cacheTtlMinutes).toBe(30);

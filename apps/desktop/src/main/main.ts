@@ -172,6 +172,10 @@ import { createMcpSetup } from "./mcp/mcp-setup";
 import { createHelperKeychain } from "./connectors/helper-keychain";
 import { createConnectorRegistry } from "./connectors/providers";
 import { createCalendarStore } from "./connectors/calendar/calendar-store";
+import { connectOptionsFor } from "./connectors/connect-options";
+import { createAutomationsStore } from "./connectors/gmail/automations-store";
+import { createEmailDraftService } from "./connectors/gmail/email-draft";
+import { gmailProvider } from "./connectors/gmail/gmail";
 import { createCalendarSync } from "./connectors/calendar/calendar-sync";
 import { googleCalendarProvider } from "./connectors/calendar/google-calendar";
 import { outlookCalendarProvider } from "./connectors/calendar/outlook-calendar";
@@ -1765,6 +1769,7 @@ const connectorConfig = createConnectorConfig({
 const connectorRegistry = createConnectorRegistry([
   googleCalendarProvider,
   outlookCalendarProvider,
+  gmailProvider,
 ]);
 const connectorService = connectorStore
   ? createConnectorService({
@@ -1874,6 +1879,22 @@ function notifyMeetings(meetingId: string | null): void {
 const tasksService = database
   ? createTasksService(database, { newId: randomUUID, now: Date.now })
   : null;
+// NT-27: "Draft email" makes a draft in Gmail after the owner has read it. It never sends.
+const emailDrafts =
+  database && connectorService && meetingsStore && meetingSummaries && tasksService
+    ? createEmailDraftService({
+        connectors: connectorService,
+        settings: () => settingsStore.get().connectors.gmail,
+        store: createAutomationsStore(database),
+        tasks: tasksService,
+        meetings: meetingsStore,
+        summaries: meetingSummaries,
+        generate: meetingGenerate,
+        now: Date.now,
+        newId: randomUUID,
+      })
+    : null;
+const noEmailDrafts = { available: false, reason: "Drafts need Gmail and the database." };
 const taskRunner =
   meetingsStore && meetingTranscripts && tasksService
     ? createTaskRunner({
@@ -3311,7 +3332,10 @@ function registerIpc(): void {
       }),
     connectorConnect: async (id, loginHint) => {
       if (!connectorService) return { ok: false, message: "Connectors are not available." };
-      const outcome = await connectorService.connect(id, loginHint ? { loginHint } : {});
+      const outcome = await connectorService.connect(
+        id,
+        connectOptionsFor(id, settingsStore.get().connectors, loginHint),
+      );
       if (outcome.ok) void calendarSync?.syncAccount(outcome.account.id);
       return outcome.ok
         ? { ok: true, message: `Connected ${outcome.account.email}.` }
@@ -3343,6 +3367,18 @@ function registerIpc(): void {
       return result.ok
         ? { ok: true, message: `Read ${result.count} ${result.count === 1 ? "event" : "events"}.` }
         : result;
+    },
+    emailDraftState: () => emailDrafts?.state() ?? noEmailDrafts,
+    emailDraftPropose: async (source) =>
+      emailDrafts?.propose(source) ?? { ok: false, message: noEmailDrafts.reason },
+    emailDraftCreate: async (input) =>
+      emailDrafts?.create(input) ?? { ok: false, message: noEmailDrafts.reason },
+    emailDraftList: (source) => emailDrafts?.list(source) ?? [],
+    emailDraftOpen: async (url) => {
+      // Only a draft in Gmail is opened, never another address.
+      if (!url.startsWith("https://mail.google.com/mail/u/")) return { ok: false };
+      await shell.openExternal(url);
+      return { ok: true };
     },
     connectorSetClientId: async (id, clientId) => {
       if (!CONNECTOR_CATALOGUE.some((entry) => entry.id === id))
