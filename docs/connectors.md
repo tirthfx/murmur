@@ -90,10 +90,30 @@ Two providers in `connectors/calendar/`. Both read only (no write scope is asked
 
 **Manual check:** with your own OAuth app, enter its client id (and secret for Google) on the Connectors page, connect, and press "Read now": the count is the events of the next week. Change an event in the calendar and press Read now again. Revoke the app in your Google or Microsoft account and check the account shows "Needs attention" after the next read.
 
+## Gmail and email drafts (CN-04, NT-27)
+
+Gmail is the same Google sign-in as Google Calendar, with its own client id on the Connectors page (it can be the same Google Cloud project). Signing in asks only for who the account is (`openid`, `email`). A mail permission is asked for only when the feature that needs it is turned on, in the Gmail card of the Connectors page:
+
+| Setting (`connectors.gmail`)                                  | Default | Permission asked for |
+| ------------------------------------------------------------- | ------- | -------------------- |
+| `briefContext`: read recent mail with the people in a meeting | off     | `gmail.readonly`     |
+| `draftEnabled`: create drafts from tasks and summaries        | off     | `gmail.compose`      |
+| `maxThreadsPerBrief`                                          | 5       | none                 |
+
+`connectOptionsFor` (`connectors/connect-options.ts`) builds the scope list for a sign-in from these settings, and `include_granted_scopes` keeps what was given before. Turning a feature on for an account that was connected earlier shows "Give permission", which signs in again with the extra scope. Turning a feature off stops Murmur using it; Google keeps the permission until the account is disconnected and connected again. There is never a scope that sends: `gmail.send` and `gmail.modify` are not in the code.
+
+**Drafts.** "Draft email" is on an open task (My Tasks and a meeting's Tasks tab) and under a meeting's summary. It is switched off, with the reason next to it, when drafting is off, Gmail is not connected, an account needs attention, or the compose permission has not been given. The local model proposes a subject and text from the task (and its meeting) or from the latest summary, as JSON that is checked; if it fails or answers badly, a plain starting text is used. The window then shows the recipient (the people invited, the task owner's name picked when exactly one fits, or any one address, or nobody), the subject and the text, all editable and all plain text. Nothing is created until "Create the draft in Gmail" is clicked, and then one `POST users/me/drafts` is made, which is the only write in the connector. The recipient must be one plain address, a subject has no line breaks, and control characters are removed, so nothing typed or written by the model can add a header or another recipient. The result can be opened in Gmail from the page.
+
+**What is kept.** One `automations` row (migration 0044) for each draft: the source (task or meeting), the recipient, the subject, the draft's Gmail id (`result_ref`) and its address. The text of the draft is not kept. Disconnecting the account keeps the rows (the account is set to null) and switches the action off; removing a row never deletes the draft in Gmail.
+
+**Reading mail.** `recentThreadsWith` (`connectors/gmail/gmail.ts`) finds the latest threads with some addresses and returns them as plain text: the plain part when a message has one, otherwise the HTML as text (never rendered). Attachments are never fetched: a part with a file name or an attachment id is skipped, and no request to the attachments address is ever made. Meeting briefs, which use it, come later (#223); until then nothing reads mail.
+
+**Manual check:** add the client id and secret for Gmail, connect, turn on "Let me create drafts" and press "Give permission". On an accepted task press "Draft email", change the text, create it, and open it: it is in Gmail's Drafts folder, and Sent is unchanged.
+
 ## Adding a provider
 
 A provider is a `ConnectorProvider` (`connectors/providers.ts`): id, name, authorize and token addresses, an optional revoke address, scopes, extra sign-in parameters, a fixed loopback port when it needs an exact redirect, and `accountLabel`, which asks the provider for the account's email. Add it to the list in `createConnectorRegistry([...])` in `main.ts`; its id must match an entry in `CONNECTOR_CATALOGUE`. The framework and the page do the rest.
 
 ## Manual check
 
-There is nothing to connect until the first provider (M6); the Connectors page lists every connector as Not built yet. The Keychain part can be checked now: `npm run test:helper` runs the helper's tests with a fake Keychain; the real Keychain is used by the first connector.
+The Keychain part can be checked with `npm run test:helper`, which runs the helper's tests with a fake Keychain. A real sign-in needs your own OAuth app for the provider (see each connector's card).

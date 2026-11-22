@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   CONNECTOR_CATALOGUE,
   DEFAULT_CONNECTOR_SETTINGS,
+  GMAIL_SCOPE_COMPOSE,
   connectorChoice,
   type ConnectorAccount,
   type ConnectorReadiness,
@@ -318,6 +319,7 @@ describe("Connectors page (CN-15)", () => {
         connectors: {
           cacheTtlMinutes: 15,
           choices: { googleCalendar: { syncIntervalMinutes: 60, readOnly: true } },
+          gmail: DEFAULT_CONNECTOR_SETTINGS.gmail,
         },
       }),
     );
@@ -329,9 +331,92 @@ describe("Connectors page (CN-15)", () => {
         connectors: {
           cacheTtlMinutes: 15,
           choices: { googleCalendar: { syncIntervalMinutes: 15, readOnly: false } },
+          gmail: DEFAULT_CONNECTOR_SETTINGS.gmail,
         },
       }),
     );
+  });
+
+  describe("Gmail permissions (CN-04)", () => {
+    const gmail = (scopes: string[]) =>
+      viewOf({
+        gmail: {
+          readiness: "ready",
+          accounts: [account({ id: "g1", connector: "gmail", email: "me@gmail.test", scopes })],
+        },
+      });
+
+    /** The settings of a profile that turned drafting on. */
+    const draftingOn = async () => {
+      const base = await api.getSettings();
+      api.getSettings = vi.fn().mockResolvedValue({
+        ...base,
+        settings: {
+          ...base.settings,
+          connectors: {
+            ...DEFAULT_CONNECTOR_SETTINGS,
+            gmail: { ...DEFAULT_CONNECTOR_SETTINGS.gmail, draftEnabled: true },
+          },
+        },
+      });
+    };
+
+    it("has both mail features off, and asks for no permission while they are off", async () => {
+      show(gmail(["openid", "email"]));
+      render(<ConnectorsPage />);
+      const mail = await card("Gmail");
+      const drafts = await mail.findByRole("switch", {
+        name: "Let me create drafts from tasks and summaries",
+      });
+      expect((drafts as HTMLInputElement).checked).toBe(false);
+      expect(
+        (
+          mail.getByRole("switch", {
+            name: "Read recent mail with the people in a meeting",
+          }) as HTMLInputElement
+        ).checked,
+      ).toBe(false);
+      expect(mail.queryByRole("button", { name: /Give permission/ })).toBeNull();
+    });
+
+    it("saves the switch, and then offers to ask Google for the draft permission", async () => {
+      show(gmail(["openid", "email"]));
+      await draftingOn();
+      render(<ConnectorsPage />);
+      const mail = await card("Gmail");
+      const give = await mail.findByRole("button", { name: "Give permission for me@gmail.test" });
+      expect(mail.getByText(/has not yet allowed Murmur to create drafts/)).toBeTruthy();
+      fireEvent.click(give);
+      await waitFor(() =>
+        expect(api.connectorConnect).toHaveBeenCalledWith("gmail", "me@gmail.test"),
+      );
+    });
+
+    it("does not ask again once the permission was given", async () => {
+      show(gmail(["openid", "email", GMAIL_SCOPE_COMPOSE]));
+      await draftingOn();
+      render(<ConnectorsPage />);
+      const mail = await card("Gmail");
+      await mail.findByRole("switch", { name: "Let me create drafts from tasks and summaries" });
+      expect(mail.queryByRole("button", { name: /Give permission/ })).toBeNull();
+    });
+
+    it("turning drafting on is saved in the settings", async () => {
+      show(gmail(["openid", "email"]));
+      render(<ConnectorsPage />);
+      const mail = await card("Gmail");
+      fireEvent.click(
+        await mail.findByRole("switch", { name: "Let me create drafts from tasks and summaries" }),
+      );
+      await waitFor(() =>
+        expect(api.updateSettings).toHaveBeenCalledWith({
+          connectors: {
+            ...DEFAULT_CONNECTOR_SETTINGS,
+            gmail: { ...DEFAULT_CONNECTOR_SETTINGS.gmail, draftEnabled: true },
+          },
+        }),
+      );
+    });
   });
 
   it("has no read-only switch for a connector that never writes", async () => {

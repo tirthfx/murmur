@@ -17,6 +17,7 @@ export * from "./media";
 export * from "./setup";
 export * from "./calendar";
 export * from "./connectors";
+export * from "./gmail";
 export * from "./context";
 export * from "./typing";
 export * from "./mic-check";

@@ -457,6 +457,11 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
     folderClearExport: vi.fn().mockResolvedValue({ ok: true, folders: [] }),
     connectorsView: vi.fn().mockResolvedValue({ connectors: [], cacheTtlMinutes: 15 }),
     connectorSync: vi.fn().mockResolvedValue({ ok: true, message: "Read 0 events." }),
+    emailDraftState: vi.fn().mockResolvedValue({ available: false, reason: "Drafting is off." }),
+    emailDraftPropose: vi.fn().mockResolvedValue({ ok: false, message: "Drafting is off." }),
+    emailDraftCreate: vi.fn().mockResolvedValue({ ok: false, message: "Drafting is off." }),
+    emailDraftList: vi.fn().mockResolvedValue([]),
+    emailDraftOpen: vi.fn().mockResolvedValue({ ok: true }),
     mcpStatus: vi.fn().mockResolvedValue(MCP_STATUS_OFF),
     mcpClients: vi
       .fn()

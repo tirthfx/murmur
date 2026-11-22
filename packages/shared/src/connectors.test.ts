@@ -84,6 +84,7 @@ describe("connector settings", () => {
     expect(connectorSettingsSchema.parse(DEFAULT_CONNECTOR_SETTINGS)).toEqual({
       cacheTtlMinutes: 15,
       choices: {},
+      gmail: { briefContext: false, draftEnabled: false, maxThreadsPerBrief: 5 },
     });
     const calendar = CONNECTOR_CATALOGUE[0]!;
     const notion = CONNECTOR_CATALOGUE.find((c) => c.id === "notion")!;

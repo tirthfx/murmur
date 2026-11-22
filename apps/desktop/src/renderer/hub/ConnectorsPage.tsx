@@ -12,12 +12,16 @@ import {
   CALENDAR_CONNECTOR_IDS,
   CONNECTOR_FEATURES,
   CONNECTOR_STATUS_TEXT,
+  GMAIL_SCOPE_COMPOSE,
+  GMAIL_SCOPE_READ,
   SYNC_INTERVALS,
+  gmailMissingScopes,
   connectorFeatureStates,
   type ConnectorAccount,
   type ConnectorActionResult,
   type ConnectorChoice,
   type ConnectorSettings,
+  type GmailSettings,
   type MeetingFolder,
   type Settings,
   type ConnectorsView,
@@ -217,6 +221,15 @@ export function ConnectorsPage() {
     } finally {
       setSyncing(null);
     }
+  }
+
+  /** What Murmur may do with Gmail (CN-04). A permission is asked for only when its feature is on. */
+  async function setGmail(patch: Partial<GmailSettings>) {
+    if (!settings) return;
+    const updated = await window.murmur.updateSettings({
+      connectors: { ...settings, gmail: { ...settings.gmail, ...patch } },
+    });
+    setSettings(updated.settings.connectors);
   }
 
   async function choose(connector: ConnectorView, patch: Partial<ConnectorChoice>) {
@@ -505,6 +518,57 @@ export function ConnectorsPage() {
                               </Button>
                             </div>
                           )
+                        ) : null}
+
+                        {connector.id === "gmail" && connector.accounts.length > 0 && settings ? (
+                          <VStack gap={2}>
+                            <Switch
+                              label="Read recent mail with the people in a meeting"
+                              description="For meeting briefs. Murmur asks Google for permission to read your mail only when this is on. Attachments are never fetched."
+                              value={settings.gmail.briefContext}
+                              onChange={(briefContext) => void setGmail({ briefContext })}
+                            />
+                            <Switch
+                              label="Let me create drafts from tasks and summaries"
+                              description="Murmur makes a draft in Gmail after you have read it. It never sends mail. It asks Google for permission to create drafts only when this is on."
+                              value={settings.gmail.draftEnabled}
+                              onChange={(draftEnabled) => void setGmail({ draftEnabled })}
+                            />
+                            {connector.accounts
+                              .filter((entry) => entry.status === "connected")
+                              .map((entry) => {
+                                const missing = gmailMissingScopes(settings.gmail, entry.scopes);
+                                if (missing.length === 0) return null;
+                                const words = [
+                                  missing.includes(GMAIL_SCOPE_READ) ? "read your mail" : null,
+                                  missing.includes(GMAIL_SCOPE_COMPOSE) ? "create drafts" : null,
+                                ]
+                                  .filter((word): word is string => word !== null)
+                                  .join(" and ");
+                                return (
+                                  <Banner
+                                    key={entry.id}
+                                    status="info"
+                                    title={`${entry.email}: Google has not yet allowed Murmur to ${words}`}
+                                    endContent={
+                                      <Button
+                                        size="sm"
+                                        variant="secondary"
+                                        label={`Give permission for ${entry.email}`}
+                                        isDisabled={waiting !== null}
+                                        onClick={() => void connect(connector, entry.email)}
+                                      >
+                                        Give permission
+                                      </Button>
+                                    }
+                                  />
+                                );
+                              })}
+                            <Text size="sm" color="secondary">
+                              Turning a feature off stops Murmur using it. To take a permission back
+                              from Google, disconnect the account and connect it again.
+                            </Text>
+                          </VStack>
                         ) : null}
 
                         {connector.accounts.length > 0 && settings ? (

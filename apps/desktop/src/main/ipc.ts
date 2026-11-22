@@ -135,6 +135,12 @@ import {
   type PermissionsInfo,
   type RequestablePermissionKind,
   type ConnectorActionResult,
+  type EmailAutomationRecord,
+  type EmailDraftInput,
+  type EmailDraftProposalResult,
+  type EmailDraftResult,
+  type EmailDraftSource,
+  type EmailDraftState,
   type ConnectorsView,
   type McpActionResult,
   type McpAuditEntry,
@@ -203,6 +209,11 @@ export interface IpcDeps {
   connectorDisconnect: (accountId: string) => Promise<ConnectorActionResult>;
   connectorSetEnabled: (accountId: string, enabled: boolean) => void;
   connectorSync: (accountId: string) => Promise<ConnectorActionResult>;
+  emailDraftState: () => EmailDraftState;
+  emailDraftPropose: (source: EmailDraftSource) => Promise<EmailDraftProposalResult>;
+  emailDraftCreate: (input: EmailDraftInput) => Promise<EmailDraftResult>;
+  emailDraftList: (source: EmailDraftSource) => EmailAutomationRecord[];
+  emailDraftOpen: (url: string) => Promise<{ ok: boolean }>;
   connectorSetClientId: (id: string, clientId: string | null) => Promise<ConnectorActionResult>;
   connectorSetClientSecret: (id: string, secret: string | null) => Promise<ConnectorActionResult>;
   meetingMove: (meetingId: string, folderId: string | null) => FolderResult;
@@ -676,6 +687,16 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.folderClearExport(request.args[0] as string);
       case IPC_CHANNELS.connectorSync:
         return deps.connectorSync(request.args[0] as string);
+      case IPC_CHANNELS.emailDraftState:
+        return deps.emailDraftState();
+      case IPC_CHANNELS.emailDraftPropose:
+        return deps.emailDraftPropose(request.args[0] as EmailDraftSource);
+      case IPC_CHANNELS.emailDraftCreate:
+        return deps.emailDraftCreate(request.args[0] as EmailDraftInput);
+      case IPC_CHANNELS.emailDraftList:
+        return deps.emailDraftList(request.args[0] as EmailDraftSource);
+      case IPC_CHANNELS.emailDraftOpen:
+        return deps.emailDraftOpen(request.args[0] as string);
       case IPC_CHANNELS.mcpStatus:
         return deps.mcpStatus();
       case IPC_CHANNELS.mcpClients:
