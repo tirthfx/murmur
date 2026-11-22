@@ -89,6 +89,8 @@ function setup() {
     folderClearExport: vi.fn(),
     connectorsView: vi.fn(),
     connectorSync: vi.fn(),
+    connectorOptions: vi.fn(),
+    connectorDataStatus: vi.fn(),
     emailDraftState: vi.fn(),
     emailDraftPropose: vi.fn(),
     emailDraftCreate: vi.fn(),

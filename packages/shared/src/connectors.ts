@@ -1,4 +1,14 @@
 import { z } from "zod";
+import {
+  DEFAULT_GITHUB_SETTINGS,
+  DEFAULT_LINEAR_SETTINGS,
+  DEFAULT_NOTION_SETTINGS,
+  DEFAULT_SLACK_SETTINGS,
+  githubSettingsSchema,
+  linearSettingsSchema,
+  notionSettingsSchema,
+  slackSettingsSchema,
+} from "./connector-data";
 import { DEFAULT_GMAIL_SETTINGS, gmailSettingsSchema } from "./gmail";
 
 /**
@@ -170,16 +180,16 @@ export const CONNECTOR_CATALOGUE: readonly ConnectorCatalogueEntry[] = [
     name: "Slack",
     reads:
       "People and channel names, and messages from the channels you choose when a brief or a question includes Slack.",
-    writes: "Posting a summary or a task to a channel, after showing you the exact text.",
+    writes: null,
     scopes: [
       { text: "Read people and channel names", optional: false },
       { text: "Read messages in the channels you choose", optional: false },
-      { text: "Post messages", optional: true },
     ],
-    setup: "A Slack app with OAuth and a redirect address on this Mac.",
+    setup:
+      "A Slack app with the user scopes users:read, channels:read, channels:history, groups:read and im:read, and the redirect address http://127.0.0.1:17821/callback.",
     clientSecret: true,
     defaultSyncMinutes: 30,
-    supportsWrite: true,
+    supportsWrite: false,
   },
   {
     id: "notion",
@@ -191,7 +201,8 @@ export const CONNECTOR_CATALOGUE: readonly ConnectorCatalogueEntry[] = [
       { text: "Read the pages shared with the integration", optional: false },
       { text: "Read who you are", optional: false },
     ],
-    setup: "A public Notion integration, and the pages shared with it.",
+    setup:
+      "A public Notion integration with the redirect address http://127.0.0.1:17822/callback, and the pages shared with it.",
     clientSecret: true,
     defaultSyncMinutes: 30,
     supportsWrite: false,
@@ -202,7 +213,8 @@ export const CONNECTOR_CATALOGUE: readonly ConnectorCatalogueEntry[] = [
     reads: "Issues assigned to you or in the teams you choose: status, title and last update.",
     writes: null,
     scopes: [{ text: "Read your issues", optional: false }],
-    setup: "An OAuth application in Linear.",
+    setup:
+      "An OAuth application in Linear with the redirect address http://127.0.0.1:17823/callback.",
     clientSecret: true,
     defaultSyncMinutes: 30,
     supportsWrite: false,
@@ -214,7 +226,8 @@ export const CONNECTOR_CATALOGUE: readonly ConnectorCatalogueEntry[] = [
       "Issues and pull requests you are assigned to or mentioned in, in the repositories you choose: title, state and labels.",
     writes: null,
     scopes: [{ text: "Read issues and pull requests", optional: false }],
-    setup: "A GitHub OAuth app (or a GitHub App with read permissions on chosen repositories).",
+    setup:
+      "A GitHub App with read-only Issues, Pull requests and Metadata permissions, installed on the repositories you choose, with user authorization turned on (or a GitHub OAuth app, which sees what its token may see).",
     clientSecret: true,
     defaultSyncMinutes: 30,
     supportsWrite: false,
@@ -251,6 +264,8 @@ export interface ConnectorFeature {
   /** What it does with the connector, in a sentence. */
   detail: string;
   connectors: readonly string[];
+  /** False for a feature whose connectors can be connected but whose feature is not built yet. */
+  built: boolean;
 }
 
 export const CONNECTOR_FEATURES: readonly ConnectorFeature[] = [
@@ -259,12 +274,14 @@ export const CONNECTOR_FEATURES: readonly ConnectorFeature[] = [
     name: "Meeting reminders and starting a recording",
     detail: "Offers to record when a calendar meeting begins.",
     connectors: ["googleCalendar", "outlookCalendar"],
+    built: true,
   },
   {
     id: "next-meeting",
     name: "Next meeting in the menu bar",
     detail: "Shows what is next, and joins it in one click.",
     connectors: ["googleCalendar", "outlookCalendar"],
+    built: true,
   },
   {
     id: "briefs",
@@ -279,36 +296,42 @@ export const CONNECTOR_FEATURES: readonly ConnectorFeature[] = [
       "linear",
       "github",
     ],
+    built: false,
   },
   {
     id: "email-drafts",
     name: "Follow-up email drafts",
     detail: "Puts a draft in Gmail's Drafts folder.",
     connectors: ["gmail"],
+    built: true,
   },
   {
     id: "calendar-events",
     name: "Follow-up events",
     detail: "Creates a calendar event for a task or a next meeting.",
     connectors: ["googleCalendar", "outlookCalendar"],
+    built: true,
   },
   {
     id: "slack-send",
     name: "Send to Slack",
     detail: "Posts a summary or a task to a channel after you check the text.",
     connectors: ["slack"],
+    built: false,
   },
   {
     id: "notion-links",
     name: "Notion pages as meeting links",
     detail: "Lists your Notion pages when you attach a link to a meeting.",
     connectors: ["notion"],
+    built: false,
   },
   {
     id: "import-services",
     name: "Import from Zoom and Fireflies",
     detail: "Brings in a transcript you did not record yourself.",
     connectors: ["zoom", "fireflies"],
+    built: false,
   },
 ] as const;
 
@@ -328,6 +351,11 @@ export const connectorSettingsSchema = z.strictObject({
   choices: z.record(z.string().max(64), connectorChoiceSchema),
   /** CN-04: what Murmur may do with Gmail. */
   gmail: gmailSettingsSchema.default(DEFAULT_GMAIL_SETTINGS),
+  /** CN-05 to CN-08: what the read connectors may read. */
+  slack: slackSettingsSchema.default(DEFAULT_SLACK_SETTINGS),
+  notion: notionSettingsSchema.default(DEFAULT_NOTION_SETTINGS),
+  linear: linearSettingsSchema.default(DEFAULT_LINEAR_SETTINGS),
+  github: githubSettingsSchema.default(DEFAULT_GITHUB_SETTINGS),
 });
 export type ConnectorSettings = z.infer<typeof connectorSettingsSchema>;
 
@@ -335,6 +363,10 @@ export const DEFAULT_CONNECTOR_SETTINGS: ConnectorSettings = {
   cacheTtlMinutes: 15,
   choices: {},
   gmail: DEFAULT_GMAIL_SETTINGS,
+  slack: DEFAULT_SLACK_SETTINGS,
+  notion: DEFAULT_NOTION_SETTINGS,
+  linear: DEFAULT_LINEAR_SETTINGS,
+  github: DEFAULT_GITHUB_SETTINGS,
 };
 
 /** The sync interval and read-only switch of a connector, with the defaults filled in. */
@@ -398,6 +430,13 @@ export function connectorFeatureState(
   feature: ConnectorFeature,
   view: Pick<ConnectorsView, "connectors">,
 ): ConnectorFeatureState {
+  if (!feature.built)
+    return {
+      feature,
+      enabled: false,
+      reason: "Not built yet. Connecting an account does not turn it on.",
+      reconnect: null,
+    };
   const mine = view.connectors.filter((connector) => feature.connectors.includes(connector.id));
   const accounts = mine.flatMap((connector) =>
     connector.accounts.map((account) => ({ connector, account })),

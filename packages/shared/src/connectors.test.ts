@@ -85,6 +85,10 @@ describe("connector settings", () => {
       cacheTtlMinutes: 15,
       choices: {},
       gmail: { briefContext: false, draftEnabled: false, maxThreadsPerBrief: 5 },
+      slack: { channels: [] },
+      notion: { maxCharsPerPage: 10_000 },
+      linear: { teams: [], assignedOnly: true },
+      github: { repos: [] },
     });
     const calendar = CONNECTOR_CATALOGUE[0]!;
     const notion = CONNECTOR_CATALOGUE.find((c) => c.id === "notion")!;
@@ -133,9 +137,21 @@ describe("a feature that needs a connector (CN-15)", () => {
     expect(connectorFeatureState(feature("email-drafts"), all()).reason).toBe(
       "Connect Gmail to use this.",
     );
-    expect(connectorFeatureState(feature("briefs"), all()).reason).toBe(
-      "Connect Google Calendar, Outlook calendar, Gmail, Slack, Notion, Linear or GitHub to use this.",
+    expect(connectorFeatureState(feature("calendar-events"), all()).reason).toBe(
+      "Connect Google Calendar or Outlook calendar to use this.",
     );
+  });
+
+  it("says a feature that is not built yet is not on, even with its connectors connected", () => {
+    const connected = all({
+      slack: { accounts: [{ id: "s", status: "connected" } as never] },
+      gmail: { accounts: [{ id: "g", status: "connected" } as never] },
+    });
+    for (const id of ["briefs", "slack-send", "notion-links", "import-services"])
+      expect(connectorFeatureState(feature(id), connected)).toMatchObject({
+        enabled: false,
+        reason: "Not built yet. Connecting an account does not turn it on.",
+      });
   });
 
   it("says when the connectors it needs are not built yet", () => {

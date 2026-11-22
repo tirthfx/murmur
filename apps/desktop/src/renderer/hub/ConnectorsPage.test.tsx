@@ -320,6 +320,10 @@ describe("Connectors page (CN-15)", () => {
           cacheTtlMinutes: 15,
           choices: { googleCalendar: { syncIntervalMinutes: 60, readOnly: true } },
           gmail: DEFAULT_CONNECTOR_SETTINGS.gmail,
+          slack: DEFAULT_CONNECTOR_SETTINGS.slack,
+          notion: DEFAULT_CONNECTOR_SETTINGS.notion,
+          linear: DEFAULT_CONNECTOR_SETTINGS.linear,
+          github: DEFAULT_CONNECTOR_SETTINGS.github,
         },
       }),
     );
@@ -332,6 +336,10 @@ describe("Connectors page (CN-15)", () => {
           cacheTtlMinutes: 15,
           choices: { googleCalendar: { syncIntervalMinutes: 15, readOnly: false } },
           gmail: DEFAULT_CONNECTOR_SETTINGS.gmail,
+          slack: DEFAULT_CONNECTOR_SETTINGS.slack,
+          notion: DEFAULT_CONNECTOR_SETTINGS.notion,
+          linear: DEFAULT_CONNECTOR_SETTINGS.linear,
+          github: DEFAULT_CONNECTOR_SETTINGS.github,
         },
       }),
     );

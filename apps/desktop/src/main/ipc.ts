@@ -141,6 +141,8 @@ import {
   type CalendarEventSource,
   type CalendarEventState,
   type ConnectorActionResult,
+  type ConnectorDataStatus,
+  type ConnectorOptionsResult,
   type EmailAutomationRecord,
   type EmailDraftInput,
   type EmailDraftProposalResult,
@@ -215,6 +217,8 @@ export interface IpcDeps {
   connectorDisconnect: (accountId: string) => Promise<ConnectorActionResult>;
   connectorSetEnabled: (accountId: string, enabled: boolean) => void;
   connectorSync: (accountId: string) => Promise<ConnectorActionResult>;
+  connectorOptions: (accountId: string) => Promise<ConnectorOptionsResult>;
+  connectorDataStatus: () => ConnectorDataStatus[];
   emailDraftState: () => EmailDraftState;
   emailDraftPropose: (source: EmailDraftSource) => Promise<EmailDraftProposalResult>;
   emailDraftCreate: (input: EmailDraftInput) => Promise<EmailDraftResult>;
@@ -698,6 +702,10 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.folderClearExport(request.args[0] as string);
       case IPC_CHANNELS.connectorSync:
         return deps.connectorSync(request.args[0] as string);
+      case IPC_CHANNELS.connectorOptions:
+        return deps.connectorOptions(request.args[0] as string);
+      case IPC_CHANNELS.connectorDataStatus:
+        return deps.connectorDataStatus();
       case IPC_CHANNELS.emailDraftState:
         return deps.emailDraftState();
       case IPC_CHANNELS.emailDraftPropose:

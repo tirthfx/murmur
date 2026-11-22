@@ -27,6 +27,7 @@ import {
   type TranscriptImportPreviewResult,
 } from "./transcript-import";
 import type { ConnectorActionResult, ConnectorsView } from "./connectors";
+import type { ConnectorDataStatus, ConnectorOptionsResult } from "./connector-data";
 import {
   calendarEventInputSchema,
   calendarEventSourceSchema,
@@ -479,6 +480,8 @@ export const IPC_CHANNELS = {
   connectorSetClientId: "connectors:set-client-id",
   connectorSetClientSecret: "connectors:set-client-secret",
   connectorSync: "connectors:sync",
+  connectorOptions: "connectors:options",
+  connectorDataStatus: "connectors:data-status",
   emailDraftState: "email-draft:state",
   emailDraftPropose: "email-draft:propose",
   emailDraftCreate: "email-draft:create",
@@ -1063,6 +1066,14 @@ export const IPC_CONTRACT = {
     args: z.tuple([z.string().min(1).max(64)]),
     result: z.custom<ConnectorActionResult>(),
   },
+  [IPC_CHANNELS.connectorOptions]: {
+    args: z.tuple([z.string().min(1).max(64)]),
+    result: z.custom<ConnectorOptionsResult>(),
+  },
+  [IPC_CHANNELS.connectorDataStatus]: {
+    args: z.tuple([]),
+    result: z.custom<ConnectorDataStatus[]>(),
+  },
   [IPC_CHANNELS.emailDraftState]: { args: z.tuple([]), result: z.custom<EmailDraftState>() },
   [IPC_CHANNELS.emailDraftPropose]: {
     args: z.tuple([emailDraftSourceSchema]),
@@ -1507,6 +1518,10 @@ export interface MurmurApi {
   connectorSetClientSecret(id: string, secret: string | null): Promise<ConnectorActionResult>;
   /** CN-02, CN-03: reads a calendar account's events now. */
   connectorSync(accountId: string): Promise<ConnectorActionResult>;
+  /** CN-05, CN-07: the channels or teams an account offers for the owner to select. */
+  connectorOptions(accountId: string): Promise<ConnectorOptionsResult>;
+  /** CN-05 to CN-08: how many items each Slack, Notion, Linear and GitHub account has kept, and when it was read. */
+  connectorDataStatus(): Promise<ConnectorDataStatus[]>;
   /** NT-27: whether "Draft email" works now, and why not when it does not. */
   emailDraftState(): Promise<EmailDraftState>;
   /** NT-27: the words and the people for a draft, from a task or a meeting's summary. Creates nothing. */

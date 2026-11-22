@@ -14,6 +14,9 @@ import { CALENDAR_CONNECTORS, createCalendarSync, SYNC_TICK_MS } from "./calenda
 import { googleCalendarProvider } from "./google-calendar";
 import { outlookCalendarProvider } from "./outlook-calendar";
 
+const { gmail, slack, notion, linear, github } = DEFAULT_CONNECTOR_SETTINGS;
+const DEFAULT_CONNECTOR_SETTINGS_EXTRAS = { gmail, slack, notion, linear, github };
+
 const MIN = 60_000;
 const NOW = Date.UTC(2026, 10, 21, 9, 0);
 
@@ -314,7 +317,7 @@ describe("calendar sync (CN-02, CN-03)", () => {
       settings: {
         cacheTtlMinutes: 15,
         choices: { googleCalendar: { syncIntervalMinutes: 60, readOnly: true } },
-        gmail: { briefContext: false, draftEnabled: false, maxThreadsPerBrief: 5 },
+        ...DEFAULT_CONNECTOR_SETTINGS_EXTRAS,
       },
     });
     t.addAccount("x1", "gmail", "me@example.com", "t", "r");

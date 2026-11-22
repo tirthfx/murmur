@@ -57,6 +57,7 @@ import {
   DEFAULT_PLAN_STATE,
   DEFAULT_DEVELOPER,
   CONNECTOR_CATALOGUE,
+  DATA_CONNECTOR_IDS,
   type CalendarEvent,
   MCP_STATUS_OFF,
   DEFAULT_CONNECTOR_SETTINGS,
@@ -177,6 +178,11 @@ import { connectOptionsFor } from "./connectors/connect-options";
 import { createAutomationsStore } from "./connectors/gmail/automations-store";
 import { createEmailDraftService } from "./connectors/gmail/email-draft";
 import { gmailProvider } from "./connectors/gmail/gmail";
+import { createConnectorData } from "./connectors/data/connector-data";
+import { githubProvider } from "./connectors/github/github";
+import { linearProvider } from "./connectors/linear/linear";
+import { notionProvider } from "./connectors/notion/notion";
+import { slackProvider } from "./connectors/slack/slack";
 import { createCalendarSync } from "./connectors/calendar/calendar-sync";
 import { googleCalendarProvider } from "./connectors/calendar/google-calendar";
 import { outlookCalendarProvider } from "./connectors/calendar/outlook-calendar";
@@ -1771,6 +1777,10 @@ const connectorRegistry = createConnectorRegistry([
   googleCalendarProvider,
   outlookCalendarProvider,
   gmailProvider,
+  slackProvider,
+  notionProvider,
+  linearProvider,
+  githubProvider,
 ]);
 const connectorService = connectorStore
   ? createConnectorService({
@@ -1815,6 +1825,18 @@ const calendarSync =
       })
     : null;
 calendarSync?.start();
+// CN-05 to CN-08: what Slack, Notion, Linear and GitHub said, kept for briefs and Ask.
+const connectorData =
+  connectorService && connectorStore
+    ? createConnectorData({
+        connectors: connectorService,
+        connectorStore,
+        settings: () => settingsStore.get().connectors,
+        now: Date.now,
+        logger: createConsoleLogger("[connector-data]"),
+      })
+    : null;
+connectorData?.start();
 /** A folder call's result: the folders as they are now, or why it did not work. */
 function folderResult(
   outcome: { ok: true; id: string } | { ok: false; message: string } | undefined,
@@ -3367,7 +3389,11 @@ function registerIpc(): void {
           connectorRegistry.get(id)?.scopes,
         ),
       );
-      if (outcome.ok) void calendarSync?.syncAccount(outcome.account.id);
+      if (outcome.ok) {
+        if ((DATA_CONNECTOR_IDS as readonly string[]).includes(outcome.account.connector))
+          void connectorData?.refresh(outcome.account.id);
+        else void calendarSync?.syncAccount(outcome.account.id);
+      }
       return outcome.ok
         ? { ok: true, message: `Connected ${outcome.account.email}.` }
         : { ok: false, message: outcome.message };
@@ -3392,7 +3418,21 @@ function registerIpc(): void {
       }
     },
     connectorSetEnabled: (accountId, enabled) => connectorService?.setEnabled(accountId, enabled),
+    connectorOptions: async (accountId) =>
+      connectorData?.options(accountId) ?? { ok: false, message: "Connectors are not available." },
+    connectorDataStatus: () => connectorData?.status() ?? [],
     connectorSync: async (accountId) => {
+      // A Slack, Notion, Linear or GitHub account is read by the connector data; a calendar by the calendar sync.
+      const account = connectorService?.list().find((entry) => entry.id === accountId);
+      if (account && (DATA_CONNECTOR_IDS as readonly string[]).includes(account.connector)) {
+        const read = (await connectorData?.refresh(accountId)) ?? {
+          ok: false as const,
+          message: "Connectors are not available.",
+        };
+        return read.ok
+          ? { ok: true, message: `Read ${read.count} ${read.count === 1 ? "item" : "items"}.` }
+          : read;
+      }
       const result = await (calendarSync?.syncAccount(accountId) ??
         Promise.resolve({ ok: false as const, message: "Calendars are not available." }));
       return result.ok
