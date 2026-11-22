@@ -34,6 +34,8 @@ export interface AccountsConfig {
   now(): number;
   /** Writes an entry to the audit log (TM-12). Optional so the accounts can be tested alone. */
   audit?(input: AuditInput): void;
+  /** Whether a password may be used to sign this person in (single sign-on can require otherwise). */
+  passwordAllowed?(userId: string): boolean;
 }
 
 /** TM-01: five wrong passwords in a row, then the next attempt waits 30 seconds. */
@@ -64,6 +66,12 @@ const view = (row: UserRow): UserView => ({
 const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
 const fail = (code: string, message: string) => ({ ok: false as const, code, message });
 
+/** Where an account came from, when it was not made by hand. */
+export interface AccountOrigin {
+  externalId?: string;
+  provisionedBy?: "scim" | "sso";
+}
+
 export interface NewAccount {
   name: string;
   email: string;
@@ -85,7 +93,11 @@ export function createAccounts(db: DatabaseSync, config: AccountsConfig) {
     return { ok: true, email, name };
   }
 
-  function insertUser(input: NewAccount, owner: boolean): AccountResult<{ user: UserView }> {
+  function insertUser(
+    input: NewAccount,
+    owner: boolean,
+    extra: AccountOrigin = {},
+  ): AccountResult<{ user: UserView }> {
     const checked = checkNew(input);
     if (!checked.ok) return checked;
     if (userByEmail.get(checked.email))
@@ -94,9 +106,20 @@ export function createAccounts(db: DatabaseSync, config: AccountsConfig) {
     const now = config.now();
     const hash = hashPassword(input.password);
     db.prepare(
-      `INSERT INTO users (id, email, name, password_hash, is_owner, created_at, password_changed_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    ).run(id, checked.email, checked.name, hash, owner ? 1 : 0, now, now);
+      `INSERT INTO users (id, email, name, password_hash, is_owner, created_at, password_changed_at,
+                          external_id, provisioned_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      id,
+      checked.email,
+      checked.name,
+      hash,
+      owner ? 1 : 0,
+      now,
+      now,
+      extra.externalId ?? null,
+      extra.provisionedBy ?? "",
+    );
     db.prepare(
       "INSERT INTO password_history (user_id, password_hash, created_at) VALUES (?, ?, ?)",
     ).run(id, hash, now);
@@ -145,8 +168,13 @@ export function createAccounts(db: DatabaseSync, config: AccountsConfig) {
     },
 
     /** A further local account, made by someone allowed to (the caller checks that). */
-    createAccount(input: NewAccount, actorId: string | null = null, clientId = "") {
-      const made = insertUser(input, false);
+    createAccount(
+      input: NewAccount,
+      actorId: string | null = null,
+      clientId = "",
+      origin: AccountOrigin = {},
+    ) {
+      const made = insertUser(input, false, origin);
       if (made.ok)
         config.audit?.({
           actorId,
@@ -202,6 +230,17 @@ export function createAccounts(db: DatabaseSync, config: AccountsConfig) {
       }
       if (row.status !== "active")
         return fail("deactivated", "This account has been turned off. Ask the owner.");
+      if (config.passwordAllowed && !config.passwordAllowed(row.id)) {
+        config.audit?.({
+          actorId: row.id,
+          action: "auth.password_refused",
+          targetType: "user",
+          targetId: row.id,
+          detail: { reason: "sso_required" },
+          clientId,
+        });
+        return fail("sso_required", "Your organization requires single sign-on for this account.");
+      }
       db.prepare("DELETE FROM sign_in_throttle WHERE email = ?").run(email);
       config.audit?.({
         actorId: row.id,
@@ -274,6 +313,41 @@ export function createAccounts(db: DatabaseSync, config: AccountsConfig) {
         targetType: "user",
         targetId: userId,
       });
+      return { ok: true };
+    },
+
+    findByEmail(email: string): UserView | null {
+      const row = userByEmail.get(email.trim().toLowerCase()) as unknown as UserRow | undefined;
+      return row ? view(row) : null;
+    },
+
+    findById(id: string): UserView | null {
+      const row = userById.get(id) as unknown as UserRow | undefined;
+      return row ? view(row) : null;
+    },
+
+    /** Turns an account off or back on. Turning it off ends every session; nothing is deleted. */
+    setStatus(userId: string, status: "active" | "deactivated"): void {
+      db.prepare("UPDATE users SET status = ? WHERE id = ?").run(status, userId);
+      if (status === "deactivated")
+        db.prepare(
+          "UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL",
+        ).run(config.now(), userId);
+    },
+
+    /** Renames an account and changes its email (SCIM does both). */
+    updateProfile(userId: string, patch: { name?: string; email?: string }): AccountResult<object> {
+      const row = userById.get(userId) as unknown as UserRow | undefined;
+      if (!row) return fail("not_found", "There is no such account.");
+      const name = (patch.name ?? row.name).trim();
+      const email = (patch.email ?? row.email).trim().toLowerCase();
+      if (name === "" || name.length > 100) return fail("invalid_name", "Write a name.");
+      if (!EMAIL.test(email) || email.length > 200)
+        return fail("invalid_email", "Write a real email address.");
+      const clash = userByEmail.get(email) as unknown as UserRow | undefined;
+      if (clash && clash.id !== userId)
+        return fail("email_taken", "That email already has an account.");
+      db.prepare("UPDATE users SET name = ?, email = ? WHERE id = ?").run(name, email, userId);
       return { ok: true };
     },
 

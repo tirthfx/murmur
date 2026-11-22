@@ -1,7 +1,9 @@
 import type { Accounts } from "../accounts.ts";
 import type { Audit } from "../audit.ts";
+import type { Identity } from "../identity.ts";
 import type { Invites } from "../invites.ts";
 import type { Policy } from "../policy.ts";
+import type { Scim } from "../scim.ts";
 import type { Settings } from "../settings.ts";
 import type { Siem } from "../siem.ts";
 import type { TeamSettings, UsageSettingsStore } from "../team-settings.ts";
@@ -24,6 +26,8 @@ export interface RouteDeps {
   vocabulary: Vocabulary;
   policy: Policy;
   usage: Usage;
+  identity: Identity;
+  scim: Scim;
   usageSettings: UsageSettingsStore;
   /** Whether the SIEM queue is sent as entries are written. */
   autoFlush: boolean;

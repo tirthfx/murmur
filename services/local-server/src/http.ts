@@ -50,10 +50,11 @@ export const reply = (status: number, body?: unknown): Reply =>
   body === undefined ? { status } : { status, body };
 
 /**
- * `public` needs no sign-in; `optional` uses one when it is there; `signed_in` needs one; an
- * action is checked against the permission matrix before the handler runs.
+ * `public` needs no sign-in; `optional` uses one when it is there; `signed_in` needs one; `scim`
+ * needs a team's SCIM token instead of a session; an action is checked against the permission
+ * matrix before the handler runs.
  */
-export type Access = "public" | "optional" | "signed_in" | { action: ActionName };
+export type Access = "public" | "optional" | "signed_in" | "scim" | { action: ActionName };
 
 export interface Ctx {
   req: IncomingMessage;
@@ -61,6 +62,8 @@ export interface Ctx {
   params: Record<string, string>;
   user: UserView | null;
   token: string | null;
+  /** The team a SCIM token belongs to (`scim` routes only). */
+  scimTeamId: string | null;
   /** The `Host` header, for building links. */
   host: string;
   /** The JSON object in the request body. */
@@ -105,7 +108,7 @@ export function send(res: ServerResponse, out: Reply): void {
 }
 
 export async function readJson(req: IncomingMessage): Promise<Json> {
-  if (!/^application\/json\b/i.test(req.headers["content-type"] ?? ""))
+  if (!/^application\/(scim\+)?json\b/i.test(req.headers["content-type"] ?? ""))
     throw new HttpError(415, "json_required", "Send the request as application/json.");
   const chunks: Buffer[] = [];
   let size = 0;

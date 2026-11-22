@@ -221,6 +221,50 @@ cannot be stored by mistake.
 | `GET`, `PUT …/usage/settings`, `PUT …/leaderboard/settings` | admin                           |
 | `GET …/leaderboard`, `PUT …/leaderboard/me`                 | any role                        |
 
+## Single sign-on, SCIM and domains (TM-18 to TM-20): simulations
+
+Everything here is a **simulation**. It is built to the shape of SAML single sign-on, SCIM 2.0 and
+DNS domain verification so the rules and the screens can be tried, and none of it has been checked
+against a real identity provider. Every response about it carries
+`simulation: { label: "Simulation", notice: … }`, and the admin console must show it on every
+screen. A real provider needs a public HTTPS address, a registered app and its metadata, which a
+local build does not have (that is a gate for M8).
+
+- **SSO setup** (`PUT …/identity/sso`, admins): the provider's metadata XML, `enabled`, `jitCreate`
+  (make an account and a membership at first sign-in) and `enforce` (members cannot use a password;
+  the server owner always can). The metadata is checked for **structure only**: an
+  `EntityDescriptor` with an entity id, an `IDPSSODescriptor`, a sign-on address and a signing
+  certificate that can be read and has not expired. Metadata with no signing certificate is refused
+  with that reason. A DOCTYPE is refused. **Test connection** (`POST …/identity/sso/test`) reports
+  those checks and says the real provider was not checked. The response also shows the service
+  provider's entity id (`urn:murmur:team:<id>`) and the ACS address (`/v1/sso/acs`).
+- **The test identity provider** exists only when the server starts with `MURMUR_DEV_IDP=1`. It
+  signs "SAML-like" assertions (JSON, not XML) with a key made at start. The flow:
+  `POST …/identity/sso/start` (a sign-in request, valid 10 minutes, one use) →
+  `POST /dev-idp/authorize` (`requestId`, `email`, `name`: the provider's login) →
+  `POST /v1/sso/acs` (`samlResponse`) which checks the signature, the issuer against the team's
+  metadata, the audience, the time and that the request is unused, then returns a session.
+  `GET /dev-idp/metadata` is its metadata, in the shape of a real provider's.
+- **Enforced SSO** makes `POST /v1/sessions` answer 403 `sso_required` for anyone in a team that
+  requires it, except the server owner.
+- **SCIM** (`PUT …/identity/scim`, admins): turning it on makes a token, shown once and kept hashed;
+  `POST …/identity/scim/token` makes a new one. `/scim/v2` has `Users` and `Groups` (create, read,
+  list, replace, patch, delete) for the team the token belongs to, with `userName eq` and
+  `externalId eq` filters. A deactivated user cannot sign in and their sessions end; nothing is
+  deleted, and `DELETE` only turns them off. The owner cannot be changed through SCIM. A wrong token
+  is 401 in the SCIM error format and changes nothing. A **group map** sends a group's members to a
+  department or a role (and takes them back out when they leave the group); a team's owner is never
+  moved. The provider in this repository is `src/scim-test-client.ts`:
+  `npm run scim:test --workspace @murmur/local-server -- <server url> <scim token>`.
+- **Domains** (`…/identity/domains`, admins): add a domain, put the `TXT` record shown in DNS
+  (`_murmur-challenge.<domain>` = `murmur-verify=<token>`) and verify. The record is looked at no
+  more than once in 10 minutes, and a second team cannot verify a domain the first has. The lookup
+  can be replaced with a JSON file of fake records (`MURMUR_DNS_RECORDS`). A verified domain can:
+  let a person with that address ask to join without an invite (`POST …/domain-join`, an admin still
+  approves), limit invite sign-ups and single sign-on to its addresses (`restrictSignup`), and offer
+  a personal account the chance to join (`capture`): `GET /v1/me/capture-offers`, then
+  `POST …/capture/accept` or `…/decline`. Nothing moves an account by itself.
+
 ## Audit log (TM-12)
 
 Every sign-in, failed sign-in (the first miss and each lock, not every miss), new account, password

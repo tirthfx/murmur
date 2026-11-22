@@ -1,4 +1,4 @@
-import { createLocalServer, type LocalServer } from "./server.ts";
+import { createLocalServer, type LocalServer, type ServerConfig } from "./server.ts";
 
 // Test responses are read loosely on purpose.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -21,13 +21,16 @@ export interface Harness {
 }
 
 /** A server on a free port with the owner set up, and a way to call it. */
-export async function startHarness(): Promise<Harness & { owner: { id: string; token: string } }> {
+export async function startHarness(
+  options: Partial<ServerConfig> = {},
+): Promise<Harness & { owner: { id: string; token: string } }> {
   const clock = { now: 1_000_000_000_000 };
   const server = createLocalServer({
     dbPath: ":memory:",
     port: 0,
     now: () => clock.now,
     siemAutoFlush: false,
+    ...options,
   });
   const { host, port } = await server.listen();
   const base = `http://${host}:${port}`;

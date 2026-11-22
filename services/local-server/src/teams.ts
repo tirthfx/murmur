@@ -252,6 +252,44 @@ export function createTeams(deps: TeamsDeps) {
       });
     },
 
+    /**
+     * Sets a member's role or department on behalf of a mapped SCIM group. No person is acting,
+     * so the rank rules do not apply; the owner of a team is never touched.
+     */
+    applyMapping(
+      teamId: string,
+      userId: string,
+      change: { role?: Exclude<Role, "owner">; departmentId?: string | null },
+      via: string,
+    ): void {
+      const current = memberRow(teamId, userId);
+      if (!current || current.role === "owner") return;
+      if (change.role !== undefined && change.role !== current.role) {
+        db.prepare("UPDATE team_members SET role = ? WHERE team_id = ? AND user_id = ?").run(
+          change.role,
+          teamId,
+          userId,
+        );
+        log(null, {
+          action: "member.role_changed",
+          targetType: "team_member",
+          targetId: `${teamId}:${userId}`,
+          detail: { from: current.role, to: change.role, via },
+        });
+      }
+      if (change.departmentId !== undefined && change.departmentId !== current.department_id) {
+        db.prepare(
+          "UPDATE team_members SET department_id = ? WHERE team_id = ? AND user_id = ?",
+        ).run(change.departmentId, teamId, userId);
+        log(null, {
+          action: "member.department_changed",
+          targetType: "team_member",
+          targetId: `${teamId}:${userId}`,
+          detail: { from: current.department_id, to: change.departmentId, via },
+        });
+      }
+    },
+
     change(
       actor: Actor,
       teamId: string,

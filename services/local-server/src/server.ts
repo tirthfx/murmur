@@ -7,8 +7,12 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
+import { readFileSync } from "node:fs";
+import { resolveTxt as dnsResolveTxt } from "node:dns/promises";
+import { randomUUID } from "node:crypto";
 import { createAccounts, type Accounts, type UserView } from "./accounts.ts";
 import { createAudit, type Audit } from "./audit.ts";
+import { createDevIdp } from "./dev-idp.ts";
 import { openDatabase } from "./database.ts";
 import {
   HttpError,
@@ -20,16 +24,20 @@ import {
   type Route,
   type RouteInfo,
 } from "./http.ts";
+import { createIdentity, type Identity, type TxtResolver } from "./identity.ts";
 import { createInvites, type Invites } from "./invites.ts";
 import { ACTIONS, allows } from "./permissions.ts";
 import { createPolicy, type Policy } from "./policy.ts";
 import { auditRoutes } from "./routes/audit.ts";
+import { identityRoutes } from "./routes/identity.ts";
+import { scimRoutes } from "./routes/scim.ts";
 import { authRoutes } from "./routes/auth.ts";
 import type { RouteDeps } from "./routes/context.ts";
 import { policyRoutes } from "./routes/policy.ts";
 import { teamRoutes } from "./routes/teams.ts";
 import { usageRoutes } from "./routes/usage.ts";
 import { vocabularyRoutes } from "./routes/vocabulary.ts";
+import { createScim, ScimError, SCHEMAS as SCIM_SCHEMAS, type Scim } from "./scim.ts";
 import { createSettings } from "./settings.ts";
 import { createSiem, type Siem } from "./siem.ts";
 import { createTeamSettings, createUsageSettings } from "./team-settings.ts";
@@ -58,6 +66,12 @@ export interface ServerConfig {
   siemAutoFlush?: boolean;
   /** Receives a webhook line; for tests. */
   siemPost?: (url: string, line: string) => Promise<number>;
+  /** Starts the simulated identity provider (also `MURMUR_DEV_IDP=1` in `main.ts`). */
+  devIdp?: boolean;
+  /** A JSON file of fake DNS TXT records, `{ "name": ["value"] }`, used instead of real DNS. */
+  dnsRecordsFile?: string;
+  /** Looks up TXT records; for tests. */
+  resolveTxt?: TxtResolver;
 }
 
 export interface LocalServer {
@@ -71,6 +85,8 @@ export interface LocalServer {
   vocabulary: Vocabulary;
   policy: Policy;
   usage: Usage;
+  identity: Identity;
+  scim: Scim;
   /** Every route and who may call it: the permission matrix tests walk this. */
   routes: readonly RouteInfo[];
   db: DatabaseSync;
@@ -104,13 +120,59 @@ export function createLocalServer(config: ServerConfig): LocalServer {
     },
   });
   const record = (input: Parameters<Audit["record"]>[0]) => audit.record(input);
+  // Single sign-on can require that a password is not used; the identity part is made after the
+  // accounts it needs, so the hook looks it up when it is called.
+  let identityRef: Identity | null = null;
   const accounts = createAccounts(db, {
     sessionDays: config.sessionDays ?? 30,
     now,
     audit: record,
+    passwordAllowed: (userId) => identityRef?.passwordAllowed(userId) ?? true,
   });
   const teams = createTeams({ db, now, audit: record });
-  const invites = createInvites({ db, now, audit: record, settings, teams, accounts });
+  const resolveTxt: TxtResolver =
+    config.resolveTxt ??
+    (config.dnsRecordsFile
+      ? async (name) => {
+          // A file of fake records, for trying domain verification without real DNS.
+          const records = JSON.parse(readFileSync(config.dnsRecordsFile!, "utf8")) as Record<
+            string,
+            string[]
+          >;
+          return (records[name] ?? []).map((value) => [value]);
+        }
+      : async (name) => {
+          try {
+            return await dnsResolveTxt(name);
+          } catch (error) {
+            if (
+              (error as { code?: string }).code === "ENOTFOUND" ||
+              (error as { code?: string }).code === "ENODATA"
+            )
+              return [];
+            throw error;
+          }
+        });
+  const identity = createIdentity({
+    db,
+    now,
+    audit: record,
+    teams,
+    accounts,
+    devIdp: config.devIdp ? createDevIdp(now, randomUUID) : null,
+    resolveTxt,
+  });
+  identityRef = identity;
+  const scim = createScim({ db, now, audit: record, accounts, teams, identity });
+  const invites = createInvites({
+    db,
+    now,
+    audit: record,
+    settings,
+    teams,
+    accounts,
+    signupAllowed: (teamId, email) => identity.signupAllowed(teamId, email),
+  });
   const teamSettings = createTeamSettings(db);
   const vocabulary = createVocabulary({ db, now, audit: record, settings: teamSettings });
   const policy = createPolicy({ db, now, audit: record, teams });
@@ -131,6 +193,8 @@ export function createLocalServer(config: ServerConfig): LocalServer {
     policy,
     usage,
     usageSettings,
+    identity,
+    scim,
     autoFlush,
   };
   const routes: Route[] = [
@@ -140,6 +204,8 @@ export function createLocalServer(config: ServerConfig): LocalServer {
     ...vocabularyRoutes(deps),
     ...policyRoutes(deps),
     ...usageRoutes(deps),
+    ...identityRoutes(deps),
+    ...scimRoutes(deps),
   ];
 
   function bearer(req: IncomingMessage): string | null {
@@ -149,7 +215,7 @@ export function createLocalServer(config: ServerConfig): LocalServer {
 
   /** The matrix check for a route that names an action. */
   function authorize(access: Access, user: UserView | null, params: Record<string, string>): void {
-    if (access === "public" || access === "optional") return;
+    if (access === "public" || access === "optional" || access === "scim") return;
     if (!user) throw new HttpError(401, "unauthorized", "Sign in first.");
     if (access === "signed_in") return;
     const rule = ACTIONS[access.action];
@@ -185,12 +251,19 @@ export function createLocalServer(config: ServerConfig): LocalServer {
     const token = bearer(req);
     const user = token ? accounts.authenticate(token) : null;
     authorize(found.route.access, user, found.params);
+    let scimTeamId: string | null = null;
+    if (found.route.access === "scim") {
+      // A provider uses the team's SCIM token, not a session. A wrong token changes nothing.
+      scimTeamId = token ? identity.scimTeamFor(token) : null;
+      if (!scimTeamId) throw new HttpError(401, "unauthorized", "The SCIM token is not valid.");
+    }
     const ctx: Ctx = {
       req,
       url,
       params: found.params,
       user,
       token,
+      scimTeamId,
       host: req.headers.host ?? "127.0.0.1",
       json: () => readJson(req),
     };
@@ -199,6 +272,29 @@ export function createLocalServer(config: ServerConfig): LocalServer {
 
   const http = createHttpServer((req, res) => {
     dispatch(req, res).catch((error: unknown) => {
+      const isScim = (req.url ?? "").startsWith("/scim/");
+      const scimBody = (status: number, detail: string, scimType?: string) => ({
+        schemas: [SCIM_SCHEMAS.error],
+        status: String(status),
+        ...(scimType ? { scimType } : {}),
+        detail,
+      });
+      if (error instanceof ScimError) {
+        log(`${req.method} ${req.url?.split("?")[0]} ${error.status} scim`);
+        return send(res, {
+          status: error.status,
+          body: scimBody(error.status, error.message, error.scimType),
+          headers: { "content-type": "application/scim+json; charset=utf-8" },
+        });
+      }
+      if (error instanceof HttpError && isScim) {
+        log(`${req.method} ${req.url?.split("?")[0]} ${error.status} ${error.code}`);
+        return send(res, {
+          status: error.status,
+          body: scimBody(error.status, error.message),
+          headers: { "content-type": "application/scim+json; charset=utf-8" },
+        });
+      }
       if (error instanceof HttpError) {
         log(`${req.method} ${req.url?.split("?")[0]} ${error.status} ${error.code}`);
         return send(res, {
@@ -223,6 +319,8 @@ export function createLocalServer(config: ServerConfig): LocalServer {
     vocabulary,
     policy,
     usage,
+    identity,
+    scim,
     routes: routes.map(({ method, path, access }) => ({ method, path, access })),
     db,
     listen: () =>

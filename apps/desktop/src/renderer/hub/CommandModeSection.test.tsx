@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { COMMANDS, type SettingsView } from "@murmur/shared";
 import { SettingsSection } from "./SettingsSection";
@@ -51,23 +50,17 @@ describe("Command Mode section", () => {
   it("saves a new wake phrase, and refuses one too short", async () => {
     const api = mount();
     const input = await screen.findByRole("textbox", { name: "Wake phrase" });
-    await userEvent.clear(input);
-    await userEvent.type(input, "x");
-    await userEvent.click(screen.getByRole("button", { name: "Save the wake phrase" }));
-    // userEvent is slow on a busy CI machine, so wait longer than the default second.
-    expect(
-      (await screen.findAllByText(/Use 2 to 40 letters/, undefined, { timeout: 5000 })).length,
-    ).toBeGreaterThan(0);
+    // Plain events, not userEvent typing: typing one key at a time is slow on a busy CI machine.
+    fireEvent.change(input, { target: { value: "x" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save the wake phrase" }));
+    expect((await screen.findAllByText(/Use 2 to 40 letters/)).length).toBeGreaterThan(0);
     expect(api.updateSettings).not.toHaveBeenCalled();
-    await userEvent.clear(input);
-    await userEvent.type(input, "Okay Notes");
-    await userEvent.click(screen.getByRole("button", { name: "Save the wake phrase" }));
-    await waitFor(
-      () =>
-        expect(api.updateSettings).toHaveBeenCalledWith({
-          commandMode: { wakePhrase: "Okay Notes", wakePhraseEnabled: true },
-        }),
-      { timeout: 5000 },
+    fireEvent.change(input, { target: { value: "Okay Notes" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save the wake phrase" }));
+    await waitFor(() =>
+      expect(api.updateSettings).toHaveBeenCalledWith({
+        commandMode: { wakePhrase: "Okay Notes", wakePhraseEnabled: true },
+      }),
     );
   }, 15_000);
 });

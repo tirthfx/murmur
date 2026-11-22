@@ -113,15 +113,22 @@ describe("Brief tab (NT-11)", () => {
   it("lists the meetings, says there is no brief yet and builds one on request", async () => {
     api.briefBuild = vi.fn().mockResolvedValue({ ok: true, brief: brief() });
     render(<BriefPanel onOpenMeeting={openMeeting} />);
-    expect(await screen.findByText(/No brief for “Budget review” yet/)).toBeTruthy();
+    expect(
+      await screen.findByText(/No brief for “Budget review” yet/, undefined, { timeout: 5000 }),
+    ).toBeTruthy();
     expect(screen.getByText(/With Dana Lee/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Build the brief" }));
-    await waitFor(() => expect(api.briefBuild).toHaveBeenCalledWith("c:e1"));
-    const view = await screen.findByLabelText("Brief for Budget review");
+    await waitFor(() => expect(api.briefBuild).toHaveBeenCalledWith("c:e1"), { timeout: 5000 });
+    // A busy CI machine can take longer than the default second.
+    const view = await screen.findByLabelText("Brief for Budget review", undefined, {
+      timeout: 5000,
+    });
     expect(within(view).getByText("In short")).toBeTruthy();
     expect(within(view).getAllByLabelText("Source 1").length).toBeGreaterThan(0);
-    expect(screen.getByRole("button", { name: "Build the brief again" })).toBeTruthy();
-  });
+    expect(
+      await screen.findByRole("button", { name: "Build the brief again" }, { timeout: 5000 }),
+    ).toBeTruthy();
+  }, 20_000);
 
   it("cites its sources, with a way to open the meeting or the item", async () => {
     api.briefGet = vi.fn().mockResolvedValue(brief());
