@@ -64,6 +64,10 @@ export const POLICY_KEY_SCHEMAS = {
   "features.exportToFile": z.boolean(),
   "features.mcp": z.boolean(),
   "features.skillSharing": z.boolean(),
+  /** Every connector may read and none may write (strict data handling). */
+  "connectors.readOnly": z.boolean(),
+  /** Deleting recorded data needs an admin's approval (the records bundle). */
+  "deletion.requiresApproval": z.boolean(),
   "connectors.disabled": z
     .array(z.string().regex(/^[A-Za-z0-9_-]{2,40}$/))
     .max(POLICY_LIMITS.disabledConnectors),
@@ -109,6 +113,8 @@ export interface EffectivePolicy {
   features: Record<PolicyFeature, boolean>;
   /** Connector ids switched off, on top of `features.connectors`. */
   connectorsDisabled: string[];
+  connectorsReadOnly: boolean;
+  deletionRequiresApproval: boolean;
   retention: { audio: RetentionLimit; transcript: RetentionLimit };
   blockedDomains: string[];
   /** Whom to ask: shown next to a block. */
@@ -124,6 +130,8 @@ export const OPEN_POLICY: EffectivePolicy = {
     boolean
   >,
   connectorsDisabled: [],
+  connectorsReadOnly: false,
+  deletionRequiresApproval: false,
   retention: { audio: { max: null, min: null }, transcript: { max: null, min: null } },
   blockedDomains: [],
   adminContact: "",
@@ -139,6 +147,8 @@ export const effectivePolicySchema = z.strictObject({
     >,
   ),
   connectorsDisabled: z.array(z.string()),
+  connectorsReadOnly: z.boolean(),
+  deletionRequiresApproval: z.boolean(),
   retention: z.strictObject({
     audio: z.strictObject({ max: days, min: days }),
     transcript: z.strictObject({ max: days, min: days }),
@@ -170,6 +180,8 @@ export function mergePolicy(layers: readonly PolicyValues[]): EffectivePolicy {
     for (const name of POLICY_FEATURES) {
       if (layer[`features.${name}`] === false) out.features[name] = false;
     }
+    if (layer["connectors.readOnly"] === true) out.connectorsReadOnly = true;
+    if (layer["deletion.requiresApproval"] === true) out.deletionRequiresApproval = true;
     for (const id of layer["connectors.disabled"] ?? []) {
       if (!out.connectorsDisabled.includes(id)) out.connectorsDisabled.push(id);
     }

@@ -156,6 +156,7 @@ export function createPolicy(deps: PolicyDeps) {
       teamId: string,
       input: { scope: unknown; scopeId?: unknown; set?: unknown; unset?: unknown },
       source: PolicySource = "admin",
+      actorIsOwner = false,
     ): Ok<{ layer: PolicyLayer; changed: number }> | Failure {
       if (!deps.teams.exists(teamId)) return fail(404, "not_found", "There is no such team.");
       const target = checkTarget(teamId, input.scope, input.scopeId);
@@ -180,7 +181,10 @@ export function createPolicy(deps: PolicyDeps) {
           return fail(400, "invalid_policy", "The admin contact is set for the whole team.");
         const checked = checkPolicyValue(name, value);
         if (!checked.ok) return fail(400, "invalid_policy", checked.message);
-        if (JSON.stringify(before.values[name]) !== JSON.stringify(checked.value)) {
+        if (
+          JSON.stringify(before.values[name]) !== JSON.stringify(checked.value) ||
+          (source === "compliance" && before.sources[name] !== "compliance")
+        ) {
           changes.push([name, before.values[name], checked.value]);
           next[name] = checked.value;
         }
@@ -203,6 +207,17 @@ export function createPolicy(deps: PolicyDeps) {
             `The minimum for ${kind} cannot be longer than the maximum.`,
           );
       }
+
+      // A value a compliance bundle set can only be overridden by the owner (and it is logged).
+      const overridden = changes.filter(
+        ([name]) => source === "admin" && before.sources[name] === "compliance",
+      );
+      if (overridden.length > 0 && !actorIsOwner)
+        return fail(
+          403,
+          "compliance_locked",
+          `${overridden[0]![0]} was set by compliance mode. Only the owner can override it.`,
+        );
 
       if (changes.length > 0) {
         const now = deps.now();
@@ -242,6 +257,18 @@ export function createPolicy(deps: PolicyDeps) {
               source,
             },
           });
+          if (overridden.some(([key]) => key === name))
+            deps.audit({
+              actorId,
+              action: "compliance.overridden",
+              targetType: "team",
+              targetId: teamId,
+              detail: {
+                setting: name,
+                from: summarize(name, before.values[name]),
+                to: summarize(name, value),
+              },
+            });
         }
         bump(teamId);
       }

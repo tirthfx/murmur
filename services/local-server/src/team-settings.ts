@@ -246,4 +246,39 @@ export function createUsageSettings(db: DatabaseSync) {
 }
 export type UsageSettingsStore = ReturnType<typeof createUsageSettings>;
 
+// ---- compliance mode (TM-23) ----
+
+export const COMPLIANCE_MODES = ["none", "strict_data", "records"] as const;
+export type ComplianceMode = (typeof COMPLIANCE_MODES)[number];
+
+export interface ComplianceSettings {
+  mode: ComplianceMode;
+  /** Meeting views and exports reported by the apps are written to the audit log. */
+  auditViews: boolean;
+  /** Deletions reported by the apps are written to the audit log. */
+  auditDeletions: boolean;
+}
+
+export const COMPLIANCE_DEFAULTS: ComplianceSettings = {
+  mode: "none",
+  auditViews: false,
+  auditDeletions: false,
+};
+
+const COMPLIANCE_SPEC: Spec<ComplianceSettings> = {
+  mode: {
+    key: "compliance.mode",
+    check: (value) =>
+      (COMPLIANCE_MODES as readonly unknown[]).includes(value)
+        ? null
+        : `The mode is ${COMPLIANCE_MODES.join(", ")}.`,
+  },
+  auditViews: { key: "compliance.auditViews", check: bool("Audit views") },
+  auditDeletions: { key: "compliance.auditDeletions", check: bool("Audit deletions") },
+};
+
+export function createComplianceSettings(db: DatabaseSync) {
+  return settingsGroup(db, COMPLIANCE_SPEC, COMPLIANCE_DEFAULTS);
+}
+
 export type TeamSettings = ReturnType<typeof createTeamSettings>;

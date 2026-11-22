@@ -10,6 +10,8 @@ const server = createLocalServer({
   dbPath: join(dir, "murmur-server.db"),
   port,
   devIdp: process.env["MURMUR_DEV_IDP"] === "1",
+  allowLan: process.env["MURMUR_SERVER_LAN"] === "1",
+  host: process.env["MURMUR_SERVER_LAN"] === "1" ? "0.0.0.0" : "127.0.0.1",
   ...(process.env["MURMUR_DNS_RECORDS"]
     ? { dnsRecordsFile: process.env["MURMUR_DNS_RECORDS"] }
     : {}),

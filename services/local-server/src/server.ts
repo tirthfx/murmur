@@ -8,10 +8,12 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { readFileSync } from "node:fs";
+import { isIP } from "node:net";
 import { resolveTxt as dnsResolveTxt } from "node:dns/promises";
 import { randomUUID } from "node:crypto";
 import { createAccounts, type Accounts, type UserView } from "./accounts.ts";
 import { createAudit, type Audit } from "./audit.ts";
+import { createCompliance, type Compliance } from "./compliance.ts";
 import { createDevIdp } from "./dev-idp.ts";
 import { openDatabase } from "./database.ts";
 import {
@@ -27,8 +29,11 @@ import {
 import { createIdentity, type Identity, type TxtResolver } from "./identity.ts";
 import { createInvites, type Invites } from "./invites.ts";
 import { ACTIONS, allows } from "./permissions.ts";
+import { createNetwork, type Network } from "./network.ts";
 import { createPolicy, type Policy } from "./policy.ts";
 import { auditRoutes } from "./routes/audit.ts";
+import { complianceRoutes } from "./routes/compliance.ts";
+import { networkRoutes } from "./routes/network.ts";
 import { identityRoutes } from "./routes/identity.ts";
 import { scimRoutes } from "./routes/scim.ts";
 import { authRoutes } from "./routes/auth.ts";
@@ -40,7 +45,11 @@ import { vocabularyRoutes } from "./routes/vocabulary.ts";
 import { createScim, ScimError, SCHEMAS as SCIM_SCHEMAS, type Scim } from "./scim.ts";
 import { createSettings } from "./settings.ts";
 import { createSiem, type Siem } from "./siem.ts";
-import { createTeamSettings, createUsageSettings } from "./team-settings.ts";
+import {
+  createComplianceSettings,
+  createTeamSettings,
+  createUsageSettings,
+} from "./team-settings.ts";
 import { createTeams, type Teams } from "./teams.ts";
 import { createUsage, type Usage } from "./usage.ts";
 import { createVocabulary, type Vocabulary } from "./vocabulary.ts";
@@ -66,6 +75,10 @@ export interface ServerConfig {
   siemAutoFlush?: boolean;
   /** Receives a webhook line; for tests. */
   siemPost?: (url: string, line: string) => Promise<number>;
+  /** Listen on the network, not only on this machine; the IP allowlist then decides who may call. */
+  allowLan?: boolean;
+  /** The address a request came from; for tests, where every request is from this machine. */
+  remoteAddress?: (req: IncomingMessage) => string | undefined;
   /** Starts the simulated identity provider (also `MURMUR_DEV_IDP=1` in `main.ts`). */
   devIdp?: boolean;
   /** A JSON file of fake DNS TXT records, `{ "name": ["value"] }`, used instead of real DNS. */
@@ -87,6 +100,8 @@ export interface LocalServer {
   usage: Usage;
   identity: Identity;
   scim: Scim;
+  compliance: Compliance;
+  network: Network;
   /** Every route and who may call it: the permission matrix tests walk this. */
   routes: readonly RouteInfo[];
   db: DatabaseSync;
@@ -95,7 +110,8 @@ export interface LocalServer {
 /** The local server (M7): accounts, the audit log, teams and what they build on. */
 export function createLocalServer(config: ServerConfig): LocalServer {
   const host = config.host ?? "127.0.0.1";
-  if (!LOOPBACK_HOSTS.includes(host))
+  const lan = config.allowLan === true;
+  if (!LOOPBACK_HOSTS.includes(host) && !(lan && ["0.0.0.0", "::"].includes(host)))
     throw new Error("The local server listens on this machine only (127.0.0.1 or ::1).");
   const now = config.now ?? Date.now;
   const db = openDatabase(config.dbPath);
@@ -176,6 +192,12 @@ export function createLocalServer(config: ServerConfig): LocalServer {
   const teamSettings = createTeamSettings(db);
   const vocabulary = createVocabulary({ db, now, audit: record, settings: teamSettings });
   const policy = createPolicy({ db, now, audit: record, teams });
+  const network = createNetwork({ db, settings, now, audit: record });
+  const compliance = createCompliance({
+    settings: createComplianceSettings(db),
+    policy,
+    audit: record,
+  });
   const usageSettings = createUsageSettings(db);
   const usage = createUsage({ db, now, audit: record, settings: usageSettings, teams });
   const log = config.log ?? (() => undefined);
@@ -195,6 +217,8 @@ export function createLocalServer(config: ServerConfig): LocalServer {
     usageSettings,
     identity,
     scim,
+    compliance,
+    network,
     autoFlush,
   };
   const routes: Route[] = [
@@ -206,6 +230,8 @@ export function createLocalServer(config: ServerConfig): LocalServer {
     ...usageRoutes(deps),
     ...identityRoutes(deps),
     ...scimRoutes(deps),
+    ...complianceRoutes(deps),
+    ...networkRoutes(deps),
   ];
 
   function bearer(req: IncomingMessage): string | null {
@@ -227,7 +253,9 @@ export function createLocalServer(config: ServerConfig): LocalServer {
   /** A page in a browser could call a loopback address; these checks keep it from being answered. */
   function guard(req: IncomingMessage): void {
     const hostHeader = (req.headers.host ?? "").replace(/:\d+$/, "").replace(/^\[|\]$/g, "");
-    if (!["127.0.0.1", "localhost", "::1"].includes(hostHeader))
+    // On the network, a request names the server by its address; a page cannot, so only a name
+    // that is not an address is refused (that is what a DNS rebinding attack has to use).
+    if (!["127.0.0.1", "localhost", "::1"].includes(hostHeader) && !(lan && isIP(hostHeader) !== 0))
       throw new HttpError(403, "bad_host", "This server answers requests for this machine only.");
     const origin = req.headers.origin;
     if (origin !== undefined && origin !== `http://${req.headers.host}`)
@@ -235,6 +263,13 @@ export function createLocalServer(config: ServerConfig): LocalServer {
   }
 
   async function dispatch(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    // The socket's own address, before anything else: a refused address learns nothing. Proxy
+    // headers are never read.
+    const remote = config.remoteAddress ? config.remoteAddress(req) : req.socket.remoteAddress;
+    if (!network.allowed(remote)) {
+      network.noteDenied(remote);
+      throw new HttpError(403, "ip_not_allowed", "This address is not allowed to use the server.");
+    }
     guard(req);
     const url = new URL(req.url ?? "/", "http://local");
     let found: { route: Route; params: Record<string, string> } | null = null;
@@ -321,6 +356,8 @@ export function createLocalServer(config: ServerConfig): LocalServer {
     usage,
     identity,
     scim,
+    compliance,
+    network,
     routes: routes.map(({ method, path, access }) => ({ method, path, access })),
     db,
     listen: () =>
