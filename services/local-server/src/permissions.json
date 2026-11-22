@@ -81,6 +81,23 @@
     "policy.manage": {
       "scope": "team",
       "roles": ["owner", "admin"]
+    },
+    "usage.ingest": {
+      "scope": "team",
+      "roles": ["owner", "admin", "manager", "member", "viewer"]
+    },
+    "usage.view": {
+      "scope": "team",
+      "roles": ["owner", "admin", "manager"],
+      "departmentScoped": ["manager"]
+    },
+    "usage.settings": {
+      "scope": "team",
+      "roles": ["owner", "admin"]
+    },
+    "leaderboard.view": {
+      "scope": "team",
+      "roles": ["owner", "admin", "manager", "member", "viewer"]
     }
   }
 }

@@ -36,6 +36,10 @@ const EXPECTED: Record<ActionName, Role[] | "server"> = {
   "vocabulary.settings": ["owner", "admin"],
   "policy.view": ["owner", "admin", "manager", "member", "viewer"],
   "policy.manage": ["owner", "admin"],
+  "usage.ingest": ["owner", "admin", "manager", "member", "viewer"],
+  "usage.view": ["owner", "admin", "manager"],
+  "usage.settings": ["owner", "admin"],
+  "leaderboard.view": ["owner", "admin", "manager", "member", "viewer"],
 };
 
 describe("the permission matrix", () => {
@@ -148,7 +152,15 @@ describe("every endpoint, for every role", () => {
           isServerOwner: who === "server owner",
         });
         const label = `${who} ${route.method} ${route.path}`;
-        if (allowed) expect(result.status, label).not.toBe(403);
+        // A role that holds an action only for its own department gets past the router; the
+        // service may still say no, with its own words rather than the router's.
+        const departmentOnly =
+          ACTIONS[action].departmentScoped?.includes(roleOf(who) as Role) ?? false;
+        if (allowed && departmentOnly && result.status === 403)
+          expect(result.json?.["error"]?.message, label).not.toBe(
+            "You are not allowed to do that.",
+          );
+        else if (allowed) expect(result.status, label).not.toBe(403);
         else expect(result.status, label).toBe(403);
         expect(result.status, label).not.toBe(401);
       }

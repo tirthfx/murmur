@@ -181,6 +181,46 @@ run the same code.
 | `PUT …/policy` (`scope`, `scopeId`, `set`, `unset`) | admin    |
 | `POST …/policy/report`                              | any role |
 
+## Usage dashboards, export and the leaderboard (TM-09, TM-10)
+
+Apps send **counts**, never text. An event is a day (`YYYY-MM-DD`, the app's local day, within the
+last 35 days), a metric, a number and, for dictation, an app group. The server adds it to the
+person's daily rollup and keeps nothing else: a field that is not one of these is ignored, so text
+cannot be stored by mistake.
+
+- **Metrics:** `words`, `dictations`, `meeting_minutes_recorded`, `meeting_minutes_processed`,
+  `meetings_recorded`, `skills_run`, `ask_sessions`.
+- **Batches.** `POST …/usage` with a `batchId` and up to 500 events. Sending the same batch id again
+  is answered with `duplicate: true` and counts nothing. Any role can send.
+- **App groups.** `mail`, `browser`, `chat`, `documents`, `code`, `notes`, `other`; an unknown group
+  is `other`. A real app name is kept only when the team turns **app names** on, and then only for
+  `words` and `dictations`.
+- **Dashboard** (`GET …/usage`, admins and managers): totals, every day of the range, top apps,
+  figures per department, and "time saved" (words divided by the team's typing speed, 40 words a
+  minute by default). Filters: `from`, `to` (at most 400 days), `department`, `member`;
+  `detail=members` adds a row per person. A **Manager** sees only their own department and the people
+  in it; another department is 403.
+- **Export** (`GET …/usage/export?format=csv|json`): exactly the filtered rollup rows, with the
+  member, department and cost center. A cell that a spreadsheet could run as a formula (`=`, `+`,
+  `-`, `@`) gets a quote in front. Each export is an audit entry with the row count.
+- **Moving a person to another department** moves their history with them: the department is read
+  when a report is run.
+- **Leaderboard** (`GET …/leaderboard?metric=words|meetings|streak&period=week|all`): the last seven
+  days or all time. Streak is the days active in the last seven (week) or the longest run (all time).
+  Ties share a rank (1, 1, 3). Everyone sees names and ranks; a count is shown only to the person it
+  belongs to and to admins. A member can opt out (`PUT …/leaderboard/me`): they are in no response
+  and their count is still in the total. Admins turn the board off, choose the metric and choose
+  whether members are listed by default (`PUT …/leaderboard/settings`).
+- **Settings** (`GET`, `PUT …/usage/settings`): `typingWpm` (10 to 150), `retentionDays` (30 to 3650,
+  default 400; older rollups are removed daily), `appNames`.
+
+| Route                                                       | Needs                           |
+| ----------------------------------------------------------- | ------------------------------- |
+| `POST …/usage`                                              | any role                        |
+| `GET …/usage`, `…/usage/export`                             | admin, manager (own department) |
+| `GET`, `PUT …/usage/settings`, `PUT …/leaderboard/settings` | admin                           |
+| `GET …/leaderboard`, `PUT …/leaderboard/me`                 | any role                        |
+
 ## Audit log (TM-12)
 
 Every sign-in, failed sign-in (the first miss and each lock, not every miss), new account, password
