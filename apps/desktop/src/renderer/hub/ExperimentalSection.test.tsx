@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ExperimentalSection, RING_SEARCH_SECONDS } from "./ExperimentalSection";
 import { createMockApi } from "./test-api";
@@ -16,6 +16,8 @@ const off = {
   commandMode: false,
   autoInstruct: false,
   focusMode: false,
+  askConnectorActions: false,
+  slackTagging: false,
 };
 
 afterEach(() => {
@@ -95,5 +97,18 @@ describe("Experimental section", () => {
     expect(screen.getAllByText("Available on Pro").length).toBeGreaterThanOrEqual(2);
     act(() => command.click());
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("turns the Ask connector actions and the Slack tagging options on, each on its own (CN-13, CN-14)", async () => {
+    window.murmur = createMockApi();
+    const onChange = vi.fn();
+    render(<ExperimentalSection experimental={off} onChange={onChange} />);
+    fireEvent.click(
+      await screen.findByRole("switch", { name: "Ask can propose connector actions" }),
+    );
+    expect(onChange).toHaveBeenLastCalledWith({ ...off, askConnectorActions: true });
+    fireEvent.click(screen.getByRole("switch", { name: "Tag people in Slack messages" }));
+    expect(onChange).toHaveBeenLastCalledWith({ ...off, slackTagging: true });
+    expect(screen.getByText(/Nothing is sent or created until you click/)).toBeTruthy();
   });
 });

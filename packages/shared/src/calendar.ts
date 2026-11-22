@@ -96,6 +96,8 @@ export const CREATE_EVENT_LIMITS = {
 export const calendarEventSourceSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("task"), id: z.string().min(1).max(64) }),
   z.strictObject({ kind: z.literal("meeting"), id: z.string().min(1).max(64) }),
+  /** A request typed in Ask (CN-13): the id is the Ask thread's. */
+  z.strictObject({ kind: z.literal("ask"), id: z.string().min(1).max(64) }),
 ]);
 export type CalendarEventSource = z.infer<typeof calendarEventSourceSchema>;
 
@@ -156,7 +158,7 @@ export interface CalendarEventState {
 
 export interface CalendarEventRecord {
   id: string;
-  sourceKind: "task" | "meeting";
+  sourceKind: "task" | "meeting" | "ask";
   sourceId: string;
   title: string;
   startMs: number;

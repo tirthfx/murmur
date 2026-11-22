@@ -9,7 +9,7 @@ import { GMAIL_ID } from "./gmail";
  * model can only propose one.
  */
 
-export const EXTENSION_ACTION_IDS = ["draft_email", "create_event"] as const;
+export const EXTENSION_ACTION_IDS = ["draft_email", "create_event", "post_to_slack"] as const;
 export type ExtensionActionId = (typeof EXTENSION_ACTION_IDS)[number];
 
 export interface ExtensionAction {
@@ -46,6 +46,16 @@ export const EXTENSION_ACTIONS: readonly ExtensionAction[] = [
     surfaces: ["An open task", "A meeting’s summary"],
     requiresConfirm: true,
   },
+  {
+    id: "post_to_slack",
+    name: "Send to Slack",
+    description:
+      "Posts a summary or a task to a channel after you check the exact message and the channel. Tags are added only if you turn that option on, and are listed first.",
+    connectors: ["slack"],
+    permission: "Post messages as you in Slack",
+    surfaces: ["An open task", "A meeting’s summary"],
+    requiresConfirm: true,
+  },
 ];
 
 /** `extensions.settings`: the master switch, and one switch for each action, off until turned on. */
@@ -54,13 +64,14 @@ export const extensionsSettingsSchema = z.strictObject({
   actions: z.strictObject({
     draft_email: z.boolean(),
     create_event: z.boolean(),
+    post_to_slack: z.boolean(),
   }),
 });
 export type ExtensionsSettings = z.infer<typeof extensionsSettingsSchema>;
 
 export const DEFAULT_EXTENSIONS_SETTINGS: ExtensionsSettings = {
   enabled: true,
-  actions: { draft_email: false, create_event: false },
+  actions: { draft_email: false, create_event: false, post_to_slack: false },
 };
 
 /** Whether an action can be used now. */
@@ -109,9 +120,5 @@ export interface ActionProposal {
 }
 
 export const PLANNED_EXTENSIONS: readonly ExtensionPlanned[] = [
-  {
-    name: "Send to Slack",
-    detail: "Posts a summary or a task to a channel after you check the text.",
-  },
   { name: "Create a Linear issue", detail: "Not planned for the first release." },
 ];

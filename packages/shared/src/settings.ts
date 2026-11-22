@@ -135,6 +135,10 @@ export const settingsSchema = z.strictObject({
     autoInstruct: z.boolean(),
     /** Block chosen apps for a while (RW-18 to RW-21). */
     focusMode: z.boolean(),
+    /** Ask can propose a connector action, shown first and run only on a click (CN-13). */
+    askConnectorActions: z.boolean(),
+    /** Turn @mentions into Slack tags in a message sent to Slack, listed first (CN-14). */
+    slackTagging: z.boolean(),
   }),
   /** Whisper mode (DC-12): more gain for very quiet speech. */
   whisperMode: z.boolean(),
@@ -329,6 +333,8 @@ export const DEFAULT_EXPERIMENTAL: Settings["experimental"] = {
   commandMode: false,
   autoInstruct: false,
   focusMode: false,
+  askConnectorActions: false,
+  slackTagging: false,
 };
 
 /** RW-18 defaults. */

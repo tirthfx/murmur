@@ -11,6 +11,7 @@ import { TextInput } from "@astryxdesign/core/TextInput";
 import { VStack } from "@astryxdesign/core/VStack";
 import { CalendarEventCreate } from "./CalendarEventCreate";
 import { EmailDraft } from "./EmailDraft";
+import { SlackPost } from "./SlackPost";
 import {
   TASK_LIMITS,
   TASK_OWNER_FILTERS,
@@ -460,6 +461,7 @@ export function TasksPanel({
                     <>
                       <EmailDraft source={{ kind: "task", id: task.id }} />
                       <CalendarEventCreate source={{ kind: "task", id: task.id }} />
+                      <SlackPost source={{ kind: "task", id: task.id }} />
                     </>
                   ) : null}
                 </VStack>

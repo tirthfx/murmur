@@ -82,3 +82,7 @@ in Settings and its tray menu appear only while it is on. See `focus.md`.
 
 A dictation that starts like a request to write asks on the Bar for 4 seconds whether to use
 Instruct Mode; no answer inserts it as dictated. See `instruct.md`.
+
+## Ask connector actions and Slack tagging (CN-13, CN-14)
+
+Both are off by default (`experimental.askConnectorActions`, `experimental.slackTagging`) and are described in `docs/connectors.md` (Slack posting and tagging, Ask connector actions). With the first off, Ask looks and works as before and the model is never asked about actions; with the second off, @names in a Slack message are sent as plain text and no user list is read for the message.

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AskThread } from "@murmur/shared";
+import type { AskActionProposal, AskThread } from "@murmur/shared";
 import { AskPanel } from "./AskPanel";
 import { createMockApi } from "./test-api";
 
@@ -305,5 +305,151 @@ describe("Ask (NT-14)", () => {
   it("will not send an empty question", async () => {
     render(<AskPanel onOpen={open} />);
     expect(await screen.findByRole("button", { name: "Ask" })).toHaveProperty("disabled", true);
+  });
+});
+
+describe("Ask connector actions (CN-13)", () => {
+  /** The settings of a profile with the experimental option on or off. */
+  const withFlag = async (on: boolean) => {
+    const base = await api.getSettings();
+    api.getSettings = vi.fn().mockResolvedValue({
+      ...base,
+      settings: {
+        ...base.settings,
+        experimental: { ...base.settings.experimental, askConnectorActions: on },
+      },
+    });
+  };
+
+  const draft: AskActionProposal = {
+    action: "draft_email",
+    line: "Draft an email to Priya: Timeline",
+    note: null,
+    form: {
+      candidates: [{ name: "Priya Rao", email: "priya@example.com" }],
+      to: "priya@example.com",
+      subject: "Timeline",
+      body: "Hi Priya, here is the timeline.",
+      accountId: "g1",
+      accountEmail: "me@gmail.test",
+    },
+  };
+
+  it("never asks about actions, and shows nothing about them, while the option is off", async () => {
+    await withFlag(false);
+    api.askSend = vi.fn().mockResolvedValue({ ok: true, thread: answered });
+    render(<AskPanel onOpen={open} />);
+    await ask("Draft a follow-up to Priya about the timeline");
+    await waitFor(() => expect(api.askSend).toHaveBeenCalled());
+    expect(api.askActionPropose).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText("Proposed action")).toBeNull();
+  });
+
+  it("shows a proposal first instead of answering, and creates nothing until the click", async () => {
+    await withFlag(true);
+    api.askActionPropose = vi.fn().mockResolvedValue({ ok: true, proposal: draft });
+    api.emailDraftCreate = vi.fn().mockResolvedValue({
+      ok: true,
+      automationId: "a",
+      draftId: "d",
+      openUrl: "https://mail.google.com/mail/u/me%40gmail.test/#drafts?compose=m",
+    });
+    render(<AskPanel onOpen={open} />);
+    await waitFor(() => expect(api.getSettings).toHaveBeenCalled());
+    await ask("Draft a follow-up to Priya about the timeline");
+    const card = await screen.findByLabelText("Proposed action");
+    expect(within(card).getByText("Draft an email to Priya: Timeline")).toBeTruthy();
+    expect(within(card).getByText(/Nothing has been sent or created/)).toBeTruthy();
+    expect(within(card).getByDisplayValue("Timeline")).toBeTruthy();
+    expect(api.askActionPropose).toHaveBeenCalledWith({
+      question: "Draft a follow-up to Priya about the timeline",
+      meetingId: null,
+    });
+    // No question was sent to the model for an answer, and nothing was created.
+    expect(api.askSend).not.toHaveBeenCalled();
+    expect(api.emailDraftCreate).not.toHaveBeenCalled();
+    fireEvent.click(within(card).getByRole("button", { name: "Create the draft in Gmail" }));
+    await waitFor(() => expect(api.emailDraftCreate).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(api.emailDraftCreate).mock.calls[0]![0]).toMatchObject({
+      source: { kind: "ask" },
+      to: "priya@example.com",
+      subject: "Timeline",
+    });
+    expect(await screen.findByText("The draft is in Gmail’s Drafts folder.")).toBeTruthy();
+    expect(screen.queryByLabelText("Proposed action")).toBeNull();
+  });
+
+  it("goes on to answer a question that is not a request, and creates nothing", async () => {
+    await withFlag(true);
+    api.askActionPropose = vi.fn().mockResolvedValue({ ok: true, proposal: null });
+    api.askSend = vi.fn().mockResolvedValue({ ok: true, thread: answered });
+    render(<AskPanel onOpen={open} />);
+    await waitFor(() => expect(api.getSettings).toHaveBeenCalled());
+    await ask("Did we draft the email to Priya?");
+    await waitFor(() => expect(api.askSend).toHaveBeenCalled());
+    expect(screen.queryByLabelText("Proposed action")).toBeNull();
+    expect(api.emailDraftCreate).not.toHaveBeenCalled();
+  });
+
+  it("can be cancelled without creating anything", async () => {
+    await withFlag(true);
+    api.askActionPropose = vi.fn().mockResolvedValue({ ok: true, proposal: draft });
+    render(<AskPanel onOpen={open} />);
+    await waitFor(() => expect(api.getSettings).toHaveBeenCalled());
+    await ask("Draft a follow-up to Priya");
+    const card = await screen.findByLabelText("Proposed action");
+    fireEvent.click(within(card).getByRole("button", { name: "Do not create a draft" }));
+    expect(screen.queryByLabelText("Proposed action")).toBeNull();
+    expect(api.emailDraftCreate).not.toHaveBeenCalled();
+  });
+
+  it("says when no one was found for the name, so the owner chooses", async () => {
+    await withFlag(true);
+    api.askActionPropose = vi.fn().mockResolvedValue({
+      ok: true,
+      proposal: {
+        ...draft,
+        note: "No one called “Zed” was found. Choose a contact or type an address.",
+      },
+    });
+    render(<AskPanel onOpen={open} />);
+    await waitFor(() => expect(api.getSettings).toHaveBeenCalled());
+    await ask("Draft an email to Zed");
+    expect(await screen.findByText(/No one called “Zed” was found/)).toBeTruthy();
+  });
+
+  it("reads Slack's channels only after the owner goes on, and sends nothing before the preview is confirmed", async () => {
+    await withFlag(true);
+    api.askActionPropose = vi.fn().mockResolvedValue({
+      ok: true,
+      proposal: {
+        action: "post_to_slack",
+        line: "Send a message to Slack",
+        note: null,
+        text: "Budget is ready",
+      },
+    });
+    api.slackPostStart = vi.fn().mockResolvedValue({
+      ok: true,
+      start: {
+        text: "ignored",
+        channels: [{ id: "C1", label: "#general" }],
+        accountEmail: "acme/dana",
+      },
+    });
+    render(<AskPanel onOpen={open} />);
+    await waitFor(() => expect(api.getSettings).toHaveBeenCalled());
+    await ask("Post to Slack that the budget is ready");
+    const card = await screen.findByLabelText("Proposed action");
+    expect(within(card).getByText("Budget is ready")).toBeTruthy();
+    expect(api.slackPostStart).not.toHaveBeenCalled();
+    fireEvent.click(within(card).getByRole("button", { name: "Choose a channel and preview" }));
+    expect(await within(card).findByDisplayValue("Budget is ready")).toBeTruthy();
+    expect(api.slackPostStart).toHaveBeenCalledWith({
+      kind: "ask",
+      id: expect.stringMatching(/^ask-/),
+    });
+    expect(api.slackPostPrepare).not.toHaveBeenCalled();
+    expect(api.slackPostSend).not.toHaveBeenCalled();
   });
 });

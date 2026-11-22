@@ -56,10 +56,15 @@ import {
   DEFAULT_PRIVACY,
   DEFAULT_PLAN_STATE,
   DEFAULT_DEVELOPER,
+  CALENDAR_WRITE_SCOPES,
   CONNECTOR_CATALOGUE,
   DATA_CONNECTOR_IDS,
+  GMAIL_SCOPE_COMPOSE,
+  connectorChoice,
+  hasScope,
   type CalendarEvent,
   type CalendarEventResult,
+  type SlackSendResult,
   type EmailDraftResult,
   MCP_STATUS_OFF,
   DEFAULT_CONNECTOR_SETTINGS,
@@ -182,6 +187,8 @@ import { connectOptionsFor } from "./connectors/connect-options";
 import { createAutomationsStore } from "./connectors/gmail/automations-store";
 import { createEmailDraftService } from "./connectors/gmail/email-draft";
 import { createActionRunner, fromUserClick } from "./extensions/action-runner";
+import { createSlackPost } from "./connectors/slack/slack-post";
+import { createAskActions } from "./connectors/ask-actions";
 import { createGmailThreads } from "./connectors/gmail/gmail-threads";
 import { createBriefBuilder, eventKeyOf as briefEventKey } from "./meetings/brief-builder";
 import { createBriefService } from "./meetings/brief-service";
@@ -803,6 +810,8 @@ const settingsStore = createSettingsStore(database, {
     commandMode: false,
     autoInstruct: false,
     focusMode: false,
+    askConnectorActions: false,
+    slackTagging: false,
   },
 });
 const keys = keyPlatform(process.platform);
@@ -2010,6 +2019,23 @@ const noBriefs = {
   settings: DEFAULT_BRIEF_SETTINGS,
 };
 const noEventCreate = { available: false, reason: "Events need a calendar and the database." };
+// CN-05, CN-14: "Send to Slack": the preview comes first, tags only with the experimental option.
+const slackPost =
+  connectorService && meetingsStore && meetingSummaries && tasksService
+    ? createSlackPost({
+        connectors: connectorService,
+        settings: () => ({
+          connectors: settingsStore.get().connectors,
+          tagging: settingsStore.get().experimental.slackTagging,
+        }),
+        tasks: tasksService,
+        meetings: meetingsStore,
+        summaries: meetingSummaries,
+        now: Date.now,
+        newId: randomUUID,
+      })
+    : null;
+const noSlackPost = { available: false, reason: "Sending to Slack needs Slack and the database." };
 // CN-12: the built-in actions run only through the runner, and only for a click.
 const actionRunner = createActionRunner({
   settings: () => settingsStore.get().extensions,
@@ -2025,9 +2051,58 @@ const actionRunner = createActionRunner({
       run: async (input) =>
         eventCreate?.create(input) ?? { ok: false, message: noEventCreate.reason },
     },
+    post_to_slack: {
+      state: () => slackPost?.state() ?? noSlackPost,
+      run: async (input) => slackPost?.send(input) ?? { ok: false, message: noSlackPost.reason },
+    },
   },
 });
-const draftState = (id: "draft_email" | "create_event") => {
+// CN-13: Ask can propose one of these actions, behind the experimental option; the owner confirms.
+const askActions = createAskActions({
+  enabled: () => settingsStore.get().experimental.askConnectorActions,
+  runner: actionRunner,
+  generate: meetingGenerate,
+  contacts: () => {
+    const seen = new Map<string, { name: string | null; email: string }>();
+    for (const meeting of meetingsStore?.list(200) ?? [])
+      for (const person of meeting.attendees ?? [])
+        if (!seen.has(person.email))
+          seen.set(person.email, { name: person.name, email: person.email });
+    return [...seen.values()];
+  },
+  emailAccount: () => {
+    const account = connectorService
+      ?.list()
+      .find(
+        (entry) =>
+          entry.connector === "gmail" &&
+          entry.status === "connected" &&
+          entry.scopes.includes(GMAIL_SCOPE_COMPOSE),
+      );
+    return account ? { id: account.id, email: account.email } : null;
+  },
+  calendarAccount: () => {
+    const settings = settingsStore.get().connectors;
+    const account = connectorService?.list().find((entry) => {
+      const write = CALENDAR_WRITE_SCOPES[entry.connector];
+      const catalogue = CONNECTOR_CATALOGUE.find((candidate) => candidate.id === entry.connector);
+      return (
+        write !== undefined &&
+        catalogue !== undefined &&
+        entry.status === "connected" &&
+        hasScope(entry.scopes, write) &&
+        !connectorChoice(settings, catalogue).readOnly
+      );
+    });
+    return account ? { id: account.id, email: account.email, connector: account.connector } : null;
+  },
+  eventDefaults: () => {
+    const create = settingsStore.get().notetaker.automations.createEvent;
+    return { durationMinutes: create.defaultDuration, invitesAllowed: create.sendInvites };
+  },
+  now: Date.now,
+});
+const draftState = (id: "draft_email" | "create_event" | "post_to_slack") => {
   const state = actionRunner.stateOf(id);
   return { available: state.state === "ready", reason: state.reason, hidden: state.hidden };
 };
@@ -3578,6 +3653,25 @@ function registerIpc(): void {
       const target = briefTarget;
       briefTarget = null;
       return target;
+    },
+    askActionPropose: async (request) => askActions.propose(request),
+    slackPostState: () => draftState("post_to_slack"),
+    slackPostStart: async (source) => {
+      const state = draftState("post_to_slack");
+      if (!state.available) return { ok: false, message: state.reason ?? noSlackPost.reason };
+      return slackPost?.start(source) ?? { ok: false, message: noSlackPost.reason };
+    },
+    slackPostPrepare: async (input) => {
+      const state = draftState("post_to_slack");
+      if (!state.available) return { ok: false, message: state.reason ?? noSlackPost.reason };
+      return slackPost?.prepare(input) ?? { ok: false, message: noSlackPost.reason };
+    },
+    slackPostSend: async (input) => {
+      // The click on "Send to Slack" is what runs the action.
+      const result = await actionRunner.run("post_to_slack", input, fromUserClick());
+      return result.ok
+        ? (result.result as SlackSendResult)
+        : { ok: false, message: result.message };
     },
     extensionsView: () => actionRunner.view(),
     emailDraftState: () => draftState("draft_email"),

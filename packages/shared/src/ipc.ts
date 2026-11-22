@@ -29,7 +29,20 @@ import {
 import type { ConnectorActionResult, ConnectorsView } from "./connectors";
 import type { ConnectorDataStatus, ConnectorOptionsResult } from "./connector-data";
 import type { RecordingsResult } from "./connector-import";
+import type { AskActionResult } from "./ask-actions";
+import { askActionRequestSchema, type AskActionRequest } from "./ask-actions";
 import type { ExtensionsView } from "./extensions";
+import {
+  slackPostSourceSchema,
+  slackPrepareInputSchema,
+  slackSendInputSchema,
+  type SlackPostSource,
+  type SlackPrepareInput,
+  type SlackPrepareResult,
+  type SlackSendInput,
+  type SlackSendResult,
+  type SlackStartResult,
+} from "./slack-post";
 import type { BriefOverview, BriefResult, MeetingBrief } from "./brief";
 import {
   calendarEventInputSchema,
@@ -489,6 +502,11 @@ export const IPC_CHANNELS = {
   connectorImportPrepare: "connectors:import-prepare",
   connectorDataStatus: "connectors:data-status",
   extensionsView: "extensions:view",
+  askActionPropose: "ask:action-propose",
+  slackPostState: "slack-post:state",
+  slackPostStart: "slack-post:start",
+  slackPostPrepare: "slack-post:prepare",
+  slackPostSend: "slack-post:send",
   briefOverview: "brief:overview",
   briefGet: "brief:get",
   briefBuild: "brief:build",
@@ -1099,6 +1117,23 @@ export const IPC_CONTRACT = {
     args: z.tuple([]),
     result: z.custom<ConnectorDataStatus[]>(),
   },
+  [IPC_CHANNELS.askActionPropose]: {
+    args: z.tuple([askActionRequestSchema]),
+    result: z.custom<AskActionResult>(),
+  },
+  [IPC_CHANNELS.slackPostState]: { args: z.tuple([]), result: z.custom<EmailDraftState>() },
+  [IPC_CHANNELS.slackPostStart]: {
+    args: z.tuple([slackPostSourceSchema]),
+    result: z.custom<SlackStartResult>(),
+  },
+  [IPC_CHANNELS.slackPostPrepare]: {
+    args: z.tuple([slackPrepareInputSchema]),
+    result: z.custom<SlackPrepareResult>(),
+  },
+  [IPC_CHANNELS.slackPostSend]: {
+    args: z.tuple([slackSendInputSchema]),
+    result: z.custom<SlackSendResult>(),
+  },
   [IPC_CHANNELS.extensionsView]: { args: z.tuple([]), result: z.custom<ExtensionsView>() },
   [IPC_CHANNELS.briefOverview]: { args: z.tuple([]), result: z.custom<BriefOverview>() },
   [IPC_CHANNELS.briefGet]: {
@@ -1575,6 +1610,16 @@ export interface MurmurApi {
   connectorOptions(accountId: string): Promise<ConnectorOptionsResult>;
   /** CN-05 to CN-08: how many items each Slack, Notion, Linear and GitHub account has kept, and when it was read. */
   connectorDataStatus(): Promise<ConnectorDataStatus[]>;
+  /** CN-13: a connector action proposed from a request typed in Ask, or none. Behind the experimental option; sends and creates nothing. */
+  askActionPropose(request: AskActionRequest): Promise<AskActionResult>;
+  /** CN-05: whether "Send to Slack" works now, and why not. */
+  slackPostState(): Promise<EmailDraftState>;
+  /** CN-05: a starting message for a task or a summary and the channels to send to. Sends nothing. */
+  slackPostStart(source: SlackPostSource): Promise<SlackStartResult>;
+  /** CN-05, CN-14: the preview of a message: the exact text, the channel and every tag. Sends nothing. */
+  slackPostPrepare(input: SlackPrepareInput): Promise<SlackPrepareResult>;
+  /** CN-05: posts the message of a preview. This is the click that confirms it. */
+  slackPostSend(input: SlackSendInput): Promise<SlackSendResult>;
   /** CN-12: the built-in actions connected apps can do, with their state. They are switched in settings. */
   extensionsView(): Promise<ExtensionsView>;
   /** NT-11: the meetings that are coming, whether each has a brief, and each source's state. */

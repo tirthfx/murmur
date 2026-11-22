@@ -343,3 +343,5 @@ A brief is built on this Mac before a calendar meeting. It needs nothing but the
 - **Manual check:** with a calendar connected and a meeting inside the next 30 minutes, wait for the brief (or press "Build the brief") and check it names the people and cites its sources; connect Slack or Linear, turn the source on in Settings, build again and check the new items and the counts; turn it off and build again and check they are gone.
 
 Meetings from Zoom and Fireflies use the same importer and the same preview (`docs/connectors.md`, Zoom and Fireflies import): the meeting keeps the service's id, so the same recording is never imported twice, and a Fireflies summary is kept as a separate, labelled summary that the automatic local summary does not replace.
+
+With the experimental option "Ask can propose connector actions" on, Ask can turn a request such as "draft a follow-up to Priya about the timeline" into a proposed email, event or Slack message that is shown first and confirmed with a click (`docs/connectors.md`, Ask connector actions).

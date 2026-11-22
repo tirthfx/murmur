@@ -193,6 +193,11 @@ const api: MurmurApi = {
   connectorImportPrepare: (accountId, remoteId) =>
     ipcRenderer.invoke(IPC_CHANNELS.connectorImportPrepare, accountId, remoteId),
   connectorDataStatus: () => ipcRenderer.invoke(IPC_CHANNELS.connectorDataStatus),
+  askActionPropose: (request) => ipcRenderer.invoke(IPC_CHANNELS.askActionPropose, request),
+  slackPostState: () => ipcRenderer.invoke(IPC_CHANNELS.slackPostState),
+  slackPostStart: (source) => ipcRenderer.invoke(IPC_CHANNELS.slackPostStart, source),
+  slackPostPrepare: (input) => ipcRenderer.invoke(IPC_CHANNELS.slackPostPrepare, input),
+  slackPostSend: (input) => ipcRenderer.invoke(IPC_CHANNELS.slackPostSend, input),
   extensionsView: () => ipcRenderer.invoke(IPC_CHANNELS.extensionsView),
   briefOverview: () => ipcRenderer.invoke(IPC_CHANNELS.briefOverview),
   briefGet: (eventKey) => ipcRenderer.invoke(IPC_CHANNELS.briefGet, eventKey),

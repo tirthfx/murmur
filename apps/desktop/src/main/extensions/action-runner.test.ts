@@ -34,7 +34,7 @@ const draftInput = {
 function setup(
   options: {
     settings?: Partial<ExtensionsSettings>;
-    on?: ("draft_email" | "create_event")[];
+    on?: ("draft_email" | "create_event" | "post_to_slack")[];
     accounts?: ConnectorAccount[];
     available?: boolean;
     reason?: string | null;
@@ -45,19 +45,23 @@ function setup(
     state: () => ({ available: options.available ?? true, reason: options.reason ?? null }),
     run,
   });
-  const actions = { draft_email: false, create_event: false };
+  const actions = { draft_email: false, create_event: false, post_to_slack: false };
   for (const id of options.on ?? []) actions[id] = true;
   const runner = createActionRunner({
     settings: () => ({ ...DEFAULT_EXTENSIONS_SETTINGS, actions, ...options.settings }),
     accounts: () => options.accounts ?? [account("gmail"), account("googleCalendar")],
-    executors: { draft_email: executor(), create_event: executor() },
+    executors: { draft_email: executor(), create_event: executor(), post_to_slack: executor() },
   });
   return { runner, run };
 }
 
 describe("extension actions (CN-12)", () => {
   it("has a fixed set of built-in actions, each with its own connector and a required confirmation", () => {
-    expect(EXTENSION_ACTIONS.map((a) => a.id)).toEqual(["draft_email", "create_event"]);
+    expect(EXTENSION_ACTIONS.map((a) => a.id)).toEqual([
+      "draft_email",
+      "create_event",
+      "post_to_slack",
+    ]);
     for (const action of EXTENSION_ACTIONS) {
       expect(action.requiresConfirm).toBe(true);
       expect(action.connectors.length).toBeGreaterThan(0);
@@ -132,8 +136,9 @@ describe("extension actions (CN-12)", () => {
       expect(view.actions.map((a) => [a.id, a.enabled, a.status.state, a.accounts])).toEqual([
         ["draft_email", true, "ready", ["me@gmail.test"]],
         ["create_event", false, "off", ["me@googleCalendar.test"]],
+        ["post_to_slack", false, "off", []],
       ]);
-      expect(view.planned.map((p) => p.name)).toContain("Send to Slack");
+      expect(view.planned.map((p) => p.name)).toEqual(["Create a Linear issue"]);
     });
   });
 
@@ -173,6 +178,26 @@ describe("extension actions (CN-12)", () => {
         expect((await t.runner.run("draft_email", draftInput, fromUserClick())).ok).toBe(false);
         expect(t.run).not.toHaveBeenCalled();
       }
+    });
+
+    it("sends a Slack message only by the preview's token, never by text", async () => {
+      const t = setup({
+        on: ["post_to_slack"],
+        accounts: [account("slack")],
+      });
+      expect(await t.runner.run("post_to_slack", { token: "tok-1" }, fromUserClick())).toEqual({
+        ok: true,
+        result: { ok: true },
+      });
+      expect(t.run).toHaveBeenCalledWith({ token: "tok-1" });
+      for (const input of [
+        { text: "Hi", channelId: "C1" },
+        { token: "tok-1", text: "changed" },
+        {},
+      ]) {
+        expect((await t.runner.run("post_to_slack", input, fromUserClick())).ok).toBe(false);
+      }
+      expect(t.run).toHaveBeenCalledTimes(1);
     });
 
     it("refuses input the action would not accept", async () => {

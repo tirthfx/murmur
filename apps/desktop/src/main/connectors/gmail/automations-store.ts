@@ -11,7 +11,7 @@ export interface AutomationsStore {
   addEmailDraft(input: {
     id: string;
     accountId: string;
-    sourceKind: "task" | "meeting";
+    sourceKind: "task" | "meeting" | "ask";
     sourceId: string;
     to: string;
     subject: string;
@@ -20,12 +20,15 @@ export interface AutomationsStore {
     at: number;
   }): EmailAutomationRecord;
   /** The drafts made from a task or a meeting, newest first. */
-  listEmailDrafts(source: { kind: "task" | "meeting"; id: string }): EmailAutomationRecord[];
+  listEmailDrafts(source: {
+    kind: "task" | "meeting" | "ask";
+    id: string;
+  }): EmailAutomationRecord[];
   /** Records a calendar event that was created (NT-28). */
   addCalendarEvent(input: {
     id: string;
     accountId: string;
-    sourceKind: "task" | "meeting";
+    sourceKind: "task" | "meeting" | "ask";
     sourceId: string;
     title: string;
     startMs: number;
@@ -34,7 +37,10 @@ export interface AutomationsStore {
     at: number;
   }): CalendarEventRecord;
   /** The events made from a task or a meeting, newest first. */
-  listCalendarEvents(source: { kind: "task" | "meeting"; id: string }): CalendarEventRecord[];
+  listCalendarEvents(source: {
+    kind: "task" | "meeting" | "ask";
+    id: string;
+  }): CalendarEventRecord[];
   /** Forgets the record; the draft or the event at the provider is left alone. */
   remove(id: string): boolean;
 }
@@ -48,14 +54,14 @@ interface Row {
 }
 
 interface Config {
-  sourceKind: "task" | "meeting";
+  sourceKind: "task" | "meeting" | "ask";
   sourceId: string;
   to: string;
   subject: string;
 }
 
 interface EventConfig {
-  sourceKind: "task" | "meeting";
+  sourceKind: "task" | "meeting" | "ask";
   sourceId: string;
   title: string;
   startMs: number;

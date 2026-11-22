@@ -144,6 +144,18 @@ export function ExperimentalSection({
           {...(focusLocked ? { isDisabled: true, disabledMessage: lockedText("focusMode") } : {})}
         />
         <Switch
+          label="Ask can propose connector actions"
+          description="In Ask, a request such as “draft a follow-up to Priya” can become a proposed email, event or Slack message, shown first. Nothing is sent or created until you click, and a question that only asks for information never proposes anything."
+          value={experimental.askConnectorActions}
+          onChange={(askConnectorActions) => set({ askConnectorActions })}
+        />
+        <Switch
+          label="Tag people in Slack messages"
+          description="When you send a message to Slack, @names in it are matched to people in your workspace. Every tag is listed in the preview before anything is sent; a name that matches no one, or more than one person, is sent as plain text."
+          value={experimental.slackTagging}
+          onChange={(slackTagging) => set({ slackTagging })}
+        />
+        <Switch
           label="Learn from sent mail"
           description="Learn how you write email from messages you have sent."
           value={false}

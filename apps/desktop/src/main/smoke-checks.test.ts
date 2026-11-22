@@ -79,6 +79,8 @@ const settings: Settings = {
     commandMode: false,
     autoInstruct: false,
     focusMode: false,
+    askConnectorActions: false,
+    slackTagging: false,
   },
 };
 

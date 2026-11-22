@@ -80,6 +80,8 @@ const base: Settings = {
     commandMode: false,
     autoInstruct: false,
     focusMode: false,
+    askConnectorActions: false,
+    slackTagging: false,
   },
 };
 
@@ -153,6 +155,8 @@ describe("session effects", () => {
       commandMode: false,
       autoInstruct: false,
       focusMode: false,
+      askConnectorActions: false,
+      slackTagging: false,
     };
     const on = setup({
       playing: true,
@@ -272,6 +276,8 @@ describe("session effects", () => {
           commandMode: false,
           autoInstruct: false,
           focusMode: false,
+          askConnectorActions: false,
+          slackTagging: false,
         },
         sounds: { start: false, lock: true, success: true, error: false, cancel: false },
       },

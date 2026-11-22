@@ -90,6 +90,8 @@ export const SAMPLE_SETTINGS: SettingsView = {
       commandMode: false,
       autoInstruct: false,
       focusMode: false,
+      askConnectorActions: false,
+      slackTagging: false,
     },
   },
   shortcutLabels: {
@@ -465,6 +467,13 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
     connectorRecordings: vi.fn().mockResolvedValue({ ok: true, recordings: [] }),
     connectorImportPrepare: vi.fn().mockResolvedValue({ ok: false, message: "Not available." }),
     connectorDataStatus: vi.fn().mockResolvedValue([]),
+    askActionPropose: vi.fn().mockResolvedValue({ ok: true, proposal: null }),
+    slackPostState: vi
+      .fn()
+      .mockResolvedValue({ available: false, reason: "Slack is off.", hidden: true }),
+    slackPostStart: vi.fn().mockResolvedValue({ ok: false, message: "Not available." }),
+    slackPostPrepare: vi.fn().mockResolvedValue({ ok: false, message: "Not available." }),
+    slackPostSend: vi.fn().mockResolvedValue({ ok: false, message: "Not available." }),
     extensionsView: vi.fn().mockResolvedValue({ enabled: true, actions: [], planned: [] }),
     briefOverview: vi.fn().mockResolvedValue({
       calendarConnected: false,

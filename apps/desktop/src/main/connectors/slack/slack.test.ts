@@ -1,7 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { SLACK_SCOPES } from "@murmur/shared";
+import { SLACK_SCOPES, type SlackUser } from "@murmur/shared";
 import { ReadError } from "../data/http";
-import { listChannels, readMessages, slackProvider, slackText } from "./slack";
+import {
+  listChannels,
+  listSlackUsers,
+  matchMention,
+  postSlackMessage,
+  readMessages,
+  resolveMentions,
+  slackProvider,
+  slackText,
+} from "./slack";
 
 const json = (value: unknown, init: ResponseInit = {}) => new Response(JSON.stringify(value), init);
 const limits = (sleeps: number[] = []) => ({
@@ -230,7 +239,7 @@ describe("readMessages", () => {
     for (const [error, text] of [
       ["invalid_auth", /no longer accepts/],
       ["missing_scope", /permission to read/],
-      ["not_in_channel", /cannot be read/],
+      ["not_in_channel", /cannot be used/],
       ["something_else", /could not be read/],
     ] as const) {
       const t = fake({ "users.list": () => json({ ok: false, error }) });
@@ -243,5 +252,209 @@ describe("readMessages", () => {
         }),
       ).rejects.toThrow(text);
     }
+  });
+});
+
+const user = (id: string, over: Partial<SlackUser> = {}): SlackUser => ({
+  id,
+  name: id.toLowerCase(),
+  realName: null,
+  displayName: null,
+  email: null,
+  ...over,
+});
+
+const people: SlackUser[] = [
+  user("U1", {
+    name: "dana",
+    realName: "Dana Lee",
+    displayName: "dana",
+    email: "dana@example.com",
+  }),
+  user("U2", {
+    name: "sam",
+    realName: "Sam Ortiz",
+    displayName: "sam.o",
+    email: "sam@example.com",
+  }),
+  user("U3", {
+    name: "sam2",
+    realName: "Sam Roy",
+    displayName: "sam.r",
+    email: "sam.roy@example.com",
+  }),
+  user("U4", { name: "priya", realName: "Priya Rao", displayName: "Priya" }),
+];
+
+describe("listSlackUsers", () => {
+  it("lists people with their names and email, and leaves out bots and deactivated accounts", async () => {
+    const t = fake({
+      "users.list": () =>
+        json({
+          ok: true,
+          members: [
+            {
+              id: "U1",
+              name: "dana",
+              profile: { real_name: "Dana Lee", display_name: "dana", email: "Dana@Example.com" },
+            },
+            { id: "B1", name: "bot", is_bot: true },
+            { id: "U9", name: "gone", deleted: true },
+            { id: "U2", name: "sam", real_name: "Sam Ortiz" },
+          ],
+        }),
+    });
+    expect(await listSlackUsers({ fetch: t.fetch, limits: limits() })).toEqual([
+      {
+        id: "U1",
+        name: "dana",
+        realName: "Dana Lee",
+        displayName: "dana",
+        email: "dana@example.com",
+      },
+      { id: "U2", name: "sam", realName: "Sam Ortiz", displayName: null, email: null },
+    ]);
+  });
+});
+
+describe("matchMention (CN-14)", () => {
+  it("matches a person by email, by handle, display name or full name, ignoring spaces and punctuation", () => {
+    expect(matchMention("dana@example.com", people)).toEqual({ kind: "one", user: people[0] });
+    expect(matchMention("DANA", people)).toEqual({ kind: "one", user: people[0] });
+    expect(matchMention("dana.lee", people)).toEqual({ kind: "one", user: people[0] });
+    expect(matchMention("priya", people)).toEqual({ kind: "one", user: people[3] });
+    expect(matchMention("sam.o", people)).toEqual({ kind: "one", user: people[1] });
+  });
+
+  it("uses a first name only when one person has it, and never guesses between two", () => {
+    expect(matchMention("sam", people)).toEqual({ kind: "one", user: people[1] });
+    const twoSams = people
+      .filter((p) => p.id !== "U2")
+      .concat(user("U5", { name: "sam5", realName: "Sam Kim", displayName: "samk" }));
+    expect(matchMention("sam", twoSams)).toEqual({ kind: "several" });
+    expect(matchMention("ghost", people)).toEqual({ kind: "none" });
+    expect(matchMention("nobody@example.com", people)).toEqual({ kind: "none" });
+  });
+});
+
+describe("resolveMentions (CN-14)", () => {
+  it("turns each mention of exactly one person into a tag, and lists it", () => {
+    const result = resolveMentions("Hi @dana and @priya, thanks.", people);
+    expect(result.posted).toBe("Hi <@U1> and <@U4>, thanks.");
+    expect(result.shown).toBe("Hi @Dana Lee and @Priya Rao, thanks.");
+    expect(result.tags).toEqual([
+      { mention: "@dana", userId: "U1", name: "Dana Lee" },
+      { mention: "@priya", userId: "U4", name: "Priya Rao" },
+    ]);
+    expect(result.unresolved).toEqual([]);
+  });
+
+  it("sends a mention that fits two people, or no one, as plain text and flags it", () => {
+    const twoSams = [
+      ...people.filter((p) => p.id !== "U2"),
+      user("U5", { name: "s5", realName: "Sam Kim" }),
+    ];
+    const result = resolveMentions("@sam please, and @ghost too", twoSams);
+    expect(result.posted).toBe("@sam please, and @ghost too");
+    expect(result.tags).toEqual([]);
+    expect(result.unresolved).toEqual([
+      { mention: "@sam", reason: "several" },
+      { mention: "@ghost", reason: "none" },
+    ]);
+  });
+
+  it("tags a person once however often they are named, and leaves the punctuation after a name", () => {
+    const result = resolveMentions("@dana. Then @dana again, @dana@example.com!", people);
+    expect(result.posted).toBe("<@U1>. Then <@U1> again, <@U1>!");
+    expect(result.tags).toHaveLength(1);
+  });
+
+  it("does not take part of a word or an address for a mention", () => {
+    const result = resolveMentions("mail me at x@dana.com or dana@example.com", people);
+    expect(result.posted).toBe("mail me at x@dana.com or dana@example.com");
+    expect(result.tags).toEqual([]);
+  });
+
+  it("escapes Slack's characters, so typed text cannot become a link or a broadcast", () => {
+    const result = resolveMentions("<!channel> <@U9|x> & <https://x.test|hi> @dana", people);
+    expect(result.posted).toBe(
+      "&lt;!channel&gt; &lt;@U9|x&gt; &amp; &lt;https://x.test|hi&gt; <@U1>",
+    );
+    expect(result.posted).not.toContain("<!channel>");
+  });
+
+  it("is plain escaped text, with no lookup, when tagging is off", () => {
+    const result = resolveMentions("Hi @dana <b>", null);
+    expect(result).toEqual({
+      posted: "Hi @dana &lt;b&gt;",
+      shown: "Hi @dana <b>",
+      tags: [],
+      unresolved: [],
+    });
+  });
+
+  it("looks up at most the mentions it is allowed, and sends the rest as plain text", () => {
+    const text = Array.from({ length: 5 }, (_, i) => `@user${i}`).join(" ");
+    const result = resolveMentions(text, people, 2);
+    expect(result.unresolved).toHaveLength(5);
+  });
+});
+
+describe("postSlackMessage (CN-05)", () => {
+  it("posts one message to one channel, with tags that notify only when they were in the text", async () => {
+    const calls: { url: string; init?: RequestInit }[] = [];
+    await postSlackMessage({
+      fetch: async (url, init) => {
+        calls.push({ url, ...(init ? { init } : {}) });
+        return json({ ok: true });
+      },
+      limits: limits(),
+      channelId: "C1",
+      text: "Hi <@U1>",
+    });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.url).toBe("https://slack.com/api/chat.postMessage");
+    expect(JSON.parse(String(calls[0]!.init?.body))).toEqual({
+      channel: "C1",
+      text: "Hi <@U1>",
+      link_names: false,
+      unfurl_links: false,
+      unfurl_media: false,
+    });
+  });
+
+  it("waits out a rate limit and sends the same message again, without losing it", async () => {
+    const bodies: string[] = [];
+    const sleeps: number[] = [];
+    let tries = 0;
+    await postSlackMessage({
+      fetch: async (_url, init) => {
+        bodies.push(String(init?.body));
+        return ++tries < 3
+          ? new Response("{}", { status: 429, headers: { "retry-after": "3" } })
+          : json({ ok: true });
+      },
+      limits: limits(sleeps),
+      channelId: "C1",
+      text: "Hello",
+    });
+    expect(bodies).toHaveLength(3);
+    expect(new Set(bodies).size).toBe(1);
+    expect(sleeps).toEqual([3000, 3000]);
+  });
+
+  it("explains what went wrong in plain words", async () => {
+    const ask = (error: string) =>
+      postSlackMessage({
+        fetch: async () => json({ ok: false, error }),
+        limits: limits(),
+        channelId: "C1",
+        text: "x",
+      });
+    await expect(ask("not_in_channel")).rejects.toThrow(/Join it in Slack/);
+    await expect(ask("is_archived")).rejects.toThrow(/archived/);
+    await expect(ask("missing_scope")).rejects.toThrow(/permission/);
+    await expect(ask("msg_too_long")).rejects.toThrow(/too long/);
+    await expect(ask("restricted_action")).rejects.toThrow(/does not let you post/);
   });
 });
