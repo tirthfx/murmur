@@ -183,3 +183,54 @@ export async function fetchGoogleEvents(options: {
   }
   return events.slice(0, options.maxEvents);
 }
+
+// ------------------------------------------------------------------ creating an event (NT-28)
+
+const createdSchema = z.object({ id: z.string().min(1), htmlLink: z.string().optional() });
+
+/**
+ * Creates an event in the primary calendar. `invite` decides whether the people added are told:
+ * with it off they are listed on the event and nobody is notified (`sendUpdates=none`).
+ */
+export async function createGoogleEvent(options: {
+  fetch(url: string, init?: RequestInit): Promise<Response>;
+  title: string;
+  startMs: number;
+  endMs: number;
+  description: string;
+  attendees: readonly string[];
+  invite: boolean;
+}): Promise<{ eventId: string; openUrl: string }> {
+  const response = await options.fetch(
+    `${API}/calendars/primary/events?${new URLSearchParams({
+      sendUpdates: options.invite ? "all" : "none",
+    })}`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        summary: options.title,
+        description: options.description,
+        start: { dateTime: new Date(options.startMs).toISOString() },
+        end: { dateTime: new Date(options.endMs).toISOString() },
+        ...(options.attendees.length > 0
+          ? { attendees: options.attendees.map((email) => ({ email })) }
+          : {}),
+      }),
+    },
+  );
+  if (response.status === 403)
+    throw new CalendarFetchError(
+      "Google did not allow an event to be created. Give Murmur permission to create events and try again.",
+    );
+  if (!response.ok) throw new CalendarFetchError(`Google Calendar answered ${response.status}.`);
+  const body = createdSchema.safeParse(await response.json().catch(() => null));
+  if (!body.success)
+    throw new CalendarFetchError("Google Calendar sent an answer Murmur cannot read.");
+  return {
+    eventId: body.data.id,
+    openUrl: https(body.data.htmlLink) ?? "https://calendar.google.com/calendar/",
+  };
+}
+
+const https = (value: string | undefined) => (value && /^https:\/\//i.test(value) ? value : null);

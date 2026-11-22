@@ -28,6 +28,16 @@ import {
 } from "./transcript-import";
 import type { ConnectorActionResult, ConnectorsView } from "./connectors";
 import {
+  calendarEventInputSchema,
+  calendarEventSourceSchema,
+  type CalendarEventInput,
+  type CalendarEventProposalResult,
+  type CalendarEventRecord,
+  type CalendarEventResult,
+  type CalendarEventSource,
+  type CalendarEventState,
+} from "./calendar";
+import {
   emailDraftInputSchema,
   emailDraftSourceSchema,
   type EmailAutomationRecord,
@@ -474,6 +484,11 @@ export const IPC_CHANNELS = {
   emailDraftCreate: "email-draft:create",
   emailDraftList: "email-draft:list",
   emailDraftOpen: "email-draft:open",
+  calendarEventState: "calendar-event:state",
+  calendarEventPropose: "calendar-event:propose",
+  calendarEventCreate: "calendar-event:create",
+  calendarEventList: "calendar-event:list",
+  calendarEventOpen: "calendar-event:open",
   mcpStatus: "mcp:status",
   mcpClients: "mcp:clients",
   mcpIssue: "mcp:issue",
@@ -1065,6 +1080,23 @@ export const IPC_CONTRACT = {
     args: z.tuple([z.string().min(1).max(600)]),
     result: z.custom<{ ok: boolean }>(),
   },
+  [IPC_CHANNELS.calendarEventState]: { args: z.tuple([]), result: z.custom<CalendarEventState>() },
+  [IPC_CHANNELS.calendarEventPropose]: {
+    args: z.tuple([calendarEventSourceSchema]),
+    result: z.custom<CalendarEventProposalResult>(),
+  },
+  [IPC_CHANNELS.calendarEventCreate]: {
+    args: z.tuple([calendarEventInputSchema]),
+    result: z.custom<CalendarEventResult>(),
+  },
+  [IPC_CHANNELS.calendarEventList]: {
+    args: z.tuple([calendarEventSourceSchema]),
+    result: z.custom<CalendarEventRecord[]>(),
+  },
+  [IPC_CHANNELS.calendarEventOpen]: {
+    args: z.tuple([z.string().min(1).max(600)]),
+    result: z.custom<{ ok: boolean }>(),
+  },
   [IPC_CHANNELS.mcpStatus]: { args: z.tuple([]), result: z.custom<McpStatus>() },
   [IPC_CHANNELS.mcpClients]: { args: z.tuple([]), result: z.custom<McpClientsView>() },
   [IPC_CHANNELS.mcpIssue]: {
@@ -1485,6 +1517,16 @@ export interface MurmurApi {
   emailDraftList(source: EmailDraftSource): Promise<EmailAutomationRecord[]>;
   /** NT-27: opens a draft in the browser. Only an address in Gmail is opened. */
   emailDraftOpen(url: string): Promise<{ ok: boolean }>;
+  /** NT-28: whether "Create event" works now, and why not when it does not. */
+  calendarEventState(): Promise<CalendarEventState>;
+  /** NT-28: a starting form for an event from a task or a meeting. Creates nothing. */
+  calendarEventPropose(source: CalendarEventSource): Promise<CalendarEventProposalResult>;
+  /** NT-28: creates the event the owner confirmed. People are told only when the setting and the confirmation both say so. */
+  calendarEventCreate(input: CalendarEventInput): Promise<CalendarEventResult>;
+  /** NT-28: the events already made from a task or a meeting. */
+  calendarEventList(source: CalendarEventSource): Promise<CalendarEventRecord[]>;
+  /** NT-28: opens an event in the calendar. Only the calendar services' own addresses are opened. */
+  calendarEventOpen(url: string): Promise<{ ok: boolean }>;
   /** CN-11: whether the local MCP server is listening, and where, once a change of setting has been applied. Its switches are in settings. */
   mcpStatus(): Promise<McpStatus>;
   /** The apps the owner approved. Tokens are never in it. */

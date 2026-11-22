@@ -86,9 +86,21 @@ Two providers in `connectors/calendar/`. Both read only (no write scope is asked
 
 **Microsoft work accounts** may need an administrator's consent. The provider's own words are shown on the page when it refuses (for example "AADSTS65001: ..."), for the redirect (`error_description`) and for a refused code. The redirect names `localhost` for Microsoft (`ConnectorProvider.redirectHost`); the listener is on 127.0.0.1 either way.
 
-**Not built:** incremental sync (`syncToken`, delta query): the window is small enough to read whole; the privacy mode that shows private events as "Busy"; choosing calendars other than the primary one; writes (create event, answer an invitation), which come with calendar event automation.
+**Not built:** incremental sync (`syncToken`, delta query): the window is small enough to read whole; the privacy mode that shows private events as "Busy"; choosing calendars other than the primary one; answering an invitation (it needs the write scope too, but nothing answers one yet). Creating an event is described under Calendar events below.
 
 **Manual check:** with your own OAuth app, enter its client id (and secret for Google) on the Connectors page, connect, and press "Read now": the count is the events of the next week. Change an event in the calendar and press Read now again. Revoke the app in your Google or Microsoft account and check the account shows "Needs attention" after the next read.
+
+## Calendar events (NT-28)
+
+A task, or a meeting's summary, can become a calendar event: **Create event** on an open task and **Create a follow-up event** under a summary. It uses the calendar's own write permission, and that is asked for only when the owner turns the connector's **read only** switch off on the Connectors page (Google: `calendar.events`; Microsoft: `Calendars.ReadWrite`). `connectOptionsFor` builds the sign-in's scopes from that switch, and the card shows "Give permission" for a connected account that does not have the scope yet. The button is off, with the reason next to it, while no calendar is connected, a calendar needs attention, every calendar is read only, or the permission has not been given.
+
+The form is filled in and shown first: the title (the task's, or "Follow-up: <meeting>"), the due morning at 09:00 (tomorrow at 09:00 when there is no due day or it has passed), the default length (`notetaker.automations.createEvent.defaultDuration`, 30 minutes), the people invited to the meeting (the owner is left out) to add one by one, another address, and a description (the task's notes and where it came from). The date and time are the owner's local ones; a start in the past is refused. Nothing is created until **Create the event** is clicked, and then exactly one request is made (`POST calendars/primary/events` for Google, `POST me/events` for Microsoft), only to the calendar's own address.
+
+**Who is told.** Invitations are sent only when `notetaker.automations.createEvent.sendInvites` is on (default off, Settings, System, Follow-up events) **and** the box on the form is ticked (unticked each time). Otherwise Google gets `sendUpdates=none` and the people are listed on the event without a notice. Microsoft tells everyone on an event the moment it is created, so with invitations off the people are not added to the event: they are named in its text ("To invite: ...") and nobody is notified.
+
+**What is kept.** One `automations` row for each event (action `create_calendar_event`): the source, the title, the start, the provider's event id (`result_ref`) and the address of the event (`open_url`), which is opened only if it is an https address of the calendar service. The new event is read into the calendar cache at once. Disconnecting keeps the rows and switches the action off. Not built: choosing a calendar other than the primary one, repeating events, adding a meeting link, answering an invitation.
+
+**Manual check:** with a calendar connected, turn off Read only on its card and press "Give permission". On an open task press "Create event", change the time, add a person, create it, and open it from the task: it is in your calendar and nobody was told. Turn on "Allow sending invitations", tick the box, create another, and check the invitation arrives.
 
 ## Gmail and email drafts (CN-04, NT-27)
 

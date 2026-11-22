@@ -419,6 +419,64 @@ describe("Connectors page (CN-15)", () => {
     });
   });
 
+  describe("calendar write permission (NT-28)", () => {
+    const calendar = (scopes: string[]) =>
+      viewOf({
+        googleCalendar: {
+          readiness: "ready",
+          accounts: [account({ scopes })],
+        },
+      });
+    const withReadOnly = (readOnly: boolean) => {
+      const entry = CONNECTOR_CATALOGUE.find((c) => c.id === "googleCalendar")!;
+      const view = calendar(["https://www.googleapis.com/auth/calendar.readonly"]);
+      view.connectors = view.connectors.map((c) =>
+        c.id === "googleCalendar"
+          ? { ...c, choice: { ...connectorChoice(DEFAULT_CONNECTOR_SETTINGS, entry), readOnly } }
+          : c,
+      );
+      return view;
+    };
+
+    it("asks for no write permission while the calendar is read only", async () => {
+      show(withReadOnly(true));
+      render(<ConnectorsPage />);
+      const google = await card("Google Calendar");
+      await google.findByRole("switch", { name: "Google Calendar is read only" });
+      expect(google.queryByRole("button", { name: /Give permission/ })).toBeNull();
+    });
+
+    it("offers to ask Google for the write permission once read only is off", async () => {
+      show(withReadOnly(false));
+      render(<ConnectorsPage />);
+      const google = await card("Google Calendar");
+      fireEvent.click(
+        await google.findByRole("button", { name: "Give permission for me@example.com" }),
+      );
+      expect(google.getByText(/has not yet allowed Murmur to create events/)).toBeTruthy();
+      await waitFor(() =>
+        expect(api.connectorConnect).toHaveBeenCalledWith("googleCalendar", "me@example.com"),
+      );
+    });
+
+    it("does not ask again once the permission was given", async () => {
+      const view = withReadOnly(false);
+      view.connectors = view.connectors.map((c) =>
+        c.id === "googleCalendar"
+          ? {
+              ...c,
+              accounts: [account({ scopes: ["https://www.googleapis.com/auth/calendar.events"] })],
+            }
+          : c,
+      );
+      show(view);
+      render(<ConnectorsPage />);
+      const google = await card("Google Calendar");
+      await google.findByRole("switch", { name: "Google Calendar is read only" });
+      expect(google.queryByRole("button", { name: /Give permission/ })).toBeNull();
+    });
+  });
+
   it("has no read-only switch for a connector that never writes", async () => {
     show(
       viewOf({

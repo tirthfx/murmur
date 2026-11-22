@@ -7,6 +7,7 @@ import { Selector } from "@astryxdesign/core/Selector";
 import { Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
 import { RecapPanel } from "./RecapPanel";
+import { CalendarEventCreate } from "./CalendarEventCreate";
 import { EmailDraft } from "./EmailDraft";
 import {
   SUMMARY_FEEDBACK_REASONS,
@@ -247,10 +248,16 @@ export function SummaryTab({
               : null}
           </HStack>
           {shown.quick ? null : (
-            <EmailDraft
-              source={{ kind: "meeting", id: meeting.id }}
-              label="Draft email from the summary"
-            />
+            <>
+              <EmailDraft
+                source={{ kind: "meeting", id: meeting.id }}
+                label="Draft email from the summary"
+              />
+              <CalendarEventCreate
+                source={{ kind: "meeting", id: meeting.id }}
+                label="Create a follow-up event"
+              />
+            </>
           )}
         </VStack>
       ) : summaryStatus.state === "idle" ? (

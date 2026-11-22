@@ -17,6 +17,7 @@ import {
   TRANSCRIPT_RETENTION_TEXT,
   MEETING_LANGUAGES,
   RECAP_WINDOWS,
+  EVENT_DURATIONS,
   REMINDER_MINUTES,
   LOOKAHEAD_HOURS,
   type ConsentNotice,
@@ -706,6 +707,57 @@ export function SettingsSection({
                   notetaker: {
                     ...settings.notetaker,
                     menubar: { ...settings.notetaker.menubar, lookaheadHours: Number(value) },
+                  },
+                })
+              }
+            />
+          </VStack>
+        </Row>
+        <Row id="meeting-follow-up">
+          <VStack gap={2}>
+            <Heading level={3}>Follow-up events</Heading>
+            <Text size="sm" color="secondary">
+              Create event on a task or a summary needs a calendar with Read only turned off on the
+              Connectors page. You always see the event and click before it is created.
+            </Text>
+            <Selector
+              label="Default length of a new event"
+              options={[
+                ...new Set<number>([
+                  ...EVENT_DURATIONS,
+                  settings.notetaker.automations.createEvent.defaultDuration,
+                ]),
+              ]
+                .sort((a, b) => a - b)
+                .map((minutes) => ({ value: String(minutes), label: `${minutes} minutes` }))}
+              value={String(settings.notetaker.automations.createEvent.defaultDuration)}
+              onChange={(value) =>
+                update({
+                  notetaker: {
+                    ...settings.notetaker,
+                    automations: {
+                      ...settings.notetaker.automations,
+                      createEvent: {
+                        ...settings.notetaker.automations.createEvent,
+                        defaultDuration: Number(value),
+                      },
+                    },
+                  },
+                })
+              }
+            />
+            <Switch
+              label="Allow sending invitations"
+              description="Off: people you add are on the event but nobody is told. On: the form has a box to send invitations, unticked each time."
+              value={settings.notetaker.automations.createEvent.sendInvites}
+              onChange={(sendInvites) =>
+                update({
+                  notetaker: {
+                    ...settings.notetaker,
+                    automations: {
+                      ...settings.notetaker.automations,
+                      createEvent: { ...settings.notetaker.automations.createEvent, sendInvites },
+                    },
                   },
                 })
               }

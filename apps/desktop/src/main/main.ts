@@ -172,6 +172,7 @@ import { createMcpSetup } from "./mcp/mcp-setup";
 import { createHelperKeychain } from "./connectors/helper-keychain";
 import { createConnectorRegistry } from "./connectors/providers";
 import { createCalendarStore } from "./connectors/calendar/calendar-store";
+import { createEventCreateService, isCalendarOpenUrl } from "./connectors/calendar/event-create";
 import { connectOptionsFor } from "./connectors/connect-options";
 import { createAutomationsStore } from "./connectors/gmail/automations-store";
 import { createEmailDraftService } from "./connectors/gmail/email-draft";
@@ -1879,13 +1880,19 @@ function notifyMeetings(meetingId: string | null): void {
 const tasksService = database
   ? createTasksService(database, { newId: randomUUID, now: Date.now })
   : null;
+const automationsStore = database ? createAutomationsStore(database) : null;
 // NT-27: "Draft email" makes a draft in Gmail after the owner has read it. It never sends.
 const emailDrafts =
-  database && connectorService && meetingsStore && meetingSummaries && tasksService
+  database &&
+  connectorService &&
+  meetingsStore &&
+  meetingSummaries &&
+  tasksService &&
+  automationsStore
     ? createEmailDraftService({
         connectors: connectorService,
         settings: () => settingsStore.get().connectors.gmail,
-        store: createAutomationsStore(database),
+        store: automationsStore,
         tasks: tasksService,
         meetings: meetingsStore,
         summaries: meetingSummaries,
@@ -1895,6 +1902,25 @@ const emailDrafts =
       })
     : null;
 const noEmailDrafts = { available: false, reason: "Drafts need Gmail and the database." };
+// NT-28: "Create event" makes an event in the owner's calendar after they have read the form.
+const eventCreate =
+  connectorService && meetingsStore && tasksService && automationsStore
+    ? createEventCreateService({
+        connectors: connectorService,
+        settings: () => {
+          const current = settingsStore.get();
+          return { connectors: current.connectors, automations: current.notetaker.automations };
+        },
+        store: automationsStore,
+        tasks: tasksService,
+        meetings: meetingsStore,
+        now: Date.now,
+        newId: randomUUID,
+        // The new event shows in the menu bar and reminders at once.
+        onCreated: (accountId) => void calendarSync?.syncAccount(accountId),
+      })
+    : null;
+const noEventCreate = { available: false, reason: "Events need a calendar and the database." };
 const taskRunner =
   meetingsStore && meetingTranscripts && tasksService
     ? createTaskRunner({
@@ -3334,7 +3360,12 @@ function registerIpc(): void {
       if (!connectorService) return { ok: false, message: "Connectors are not available." };
       const outcome = await connectorService.connect(
         id,
-        connectOptionsFor(id, settingsStore.get().connectors, loginHint),
+        connectOptionsFor(
+          id,
+          settingsStore.get().connectors,
+          loginHint,
+          connectorRegistry.get(id)?.scopes,
+        ),
       );
       if (outcome.ok) void calendarSync?.syncAccount(outcome.account.id);
       return outcome.ok
@@ -3374,6 +3405,18 @@ function registerIpc(): void {
     emailDraftCreate: async (input) =>
       emailDrafts?.create(input) ?? { ok: false, message: noEmailDrafts.reason },
     emailDraftList: (source) => emailDrafts?.list(source) ?? [],
+    calendarEventState: () => eventCreate?.state() ?? noEventCreate,
+    calendarEventPropose: async (source) =>
+      eventCreate?.propose(source) ?? { ok: false, message: noEventCreate.reason },
+    calendarEventCreate: async (input) =>
+      eventCreate?.create(input) ?? { ok: false, message: noEventCreate.reason },
+    calendarEventList: (source) => eventCreate?.list(source) ?? [],
+    calendarEventOpen: async (url) => {
+      // Only an event's address at the calendar service is opened, never another address.
+      if (!isCalendarOpenUrl(url)) return { ok: false };
+      await shell.openExternal(url);
+      return { ok: true };
+    },
     emailDraftOpen: async (url) => {
       // Only a draft in Gmail is opened, never another address.
       if (!url.startsWith("https://mail.google.com/mail/u/")) return { ok: false };
