@@ -134,6 +134,12 @@ import {
   type PermissionKind,
   type PermissionsInfo,
   type RequestablePermissionKind,
+  type CalendarEventInput,
+  type CalendarEventProposalResult,
+  type CalendarEventRecord,
+  type CalendarEventResult,
+  type CalendarEventSource,
+  type CalendarEventState,
   type ConnectorActionResult,
   type EmailAutomationRecord,
   type EmailDraftInput,
@@ -214,6 +220,11 @@ export interface IpcDeps {
   emailDraftCreate: (input: EmailDraftInput) => Promise<EmailDraftResult>;
   emailDraftList: (source: EmailDraftSource) => EmailAutomationRecord[];
   emailDraftOpen: (url: string) => Promise<{ ok: boolean }>;
+  calendarEventState: () => CalendarEventState;
+  calendarEventPropose: (source: CalendarEventSource) => Promise<CalendarEventProposalResult>;
+  calendarEventCreate: (input: CalendarEventInput) => Promise<CalendarEventResult>;
+  calendarEventList: (source: CalendarEventSource) => CalendarEventRecord[];
+  calendarEventOpen: (url: string) => Promise<{ ok: boolean }>;
   connectorSetClientId: (id: string, clientId: string | null) => Promise<ConnectorActionResult>;
   connectorSetClientSecret: (id: string, secret: string | null) => Promise<ConnectorActionResult>;
   meetingMove: (meetingId: string, folderId: string | null) => FolderResult;
@@ -697,6 +708,16 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.emailDraftList(request.args[0] as EmailDraftSource);
       case IPC_CHANNELS.emailDraftOpen:
         return deps.emailDraftOpen(request.args[0] as string);
+      case IPC_CHANNELS.calendarEventState:
+        return deps.calendarEventState();
+      case IPC_CHANNELS.calendarEventPropose:
+        return deps.calendarEventPropose(request.args[0] as CalendarEventSource);
+      case IPC_CHANNELS.calendarEventCreate:
+        return deps.calendarEventCreate(request.args[0] as CalendarEventInput);
+      case IPC_CHANNELS.calendarEventList:
+        return deps.calendarEventList(request.args[0] as CalendarEventSource);
+      case IPC_CHANNELS.calendarEventOpen:
+        return deps.calendarEventOpen(request.args[0] as string);
       case IPC_CHANNELS.mcpStatus:
         return deps.mcpStatus();
       case IPC_CHANNELS.mcpClients:

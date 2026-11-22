@@ -71,4 +71,40 @@ describe("automations store (NT-27)", () => {
     expect(t.store.remove("x1")).toBe(true);
     expect(t.store.remove("x1")).toBe(false);
   });
+
+  it("records a calendar event with its id and address, apart from the drafts", () => {
+    const t = setup();
+    t.store.addEmailDraft(draft("x1", 10));
+    t.store.addCalendarEvent({
+      id: "e1",
+      accountId: "a1",
+      sourceKind: "task",
+      sourceId: "t1",
+      title: "Review",
+      startMs: 5000,
+      eventId: "ev-1",
+      openUrl: "https://www.google.com/calendar/event?eid=1",
+      at: 20,
+    });
+    const events = t.store.listCalendarEvents({ kind: "task", id: "t1" });
+    expect(events).toEqual([
+      {
+        id: "e1",
+        sourceKind: "task",
+        sourceId: "t1",
+        title: "Review",
+        startMs: 5000,
+        eventId: "ev-1",
+        openUrl: "https://www.google.com/calendar/event?eid=1",
+        createdAt: 20,
+      },
+    ]);
+    expect(t.store.listEmailDrafts({ kind: "task", id: "t1" }).map((row) => row.id)).toEqual([
+      "x1",
+    ]);
+    const row = t.db.prepare("SELECT action_kind FROM automations WHERE id = 'e1'").get() as {
+      action_kind: string;
+    };
+    expect(row.action_kind).toBe("create_calendar_event");
+  });
 });

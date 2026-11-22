@@ -1,5 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
-import type { EmailAutomationRecord } from "@murmur/shared";
+import type { CalendarEventRecord, EmailAutomationRecord } from "@murmur/shared";
 
 /**
  * What the draft automation made (NT-27): one row for each draft the owner confirmed. Only the
@@ -21,7 +21,21 @@ export interface AutomationsStore {
   }): EmailAutomationRecord;
   /** The drafts made from a task or a meeting, newest first. */
   listEmailDrafts(source: { kind: "task" | "meeting"; id: string }): EmailAutomationRecord[];
-  /** Forgets the record; the draft in Gmail is left alone. */
+  /** Records a calendar event that was created (NT-28). */
+  addCalendarEvent(input: {
+    id: string;
+    accountId: string;
+    sourceKind: "task" | "meeting";
+    sourceId: string;
+    title: string;
+    startMs: number;
+    eventId: string;
+    openUrl: string;
+    at: number;
+  }): CalendarEventRecord;
+  /** The events made from a task or a meeting, newest first. */
+  listCalendarEvents(source: { kind: "task" | "meeting"; id: string }): CalendarEventRecord[];
+  /** Forgets the record; the draft or the event at the provider is left alone. */
   remove(id: string): boolean;
 }
 
@@ -39,6 +53,27 @@ interface Config {
   to: string;
   subject: string;
 }
+
+interface EventConfig {
+  sourceKind: "task" | "meeting";
+  sourceId: string;
+  title: string;
+  startMs: number;
+}
+
+const toEventRecord = (row: Row): CalendarEventRecord => {
+  const config = JSON.parse(row.config_json) as EventConfig;
+  return {
+    id: row.id,
+    sourceKind: config.sourceKind,
+    sourceId: config.sourceId,
+    title: config.title,
+    startMs: config.startMs,
+    eventId: row.result_ref ?? "",
+    openUrl: row.open_url ?? "",
+    createdAt: row.created_at,
+  };
+};
 
 const toRecord = (row: Row): EmailAutomationRecord => {
   const config = JSON.parse(row.config_json) as Config;
@@ -98,6 +133,49 @@ export function createAutomationsStore(db: DatabaseSync): AutomationsStore {
         )
         .all(source.kind, source.id) as unknown as Row[];
       return rows.map(toRecord);
+    },
+    addCalendarEvent(input) {
+      const config: EventConfig = {
+        sourceKind: input.sourceKind,
+        sourceId: input.sourceId,
+        title: input.title,
+        startMs: input.startMs,
+      };
+      db.prepare(
+        `INSERT INTO automations
+           (id, name, trigger_kind, action_kind, account_id, config_json, result_ref, open_url,
+            enabled, last_run_at, last_status, created_at, updated_at)
+         VALUES (?, ?, 'manual', 'create_calendar_event', ?, ?, ?, ?, 0, ?, 'created', ?, ?)`,
+      ).run(
+        input.id,
+        "Create event",
+        input.accountId,
+        JSON.stringify(config),
+        input.eventId,
+        input.openUrl,
+        input.at,
+        input.at,
+        input.at,
+      );
+      return toEventRecord({
+        id: input.id,
+        config_json: JSON.stringify(config),
+        result_ref: input.eventId,
+        open_url: input.openUrl,
+        created_at: input.at,
+      });
+    },
+    listCalendarEvents(source) {
+      const rows = db
+        .prepare(
+          `SELECT id, config_json, result_ref, open_url, created_at FROM automations
+           WHERE action_kind = 'create_calendar_event'
+             AND json_extract(config_json, '$.sourceKind') = ?
+             AND json_extract(config_json, '$.sourceId') = ?
+           ORDER BY created_at DESC, id DESC`,
+        )
+        .all(source.kind, source.id) as unknown as Row[];
+      return rows.map(toEventRecord);
     },
     remove(id) {
       return db.prepare("DELETE FROM automations WHERE id = ?").run(id).changes > 0;

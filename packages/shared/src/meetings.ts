@@ -496,6 +496,21 @@ export const DEFAULT_CALENDAR_SETTINGS: CalendarSettings = {
   defaultFolders: {},
 };
 
+/** NT-28: creating a calendar event from a task or a summary. */
+export const EVENT_DURATIONS = [15, 30, 45, 60] as const;
+export const automationsSettingsSchema = z.strictObject({
+  createEvent: z.strictObject({
+    /** The length proposed for a new event, in minutes. */
+    defaultDuration: z.number().int().min(5).max(480),
+    /** Whether invitations may be sent at all. Even then, the confirmation has its own box. */
+    sendInvites: z.boolean(),
+  }),
+});
+export type AutomationsSettings = z.infer<typeof automationsSettingsSchema>;
+export const DEFAULT_AUTOMATIONS_SETTINGS: AutomationsSettings = {
+  createEvent: { defaultDuration: 30, sendInvites: false },
+};
+
 /** NT-29: the next meeting in the menu bar. */
 export const LOOKAHEAD_HOURS = [1, 2, 4, 8] as const;
 export const menubarSettingsSchema = z.strictObject({
@@ -559,6 +574,8 @@ export const notetakerSettingsSchema = z.strictObject({
   calendar: calendarSettingsSchema.default(DEFAULT_CALENDAR_SETTINGS),
   /** NT-29: the next meeting in the menu bar. */
   menubar: menubarSettingsSchema.default(DEFAULT_MENUBAR_SETTINGS),
+  /** NT-27, NT-28: what a task or a summary can turn into. */
+  automations: automationsSettingsSchema.default(DEFAULT_AUTOMATIONS_SETTINGS),
   /** NT-21: importing transcript files. */
   import: importSettingsSchema.default(DEFAULT_IMPORT_SETTINGS),
   /** NT-22: how long audio and transcripts are kept. */
@@ -596,4 +613,5 @@ export const DEFAULT_NOTETAKER: NotetakerSettings = {
   recap: { windowMinutes: 10 },
   calendar: DEFAULT_CALENDAR_SETTINGS,
   menubar: DEFAULT_MENUBAR_SETTINGS,
+  automations: DEFAULT_AUTOMATIONS_SETTINGS,
 };

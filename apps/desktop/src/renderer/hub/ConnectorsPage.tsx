@@ -10,12 +10,14 @@ import { TextInput } from "@astryxdesign/core/TextInput";
 import { VStack } from "@astryxdesign/core/VStack";
 import {
   CALENDAR_CONNECTOR_IDS,
+  CALENDAR_WRITE_SCOPES,
   CONNECTOR_FEATURES,
   CONNECTOR_STATUS_TEXT,
   GMAIL_SCOPE_COMPOSE,
   GMAIL_SCOPE_READ,
   SYNC_INTERVALS,
   gmailMissingScopes,
+  hasScope,
   connectorFeatureStates,
   type ConnectorAccount,
   type ConnectorActionResult,
@@ -594,13 +596,41 @@ export function ConnectorsPage() {
                             {connector.supportsWrite ? (
                               <Switch
                                 label={`${connector.name} is read only`}
-                                description="On: Murmur only reads. Turn it off to let features that write ask you first."
+                                description="On: Murmur only reads. Turn it off to let features that write ask you first. Murmur asks the provider for permission to write only when this is off."
                                 value={connector.choice.readOnly}
                                 onChange={(readOnly) => void choose(connector, { readOnly })}
                               />
                             ) : null}
                           </HStack>
                         ) : null}
+
+                        {(CALENDAR_CONNECTOR_IDS as readonly string[]).includes(connector.id) &&
+                        !connector.choice.readOnly
+                          ? connector.accounts
+                              .filter((entry) => entry.status === "connected")
+                              .map((entry) => {
+                                const write = CALENDAR_WRITE_SCOPES[connector.id];
+                                if (!write || hasScope(entry.scopes, write)) return null;
+                                return (
+                                  <Banner
+                                    key={entry.id}
+                                    status="info"
+                                    title={`${entry.email}: ${connector.name} has not yet allowed Murmur to create events`}
+                                    endContent={
+                                      <Button
+                                        size="sm"
+                                        variant="secondary"
+                                        label={`Give permission for ${entry.email}`}
+                                        isDisabled={waiting !== null}
+                                        onClick={() => void connect(connector, entry.email)}
+                                      >
+                                        Give permission
+                                      </Button>
+                                    }
+                                  />
+                                );
+                              })
+                          : null}
                       </>
                     )}
                   </VStack>

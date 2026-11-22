@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_CONNECTOR_SETTINGS,
+  CALENDAR_WRITE_SCOPES,
   GMAIL_SCOPE_COMPOSE,
   GMAIL_SCOPE_READ,
   gmailMissingScopes,
@@ -42,5 +43,31 @@ describe("sign-in options (CN-04)", () => {
       GMAIL_SCOPE_COMPOSE,
     ]);
     expect(gmailMissingScopes(DEFAULT_CONNECTOR_SETTINGS.gmail, ["openid", "email"])).toEqual([]);
+  });
+
+  describe("calendars (NT-28)", () => {
+    const READ = ["https://www.googleapis.com/auth/calendar.readonly", "openid", "email"];
+    const choices = (readOnly: boolean) => ({
+      ...DEFAULT_CONNECTOR_SETTINGS,
+      choices: { googleCalendar: { syncIntervalMinutes: 15, readOnly } },
+    });
+
+    it("asks for read scopes only while the calendar is read only, which is the default", () => {
+      expect(
+        connectOptionsFor("googleCalendar", DEFAULT_CONNECTOR_SETTINGS, undefined, READ).scopes,
+      ).toEqual(READ);
+      expect(connectOptionsFor("googleCalendar", choices(true), undefined, READ).scopes).toEqual(
+        READ,
+      );
+    });
+
+    it("adds the write scope only when read only is turned off", () => {
+      const scopes = connectOptionsFor("googleCalendar", choices(false), undefined, READ).scopes;
+      expect(scopes).toEqual([...READ, CALENDAR_WRITE_SCOPES.googleCalendar]);
+    });
+
+    it("leaves the provider's own scopes when it does not know them", () => {
+      expect(connectOptionsFor("googleCalendar", choices(false)).scopes).toBeUndefined();
+    });
   });
 });

@@ -462,6 +462,13 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
     emailDraftCreate: vi.fn().mockResolvedValue({ ok: false, message: "Drafting is off." }),
     emailDraftList: vi.fn().mockResolvedValue([]),
     emailDraftOpen: vi.fn().mockResolvedValue({ ok: true }),
+    calendarEventState: vi
+      .fn()
+      .mockResolvedValue({ available: false, reason: "Your calendars are set to read only." }),
+    calendarEventPropose: vi.fn().mockResolvedValue({ ok: false, message: "Not available." }),
+    calendarEventCreate: vi.fn().mockResolvedValue({ ok: false, message: "Not available." }),
+    calendarEventList: vi.fn().mockResolvedValue([]),
+    calendarEventOpen: vi.fn().mockResolvedValue({ ok: true }),
     mcpStatus: vi.fn().mockResolvedValue(MCP_STATUS_OFF),
     mcpClients: vi
       .fn()

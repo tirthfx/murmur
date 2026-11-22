@@ -324,3 +324,7 @@ Works once a calendar is connected (`docs/connectors.md`); with none, nothing he
 ## Email drafts from a task or a summary (NT-27)
 
 Needs Gmail connected with drafting turned on (`docs/connectors.md`, Gmail and email drafts); otherwise the button is off and says why. "Draft email" is on an open task and under a meeting's summary. The local model proposes the words (the task or the summary is the only input), the owner picks the recipient from the people invited or types one address, edits the subject and the plain text, and clicks "Create the draft in Gmail". Only a draft is made, never a sent message. Each draft is recorded in `automations` (recipient, subject, the Gmail draft id, not the text) and listed under the task or summary with "Open in Gmail". Disconnecting Gmail switches the button off and keeps the records.
+
+## Calendar events from a task or a summary (NT-28)
+
+Needs a calendar with Read only turned off and the write permission given (`docs/connectors.md`, Calendar events); otherwise the button is off and says why. "Create event" is on an open task and "Create a follow-up event" is under a meeting's summary. The form (title, date, time, length, people from the meeting, description) is shown first and the event is created only after "Create the event". People are told only when invitations are allowed in Settings (System, Follow-up events) and the box on the form is ticked. Each event is recorded in `automations` (source, title, start, the calendar's event id and address) and listed under the task or summary with "Open in calendar".

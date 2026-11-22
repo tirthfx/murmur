@@ -192,3 +192,60 @@ export async function fetchOutlookEvents(options: {
   }
   return events.slice(0, options.maxEvents);
 }
+
+// ------------------------------------------------------------------ creating an event (NT-28)
+
+const createdSchema = z.object({ id: z.string().min(1), webLink: z.string().nullish() });
+
+/** Graph wants a date and time without a zone next to the zone name: UTC, with no fraction. */
+const graphTime = (ms: number) => new Date(ms).toISOString().slice(0, 19);
+
+/**
+ * Creates an event in the default calendar. Graph tells everyone on an event the moment it is
+ * created, so when `invite` is off the people are not added to the event: they are named in its
+ * text instead, and nobody is notified.
+ */
+export async function createOutlookEvent(options: {
+  fetch(url: string, init?: RequestInit): Promise<Response>;
+  title: string;
+  startMs: number;
+  endMs: number;
+  description: string;
+  attendees: readonly string[];
+  invite: boolean;
+}): Promise<{ eventId: string; openUrl: string }> {
+  const text =
+    !options.invite && options.attendees.length > 0
+      ? `${options.description}${options.description ? "\n\n" : ""}To invite: ${options.attendees.join(", ")}`
+      : options.description;
+  const response = await options.fetch(`${GRAPH}/me/events`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      subject: options.title,
+      body: { contentType: "text", content: text },
+      start: { dateTime: graphTime(options.startMs), timeZone: "UTC" },
+      end: { dateTime: graphTime(options.endMs), timeZone: "UTC" },
+      ...(options.invite && options.attendees.length > 0
+        ? {
+            attendees: options.attendees.map((address) => ({
+              emailAddress: { address },
+              type: "required",
+            })),
+          }
+        : {}),
+    }),
+  });
+  if (response.status === 403)
+    throw new CalendarFetchError(
+      "Microsoft did not allow an event to be created. Give Murmur permission to create events and try again.",
+    );
+  if (!response.ok) throw new CalendarFetchError(`Outlook answered ${response.status}.`);
+  const body = createdSchema.safeParse(await response.json().catch(() => null));
+  if (!body.success) throw new CalendarFetchError("Outlook sent an answer Murmur cannot read.");
+  const link = body.data.webLink ?? "";
+  return {
+    eventId: body.data.id,
+    openUrl: /^https:\/\//i.test(link) ? link : "https://outlook.office.com/calendar/",
+  };
+}
