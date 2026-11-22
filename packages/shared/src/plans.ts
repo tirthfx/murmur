@@ -21,14 +21,40 @@ export const PLAN_LABELS: Record<PlanTier, string> = {
 /** The owner's build (canonical rules): the top tier. */
 export const DEFAULT_PLAN: PlanTier = "enterprise";
 
-/** Features Free does not have (RW-22). Every tier from Pro up has them all. */
+/**
+ * Every gated feature (the matrix in TM-25), once. Each is first on the tier in `FEATURE_TIER`
+ * and on every tier above it. This is the single place the matrix lives: the app and the local
+ * server both read it, and the tests write the matrix out by hand to check it.
+ */
 export const PLAN_FEATURES = [
+  // Personal (RW-22): Pro and up.
   "unlimitedRewrites",
   "unlimitedRewriteShortcuts",
   "autoApply",
   "commandMode",
   "qualityModel",
   "focusMode",
+  "unlimitedMeetings",
+  "askMeetings",
+  "connectors",
+  "mcp",
+  // Teams: Team and up.
+  "teams",
+  "teamVocabulary",
+  "leaderboard",
+  "usageDashboards",
+  "auditLog",
+  "policyBasic",
+  "adminConsole",
+  // Growth and up.
+  "usageDashboardsFull",
+  "auditExport",
+  "policyFull",
+  "complianceMode",
+  "ipAllowlist",
+  // Enterprise.
+  "auditSiem",
+  "identity",
 ] as const;
 export type PlanFeature = (typeof PLAN_FEATURES)[number];
 
@@ -48,10 +74,53 @@ const FEATURE_TIER: Record<PlanFeature, PlanTier> = {
   commandMode: "pro",
   qualityModel: "pro",
   focusMode: "pro",
+  unlimitedMeetings: "pro",
+  askMeetings: "pro",
+  connectors: "pro",
+  mcp: "pro",
+  teams: "team",
+  teamVocabulary: "team",
+  leaderboard: "team",
+  usageDashboards: "team",
+  auditLog: "team",
+  policyBasic: "team",
+  adminConsole: "team",
+  usageDashboardsFull: "growth",
+  auditExport: "growth",
+  policyFull: "growth",
+  complianceMode: "growth",
+  ipAllowlist: "growth",
+  auditSiem: "enterprise",
+  identity: "enterprise",
 };
+
+/** The tier a feature first appears on. */
+export const featureTier = (feature: PlanFeature): PlanTier => FEATURE_TIER[feature];
 
 export function planAllows(tier: PlanTier, feature: PlanFeature): boolean {
   return PLAN_TIERS.indexOf(tier) >= PLAN_TIERS.indexOf(FEATURE_TIER[feature]);
+}
+
+/** The same check, under the name the spec uses. */
+export const hasFeature = planAllows;
+
+/** TM-25: Free records this many meetings a month; Pro and up are not limited. */
+export const FREE_MEETINGS_PER_MONTH = 5;
+
+/**
+ * TM-24: nothing Murmur keeps is sent for model training, on any tier (there is no cloud AI). The
+ * choice is shown on lower tiers and locked off on Growth and Enterprise. The lock is a statement
+ * and a stored value, not a network control, and the screen says so.
+ */
+export function trainingLock(tier: PlanTier): { optIn: false; locked: boolean; notice: string } {
+  const locked = planAllows(tier, "complianceMode");
+  return {
+    optIn: false,
+    locked,
+    notice: locked
+      ? "Your plan does not allow your content to be used for model training. Murmur has no cloud AI, so this is a statement and a stored setting, not a network control."
+      : "Murmur never sends your content for model training. It has no cloud AI.",
+  };
 }
 
 /** "Available on Pro". */

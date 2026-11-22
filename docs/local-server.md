@@ -296,6 +296,33 @@ local build does not have (that is a gate for M8).
   never half applied (`packages/shared/src/managed.ts`, `apps/desktop/src/main/managed`). Showing
   the badge, locking settings and the update line in the Hub is #255.
 
+## Plan tiers and the training lock (TM-24, TM-25)
+
+The server has a **plan tier** (Free, Pro, Team, Growth, Enterprise; the owner's build is on
+Enterprise so everything can be tried). It is a local switch for testing: **nothing is charged, there
+is no billing, payment or subscription code, and a test fails if one is added**
+(`packages/shared/src/no-payments.test.ts`).
+
+- **One matrix.** `PLAN_FEATURES` and the tier each feature first appears on are in
+  `packages/shared/src/plans.ts`, read by both the app and this server. The tests write the matrix
+  out by hand.
+- **Gates.** A route that needs a feature answers 403 `plan_required` ("Available on Team") when the
+  tier is lower, after the sign-in check. `src/plan-gates.ts` maps routes to features; a test fails
+  for a route that is neither gated nor on the list of routes for every plan.
+  - Team: teams, members, departments and invites; shared dictionary and snippets; the leaderboard;
+    usage dashboards (admins only); the audit log (view, verify); basic policy (blocked apps and
+    features).
+  - Growth: usage dashboards for managers, audit export, the full policy (retention, blocked domains,
+    connector limits, deletion approval), compliance mode, the IP allowlist.
+  - Enterprise: audit SIEM streaming; SSO, SCIM and domains.
+  - The personal features (rewrites, Ask, connectors, MCP, unlimited meetings) are enforced in the app.
+- **The plan** (`GET /v1/plan`, any signed-in person; `PUT /v1/plan { tier }`, the server owner):
+  the tier, which features it allows, and the training lock. Each change is `plan.changed`.
+- **Training lock.** Nothing Murmur keeps is used for model training on any tier, and
+  `optIn` is false everywhere. On Growth and Enterprise the choice is shown locked off. It is a
+  statement and a stored value, not a network control (there is no cloud AI), and the notice says so.
+  A change in the lock is written to the log as `plan.training_lock`.
+
 ## Audit log (TM-12)
 
 Every sign-in, failed sign-in (the first miss and each lock, not every miss), new account, password

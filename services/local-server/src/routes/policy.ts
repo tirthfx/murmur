@@ -1,8 +1,9 @@
 import { HttpError, orThrow, reply, type Route } from "../http.ts";
+import { FULL_POLICY_KEYS } from "../plan-gates.ts";
 import { me, type RouteDeps } from "./context.ts";
 
 /** Team policy (TM-13 to TM-16): what an admin sets, and what a person's app downloads. */
-export function policyRoutes({ policy, teams }: RouteDeps): Route[] {
+export function policyRoutes({ policy, teams, plan }: RouteDeps): Route[] {
   const team = (ctx: { params: Record<string, string> }) => ctx.params["teamId"]!;
 
   return [
@@ -34,6 +35,15 @@ export function policyRoutes({ policy, teams }: RouteDeps): Route[] {
       access: { action: "policy.manage" },
       async handler(ctx) {
         const body = await ctx.json();
+        // Retention, domains, connector limits and deletion approval are the full controls.
+        const touched = [
+          ...Object.keys((body["set"] as object | undefined) ?? {}),
+          ...(Array.isArray(body["unset"]) ? (body["unset"] as string[]) : []),
+        ];
+        if (touched.some((key) => FULL_POLICY_KEYS.includes(key))) {
+          const missing = plan.require("policyFull");
+          if (missing) throw new HttpError(missing.status, missing.code, missing.message);
+        }
         const result = orThrow(
           policy.set(
             me(ctx).id,

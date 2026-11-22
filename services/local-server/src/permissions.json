@@ -110,6 +110,10 @@
     "compliance.manage": {
       "scope": "team",
       "roles": ["owner", "admin"]
+    },
+    "plan.manage": {
+      "scope": "server",
+      "roles": ["owner"]
     }
   }
 }
