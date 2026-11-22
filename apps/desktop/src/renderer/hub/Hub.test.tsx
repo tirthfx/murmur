@@ -54,6 +54,7 @@ describe("Hub", () => {
       "Dictation",
       "Notetaker",
       "Connectors",
+      "Extensions",
       "Dictionary",
       "Snippets",
       "Styles",

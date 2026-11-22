@@ -118,6 +118,8 @@ export interface EmailDraftState {
   available: boolean;
   /** Why it is not available; null when it is. */
   reason: string | null;
+  /** The action is off or its connector is not connected: it is left out of the screens that would offer it (CN-12). */
+  hidden?: boolean;
 }
 
 export interface EmailAutomationRecord {

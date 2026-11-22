@@ -140,4 +140,15 @@ describe("Draft email (NT-27)", () => {
     ).toBeTruthy();
     expect(screen.getByRole("button", { name: "Draft email from the summary" })).toBeTruthy();
   });
+
+  it("is not offered at all when the action is off or its connector is not connected (CN-12)", async () => {
+    api.emailDraftState = vi
+      .fn()
+      .mockResolvedValue({ available: false, reason: "Turn it on.", hidden: true });
+    const { container } = render(<EmailDraft source={source} />);
+    await waitFor(() => expect(api.emailDraftState).toHaveBeenCalled());
+    expect(screen.queryByRole("button", { name: "Draft email" })).toBeNull();
+    expect(screen.queryByText("Turn it on.")).toBeNull();
+    expect(container.textContent).toBe("");
+  });
 });

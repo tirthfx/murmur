@@ -8,7 +8,7 @@ Pages, in order: Home, Dictation, Notetaker, Connectors, Dictionary, Snippets, S
 
 - A page with a `feature` is hidden while that feature is off, and asking for it shows Home instead. Only Scratchpad has one.
 - My Voice and Memory are never hidden, because their on/off switches are on those pages.
-- Notetaker came with M5 (#184, see `docs/notetaker.md`); Tasks follows (#189). Connectors came with M6 (#215, see `docs/connectors.md`).
+- Notetaker came with M5 (#184, see `docs/notetaker.md`); Tasks follows (#189). Connectors came with M6 (#215, see `docs/connectors.md`), and Extensions after it (#225).
 
 ## Routes and what is remembered
 

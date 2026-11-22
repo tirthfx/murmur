@@ -94,6 +94,7 @@ function setup() {
     connectorRecordings: vi.fn(),
     connectorImportPrepare: vi.fn(),
     connectorDataStatus: vi.fn(),
+    extensionsView: vi.fn(),
     briefOverview: vi.fn(),
     briefGet: vi.fn(),
     briefBuild: vi.fn(),

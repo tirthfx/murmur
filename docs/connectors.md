@@ -140,6 +140,18 @@ The form is filled in and shown first: the title (the task's, or "Follow-up: <me
 
 **Manual check:** with a calendar connected, turn off Read only on its card and press "Give permission". On an open task press "Create event", change the time, add a person, create it, and open it from the task: it is in your calendar and nobody was told. Turn on "Allow sending invitations", tick the box, create another, and check the invitation arrives.
 
+## Extensions (CN-12)
+
+The **Extensions** page of the Hub lists what connected apps can do for tasks and summaries. In M6 that is a fixed set of built-in actions, not code from anywhere else: **Draft email** (Gmail) and **Create event** (Google Calendar or Outlook). Each has its own connector, a permission it asks for, and a confirmation that is always required (`EXTENSION_ACTIONS` in `packages/shared/src/extensions.ts`). Murmur does not load or run third-party extension code (ADR-0087).
+
+- **Settings** (`extensions.settings`): `enabled` (true) and one switch for each action, off until the owner turns it on. An action is on when extensions are on, its switch is on, an account of its connector is connected, and the connector's own switches allow it (drafting on and the compose permission given for Gmail; read only off and the write permission given for a calendar).
+- **Hidden, not greyed out.** An action that is off, or whose connector has no account, is left out of the task and summary screens (`ExtensionActionState.hidden`); drafts and events it already made stay listed. An action whose account needs attention or lacks a permission is shown with the reason.
+- **Only a click runs an action** (`extensions/action-runner.ts`). All action calls from the window go through `ActionRunner.run(id, input, click)`, which refuses without a `UserClick`, checks the state, validates the input with the action's own schema, and calls the action once. A `UserClick` is made by `fromUserClick()` only in the handlers in `main.ts` for the window's own click (a unit test checks that no other source file uses it). A model's answer can only become an `ActionProposal` through `parseProposal`, which describes an action and its input and runs nothing, even if the text says it is confirmed.
+- **An extension cannot read a token.** Actions are built-in code reached only through two things the runner is given for each (whether it can be used, and the call that does it); the runner holds no connector service, and an action is called with its input alone. Tokens stay in the connector service and the Keychain.
+- **Not built:** posting to Slack ("Send to Slack") and creating Linear issues, which the page lists as not built; extensions from other developers, team-shared extensions (M7), and a sandbox for third-party code.
+
+**Manual check:** open Extensions: both actions are off. On a task, no "Draft email" or "Create event" button appears. Turn on "Draft email" with Gmail connected and drafting allowed: the button appears on an open task. Disconnect Gmail: it disappears again.
+
 ## Gmail and email drafts (CN-04, NT-27)
 
 Gmail is the same Google sign-in as Google Calendar, with its own client id on the Connectors page (it can be the same Google Cloud project). Signing in asks only for who the account is (`openid`, `email`). A mail permission is asked for only when the feature that needs it is turned on, in the Gmail card of the Connectors page:

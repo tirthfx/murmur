@@ -59,9 +59,12 @@ import {
   CONNECTOR_CATALOGUE,
   DATA_CONNECTOR_IDS,
   type CalendarEvent,
+  type CalendarEventResult,
+  type EmailDraftResult,
   MCP_STATUS_OFF,
   DEFAULT_CONNECTOR_SETTINGS,
   DEFAULT_BRIEF_SETTINGS,
+  DEFAULT_EXTENSIONS_SETTINGS,
   DEFAULT_MCP_SETTINGS,
   DEFAULT_NOTETAKER,
   isClientCredential,
@@ -178,6 +181,7 @@ import { createEventCreateService, isCalendarOpenUrl } from "./connectors/calend
 import { connectOptionsFor } from "./connectors/connect-options";
 import { createAutomationsStore } from "./connectors/gmail/automations-store";
 import { createEmailDraftService } from "./connectors/gmail/email-draft";
+import { createActionRunner, fromUserClick } from "./extensions/action-runner";
 import { createGmailThreads } from "./connectors/gmail/gmail-threads";
 import { createBriefBuilder, eventKeyOf as briefEventKey } from "./meetings/brief-builder";
 import { createBriefService } from "./meetings/brief-service";
@@ -765,6 +769,7 @@ const settingsStore = createSettingsStore(database, {
   notetaker: DEFAULT_NOTETAKER,
   connectors: DEFAULT_CONNECTOR_SETTINGS,
   mcp: DEFAULT_MCP_SETTINGS,
+  extensions: DEFAULT_EXTENSIONS_SETTINGS,
   plan: DEFAULT_PLAN,
   inputDevice: "auto",
   languages: [],
@@ -2005,6 +2010,27 @@ const noBriefs = {
   settings: DEFAULT_BRIEF_SETTINGS,
 };
 const noEventCreate = { available: false, reason: "Events need a calendar and the database." };
+// CN-12: the built-in actions run only through the runner, and only for a click.
+const actionRunner = createActionRunner({
+  settings: () => settingsStore.get().extensions,
+  accounts: () => connectorService?.list() ?? [],
+  executors: {
+    draft_email: {
+      state: () => emailDrafts?.state() ?? noEmailDrafts,
+      run: async (input) =>
+        emailDrafts?.create(input) ?? { ok: false, message: noEmailDrafts.reason },
+    },
+    create_event: {
+      state: () => eventCreate?.state() ?? noEventCreate,
+      run: async (input) =>
+        eventCreate?.create(input) ?? { ok: false, message: noEventCreate.reason },
+    },
+  },
+});
+const draftState = (id: "draft_email" | "create_event") => {
+  const state = actionRunner.stateOf(id);
+  return { available: state.state === "ready", reason: state.reason, hidden: state.hidden };
+};
 const taskRunner =
   meetingsStore && meetingTranscripts && tasksService
     ? createTaskRunner({
@@ -3553,17 +3579,34 @@ function registerIpc(): void {
       briefTarget = null;
       return target;
     },
-    emailDraftState: () => emailDrafts?.state() ?? noEmailDrafts,
-    emailDraftPropose: async (source) =>
-      emailDrafts?.propose(source) ?? { ok: false, message: noEmailDrafts.reason },
-    emailDraftCreate: async (input) =>
-      emailDrafts?.create(input) ?? { ok: false, message: noEmailDrafts.reason },
+    extensionsView: () => actionRunner.view(),
+    emailDraftState: () => draftState("draft_email"),
+    emailDraftPropose: async (source) => {
+      const state = draftState("draft_email");
+      if (!state.available) return { ok: false, message: state.reason ?? noEmailDrafts.reason };
+      return emailDrafts?.propose(source) ?? { ok: false, message: noEmailDrafts.reason };
+    },
+    emailDraftCreate: async (input) => {
+      // The click on "Create the draft in Gmail" is what runs the action.
+      const result = await actionRunner.run("draft_email", input, fromUserClick());
+      return result.ok
+        ? (result.result as EmailDraftResult)
+        : { ok: false, message: result.message };
+    },
     emailDraftList: (source) => emailDrafts?.list(source) ?? [],
-    calendarEventState: () => eventCreate?.state() ?? noEventCreate,
-    calendarEventPropose: async (source) =>
-      eventCreate?.propose(source) ?? { ok: false, message: noEventCreate.reason },
-    calendarEventCreate: async (input) =>
-      eventCreate?.create(input) ?? { ok: false, message: noEventCreate.reason },
+    calendarEventState: () => draftState("create_event"),
+    calendarEventPropose: async (source) => {
+      const state = draftState("create_event");
+      if (!state.available) return { ok: false, message: state.reason ?? noEventCreate.reason };
+      return eventCreate?.propose(source) ?? { ok: false, message: noEventCreate.reason };
+    },
+    calendarEventCreate: async (input) => {
+      // The click on "Create the event" is what runs the action.
+      const result = await actionRunner.run("create_event", input, fromUserClick());
+      return result.ok
+        ? (result.result as CalendarEventResult)
+        : { ok: false, message: result.message };
+    },
     calendarEventList: (source) => eventCreate?.list(source) ?? [],
     calendarEventOpen: async (url) => {
       // Only an event's address at the calendar service is opened, never another address.

@@ -1,6 +1,7 @@
 import {
   DEFAULT_CONNECTOR_SETTINGS,
   DEFAULT_MCP_SETTINGS,
+  DEFAULT_EXTENSIONS_SETTINGS,
   DEFAULT_NOTETAKER,
 } from "@murmur/shared";
 import { describe, expect, it, vi } from "vitest";
@@ -50,6 +51,7 @@ const base: Settings = {
   notetaker: DEFAULT_NOTETAKER,
   connectors: DEFAULT_CONNECTOR_SETTINGS,
   mcp: DEFAULT_MCP_SETTINGS,
+  extensions: DEFAULT_EXTENSIONS_SETTINGS,
   contextAwareness: true,
   mouseButtons: { hold: null, handsFree: null },
   typingReminder: { enabled: true, snoozedUntil: null },
