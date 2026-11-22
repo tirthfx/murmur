@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { BriefPanel, MeetingBriefTab } from "./BriefPanel";
 import { SummaryTab } from "./MeetingSummary";
 import { AskPanel, type AskTarget } from "./AskPanel";
 import { ExportPanel } from "./ExportPanel";
@@ -399,9 +400,12 @@ function MeetingView({
   onChange,
   onDeleted,
   onAsk,
+  onOpenMeeting,
   folders,
 }: {
   detail: MeetingDetail;
+  /** Open another meeting (from a brief's sources). */
+  onOpenMeeting: (meetingId: string) => void;
   /** The personal folders; the Inbox is not in the list. */
   folders: MeetingFolder[];
   /** Ask a question about this meeting. */
@@ -440,8 +444,6 @@ function MeetingView({
 
   const empty: Partial<Record<MeetingTab, string>> = {
     tasks: "To-dos found in the meeting will be listed here for you to accept.",
-    brief:
-      "A brief is prepared before meetings on your calendar. It needs a connected calendar, which comes with connectors.",
   };
 
   return (
@@ -648,6 +650,12 @@ function MeetingView({
             <Notes key={meeting.id} detail={detail} />
           ) : tab === "docs" ? (
             <Docs detail={detail} onChange={onChange} />
+          ) : tab === "brief" ? (
+            <MeetingBriefTab
+              meetingId={meeting.id}
+              fromCalendar={Boolean(meeting.calendarEventId)}
+              onOpenMeeting={onOpenMeeting}
+            />
           ) : (
             <Text color="secondary">{empty[tab]}</Text>
           )}
@@ -665,7 +673,22 @@ export function NotetakerPage() {
   const [detail, setDetail] = useState<MeetingDetail | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
-  const [page, setPage] = useState<"meetings" | "ask" | "tasks" | "skills">("meetings");
+  const [page, setPage] = useState<"meetings" | "upcoming" | "ask" | "tasks" | "skills">(
+    "meetings",
+  );
+  const [briefFocus, setBriefFocus] = useState<string | null>(null);
+
+  // The menu bar can ask for the brief of the next meeting: it is handed over once.
+  useEffect(() => {
+    const check = () =>
+      void window.murmur.briefTarget().then((key) => {
+        if (!key) return;
+        setBriefFocus(key);
+        setPage("upcoming");
+      });
+    check();
+    return window.murmur.onOpenPage(() => setTimeout(check, 0));
+  }, []);
   const [folders, setFolders] = useState<MeetingFolder[]>([]);
   const [folderFilter, setFolderFilter] = useState<string>("all");
   const [managingFolders, setManagingFolders] = useState(false);
@@ -783,14 +806,26 @@ export function NotetakerPage() {
         value={page}
         role="tablist"
         hasDivider
-        onChange={(value) => setPage(value as "meetings" | "ask" | "tasks" | "skills")}
+        onChange={(value) => setPage(value as "meetings" | "upcoming" | "ask" | "tasks" | "skills")}
       >
         <Tab value="meetings" label="Meetings" panelId="notetaker-meetings" />
+        <Tab value="upcoming" label="Upcoming" panelId="notetaker-upcoming" />
         <Tab value="ask" label="Ask" panelId="notetaker-ask" />
         <Tab value="tasks" label="My Tasks" panelId="notetaker-tasks" />
         <Tab value="skills" label="Skills" panelId="notetaker-skills" />
       </TabList>
 
+      {page === "upcoming" ? (
+        <div id="notetaker-upcoming" role="tabpanel" aria-label="Upcoming">
+          <BriefPanel
+            focus={briefFocus}
+            onOpenMeeting={(meetingId) => {
+              setOpenId(meetingId);
+              setPage("meetings");
+            }}
+          />
+        </div>
+      ) : null}
       {page === "ask" ? (
         <div id="notetaker-ask" role="tabpanel" aria-label="Ask">
           <AskPanel
@@ -916,6 +951,7 @@ export function NotetakerPage() {
                 setAbout({ ...meeting, n: Date.now() });
                 setPage("ask");
               }}
+              onOpenMeeting={(meetingId) => setOpenId(meetingId)}
               onChange={() => {
                 void loadList();
                 if (openId) void loadDetail(openId);

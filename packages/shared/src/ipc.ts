@@ -28,6 +28,7 @@ import {
 } from "./transcript-import";
 import type { ConnectorActionResult, ConnectorsView } from "./connectors";
 import type { ConnectorDataStatus, ConnectorOptionsResult } from "./connector-data";
+import type { BriefOverview, BriefResult, MeetingBrief } from "./brief";
 import {
   calendarEventInputSchema,
   calendarEventSourceSchema,
@@ -482,6 +483,12 @@ export const IPC_CHANNELS = {
   connectorSync: "connectors:sync",
   connectorOptions: "connectors:options",
   connectorDataStatus: "connectors:data-status",
+  briefOverview: "brief:overview",
+  briefGet: "brief:get",
+  briefBuild: "brief:build",
+  briefForMeeting: "brief:for-meeting",
+  briefOpen: "brief:open",
+  briefTarget: "brief:target",
   emailDraftState: "email-draft:state",
   emailDraftPropose: "email-draft:propose",
   emailDraftCreate: "email-draft:create",
@@ -1074,6 +1081,24 @@ export const IPC_CONTRACT = {
     args: z.tuple([]),
     result: z.custom<ConnectorDataStatus[]>(),
   },
+  [IPC_CHANNELS.briefOverview]: { args: z.tuple([]), result: z.custom<BriefOverview>() },
+  [IPC_CHANNELS.briefGet]: {
+    args: z.tuple([z.string().min(1).max(300)]),
+    result: z.custom<MeetingBrief | null>(),
+  },
+  [IPC_CHANNELS.briefForMeeting]: {
+    args: z.tuple([z.string().min(1).max(64)]),
+    result: z.custom<MeetingBrief | null>(),
+  },
+  [IPC_CHANNELS.briefBuild]: {
+    args: z.tuple([z.string().min(1).max(300)]),
+    result: z.custom<BriefResult>(),
+  },
+  [IPC_CHANNELS.briefOpen]: {
+    args: z.tuple([z.string().min(1).max(600)]),
+    result: z.custom<{ ok: boolean }>(),
+  },
+  [IPC_CHANNELS.briefTarget]: { args: z.tuple([]), result: z.custom<string | null>() },
   [IPC_CHANNELS.emailDraftState]: { args: z.tuple([]), result: z.custom<EmailDraftState>() },
   [IPC_CHANNELS.emailDraftPropose]: {
     args: z.tuple([emailDraftSourceSchema]),
@@ -1522,6 +1547,18 @@ export interface MurmurApi {
   connectorOptions(accountId: string): Promise<ConnectorOptionsResult>;
   /** CN-05 to CN-08: how many items each Slack, Notion, Linear and GitHub account has kept, and when it was read. */
   connectorDataStatus(): Promise<ConnectorDataStatus[]>;
+  /** NT-11: the meetings that are coming, whether each has a brief, and each source's state. */
+  briefOverview(): Promise<BriefOverview>;
+  /** NT-11: the brief last built for a meeting, or null. */
+  briefGet(eventKey: string): Promise<MeetingBrief | null>;
+  /** NT-11: the brief of the calendar event a recorded meeting was started from, or null. */
+  briefForMeeting(meetingId: string): Promise<MeetingBrief | null>;
+  /** NT-11: builds the brief of a meeting now. */
+  briefBuild(eventKey: string): Promise<BriefResult>;
+  /** NT-11: opens a source of a brief in the browser. Only addresses of the connected services are opened. */
+  briefOpen(url: string): Promise<{ ok: boolean }>;
+  /** NT-11: the meeting the menu bar asked the Brief tab to show, once; null when none. */
+  briefTarget(): Promise<string | null>;
   /** NT-27: whether "Draft email" works now, and why not when it does not. */
   emailDraftState(): Promise<EmailDraftState>;
   /** NT-27: the words and the people for a draft, from a task or a meeting's summary. Creates nothing. */

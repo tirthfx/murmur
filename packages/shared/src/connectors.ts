@@ -296,7 +296,7 @@ export const CONNECTOR_FEATURES: readonly ConnectorFeature[] = [
       "linear",
       "github",
     ],
-    built: false,
+    built: true,
   },
   {
     id: "email-drafts",

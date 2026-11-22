@@ -151,8 +151,8 @@ describe("Notetaker page", () => {
 
   it("opens a meeting with six tabs and the transcript, without dictated lines", async () => {
     await openMeeting();
-    // Four tabs for the page (Meetings, Ask, My Tasks, Skills) and six for the meeting.
-    expect(screen.getAllByRole("tab")).toHaveLength(10);
+    // Five tabs for the page (Meetings, Upcoming, Ask, My Tasks, Skills) and six for the meeting.
+    expect(screen.getAllByRole("tab")).toHaveLength(11);
     for (const name of ["My notes", "Summary", "Transcript", "Tasks", "Brief", "Docs"]) {
       expect(screen.getByRole("tab", { name })).toBeTruthy();
     }

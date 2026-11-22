@@ -69,10 +69,14 @@ export interface TrayControllerDeps {
     title: string;
     when: string;
     hasLink: boolean;
+    /** NT-11: whether a brief has been built for it. */
+    hasBrief?: boolean;
     text: string;
   } | null;
   joinMeeting?(eventId: string): void;
   recordEvent?(eventId: string): void;
+  /** NT-11: shows the brief of the next meeting in the Hub. */
+  openBrief?(eventId: string): void;
 }
 
 export interface TrayController {
@@ -131,6 +135,7 @@ export function createTrayController(deps: TrayControllerDeps): TrayController {
               title: next.title,
               when: next.when,
               hasLink: next.hasLink,
+              hasBrief: next.hasBrief === true,
             },
           }
         : {}),
@@ -264,6 +269,9 @@ export function createTrayController(deps: TrayControllerDeps): TrayController {
           return;
         case "meeting-record-event":
           deps.recordEvent?.(action.eventId);
+          return;
+        case "meeting-brief":
+          deps.openBrief?.(action.eventId);
           return;
         case "quit":
           deps.quit();

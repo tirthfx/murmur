@@ -134,6 +134,8 @@ import {
   type PermissionKind,
   type PermissionsInfo,
   type RequestablePermissionKind,
+  type BriefOverview,
+  type BriefResult,
   type CalendarEventInput,
   type CalendarEventProposalResult,
   type CalendarEventRecord,
@@ -144,6 +146,7 @@ import {
   type ConnectorDataStatus,
   type ConnectorOptionsResult,
   type EmailAutomationRecord,
+  type MeetingBrief,
   type EmailDraftInput,
   type EmailDraftProposalResult,
   type EmailDraftResult,
@@ -219,6 +222,12 @@ export interface IpcDeps {
   connectorSync: (accountId: string) => Promise<ConnectorActionResult>;
   connectorOptions: (accountId: string) => Promise<ConnectorOptionsResult>;
   connectorDataStatus: () => ConnectorDataStatus[];
+  briefOverview: () => BriefOverview;
+  briefGet: (eventKey: string) => MeetingBrief | null;
+  briefBuild: (eventKey: string) => Promise<BriefResult>;
+  briefForMeeting: (meetingId: string) => MeetingBrief | null;
+  briefOpen: (url: string) => Promise<{ ok: boolean }>;
+  briefTarget: () => string | null;
   emailDraftState: () => EmailDraftState;
   emailDraftPropose: (source: EmailDraftSource) => Promise<EmailDraftProposalResult>;
   emailDraftCreate: (input: EmailDraftInput) => Promise<EmailDraftResult>;
@@ -706,6 +715,18 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.connectorOptions(request.args[0] as string);
       case IPC_CHANNELS.connectorDataStatus:
         return deps.connectorDataStatus();
+      case IPC_CHANNELS.briefOverview:
+        return deps.briefOverview();
+      case IPC_CHANNELS.briefGet:
+        return deps.briefGet(request.args[0] as string);
+      case IPC_CHANNELS.briefForMeeting:
+        return deps.briefForMeeting(request.args[0] as string);
+      case IPC_CHANNELS.briefBuild:
+        return deps.briefBuild(request.args[0] as string);
+      case IPC_CHANNELS.briefOpen:
+        return deps.briefOpen(request.args[0] as string);
+      case IPC_CHANNELS.briefTarget:
+        return deps.briefTarget();
       case IPC_CHANNELS.emailDraftState:
         return deps.emailDraftState();
       case IPC_CHANNELS.emailDraftPropose:

@@ -64,6 +64,7 @@ describe("migrations", () => {
       "mcp_audit",
       "mcp_clients",
       "meeting_audio_chunks",
+      "meeting_briefs",
       "meeting_dictations",
       "meeting_docs",
       "meeting_jobs",

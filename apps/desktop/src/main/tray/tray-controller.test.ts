@@ -184,6 +184,7 @@ describe("tray next meeting (NT-29)", () => {
   ) {
     const join = vi.fn();
     const recordEvent = vi.fn();
+    const openBrief = vi.fn();
     const state: { next: typeof next } = { next };
     const tray = createTrayController({
       host: { render: () => {} },
@@ -213,10 +214,11 @@ describe("tray next meeting (NT-29)", () => {
       nextMeeting: () => state.next,
       joinMeeting: join,
       recordEvent,
+      openBrief,
     });
     const labels = () =>
       tray.view().items.flatMap((item) => (item.kind === "item" ? [item.label] : []));
-    return { tray, join, recordEvent, state, labels };
+    return { tray, join, recordEvent, openBrief, state, labels };
   }
   const NEXT = {
     eventId: "e1",
@@ -236,6 +238,15 @@ describe("tray next meeting (NT-29)", () => {
     t.tray.perform({ type: "meeting-record-event", eventId: "e1" });
     expect(t.join).toHaveBeenCalledWith("e1");
     expect(t.recordEvent).toHaveBeenCalledWith("e1");
+  });
+
+  it("offers to open the brief only when one has been built (NT-11)", () => {
+    const without = make(NEXT);
+    expect(without.labels()).not.toContain("Open the brief");
+    const t = make({ ...NEXT, hasBrief: true });
+    expect(t.labels()).toContain("Open the brief");
+    t.tray.perform({ type: "meeting-brief", eventId: "e1" });
+    expect(t.openBrief).toHaveBeenCalledWith("e1");
   });
 
   it("has no join for a meeting with no link, and updates when the next meeting changes or goes", () => {

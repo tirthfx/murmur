@@ -91,6 +91,13 @@ export const SETTINGS_INDEX: readonly SettingEntry[] = [
       "notetaker calendar reminder before meeting auto start declined menu bar next meeting lookahead",
   },
   {
+    id: "meeting-brief",
+    page: "system",
+    label: "Meeting briefs",
+    words:
+      "notetaker meeting brief before calendar sources gmail slack notion linear github earlier meetings tasks lead minutes",
+  },
+  {
     id: "meeting-follow-up",
     page: "system",
     label: "Follow-up events",
