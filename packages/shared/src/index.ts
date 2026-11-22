@@ -69,3 +69,4 @@ export * from "./meeting-retention";
 export * from "./policy";
 export * from "./managed";
 export * from "./team";
+export * from "./team-client";

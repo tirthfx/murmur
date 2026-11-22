@@ -54,3 +54,30 @@ describe("team inputs", () => {
     expect(TEAM_LIMITS.idleLockMinutes.default).toBe(15);
   });
 });
+
+describe("the team client's error set (SW-08)", () => {
+  it("maps each status of the local server to one error", async () => {
+    const { teamClientErrorFor, TEAM_CLIENT_ERRORS } = await import("./team-client");
+    expect(TEAM_CLIENT_ERRORS).toEqual([
+      "unauthorized",
+      "forbidden",
+      "not_found",
+      "conflict",
+      "invalid",
+      "rate_limited",
+      "offline",
+      "refused",
+      "server",
+    ]);
+    expect(teamClientErrorFor(401)).toBe("unauthorized");
+    expect(teamClientErrorFor(403)).toBe("forbidden");
+    expect(teamClientErrorFor(404)).toBe("not_found");
+    expect(teamClientErrorFor(409)).toBe("conflict");
+    expect(teamClientErrorFor(400)).toBe("invalid");
+    expect(teamClientErrorFor(415)).toBe("invalid");
+    expect(teamClientErrorFor(429)).toBe("rate_limited");
+    expect(teamClientErrorFor(400, "delayed")).toBe("rate_limited");
+    expect(teamClientErrorFor(500)).toBe("server");
+    expect(teamClientErrorFor(503)).toBe("server");
+  });
+});

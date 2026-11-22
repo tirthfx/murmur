@@ -1,10 +1,13 @@
 import {
   TEAM_LIMITS,
-  effectivePolicySchema,
   TEAM_MESSAGES,
   type EffectivePolicy,
   type InsightsDay,
   type Keychain,
+  type TeamClient,
+  type TeamClientError,
+  type TeamClientResult,
+  type TeamClientSession,
   type TeamNotice,
   type TeamProposeInput,
   type TeamProposeResult,
@@ -15,6 +18,7 @@ import {
   type TeamSummary,
   type TeamView,
 } from "@murmur/shared";
+import { createLocalTeamClient } from "./local-team-client";
 import type { SharedSet, SharedVocabulary } from "./shared-vocabulary";
 import type { DayCounts } from "./usage-counts";
 import {
@@ -63,6 +67,8 @@ export interface TeamDeps {
   writeFile(text: string): void;
   keychain: Keychain;
   fetch: typeof fetch;
+  /** Another backend for the same interface (SW-08); the local server's client when absent. */
+  client?: (connection: { serverUrl(): string; token(): string | null }) => TeamClient;
   now(): number;
   /** Seconds since the person last used the Mac. */
   idleSeconds(): number;
@@ -83,20 +89,14 @@ export interface TeamDeps {
 
 class Unreachable extends Error {}
 
-interface Answer {
-  status: number;
-  json: Record<string, unknown> | null;
-}
-
-const errorOf = (answer: Answer, fallback: string): string => {
-  const error = answer.json?.["error"] as { message?: string } | undefined;
-  return typeof error?.message === "string" ? error.message : fallback;
-};
-
 export function createTeamService(deps: TeamDeps) {
   const keep = deps.log ?? (() => undefined);
   let file: TeamFile = load();
   let token: string | null = null;
+  const connection = { serverUrl: () => file.serverUrl, token: () => token };
+  const client: TeamClient = deps.client
+    ? deps.client(connection)
+    : createLocalTeamClient({ ...connection, fetch: deps.fetch, networkCheck: deps.networkCheck });
   let state: TeamState = "off";
   let serverSetUp: boolean | null = null;
   let teams: TeamSummary[] = [];
@@ -152,49 +152,20 @@ export function createTeamService(deps: TeamDeps) {
 
   // ---- talking to the server ----
 
-  async function call(
-    method: string,
-    path: string,
-    options: { body?: unknown; auth?: boolean } = {},
-  ): Promise<Answer> {
-    const url = new URL(
-      path,
-      file.serverUrl.endsWith("/") ? file.serverUrl : `${file.serverUrl}/`,
-    ).toString();
-    deps.networkCheck(url);
-    const headers: Record<string, string> = {};
-    if (options.body !== undefined) headers["content-type"] = "application/json";
-    if (options.auth !== false && token) headers["authorization"] = `Bearer ${token}`;
-    let res: Response;
-    try {
-      res = await deps.fetch(url, {
-        method,
-        headers,
-        ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {}),
-        signal: AbortSignal.timeout(10_000),
-      });
-    } catch {
-      throw new Unreachable();
-    }
-    const text = await res.text();
-    const json = ((): Record<string, unknown> | null => {
-      try {
-        return text ? (JSON.parse(text) as Record<string, unknown>) : null;
-      } catch {
-        return null;
-      }
-    })();
-    return { status: res.status, json };
-  }
-
-  /** A signed-in call. A refused token ends the session here, so the person is asked to sign in. */
-  async function authed(method: string, path: string, body?: unknown): Promise<Answer> {
-    const answer = await call(method, path, body === undefined ? {} : { body });
-    if (answer.status === 401) {
+  /**
+   * A signed-in call's result. A refused session ends here, so the person is asked to sign in;
+   * a server that cannot be reached stops the work; anything else is the caller's to read.
+   */
+  async function authed<T>(pending: Promise<TeamClientResult<T>>): Promise<TeamClientResult<T>> {
+    const result = await pending;
+    if (result.ok) return result;
+    if (result.error.code === "unauthorized") {
       await endSession(TEAM_MESSAGES.sessionEnded);
       throw new Unreachable();
     }
-    return answer;
+    if (result.error.code === "offline") throw new Unreachable();
+    if (result.error.code === "refused") throw new Error(result.error.message);
+    return result;
   }
 
   async function endSession(problem: string): Promise<void> {
@@ -211,11 +182,10 @@ export function createTeamService(deps: TeamDeps) {
     emit();
   }
 
-  async function startSession(grant: Record<string, unknown>): Promise<void> {
-    token = grant["token"] as string;
-    const user = grant["user"] as { name: string; email: string };
+  async function startSession(grant: TeamClientSession): Promise<void> {
+    token = grant.token;
     await deps.keychain.set(TEAM_KEYCHAIN.service, TEAM_KEYCHAIN.account, token);
-    file = { ...file, user: { name: user.name, email: user.email }, locked: false };
+    file = { ...file, user: { name: grant.user.name, email: grant.user.email }, locked: false };
     state = "signed_in";
     syncProblem = "";
     save();
@@ -229,14 +199,15 @@ export function createTeamService(deps: TeamDeps) {
 
   const unreachable = () => failure(TEAM_MESSAGES.unreachable);
 
-  /** The server's reasons for turning a sign-in away, in words for the person. */
-  function signInFailure(answer: Answer): TeamResult {
-    const error = answer.json?.["error"] as
-      { code?: string; message?: string; retryAfterSeconds?: number } | undefined;
-    if (answer.status === 429)
-      return failure(error?.message ?? "Too many tries. Wait a little.", error?.retryAfterSeconds);
-    if (answer.status === 401) return failure(TEAM_MESSAGES.wrongPassword);
-    return failure(error?.message ?? "The server did not sign you in.");
+  /** The words for a failed call: the server's own, or ours for a connection that did not happen. */
+  function failed(error: TeamClientError): TeamResult {
+    if (error.code === "offline") return unreachable();
+    if (error.code === "refused") return failure(error.message);
+    // Only a sign-in is answered "unauthorized": the email or the password was not right.
+    if (error.code === "unauthorized") return failure(TEAM_MESSAGES.wrongPassword);
+    if (error.code === "rate_limited")
+      return failure(error.message || "Too many tries. Wait a little.", error.retryAfterSeconds);
+    return failure(error.message);
   }
 
   // ---- sync ----
@@ -254,79 +225,53 @@ export function createTeamService(deps: TeamDeps) {
     async post(batchId, events) {
       const team = teams[0];
       if (!team) return false;
-      try {
-        const answer = await call("POST", `v1/teams/${team.id}/usage`, {
-          body: { batchId, events },
-        });
-        // A 4xx other than "not signed in" will never succeed, so the batch is dropped, not repeated.
-        return (
-          answer.status === 200 ||
-          (answer.status >= 400 && answer.status < 500 && answer.status !== 401)
-        );
-      } catch {
-        return false;
-      }
+      const result = await client.sendUsage(team.id, batchId, events);
+      if (result.ok) return true;
+      // A refusal that will never change is final, so the batch is dropped and not repeated.
+      return ["forbidden", "not_found", "conflict", "invalid"].includes(result.error.code);
     },
   });
 
   async function syncOnce(): Promise<void> {
     if (state !== "signed_in" && state !== "locked") return;
     try {
-      const mine = await authed("GET", "v1/teams");
-      if (mine.status !== 200) throw new Unreachable();
-      teams = (mine.json?.["teams"] as TeamSummary[]) ?? [];
+      const mine = await authed(client.teams());
+      if (!mine.ok) throw new Unreachable();
+      teams = mine.data;
 
       const sets: SharedSet[] = [];
       let found: TeamNotice[] = [];
       const policies: Record<string, EffectivePolicy> = { ...file.policies };
       for (const team of teams) {
-        const since = revisions.get(team.id);
-        const merged = await authed(
-          "GET",
-          `v1/teams/${team.id}/vocabulary/merged${since !== undefined ? `?since=${since}` : ""}`,
-        );
-        if (merged.status === 200 && merged.json) {
-          const body = merged.json;
-          if (body["unchanged"] === true && file.cache[team.id]) {
-            sets.push(file.cache[team.id]!.set);
-          } else if (body["unchanged"] !== true) {
-            const context = (body["context"] ?? { me: "", team: team.name }) as {
-              me: string;
-              team: string;
-            };
+        const merged = await authed(client.vocabulary(team.id, revisions.get(team.id)));
+        if (merged.ok) {
+          const body = merged.data;
+          if (body.unchanged) {
+            if (file.cache[team.id]) sets.push(file.cache[team.id]!.set);
+          } else {
             const set: SharedSet = {
-              teamName: context.team || team.name,
-              me: context.me,
-              dictionary: (body["dictionary"] as SharedSet["dictionary"]) ?? [],
-              snippets: (body["snippets"] as SharedSet["snippets"]) ?? [],
+              teamName: body.context.team || team.name,
+              me: body.context.me,
+              dictionary: body.dictionary,
+              snippets: body.snippets,
             };
-            revisions.set(team.id, body["revision"] as number);
+            revisions.set(team.id, body.revision);
             file = {
               ...file,
-              cache: { ...file.cache, [team.id]: { revision: body["revision"] as number, set } },
+              cache: { ...file.cache, [team.id]: { revision: body.revision, set } },
             };
             sets.push(set);
           }
-        } else if (merged.status === 403 && file.cache[team.id]) {
-          // The server's plan no longer has shared vocabulary: it is not used.
         }
+        // A refusal (the server's plan no longer has shared vocabulary) leaves the entries unused.
 
-        const mineNotices = await authed("GET", `v1/teams/${team.id}/vocabulary/mine`);
-        if (mineNotices.status === 200) {
-          const list =
-            (mineNotices.json?.["notices"] as { id: string; summary: string; note: string }[]) ??
-            [];
-          found = [...found, ...list.map((n) => ({ id: n.id, summary: n.summary, note: n.note }))];
-        }
+        const mineNotices = await authed(client.notices(team.id));
+        if (mineNotices.ok) found = [...found, ...mineNotices.data];
 
-        const effective = await authed("GET", `v1/teams/${team.id}/policy/effective`);
-        if (effective.status === 200) {
-          const parsed = effectivePolicySchema.safeParse(effective.json?.["policy"]);
-          if (parsed.success) policies[team.id] = parsed.data;
-        } else if (effective.status === 403) {
-          // The server's plan has no policy (or the person may not see it): none applies.
-          delete policies[team.id];
-        }
+        const effective = await authed(client.policy(team.id));
+        if (effective.ok) policies[team.id] = effective.data;
+        // The server's plan has no policy (or the person may not see it): none applies.
+        else if (effective.error.code === "forbidden") delete policies[team.id];
       }
       deps.vocabulary.set(sets);
       notices = found;
@@ -431,18 +376,12 @@ export function createTeamService(deps: TeamDeps) {
         return failure("Use an http or https address.");
       const previous = file;
       file = { ...file, serverUrl: `${url.origin}/`, enabled: true };
-      try {
-        const health = await call("GET", "v1/health", { auth: false });
-        if (health.status !== 200 || health.json?.["ok"] !== true) {
-          file = previous;
-          return failure("That address did not answer like a Murmur team server.");
-        }
-        serverSetUp = health.json["setUp"] === true;
-      } catch (error) {
+      const health = await client.health();
+      if (!health.ok) {
         file = previous;
-        if (error instanceof Unreachable) return unreachable();
-        return failure(error instanceof Error ? error.message : TEAM_MESSAGES.strictLocal);
+        return failed(health.error);
       }
+      serverSetUp = health.data.setUp;
       if (previous.serverUrl !== file.serverUrl) {
         // A different server: whatever was kept for the old one goes.
         await endSession("");
@@ -457,18 +396,10 @@ export function createTeamService(deps: TeamDeps) {
     /** The first run on a new server: makes the owner account and signs in. */
     async setup(input: { name: string; email: string; password: string }): Promise<TeamResult> {
       if (!file.enabled) return failure("Connect to a server first.");
-      try {
-        const answer = await call("POST", "v1/setup", {
-          auth: false,
-          body: { ...input, clientId: "app" },
-        });
-        if (answer.status !== 201 || !answer.json)
-          return failure(errorOf(answer, "The owner account was not made."));
-        await startSession(answer.json);
-        serverSetUp = true;
-      } catch (error) {
-        return error instanceof Unreachable ? unreachable() : failure(TEAM_MESSAGES.strictLocal);
-      }
+      const made = await client.setupOwner(input);
+      if (!made.ok) return failed(made.error);
+      await startSession(made.data);
+      serverSetUp = true;
       startTimers();
       await sync();
       return { ok: true, view: view() };
@@ -476,23 +407,16 @@ export function createTeamService(deps: TeamDeps) {
 
     async signIn(input: { email: string; password: string }): Promise<TeamResult> {
       if (!file.enabled) return failure("Connect to a server first.");
-      try {
-        const answer = await call("POST", "v1/sessions", {
-          auth: false,
-          body: { ...input, clientId: "app" },
-        });
-        if (answer.status !== 200 || !answer.json) return signInFailure(answer);
-        await startSession(answer.json);
-      } catch (error) {
-        return error instanceof Unreachable ? unreachable() : failure(TEAM_MESSAGES.strictLocal);
-      }
+      const signed = await client.signIn(input);
+      if (!signed.ok) return failed(signed.error);
+      await startSession(signed.data);
       startTimers();
       await sync();
       return { ok: true, view: view() };
     },
 
     async signOut(): Promise<TeamResult> {
-      if (token) await call("DELETE", "v1/sessions/current").catch(() => undefined);
+      if (token) await client.signOut();
       await endSession("");
       stopTimers();
       return { ok: true, view: view() };
@@ -506,16 +430,9 @@ export function createTeamService(deps: TeamDeps) {
     /** The password again: a fresh sign-in that also replaces the session. */
     async unlock(password: string): Promise<TeamResult> {
       if (state !== "locked" || !file.user) return { ok: true, view: view() };
-      try {
-        const answer = await call("POST", "v1/sessions", {
-          auth: false,
-          body: { email: file.user.email, password, clientId: "app" },
-        });
-        if (answer.status !== 200 || !answer.json) return signInFailure(answer);
-        await startSession(answer.json);
-      } catch (error) {
-        return error instanceof Unreachable ? unreachable() : failure(TEAM_MESSAGES.strictLocal);
-      }
+      const signed = await client.signIn({ email: file.user.email, password });
+      if (!signed.ok) return failed(signed.error);
+      await startSession(signed.data);
       emit();
       void sync();
       return { ok: true, view: view() };
@@ -524,38 +441,28 @@ export function createTeamService(deps: TeamDeps) {
     /** Uses an invite code: joins the team, or asks to, and makes the account if there is none. */
     async redeem(input: TeamRedeemInput): Promise<TeamRedeemResult> {
       if (!file.enabled) return { ok: false, message: "Connect to a server first." };
-      try {
-        const body: Record<string, unknown> = { code: input.code, clientId: "app" };
-        const signedIn = state === "signed_in";
-        if (!signedIn)
-          Object.assign(body, {
-            name: input.name ?? "",
-            email: input.email ?? "",
-            password: input.password ?? "",
-          });
-        const answer = await call("POST", "v1/invites/redeem", { auth: signedIn, body });
-        if (answer.status !== 200 && answer.status !== 201 && answer.status !== 202)
-          return { ok: false, message: errorOf(answer, "The invite did not work.") };
-        const session = answer.json?.["session"] as Record<string, unknown> | undefined;
-        if (session) {
-          await startSession(session);
-          startTimers();
-        }
-        await sync();
-        const teamName = (answer.json?.["team"] as { name?: string } | undefined)?.name ?? "";
-        return {
-          ok: true,
-          status: answer.json?.["status"] === "pending" ? "pending" : "joined",
-          teamName,
-          view: view(),
-        };
-      } catch (error) {
-        return {
-          ok: false,
-          message:
-            error instanceof Unreachable ? TEAM_MESSAGES.unreachable : TEAM_MESSAGES.strictLocal,
-        };
+      const used = await client.redeemInvite({
+        code: input.code,
+        ...(input.name !== undefined ? { name: input.name } : {}),
+        ...(input.email !== undefined ? { email: input.email } : {}),
+        ...(input.password !== undefined ? { password: input.password } : {}),
+        signedIn: state === "signed_in",
+      });
+      if (!used.ok) {
+        const message = failed(used.error);
+        return { ok: false, message: message.ok ? "" : message.message };
       }
+      if (used.data.session) {
+        await startSession(used.data.session);
+        startTimers();
+      }
+      await sync();
+      return {
+        ok: true,
+        status: used.data.status,
+        teamName: used.data.teamName,
+        view: view(),
+      };
     },
 
     async syncNow(): Promise<TeamResult> {
@@ -573,7 +480,7 @@ export function createTeamService(deps: TeamDeps) {
 
     /** Turns team mode off: signs out and forgets the server. Personal data is untouched. */
     async disconnect(): Promise<TeamResult> {
-      if (token) await call("DELETE", "v1/sessions/current").catch(() => undefined);
+      if (token) await client.signOut();
       stopTimers();
       await endSession("");
       file = { ...EMPTY_FILE, idleLockMinutes: file.idleLockMinutes };
@@ -590,19 +497,11 @@ export function createTeamService(deps: TeamDeps) {
       if (state !== "signed_in") return { ok: false, message: "Sign in to a team first." };
       const team = teams[0];
       if (!team) return { ok: false, message: "You are not in a team yet." };
-      const body =
-        input.kind === "dictionary"
-          ? { term: input.term, replacement: input.replacement ?? undefined }
-          : { trigger: input.trigger, expansion: input.expansion };
       try {
-        const answer = await authed(
-          "POST",
-          `v1/teams/${team.id}/${input.kind === "dictionary" ? "dictionary" : "snippets"}`,
-          body,
-        );
-        if (answer.status === 201) return { ok: true, status: "live", teamName: team.name };
-        if (answer.status === 202) return { ok: true, status: "pending", teamName: team.name };
-        return { ok: false, message: errorOf(answer, "The team did not take that.") };
+        const sent = await authed(client.propose(team.id, input));
+        if (sent.ok)
+          return { ok: true, status: sent.data.live ? "live" : "pending", teamName: team.name };
+        return { ok: false, message: sent.error.message };
       } catch (error) {
         return {
           ok: false,
@@ -625,19 +524,13 @@ export function createTeamService(deps: TeamDeps) {
           (limit) => limit.max !== null || limit.min !== null,
         );
         if (!limited) continue;
-        await authed("POST", `v1/teams/${team.id}/policy/report`, {
-          event: "retention_applied",
-          audio: counts.audio,
-          transcripts: counts.transcripts,
-        }).catch(() => undefined);
+        await authed(client.reportRetention(team.id, counts)).catch(() => undefined);
       }
     },
 
     async noticesSeen(): Promise<TeamResult> {
       for (const team of teams)
-        await authed("POST", `v1/teams/${team.id}/vocabulary/notices/seen`, {}).catch(
-          () => undefined,
-        );
+        await authed(client.markNoticesSeen(team.id)).catch(() => undefined);
       notices = [];
       emit();
       return { ok: true, view: view() };

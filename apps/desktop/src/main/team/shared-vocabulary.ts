@@ -1,4 +1,13 @@
-import { DICTIONARY_LIMITS, markdownToRich, richToPlain, type Snippet } from "@murmur/shared";
+import {
+  DICTIONARY_LIMITS,
+  markdownToRich,
+  richToPlain,
+  type SharedEntry,
+  type SharedSnippet,
+  type Snippet,
+} from "@murmur/shared";
+
+export type { SharedEntry, SharedSnippet };
 import type { ReplacementRule, SpellingRule } from "../dictionary/apply";
 import type { DictionaryRules } from "../dictionary/dictionary-store";
 
@@ -7,19 +16,6 @@ import type { DictionaryRules } from "../dictionary/dictionary-store";
  * to the personal tables: the shared entries are held here, read-only, and combined when
  * dictation asks. A personal entry always wins over a shared one for the same term or trigger.
  */
-export interface SharedEntry {
-  id: string;
-  term: string;
-  replacement: string | null;
-  pronunciation: string;
-}
-export interface SharedSnippet {
-  id: string;
-  trigger: string;
-  expansion: string;
-  format: "plain" | "markdown";
-  locked: boolean;
-}
 /** What one team's `merged` answer holds. */
 export interface SharedSet {
   teamName: string;
