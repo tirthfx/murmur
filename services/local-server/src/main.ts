@@ -9,6 +9,10 @@ const port = Number(process.env["MURMUR_SERVER_PORT"] ?? DEFAULT_PORT);
 const server = createLocalServer({
   dbPath: join(dir, "murmur-server.db"),
   port,
+  devIdp: process.env["MURMUR_DEV_IDP"] === "1",
+  ...(process.env["MURMUR_DNS_RECORDS"]
+    ? { dnsRecordsFile: process.env["MURMUR_DNS_RECORDS"] }
+    : {}),
   log: (line) => console.log(line),
 });
 const { host, port: bound } = await server.listen();

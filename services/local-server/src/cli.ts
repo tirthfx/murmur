@@ -19,7 +19,19 @@ if (command === "verify") {
     process.exitCode = 1;
   }
   db.close();
+} else if (command === "scim-test") {
+  const { runScimSequence } = await import("./scim-test-client.ts");
+  const [baseUrl, token] = process.argv.slice(3);
+  if (!baseUrl || !token) {
+    console.error("Usage: node src/cli.ts scim-test <server url> <scim token>");
+    process.exitCode = 2;
+  } else {
+    for (const step of await runScimSequence({ baseUrl, token })) {
+      console.log(`${step.ok ? "ok  " : "FAIL"} ${step.step} (${step.detail})`);
+      if (!step.ok) process.exitCode = 1;
+    }
+  }
 } else {
-  console.error("Usage: node src/cli.ts verify");
+  console.error("Usage: node src/cli.ts verify | scim-test <server url> <scim token>");
   process.exitCode = 2;
 }

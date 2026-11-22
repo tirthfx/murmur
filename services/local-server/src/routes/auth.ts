@@ -47,7 +47,11 @@ export function authRoutes({ accounts }: RouteDeps): Route[] {
         );
         if (!result.ok) {
           const status =
-            result.code === "delayed" ? 429 : result.code === "deactivated" ? 403 : 401;
+            result.code === "delayed"
+              ? 429
+              : result.code === "deactivated" || result.code === "sso_required"
+                ? 403
+                : 401;
           throw new HttpError(
             status,
             result.code,

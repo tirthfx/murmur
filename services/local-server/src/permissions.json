@@ -98,6 +98,10 @@
     "leaderboard.view": {
       "scope": "team",
       "roles": ["owner", "admin", "manager", "member", "viewer"]
+    },
+    "identity.manage": {
+      "scope": "team",
+      "roles": ["owner", "admin"]
     }
   }
 }

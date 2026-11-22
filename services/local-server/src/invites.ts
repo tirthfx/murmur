@@ -65,6 +65,8 @@ export interface InvitesDeps {
   settings: Settings;
   teams: Teams;
   accounts: Accounts;
+  /** Whether an email may make an account for a team that limits sign-ups to its verified domains. */
+  signupAllowed?(teamId: string, email: string): boolean;
 }
 
 interface InviteRow {
@@ -290,6 +292,15 @@ export function createInvites(deps: InvitesDeps) {
             401,
             "sign_in_needed",
             "Sign in, or give a name, an email and a password to make an account.",
+          );
+        if (
+          deps.signupAllowed &&
+          !deps.signupAllowed(team.id, input.account.email.trim().toLowerCase())
+        )
+          return fail(
+            403,
+            "domain_not_allowed",
+            "This team only accepts sign-ups from its own email domains.",
           );
         const made = deps.accounts.createAccount(input.account, null, input.clientId ?? "");
         if (!made.ok)

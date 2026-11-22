@@ -310,6 +310,86 @@ export const MIGRATIONS: readonly Migration[] = [
       );
     `,
   },
+  {
+    version: 7,
+    name: "identity_sso_scim_domains",
+    sql: `
+      -- An account can come from outside: SCIM or a first single sign-on (TM-18, TM-19).
+      ALTER TABLE users ADD COLUMN external_id TEXT;
+      ALTER TABLE users ADD COLUMN provisioned_by TEXT NOT NULL DEFAULT '';
+      CREATE INDEX users_external_id ON users (external_id);
+
+      -- Single sign-on settings for a team. A SIMULATION: nothing here talks to a real identity
+      -- provider. The metadata is only checked for its structure.
+      CREATE TABLE identity_sso (
+        team_id          TEXT PRIMARY KEY REFERENCES teams (id) ON DELETE CASCADE,
+        enabled          INTEGER NOT NULL DEFAULT 0,
+        jit_create       INTEGER NOT NULL DEFAULT 0,
+        enforce          INTEGER NOT NULL DEFAULT 0,
+        idp_entity_id    TEXT NOT NULL DEFAULT '',
+        idp_sso_url      TEXT NOT NULL DEFAULT '',
+        cert_fingerprint TEXT NOT NULL DEFAULT '',
+        cert_subject     TEXT NOT NULL DEFAULT '',
+        cert_not_after   INTEGER,
+        metadata_xml     TEXT NOT NULL DEFAULT '',
+        updated_by       TEXT REFERENCES users (id),
+        updated_at       INTEGER NOT NULL
+      );
+
+      -- A sign-in that was started and is waiting for the identity provider's answer. One use.
+      CREATE TABLE sso_requests (
+        id         TEXT PRIMARY KEY,
+        team_id    TEXT NOT NULL REFERENCES teams (id) ON DELETE CASCADE,
+        created_at INTEGER NOT NULL,
+        expires_at INTEGER NOT NULL,
+        used_at    INTEGER
+      );
+
+      -- SCIM provisioning for a team (a simulation: no real provider calls it). Only the hash of
+      -- the token is kept.
+      CREATE TABLE identity_scim (
+        team_id        TEXT PRIMARY KEY REFERENCES teams (id) ON DELETE CASCADE,
+        enabled        INTEGER NOT NULL DEFAULT 0,
+        token_hash     TEXT UNIQUE,
+        group_map_json TEXT NOT NULL DEFAULT '[]',
+        updated_at     INTEGER NOT NULL
+      );
+      CREATE TABLE scim_groups (
+        id           TEXT PRIMARY KEY,
+        team_id      TEXT NOT NULL REFERENCES teams (id) ON DELETE CASCADE,
+        display_name TEXT NOT NULL,
+        external_id  TEXT,
+        created_at   INTEGER NOT NULL,
+        UNIQUE (team_id, display_name)
+      );
+      CREATE TABLE scim_group_members (
+        group_id TEXT NOT NULL REFERENCES scim_groups (id) ON DELETE CASCADE,
+        user_id  TEXT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        PRIMARY KEY (group_id, user_id)
+      );
+
+      -- Company domains of a team, verified with a DNS TXT record (TM-20; the lookup can be
+      -- pointed at a file of fake records for tests).
+      CREATE TABLE identity_domains (
+        id              TEXT PRIMARY KEY,
+        team_id         TEXT NOT NULL REFERENCES teams (id) ON DELETE CASCADE,
+        domain          TEXT NOT NULL,
+        token           TEXT NOT NULL,
+        verified_at     INTEGER,
+        last_checked_at INTEGER,
+        default_role    TEXT NOT NULL DEFAULT 'member' CHECK (default_role IN ('admin', 'manager', 'member', 'viewer')),
+        capture         INTEGER NOT NULL DEFAULT 0,
+        restrict_signup INTEGER NOT NULL DEFAULT 0,
+        created_at      INTEGER NOT NULL,
+        UNIQUE (team_id, domain)
+      );
+      CREATE TABLE capture_declines (
+        team_id TEXT NOT NULL REFERENCES teams (id) ON DELETE CASCADE,
+        user_id TEXT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        PRIMARY KEY (team_id, user_id)
+      );
+    `,
+  },
 ];
 
 export function migrate(db: DatabaseSync, migrations: readonly Migration[] = MIGRATIONS): number {

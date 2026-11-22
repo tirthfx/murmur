@@ -40,6 +40,7 @@ const EXPECTED: Record<ActionName, Role[] | "server"> = {
   "usage.view": ["owner", "admin", "manager"],
   "usage.settings": ["owner", "admin"],
   "leaderboard.view": ["owner", "admin", "manager", "member", "viewer"],
+  "identity.manage": ["owner", "admin"],
 };
 
 describe("the permission matrix", () => {
@@ -112,6 +113,7 @@ describe("every endpoint, for every role", () => {
       const ok =
         route.access === "public" ||
         route.access === "optional" ||
+        route.access === "scim" ||
         route.access === "signed_in" ||
         isAction(route.access.action);
       expect(ok, `${route.method} ${route.path}`).toBe(true);
