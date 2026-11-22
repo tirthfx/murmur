@@ -147,6 +147,40 @@ Settings (`GET` and `PUT …/vocabulary/settings`; admins change them): `governa
 | `GET …/vocabulary/conflicts`                                                              | admin         |
 | `GET`, `PUT …/vocabulary/settings`                                                        | view, admin   |
 
+## Policy (TM-13 to TM-16)
+
+An admin sets policy for the whole team, for one department or for one member. A person's app
+downloads the **effective** policy, the three merged, and enforces it (the app side is #255). The
+rules live in `packages/shared/src/policy.ts`, which imports only `zod` so the server and the app
+run the same code.
+
+- **Settings** (one row each, set by an admin):
+  - `blockedApps` (bundle ids, or an absolute path for an app with none; up to 200) and
+    `blockedApps.appliesTo` (`dictation`, or `dictation_and_notetaker`);
+  - `features.notetaker`, `scratchpad`, `transforms`, `connectors`, `shareLinksTeam`,
+    `shareLinksAnyone`, `exportToFile`, `mcp`, `skillSharing` (on unless set to false) and
+    `connectors.disabled` (connector ids);
+  - `retention.audio.max`, `.min` and `retention.transcript.max`, `.min` (days, 1 to 3650, or null);
+  - `blockedDomains` (up to 500) and `adminContact` (team scope only).
+- **Merging.** A feature is off if any layer turns it off, so a department cannot turn on what the
+  team turned off. Block lists and disabled connectors are added together. A retention limit is the
+  strictest given (the lowest maximum, the highest minimum, and a minimum above the maximum is
+  brought down to it). A layer's own minimum cannot be above its maximum.
+- **Domains** are written like `example.com` however they are typed (scheme, path, port and `www.`
+  are dropped; the name is lower-cased and in punycode). `example.com` blocks `sub.example.com`
+  and not `notexample.com`.
+- **Retention reports.** After the app applies a new limit it posts the counts to
+  `POST …/policy/report`; the audit log gets the numbers and nothing else.
+- Every change is an audit entry per setting (`policy.changed` with the old and new value; a list
+  is only "3 items"). A webhook for SIEM streaming is refused if a team blocks its host.
+
+| Route                                               | Needs    |
+| --------------------------------------------------- | -------- |
+| `GET …/policy/effective`                            | any role |
+| `GET …/policy?scope=…&scopeId=…`                    | admin    |
+| `PUT …/policy` (`scope`, `scopeId`, `set`, `unset`) | admin    |
+| `POST …/policy/report`                              | any role |
+
 ## Audit log (TM-12)
 
 Every sign-in, failed sign-in (the first miss and each lock, not every miss), new account, password

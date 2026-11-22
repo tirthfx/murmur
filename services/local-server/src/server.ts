@@ -22,9 +22,11 @@ import {
 } from "./http.ts";
 import { createInvites, type Invites } from "./invites.ts";
 import { ACTIONS, allows } from "./permissions.ts";
+import { createPolicy, type Policy } from "./policy.ts";
 import { auditRoutes } from "./routes/audit.ts";
 import { authRoutes } from "./routes/auth.ts";
 import type { RouteDeps } from "./routes/context.ts";
+import { policyRoutes } from "./routes/policy.ts";
 import { teamRoutes } from "./routes/teams.ts";
 import { vocabularyRoutes } from "./routes/vocabulary.ts";
 import { createSettings } from "./settings.ts";
@@ -65,6 +67,7 @@ export interface LocalServer {
   teams: Teams;
   invites: Invites;
   vocabulary: Vocabulary;
+  policy: Policy;
   /** Every route and who may call it: the permission matrix tests walk this. */
   routes: readonly RouteInfo[];
   db: DatabaseSync;
@@ -107,6 +110,7 @@ export function createLocalServer(config: ServerConfig): LocalServer {
   const invites = createInvites({ db, now, audit: record, settings, teams, accounts });
   const teamSettings = createTeamSettings(db);
   const vocabulary = createVocabulary({ db, now, audit: record, settings: teamSettings });
+  const policy = createPolicy({ db, now, audit: record, teams });
   const log = config.log ?? (() => undefined);
   let timer: NodeJS.Timeout | null = null;
 
@@ -119,6 +123,7 @@ export function createLocalServer(config: ServerConfig): LocalServer {
     invites,
     teamSettings,
     vocabulary,
+    policy,
     autoFlush,
   };
   const routes: Route[] = [
@@ -126,6 +131,7 @@ export function createLocalServer(config: ServerConfig): LocalServer {
     ...auditRoutes(deps),
     ...teamRoutes(deps),
     ...vocabularyRoutes(deps),
+    ...policyRoutes(deps),
   ];
 
   function bearer(req: IncomingMessage): string | null {
@@ -207,6 +213,7 @@ export function createLocalServer(config: ServerConfig): LocalServer {
     teams,
     invites,
     vocabulary,
+    policy,
     routes: routes.map(({ method, path, access }) => ({ method, path, access })),
     db,
     listen: () =>

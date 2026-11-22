@@ -73,6 +73,14 @@
     "vocabulary.settings": {
       "scope": "team",
       "roles": ["owner", "admin"]
+    },
+    "policy.view": {
+      "scope": "team",
+      "roles": ["owner", "admin", "manager", "member", "viewer"]
+    },
+    "policy.manage": {
+      "scope": "team",
+      "roles": ["owner", "admin"]
     }
   }
 }
