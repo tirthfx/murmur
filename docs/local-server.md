@@ -19,8 +19,7 @@ npm start --workspace @murmur/local-server
 ## Accounts and sessions (TM-01)
 
 - The first run makes the **owner**: `POST /v1/setup` works once, while there is no account.
-- The owner adds more accounts with `POST /v1/users`. Teams, roles and who may do what come with
-  the permission matrix (TM-04).
+- The owner adds more accounts with `POST /v1/users`, or an invite makes one (see Teams below).
 - Passwords are at least 12 characters, hashed with scrypt, and the last five cannot be used
   again. Changing a password ends every other session.
 - Five wrong passwords in a row for an address (an unknown address counts too) make the next
@@ -46,6 +45,50 @@ All bodies are JSON. Send `Authorization: Bearer <token>` after signing in.
 
 Errors are `{ "error": { "code", "message" } }`. A delayed sign-in is 429 with
 `retryAfterSeconds`.
+
+## Teams, roles and invites (TM-02 to TM-05)
+
+- **Teams.** Only the server owner makes one, and becomes its `owner`. A person can be in several
+  teams. Leaving or being removed ends access on the next request; the account is untouched.
+- **Roles** are `owner`, `admin`, `manager`, `member` and `viewer`, fixed. Who may do what is one
+  file, `src/permissions.json`, read by the server on every request and by the tests and the
+  admin console. The server owner counts as owner in every team.
+- **Giving roles.** You can only give, change or remove a role below your own, never your own, and
+  nobody hands out `owner`: it belongs to the person who made the team. An admin can make a
+  viewer a member but cannot make an admin or touch one.
+- **Departments** are labels with an optional cost center and one level of nesting. A member is in
+  one department at a time; deleting a department leaves its members with none.
+- **Invites.** An admin makes an invite with a role below theirs, an optional department, an
+  expiry (default 7 days, up to 90) and a number of uses (default 1, up to 1000), and whether
+  approval is required (default yes). The code (`inv_…`) is shown once, with a link; only its hash
+  is stored and it is never listed or logged. The defaults come from the settings
+  `team.invite.expiryDays`, `team.invite.maxUses` and `team.invite.approvalRequired`.
+- **Redeeming** works signed in, or with a name, an email and a password, which makes the account
+  and signs it in. A used, expired or withdrawn invite says so; someone already in the team, or
+  with a request waiting, is told and no use is taken.
+- **Requests.** With approval required the person waits as a pending request, visible to them at
+  `GET /v1/me/join-requests`. An admin approves (they must outrank the role) or rejects; a
+  rejection leaves no membership. A request nobody decides in 14 days expires.
+- Every change is written to the audit log (`team.*`, `member.*`, `department.*`, `invite.*`,
+  `join_request.*`).
+
+| Route                                                              | Needs                                |
+| ------------------------------------------------------------------ | ------------------------------------ |
+| `GET /v1/teams`                                                    | signed in                            |
+| `POST /v1/teams`                                                   | server owner                         |
+| `GET`, `PATCH`, `DELETE /v1/teams/:teamId`                         | view, update (admin), delete (owner) |
+| `GET /v1/teams/:teamId/members`                                    | any role                             |
+| `PATCH`, `DELETE /v1/teams/:teamId/members/:userId`                | admin                                |
+| `POST /v1/teams/:teamId/leave`                                     | signed in                            |
+| `GET /v1/teams/:teamId/departments`                                | any role                             |
+| `POST`, `PATCH`, `DELETE …/departments[/:id]`                      | admin                                |
+| `GET`, `POST /v1/teams/:teamId/invites`, `DELETE …/:id`            | admin                                |
+| `POST /v1/invites/redeem`                                          | anyone                               |
+| `GET /v1/teams/:teamId/requests`, `POST …/:id/approve`, `…/reject` | admin                                |
+| `GET /v1/me/join-requests`                                         | signed in                            |
+
+The audit log routes are for the server owner only until the admin console (#247) decides what a
+team admin may see of it.
 
 ## Audit log (TM-12)
 

@@ -103,6 +103,75 @@ export const MIGRATIONS: readonly Migration[] = [
       CREATE INDEX siem_queue_status ON siem_queue (status, next_attempt_at);
     `,
   },
+  {
+    version: 3,
+    name: "teams_departments_invites",
+    sql: `
+      CREATE TABLE teams (
+        id         TEXT PRIMARY KEY,
+        name       TEXT NOT NULL,
+        created_by TEXT NOT NULL REFERENCES users (id),
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+
+      -- One level: a department may have a parent that has none (TM-05). The cost centre is a
+      -- label for usage export and carries no billing.
+      CREATE TABLE departments (
+        id          TEXT PRIMARY KEY,
+        team_id     TEXT NOT NULL REFERENCES teams (id) ON DELETE CASCADE,
+        name        TEXT NOT NULL,
+        cost_center TEXT NOT NULL DEFAULT '',
+        parent_id   TEXT REFERENCES departments (id) ON DELETE SET NULL,
+        created_at  INTEGER NOT NULL,
+        UNIQUE (team_id, name)
+      );
+
+      CREATE TABLE team_members (
+        team_id       TEXT NOT NULL REFERENCES teams (id) ON DELETE CASCADE,
+        user_id       TEXT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        role          TEXT NOT NULL CHECK (role IN ('owner', 'admin', 'manager', 'member', 'viewer')),
+        department_id TEXT REFERENCES departments (id) ON DELETE SET NULL,
+        joined_at     INTEGER NOT NULL,
+        PRIMARY KEY (team_id, user_id)
+      );
+      CREATE INDEX team_members_user ON team_members (user_id);
+
+      -- Only the hash of an invite code is kept.
+      CREATE TABLE invites (
+        id                TEXT PRIMARY KEY,
+        team_id           TEXT NOT NULL REFERENCES teams (id) ON DELETE CASCADE,
+        code_hash         TEXT NOT NULL UNIQUE,
+        role              TEXT NOT NULL CHECK (role IN ('admin', 'manager', 'member', 'viewer')),
+        department_id     TEXT REFERENCES departments (id) ON DELETE SET NULL,
+        created_by        TEXT NOT NULL REFERENCES users (id),
+        created_at        INTEGER NOT NULL,
+        expires_at        INTEGER NOT NULL,
+        max_uses          INTEGER NOT NULL,
+        uses              INTEGER NOT NULL DEFAULT 0,
+        approval_required INTEGER NOT NULL,
+        revoked_at        INTEGER
+      );
+      CREATE INDEX invites_team ON invites (team_id);
+
+      -- A request to join, made with an invite that needs approval. It stays until decided or
+      -- until it expires. A rejection leaves no membership.
+      CREATE TABLE join_requests (
+        id            TEXT PRIMARY KEY,
+        team_id       TEXT NOT NULL REFERENCES teams (id) ON DELETE CASCADE,
+        invite_id     TEXT REFERENCES invites (id) ON DELETE SET NULL,
+        user_id       TEXT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        role          TEXT NOT NULL,
+        department_id TEXT REFERENCES departments (id) ON DELETE SET NULL,
+        status        TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'expired')),
+        created_at    INTEGER NOT NULL,
+        decided_by    TEXT REFERENCES users (id),
+        decided_at    INTEGER
+      );
+      CREATE INDEX join_requests_team ON join_requests (team_id, status);
+      CREATE INDEX join_requests_user ON join_requests (user_id);
+    `,
+  },
 ];
 
 export function migrate(db: DatabaseSync, migrations: readonly Migration[] = MIGRATIONS): number {
