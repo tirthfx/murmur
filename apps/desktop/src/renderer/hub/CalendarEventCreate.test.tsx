@@ -181,4 +181,15 @@ describe("Create event (NT-28)", () => {
     expect(await screen.findByText(/Event “Review the budget” on/)).toBeTruthy();
     expect(screen.getByRole("button", { name: "Create a follow-up event" })).toBeTruthy();
   });
+
+  it("is not offered at all when the action is off or its connector is not connected (CN-12)", async () => {
+    api.calendarEventState = vi
+      .fn()
+      .mockResolvedValue({ available: false, reason: "Turn it on.", hidden: true });
+    const { container } = render(<CalendarEventCreate source={source} />);
+    await waitFor(() => expect(api.calendarEventState).toHaveBeenCalled());
+    expect(screen.queryByRole("button", { name: "Create event" })).toBeNull();
+    expect(screen.queryByText("Turn it on.")).toBeNull();
+    expect(container.textContent).toBe("");
+  });
 });

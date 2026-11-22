@@ -29,6 +29,13 @@ export const PAGES = [
     emptyDescription: "Calendars and other services you sign in to will be listed here.",
   },
   {
+    id: "extensions",
+    title: "Extensions",
+    emptyTitle: "No extensions",
+    emptyDescription:
+      "What your connected apps can do for tasks and summaries will be listed here.",
+  },
+  {
     id: "dictionary",
     title: "Dictionary",
     emptyTitle: "No words saved",

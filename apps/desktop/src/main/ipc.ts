@@ -147,6 +147,7 @@ import {
   type ConnectorDataStatus,
   type ConnectorOptionsResult,
   type EmailAutomationRecord,
+  type ExtensionsView,
   type MeetingBrief,
   type EmailDraftInput,
   type EmailDraftProposalResult,
@@ -229,6 +230,7 @@ export interface IpcDeps {
     remoteId: string,
   ) => Promise<TranscriptImportPreviewResult>;
   connectorDataStatus: () => ConnectorDataStatus[];
+  extensionsView: () => ExtensionsView;
   briefOverview: () => BriefOverview;
   briefGet: (eventKey: string) => MeetingBrief | null;
   briefBuild: (eventKey: string) => Promise<BriefResult>;
@@ -728,6 +730,8 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.connectorOptions(request.args[0] as string);
       case IPC_CHANNELS.connectorDataStatus:
         return deps.connectorDataStatus();
+      case IPC_CHANNELS.extensionsView:
+        return deps.extensionsView();
       case IPC_CHANNELS.briefOverview:
         return deps.briefOverview();
       case IPC_CHANNELS.briefGet:

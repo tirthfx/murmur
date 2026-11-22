@@ -18,6 +18,7 @@ export * from "./setup";
 export * from "./brief";
 export * from "./calendar";
 export * from "./connectors";
+export * from "./extensions";
 export * from "./connector-data";
 export * from "./connector-import";
 export * from "./gmail";

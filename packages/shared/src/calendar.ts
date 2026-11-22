@@ -150,6 +150,8 @@ export interface CalendarEventState {
   available: boolean;
   /** Why not, in words for the button's note; null when it is. */
   reason: string | null;
+  /** The action is off or its connector is not connected: it is left out of the screens that would offer it (CN-12). */
+  hidden?: boolean;
 }
 
 export interface CalendarEventRecord {

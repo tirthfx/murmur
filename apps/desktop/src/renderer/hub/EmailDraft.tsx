@@ -157,25 +157,30 @@ export function EmailDraft({ source, label }: { source: EmailDraftSource; label?
   // the disabled button and the reason.
   if (!state) return null;
   const name = label ?? "Draft email";
+  // An action that is off, or whose account is not connected, is not offered (CN-12); drafts it
+  // already made stay listed.
+  const offered = state.hidden !== true;
 
   return (
     <VStack gap={1}>
-      <HStack gap={2} align="center" wrap="wrap">
-        <Button
-          size="sm"
-          variant="secondary"
-          label={name}
-          isDisabled={!state.available || working || proposal !== null}
-          onClick={() => void start()}
-        >
-          {working ? "Writing…" : name}
-        </Button>
-        {!state.available && state.reason ? (
-          <Text size="sm" color="secondary">
-            {state.reason}
-          </Text>
-        ) : null}
-      </HStack>
+      {offered ? (
+        <HStack gap={2} align="center" wrap="wrap">
+          <Button
+            size="sm"
+            variant="secondary"
+            label={name}
+            isDisabled={!state.available || working || proposal !== null}
+            onClick={() => void start()}
+          >
+            {working ? "Writing…" : name}
+          </Button>
+          {!state.available && state.reason ? (
+            <Text size="sm" color="secondary">
+              {state.reason}
+            </Text>
+          ) : null}
+        </HStack>
+      ) : null}
       {message ? <Banner status="warning" title={message} /> : null}
       {proposal ? (
         <Editor

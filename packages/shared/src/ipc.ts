@@ -29,6 +29,7 @@ import {
 import type { ConnectorActionResult, ConnectorsView } from "./connectors";
 import type { ConnectorDataStatus, ConnectorOptionsResult } from "./connector-data";
 import type { RecordingsResult } from "./connector-import";
+import type { ExtensionsView } from "./extensions";
 import type { BriefOverview, BriefResult, MeetingBrief } from "./brief";
 import {
   calendarEventInputSchema,
@@ -487,6 +488,7 @@ export const IPC_CHANNELS = {
   connectorRecordings: "connectors:recordings",
   connectorImportPrepare: "connectors:import-prepare",
   connectorDataStatus: "connectors:data-status",
+  extensionsView: "extensions:view",
   briefOverview: "brief:overview",
   briefGet: "brief:get",
   briefBuild: "brief:build",
@@ -1097,6 +1099,7 @@ export const IPC_CONTRACT = {
     args: z.tuple([]),
     result: z.custom<ConnectorDataStatus[]>(),
   },
+  [IPC_CHANNELS.extensionsView]: { args: z.tuple([]), result: z.custom<ExtensionsView>() },
   [IPC_CHANNELS.briefOverview]: { args: z.tuple([]), result: z.custom<BriefOverview>() },
   [IPC_CHANNELS.briefGet]: {
     args: z.tuple([z.string().min(1).max(300)]),
@@ -1572,6 +1575,8 @@ export interface MurmurApi {
   connectorOptions(accountId: string): Promise<ConnectorOptionsResult>;
   /** CN-05 to CN-08: how many items each Slack, Notion, Linear and GitHub account has kept, and when it was read. */
   connectorDataStatus(): Promise<ConnectorDataStatus[]>;
+  /** CN-12: the built-in actions connected apps can do, with their state. They are switched in settings. */
+  extensionsView(): Promise<ExtensionsView>;
   /** NT-11: the meetings that are coming, whether each has a brief, and each source's state. */
   briefOverview(): Promise<BriefOverview>;
   /** NT-11: the brief last built for a meeting, or null. */

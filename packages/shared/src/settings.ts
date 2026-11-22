@@ -4,6 +4,7 @@ import { privacySettingsSchema } from "./privacy";
 import { developerSettingsSchema } from "./testing";
 import { helpSettingsSchema, referralSettingsSchema } from "./help";
 import { connectorSettingsSchema } from "./connectors";
+import { extensionsSettingsSchema } from "./extensions";
 import { mcpSettingsSchema } from "./mcp";
 import { notetakerSettingsSchema } from "./meetings";
 import { audioDeviceSchema } from "./audio";
@@ -193,6 +194,8 @@ export const settingsSchema = z.strictObject({
   connectors: connectorSettingsSchema,
   /** M6: the local MCP server (CN-11). */
   mcp: mcpSettingsSchema,
+  /** CN-12: the actions connected apps can do for other features. */
+  extensions: extensionsSettingsSchema,
   /** HB-20, HB-57: developer mode and the engine switches. */
   devMode: developerSettingsSchema,
   /** HB-19: the trial, the student label and the plan change log. */
@@ -249,6 +252,7 @@ export const settingsPatchSchema = settingsSchema
     notetaker: true,
     connectors: true,
     mcp: true,
+    extensions: true,
   })
   .partial()
   .strict();
@@ -301,6 +305,7 @@ export const SETTING_KEYS: Record<keyof Settings, string> = {
   notetaker: "notetaker.settings",
   connectors: "connectors.settings",
   mcp: "mcp.settings",
+  extensions: "extensions.settings",
 };
 
 /** HB-24 defaults. */

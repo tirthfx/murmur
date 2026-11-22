@@ -3,6 +3,7 @@ import {
   DEFAULT_BRIEF_SETTINGS,
   DEFAULT_CONNECTOR_SETTINGS,
   DEFAULT_MCP_SETTINGS,
+  DEFAULT_EXTENSIONS_SETTINGS,
   DEFAULT_NOTETAKER,
   MCP_STATUS_OFF,
 } from "@murmur/shared";
@@ -60,6 +61,7 @@ export const SAMPLE_SETTINGS: SettingsView = {
     notetaker: DEFAULT_NOTETAKER,
     connectors: DEFAULT_CONNECTOR_SETTINGS,
     mcp: DEFAULT_MCP_SETTINGS,
+    extensions: DEFAULT_EXTENSIONS_SETTINGS,
     contextAwareness: true,
     mouseButtons: { hold: null, handsFree: null },
     typingReminder: { enabled: true, snoozedUntil: null },
@@ -463,6 +465,7 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
     connectorRecordings: vi.fn().mockResolvedValue({ ok: true, recordings: [] }),
     connectorImportPrepare: vi.fn().mockResolvedValue({ ok: false, message: "Not available." }),
     connectorDataStatus: vi.fn().mockResolvedValue([]),
+    extensionsView: vi.fn().mockResolvedValue({ enabled: true, actions: [], planned: [] }),
     briefOverview: vi.fn().mockResolvedValue({
       calendarConnected: false,
       events: [],
