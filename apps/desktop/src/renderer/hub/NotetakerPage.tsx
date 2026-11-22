@@ -1,3 +1,4 @@
+import { PolicyFeatureNotice } from "./PolicyNotice";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BriefPanel, MeetingBriefTab } from "./BriefPanel";
 import { SummaryTab } from "./MeetingSummary";
@@ -772,6 +773,7 @@ export function NotetakerPage() {
 
   return (
     <VStack gap={4}>
+      <PolicyFeatureNotice feature="notetaker" />
       <section aria-label="Recording">
         <VStack gap={2}>
           {recording.status === "recording" ? (

@@ -13,6 +13,8 @@ export interface MeetingStarterDeps {
   /** Shows the recording notice; true when the owner pressed OK. */
   confirmNotice(): Promise<boolean>;
   now(): number;
+  /** Why a new recording may not start (Notetaker is off, or the plan's limit is reached), or null. */
+  refuse?(): string | null;
   logger: Logger;
 }
 
@@ -59,6 +61,12 @@ export function createMeetingStarter(deps: MeetingStarterDeps): MeetingStarter {
   ): Promise<StartResult> {
     if (asking) return { ok: false, message: "The recording notice is waiting for an answer." };
     const idle = deps.recorder.state().status === "idle";
+    // Only a new recording is refused; one already running can always be stopped.
+    const refusal = idle ? (deps.refuse?.() ?? null) : null;
+    if (refusal !== null) {
+      deps.logger.info(`meeting recording not started: ${refusal}`);
+      return { ok: false, message: refusal };
+    }
     let shown = false;
     if (idle && needsNotice()) {
       asking = true;

@@ -8,6 +8,7 @@ import {
   MCP_STATUS_OFF,
 } from "@murmur/shared";
 import { vi } from "vitest";
+import { EMPTY_POLICY_VIEW } from "@murmur/shared";
 import type {
   HistoryPage,
   InsightsView,
@@ -506,6 +507,8 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
     teamDisconnect: vi.fn().mockResolvedValue({ ok: true, view: SAMPLE_TEAM_VIEW }),
     teamNoticesSeen: vi.fn().mockResolvedValue({ ok: true, view: SAMPLE_TEAM_VIEW }),
     onTeamChanged: vi.fn(() => () => {}),
+    onPolicyChanged: vi.fn(() => () => {}),
+    policyView: vi.fn().mockResolvedValue(EMPTY_POLICY_VIEW),
     briefOverview: vi.fn().mockResolvedValue({
       calendarConnected: false,
       events: [],

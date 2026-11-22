@@ -242,3 +242,31 @@ describe("policy values", () => {
     expect(imports).toEqual(["zod"]);
   });
 });
+
+describe("combinePolicies and withContact", () => {
+  it("takes the strictest of several effective policies", async () => {
+    const { combinePolicies, mergePolicy, withContact } = await import("./policy");
+    const a = mergePolicy([
+      { "features.mcp": false, blockedDomains: ["a.example"], "retention.audio.max": 30 },
+    ]);
+    const b = mergePolicy([
+      {
+        "features.scratchpad": false,
+        blockedDomains: ["b.example"],
+        "retention.audio.max": 7,
+        "retention.audio.min": 1,
+        adminContact: "it",
+      },
+    ]);
+    const both = combinePolicies([a, b]);
+    expect(both.features.mcp).toBe(false);
+    expect(both.features.scratchpad).toBe(false);
+    expect(both.features.notetaker).toBe(true);
+    expect(both.blockedDomains).toEqual(["a.example", "b.example"]);
+    expect(both.retention.audio).toEqual({ max: 7, min: 1 });
+    expect(both.adminContact).toBe("it");
+    expect(combinePolicies([])).toEqual(mergePolicy([]));
+    expect(withContact("Nope", "")).toBe("Nope.");
+    expect(withContact("Nope", "it@acme.test")).toBe("Nope. Ask it@acme.test.");
+  });
+});

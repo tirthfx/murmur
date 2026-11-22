@@ -149,6 +149,16 @@ import { databasePath, openDatabase } from "./db/database";
 import { createHistoryStore, type HistoryStore } from "./history/history-store";
 import { createInsightsStore } from "./insights/insights-store";
 import { createSharedVocabulary } from "./team/shared-vocabulary";
+import { loadManagedConfig } from "./managed/managed-config";
+import { blockedAppRefusal, meetingStartRefusal, planRefusal } from "./policy/gates";
+import {
+  DICTATION_AUDIO,
+  HISTORY_TEXT,
+  MEETING_AUDIO,
+  MEETING_TRANSCRIPT,
+  effectivePeriod,
+} from "./policy/retention";
+import { createPolicyService } from "./policy/policy-service";
 import { createTeamService } from "./team/team-service";
 import { createMilestonesStore } from "./milestones/milestones-store";
 import { createNotifier } from "./notifications/notifier";
@@ -625,7 +635,11 @@ const DAY_MS = 24 * 60 * 60_000;
 const retention = database
   ? createRetentionJob(database, {
       historyText: (now) => {
-        const days = settingsStore.get().privacy.historyDays;
+        const days = effectivePeriod(
+          HISTORY_TEXT,
+          settingsStore.get().privacy.historyDays,
+          policy.current().retention.transcript,
+        );
         return days && history ? history.removeOlderThan(now - days * DAY_MS).rows : 0;
       },
       audio: (now) => history?.pruneAudio(now) ?? 0,
@@ -711,7 +725,9 @@ const history: HistoryStore | null = database
       // HB-48, HB-52: what is kept of a successful recording; nothing in strict local mode.
       audioPolicy: () => {
         const privacy = settingsStore.get().privacy;
-        return privacy.strictLocal ? "never" : privacy.audio;
+        return privacy.strictLocal
+          ? "never"
+          : effectivePeriod(DICTATION_AUDIO, privacy.audio, policy.current().retention.audio);
       },
     })
   : null;
@@ -821,6 +837,50 @@ const settingsStore = createSettingsStore(database, {
 const keys = keyPlatform(process.platform);
 /** Plan gates (RW-22): read on every action, so a plan change applies at once. */
 const allows = (feature: PlanFeature) => planAllows(settingsStore.get().plan, feature);
+// TM-13 to TM-16, TM-21: the policy in force, from the managed file and the team's policy. Every
+// feature below asks it before it runs; the Hub only shows it.
+const policy = createPolicyService({
+  managed: () =>
+    loadManagedConfig({
+      read: (file) => {
+        try {
+          return readFileSync(file, "utf8");
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+          throw error;
+        }
+      },
+      log: (line) => console.log(line),
+      ...(process.env["MURMUR_MANAGED_PATH"] ? { path: process.env["MURMUR_MANAGED_PATH"] } : {}),
+    }),
+  onChange: (view) => {
+    if (hubEvents && !hubEvents.isDestroyed()) hubEvents.send(IPC_EVENTS.policyChanged, view);
+    // Rewrite shortcuts are bound only while Rewrites are on.
+    refreshBindings();
+  },
+});
+/** TM-16: true (after saying why) when the organization blocks the address's host. */
+function addressRefused(url: string): boolean {
+  const refusal = policy.urlRefusal(url);
+  if (refusal === null) return false;
+  bar.dispatch({ type: "warn", message: refusal });
+  return true;
+}
+/** Why a connector may not be used: the plan, the policy, or the policy's blocked addresses. */
+function connectorRefusal(id: string): string | null {
+  const provider = connectorRegistry.get(id);
+  return (
+    planRefusal(settingsStore.get().plan, "connectors") ??
+    policy.featureRefusal("connectors", id) ??
+    (provider ? policy.urlRefusal(provider.authorizeUrl) : null)
+  );
+}
+/** Tells the owner why an export was refused (those channels have no message of their own). */
+function exportRefusal(feature: "exportToFile" | "skillSharing" = "exportToFile"): string | null {
+  const refusal = policy.featureRefusal(feature) ?? policy.featureRefusal("exportToFile");
+  if (refusal !== null) bar.dispatch({ type: "warn", message: refusal });
+  return refusal;
+}
 const settingsService = createSettingsService({
   store: settingsStore,
   platform: keys,
@@ -831,10 +891,9 @@ const bindingsNow = () =>
   platformDefaults.length > 0
     ? [
         ...bindingsFor(settingsStore.get(), keys.cancelKeyCode),
-        ...rewriteBindings(rewrites?.list() ?? []).slice(
-          0,
-          boundRewriteShortcuts(settingsStore.get().plan),
-        ),
+        ...rewriteBindings(
+          policy.featureRefusal("transforms") ? [] : (rewrites?.list() ?? []),
+        ).slice(0, boundRewriteShortcuts(settingsStore.get().plan)),
       ]
     : [];
 
@@ -893,7 +952,13 @@ async function dictationBlocked(): Promise<string | null> {
     await permissions.check("dictation start");
     blockers = blockersNow();
   }
-  return blockerMessage(blockers);
+  const blocker = blockerMessage(blockers);
+  if (blocker !== null) return blocker;
+  // TM-13: in an app the organization has blocked, nothing is captured at all.
+  return blockedAppRefusal(
+    { policy, focus: () => helper.focusContext({ maxBefore: 0, maxAfter: 0 }) },
+    "dictation",
+  );
 }
 
 const displayArea = (display: Electron.Display) => ({ id: display.id, workArea: display.workArea });
@@ -1401,7 +1466,12 @@ const qualityGeneration = createGenerationService({
 const activateApp = appActivator(process.platform);
 const rewriteController = createRewriteController({
   helper,
-  rewrites: rewrites ?? { enabled: () => [], get: () => null, markUsed: () => {} },
+  rewrites: {
+    // TM-14: with Rewrites turned off by the organization, none can be run.
+    enabled: () => (policy.featureRefusal("transforms") ? [] : (rewrites?.enabled() ?? [])),
+    get: (id) => (policy.featureRefusal("transforms") ? null : (rewrites?.get(id) ?? null)),
+    markUsed: (id) => rewrites?.markUsed(id),
+  },
   runs: rewriteRuns,
   generation,
   panel: rewritePanel,
@@ -1433,7 +1503,8 @@ function rewriteContext(appId: string | null, text: string) {
 const autoRewrite = createAutoRewriter({
   // Free has no auto-apply (RW-22): no Rewrite counts as auto-applying.
   rewrites: {
-    list: () => (allows("autoApply") ? (rewrites?.list() ?? []) : []),
+    list: () =>
+      allows("autoApply") && !policy.featureRefusal("transforms") ? (rewrites?.list() ?? []) : [],
     markUsed: (id) => rewrites?.markUsed(id),
   },
   generation,
@@ -1762,6 +1833,11 @@ const meetingRetention = database
         const notetaker = settingsStore.get().notetaker;
         return { ...notetaker.retention, summaryAuto: notetaker.summary.auto };
       },
+      // TM-15: a folder's own period, and the setting, stay inside what the organization allows.
+      limitAudio: (period) =>
+        effectivePeriod(MEETING_AUDIO, period, policy.current().retention.audio),
+      limitTranscript: (period) =>
+        effectivePeriod(MEETING_TRANSCRIPT, period, policy.current().retention.transcript),
       removeFile: (file) => rmSync(file, { force: true }),
       logger: createConsoleLogger("[retention]"),
     })
@@ -1826,6 +1902,7 @@ const teamService = createTeamService({
     networkGuard.check("team server");
   },
   vocabulary: sharedVocabulary,
+  policy,
   insights: { days: (first) => insights?.days(first) ?? [] },
   meetings: { list: (limit) => meetingsStore?.list(limit) ?? [] },
   onChange: (view) => {
@@ -1869,6 +1946,9 @@ const connectorService = connectorStore
       // Strict local mode (HB-52): no sign-in and no request to a provider.
       http: (url, init) => {
         networkGuard.check("connector request");
+        // TM-16: a provider whose address the organization blocks is not called.
+        const refusal = policy.urlRefusal(String(url));
+        if (refusal !== null) throw new Error(refusal);
         return fetch(url, init);
       },
       openExternal: (url) => shell.openExternal(url),
@@ -2232,7 +2312,11 @@ const mcpService =
   foldersStore &&
   meetingNotes
     ? createMcpService({
-        settings: () => settingsStore.get().mcp,
+        // TM-14: off for the organization, or on a plan without it, the server answers nothing.
+        settings: () => {
+          const mcp = settingsStore.get().mcp;
+          return policy.featureRefusal("mcp") || !allows("mcp") ? { ...mcp, enabled: false } : mcp;
+        },
         db: database,
         newId: randomUUID,
         data: {
@@ -2703,6 +2787,14 @@ const meetingStarter =
           return result.response === 0;
         },
         now: () => Date.now(),
+        // TM-14, TM-25: Notetaker off by policy, or Free's five meetings a month used.
+        refuse: () =>
+          meetingStartRefusal({
+            plan: () => settingsStore.get().plan,
+            policy,
+            meetings: () => meetingsStore?.list(500) ?? [],
+            now: () => Date.now(),
+          }),
         logger: createConsoleLogger("[meetings]"),
       })
     : null;
@@ -2782,7 +2874,15 @@ if (meetings && meetingStarter) {
     matchers: () => meetingMatchers,
     settings: () => settingsStore.get().notetaker.detect,
     recording: () => meetings.state(),
-    showPrompt: ({ name }) => {
+    showPrompt: ({ id, name }) => {
+      // TM-13, TM-14: no prompt when Notetaker is off, or in an app the organization has blocked.
+      const bundleIds =
+        meetingMatchers.find((matcher) => matcher.id === id)?.native?.bundleIds ?? [];
+      if (
+        policy.featureRefusal("notetaker") ||
+        bundleIds.some((bundleId) => policy.appRefusal({ bundleId }, "notetaker"))
+      )
+        return false;
       bar.dispatch({
         type: "ask",
         message: "Record this meeting?",
@@ -2905,6 +3005,7 @@ function createTray(): void {
     joinMeeting: (key) => {
       const event = eventByKey(key);
       if (!event?.joinUrl || !/^https?:\/\//i.test(event.joinUrl)) return;
+      if (addressRefused(event.joinUrl)) return;
       void shell.openExternal(event.joinUrl);
       // With auto record on, joining also starts the recording (NT-03).
       if (settingsStore.get().notetaker.detect.autoRecord && meetings?.state().status === "idle")
@@ -3290,7 +3391,9 @@ let scratchpadWindow: BrowserWindow | null = null;
  * it shares the Hub's preload, CSP and IPC checks. Opens or brings it forward.
  */
 function openScratchpad(noteId?: string): void {
-  if (isSmokeRun || !settingsStore.get().scratchpad.enabled) return;
+  // TM-14: the Scratchpad can be turned off for the organization; notes already written stay.
+  if (isSmokeRun || !settingsStore.get().scratchpad.enabled || policy.featureRefusal("scratchpad"))
+    return;
   const existing = scratchpadWindow;
   if (existing && !existing.isDestroyed()) {
     if (noteId) existing.webContents.send(IPC_EVENTS.scratchpadOpenNote, noteId);
@@ -3615,6 +3718,8 @@ function registerIpc(): void {
       }),
     connectorConnect: async (id, loginHint) => {
       if (!connectorService) return { ok: false, message: "Connectors are not available." };
+      const refusal = connectorRefusal(id);
+      if (refusal !== null) return { ok: false, message: refusal };
       const outcome = await connectorService.connect(
         id,
         connectOptionsFor(
@@ -3655,6 +3760,8 @@ function registerIpc(): void {
     connectorSetEnabled: (accountId, enabled) => connectorService?.setEnabled(accountId, enabled),
     connectorConnectKey: async (id, key) => {
       if (!connectorService) return { ok: false, message: "Connectors are not available." };
+      const refusal = connectorRefusal(id);
+      if (refusal !== null) return { ok: false, message: refusal };
       const outcome = await connectorService.connectWithKey(id, key);
       return outcome.ok
         ? { ok: true, message: `Connected ${outcome.account.email}.` }
@@ -3671,6 +3778,10 @@ function registerIpc(): void {
       connectorData?.options(accountId) ?? { ok: false, message: "Connectors are not available." },
     connectorDataStatus: () => connectorData?.status() ?? [],
     connectorSync: async (accountId) => {
+      const refusal = connectorRefusal(
+        connectorService?.list().find((a) => a.id === accountId)?.connector ?? "",
+      );
+      if (refusal !== null) return { ok: false, message: refusal };
       // A Slack, Notion, Linear or GitHub account is read by the connector data; a calendar by the calendar sync.
       const account = connectorService?.list().find((entry) => entry.id === accountId);
       if (account && (DATA_CONNECTOR_IDS as readonly string[]).includes(account.connector)) {
@@ -3700,6 +3811,7 @@ function registerIpc(): void {
       // Only an address from a connected service's own reads is opened.
       if (!/^https:\/\/(github\.com|linear\.app|(www\.)?notion\.so)\//i.test(url))
         return { ok: false };
+      if (addressRefused(url)) return { ok: false };
       await shell.openExternal(url);
       return { ok: true };
     },
@@ -3728,6 +3840,7 @@ function registerIpc(): void {
         : { ok: false, message: result.message };
     },
     extensionsView: () => actionRunner.view(),
+    policyView: () => policy.view(),
     teamView: () => teamService.view(),
     teamConnect: (input) => teamService.connect(input),
     teamSetup: (input) => teamService.setup(input),
@@ -3771,13 +3884,14 @@ function registerIpc(): void {
     calendarEventList: (source) => eventCreate?.list(source) ?? [],
     calendarEventOpen: async (url) => {
       // Only an event's address at the calendar service is opened, never another address.
-      if (!isCalendarOpenUrl(url)) return { ok: false };
+      if (!isCalendarOpenUrl(url) || addressRefused(url)) return { ok: false };
       await shell.openExternal(url);
       return { ok: true };
     },
     emailDraftOpen: async (url) => {
       // Only a draft in Gmail is opened, never another address.
-      if (!url.startsWith("https://mail.google.com/mail/u/")) return { ok: false };
+      if (!url.startsWith("https://mail.google.com/mail/u/") || addressRefused(url))
+        return { ok: false };
       await shell.openExternal(url);
       return { ok: true };
     },
@@ -3818,6 +3932,8 @@ function registerIpc(): void {
       notifyMeetings(meetingId);
     },
     meetingExport: async (meetingId, options) => {
+      const blocked = exportRefusal();
+      if (blocked !== null) return { ok: false, message: blocked };
       const file = buildMeetingExport(meetingId, options);
       if (!file) return { ok: false, message: "That meeting is gone." };
       const dialogOptions = {
@@ -3930,6 +4046,8 @@ function registerIpc(): void {
     askThread: (id) => askStore?.get(id) ?? null,
     askSend: async (input) => {
       if (!askRunner) return { ok: false, message: "Ask needs the database." };
+      const refusal = planRefusal(settingsStore.get().plan, "askMeetings");
+      if (refusal !== null) return { ok: false, message: refusal };
       try {
         return { ok: true, thread: await askRunner.send(input) };
       } catch (error) {
@@ -3955,6 +4073,8 @@ function registerIpc(): void {
     skillVersions: (id) => skillsService?.versions(id) ?? [],
     skillRestore: (id, version) => skillsService?.restore(id, version) ?? noSkills,
     skillExport: async (id) => {
+      const blocked = exportRefusal("skillSharing");
+      if (blocked !== null) return { ok: false, message: blocked };
       const file = skillsService?.exportFile(id);
       if (!file) return { ok: false, message: "That Skill was not found." };
       const options = {
@@ -4024,8 +4144,9 @@ function registerIpc(): void {
       const target = meetingNotes?.target(docId);
       if (!target) return;
       // Links were checked to be http or https when they were added.
-      if (target.kind === "link") await shell.openExternal(target.value);
-      else await shell.openPath(target.value);
+      if (target.kind === "link") {
+        if (!addressRefused(target.value)) await shell.openExternal(target.value);
+      } else await shell.openPath(target.value);
     },
     meetingDocRemove: (docId) => meetingNotes?.removeDoc(docId),
     noteGet: (id) => notes?.get(id) ?? null,
@@ -4100,6 +4221,7 @@ function registerIpc(): void {
       checkMilestones(true);
     },
     noteExport: async ({ noteId, format }) => {
+      if (exportRefusal() !== null) return { saved: false };
       const note = notes?.get(noteId) ?? null;
       if (!note || !noteImages) return { saved: false };
       const extension = format === "markdown" ? "md" : "html";
@@ -4183,6 +4305,7 @@ function registerIpc(): void {
         settingsStore.get().insights.typingWpm,
       ),
     insightsExport: async (range) => {
+      if (exportRefusal() !== null) return { saved: false, rows: 0 };
       const days = insights?.days(rangeFirstDay(range, localDate(Date.now()))) ?? [];
       const options = {
         title: "Save Insights",

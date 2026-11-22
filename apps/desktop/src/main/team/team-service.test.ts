@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { InsightsDay, Keychain, TeamView } from "@murmur/shared";
+import type { EffectivePolicy, InsightsDay, Keychain, TeamView } from "@murmur/shared";
 import {
   createLocalServer,
   type LocalServer,
@@ -28,6 +28,7 @@ interface Rig {
   meetings: { value: UsageMeeting[] };
   ticks: (() => void)[];
   refuse: { host: string | null };
+  policies: { value: EffectivePolicy[] };
 }
 
 function rig(existing?: { file: { text: string | null }; keys: Map<string, string> }): Rig {
@@ -45,6 +46,7 @@ function rig(existing?: { file: { text: string | null }; keys: Map<string, strin
   const meetings = { value: [] as UsageMeeting[] };
   const ticks: (() => void)[] = [];
   const refuse = { host: null as string | null };
+  const policies = { value: [] as EffectivePolicy[] };
   const service = createTeamService({
     readFile: () => file.text,
     writeFile: (text) => (file.text = text),
@@ -57,6 +59,7 @@ function rig(existing?: { file: { text: string | null }; keys: Map<string, strin
         throw new Error("strict local mode");
     },
     vocabulary,
+    policy: { setTeam: (list) => (policies.value = [...list]) },
     insights: { days: () => days.value },
     meetings: { list: () => meetings.value },
     onChange: (view) => views.push(view),
@@ -66,7 +69,7 @@ function rig(existing?: { file: { text: string | null }; keys: Map<string, strin
     },
     clearInterval: () => undefined,
   });
-  return { service, file, keys, vocabulary, views, idle, days, meetings, ticks, refuse };
+  return { service, file, keys, vocabulary, views, idle, days, meetings, ticks, refuse, policies };
 }
 
 // Responses are read loosely on purpose.
@@ -481,5 +484,55 @@ describe("turning team mode off", () => {
     // The server ended the session.
     expect((await api("GET", "/v1/me", token)).status).toBe(401);
     expect(JSON.parse(r.file.text!)).toMatchObject({ enabled: false, serverUrl: "", user: null });
+  });
+});
+
+describe("the team's policy", () => {
+  it("is downloaded with each sync and handed to the app", async () => {
+    const { r, token, team } = await seeded();
+    await api("PUT", `/v1/teams/${team}/policy`, token, {
+      set: {
+        "features.scratchpad": false,
+        blockedApps: [{ bundleId: "com.example.secret", name: "Secret" }],
+        blockedDomains: ["blocked.example"],
+        "retention.audio.max": 7,
+        adminContact: "it@acme.test",
+      },
+    });
+    await r.service.syncNow();
+    expect(r.policies.value).toHaveLength(1);
+    expect(r.policies.value[0]).toMatchObject({
+      blockedApps: [{ bundleId: "com.example.secret" }],
+      blockedDomains: ["blocked.example"],
+      retention: { audio: { max: 7 } },
+      adminContact: "it@acme.test",
+    });
+    expect(r.policies.value[0]!.features.scratchpad).toBe(false);
+  });
+
+  it("is kept for when the server cannot be reached, also after a restart", async () => {
+    const { r, token, team } = await seeded();
+    await api("PUT", `/v1/teams/${team}/policy`, token, { set: { "features.mcp": false } });
+    await r.service.syncNow();
+    await server.close();
+    await r.service.syncNow();
+    expect(r.policies.value[0]!.features.mcp).toBe(false);
+    const again = rig({ file: r.file, keys: r.keys });
+    await again.service.start();
+    expect(again.policies.value[0]!.features.mcp).toBe(false);
+    server = createLocalServer({ dbPath: ":memory:", port: 0 });
+  });
+
+  it("changes when an admin changes it, and is dropped when the session ends", async () => {
+    const { r, token, team } = await seeded();
+    await api("PUT", `/v1/teams/${team}/policy`, token, { set: { "features.mcp": false } });
+    await r.service.syncNow();
+    expect(r.policies.value[0]!.features.mcp).toBe(false);
+    await api("PUT", `/v1/teams/${team}/policy`, token, { unset: ["features.mcp"] });
+    await r.service.syncNow();
+    expect(r.policies.value[0]!.features.mcp).toBe(true);
+    await api("DELETE", "/v1/sessions/current", token);
+    await r.service.syncNow();
+    expect(r.policies.value).toEqual([]);
   });
 });

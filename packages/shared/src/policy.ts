@@ -327,3 +327,69 @@ export function clampRetention(limit: RetentionLimit, chosen: number | null): Re
     return { days: limit.min, limited: true, reason: POLICY_NOTICES.setByOrganization };
   return { days: chosen, limited: false, reason: "" };
 }
+
+// ---- combining and showing policies ----
+
+/** An effective policy written back as a layer, so it can be merged with others. */
+function layerOf(policy: EffectivePolicy): PolicyValues {
+  const layer: PolicyValues = {
+    blockedApps: policy.blockedApps,
+    "blockedApps.appliesTo": policy.appliesTo,
+    "connectors.readOnly": policy.connectorsReadOnly,
+    "deletion.requiresApproval": policy.deletionRequiresApproval,
+    "connectors.disabled": policy.connectorsDisabled,
+    "retention.audio.max": policy.retention.audio.max,
+    "retention.audio.min": policy.retention.audio.min,
+    "retention.transcript.max": policy.retention.transcript.max,
+    "retention.transcript.min": policy.retention.transcript.min,
+    blockedDomains: policy.blockedDomains,
+    adminContact: policy.adminContact,
+  };
+  for (const name of POLICY_FEATURES) layer[`features.${name}`] = policy.features[name];
+  return layer;
+}
+
+/**
+ * One policy from several: a person in more than one team, or a team's policy and the managed
+ * file's. Like layers, they can only take away, so the result is the strictest of them.
+ */
+export function combinePolicies(policies: readonly EffectivePolicy[]): EffectivePolicy {
+  return mergePolicy(policies.map(layerOf));
+}
+
+/** What the Hub needs to show of the policy in force: nothing here can be changed from there. */
+export interface PolicyView {
+  /** True when a managed configuration file is in force. */
+  managed: boolean;
+  /** Why a managed file was ignored, or null. */
+  managedProblem: string | null;
+  /** The update policy and what the Hub's update button may do. */
+  updates: { policy: "automatic" | "notify" | "off"; managed: boolean; canCheck: boolean };
+  /** True when any team or managed setting is in force. */
+  active: boolean;
+  /** Features the policy turns off. */
+  featuresOff: PolicyFeature[];
+  connectorsDisabled: string[];
+  retention: { audio: RetentionLimit; transcript: RetentionLimit };
+  blockedAppCount: number;
+  blockedDomainCount: number;
+  adminContact: string;
+}
+
+export const EMPTY_POLICY_VIEW: PolicyView = {
+  managed: false,
+  managedProblem: null,
+  updates: { policy: "notify", managed: false, canCheck: true },
+  active: false,
+  featuresOff: [],
+  connectorsDisabled: [],
+  retention: { audio: { max: null, min: null }, transcript: { max: null, min: null } },
+  blockedAppCount: 0,
+  blockedDomainCount: 0,
+  adminContact: "",
+};
+
+/** A refusal with whom to ask, when the policy names them. */
+export function withContact(message: string, contact: string): string {
+  return contact === "" ? `${message}.` : `${message}. Ask ${contact}.`;
+}

@@ -162,6 +162,7 @@ import {
   type TeamResult,
   type TeamSetupInput,
   type TeamSignInInput,
+  type PolicyView,
   type TeamView,
   isLockedChannel,
   type MeetingBrief,
@@ -252,6 +253,7 @@ export interface IpcDeps {
   slackPostPrepare: (input: SlackPrepareInput) => Promise<SlackPrepareResult>;
   slackPostSend: (input: SlackSendInput) => Promise<SlackSendResult>;
   extensionsView: () => ExtensionsView;
+  policyView: () => PolicyView;
   teamView: () => TeamView;
   teamConnect: (input: TeamConnectInput) => Promise<TeamResult>;
   teamSetup: (input: TeamSetupInput) => Promise<TeamResult>;
@@ -781,6 +783,8 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.slackPostSend(request.args[0] as SlackSendInput);
       case IPC_CHANNELS.extensionsView:
         return deps.extensionsView();
+      case IPC_CHANNELS.policyView:
+        return deps.policyView();
       case IPC_CHANNELS.teamView:
         return deps.teamView();
       case IPC_CHANNELS.teamConnect:

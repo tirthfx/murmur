@@ -27,6 +27,7 @@ export const PAGES = [
     title: "Connectors",
     emptyTitle: "Nothing connected",
     emptyDescription: "Calendars and other services you sign in to will be listed here.",
+    feature: "connectors",
   },
   {
     id: "extensions",
@@ -58,6 +59,7 @@ export const PAGES = [
     title: "Rewrites",
     emptyTitle: "No rewrites available",
     emptyDescription: "Saved instructions for reshaping selected text will appear here.",
+    feature: "rewrites",
   },
   {
     id: "instruct",
@@ -123,7 +125,7 @@ export const PAGES = [
 }[];
 
 /** Switches that can hide a page. */
-export type PageFeature = "scratchpad";
+export type PageFeature = "scratchpad" | "rewrites" | "connectors";
 
 export type PageId = (typeof PAGES)[number]["id"];
 export type Page = (typeof PAGES)[number];
