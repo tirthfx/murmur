@@ -1,5 +1,11 @@
 {
   "name": "@murmur/local-server",
   "version": "0.0.0",
-  "private": true
+  "private": true,
+  "type": "module",
+  "description": "Murmur local server: accounts, teams and admin on 127.0.0.1",
+  "scripts": {
+    "start": "node src/main.ts",
+    "typecheck": "tsc --noEmit"
+  }
 }

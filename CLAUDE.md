@@ -154,6 +154,8 @@ Notetaker (meeting recording of the microphone and the Mac's sound in chunk file
 
 Connectors (the framework for calendars, mail and chat: accounts, OAuth with PKCE in the system browser, tokens in the Keychain through the helper, refresh, disconnect, the client-id file, strict local mode, the Connectors page and its feature notices): see `docs/connectors.md`.
 
+Local server (the team backend on 127.0.0.1: accounts, sessions, the API, running it): see `docs/local-server.md`.
+
 Local MCP server (the read and write tools for AI clients, the socket and the `murmur-mcp` command, HTTP on 127.0.0.1, per-app tokens, writing an app's config after an approved diff, the call log, limits, what is never returned): see `docs/mcp.md`.
 
 Insights (daily counts, the cards, streaks, top apps, CSV export, milestones, the progress card): see `docs/insights.md`.
