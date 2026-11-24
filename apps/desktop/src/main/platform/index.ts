@@ -1,4 +1,4 @@
-import type { HotkeyBinding, HotkeyTrigger, PlatformHelper } from "@murmur/shared";
+import type { HotkeyBinding, HotkeyTrigger, PermissionKind, PlatformHelper } from "@murmur/shared";
 import { convertMacImageToPng } from "./mac-image";
 import { createConsoleLogger, spawnHelperProcess, systemClock } from "../helper/node-runtime";
 import { HelperSupervisor } from "../helper/supervisor";
@@ -13,6 +13,7 @@ import {
   MAC_DEFAULT_REWRITE_TRIGGER,
 } from "./mac-hotkeys";
 import { activateMacApp } from "./mac-apps";
+import { permissionSettingsUrl } from "./mac-settings-links";
 import {
   MAC_CAPS_LOCK,
   MAC_FUNCTION_KEYS,
@@ -105,4 +106,30 @@ export function createPlatformHelper(deps: PlatformHelperDeps): PlatformHelper {
     clock: deps.clock ?? systemClock,
     logger: deps.logger ?? createConsoleLogger("[helper]"),
   });
+}
+
+/**
+ * The OS the app is running on. This is the only place in main that reads `process.platform`
+ * (SW-09); everything else asks this module a question and gets an answer for the OS.
+ */
+export function hostPlatform(): NodeJS.Platform {
+  return process.platform;
+}
+
+/** The settings page that lets the person grant a permission, or null when none is known. */
+export function permissionSettingsLink(
+  platform: NodeJS.Platform,
+  kind: PermissionKind,
+): string | null {
+  return platform === "darwin" ? permissionSettingsUrl(kind) : null;
+}
+
+/** Whether closing the last window ends the app. On a Mac the app stays in the menu bar. */
+export function quitsWhenLastWindowCloses(platform: NodeJS.Platform): boolean {
+  return platform !== "darwin";
+}
+
+/** Whether the tray icon can carry text beside it (the elapsed time on a Mac). */
+export function trayShowsTitle(platform: NodeJS.Platform): boolean {
+  return platform === "darwin";
 }

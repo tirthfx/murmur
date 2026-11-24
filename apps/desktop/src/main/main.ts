@@ -318,7 +318,10 @@ import {
   defaultRewriteShortcut,
   defaultScratchpadShortcut,
   imageToPngConverter,
+  hostPlatform,
   keyPlatform,
+  permissionSettingsLink,
+  quitsWhenLastWindowCloses,
 } from "./platform";
 import {
   bindingsFor,
@@ -342,7 +345,6 @@ import { toLatinHindi } from "./speech/latin-hindi";
 import { profilePaths } from "./profile";
 import { createSmokeRun, SMOKE_PAGE, type SmokeRun } from "./smoke";
 import { createSmokeChecks, type SmokeChecks } from "./smoke-checks";
-import { permissionSettingsUrl } from "./platform/mac-settings-links";
 import { createTrayController, type TrayController } from "./tray/tray-controller";
 import { createElectronTray } from "./tray/tray-electron";
 
@@ -420,7 +422,7 @@ function resolveBarEntryUrl(): string {
 const barEntryUrl = resolveBarEntryUrl();
 
 const helper = createPlatformHelper({
-  platform: process.platform,
+  platform: hostPlatform(),
   isPackaged: app.isPackaged,
   resourcesPath: process.resourcesPath,
   appPath: app.getAppPath(),
@@ -581,7 +583,7 @@ const IMAGE_EXTENSIONS: Record<string, string> = {
   "image/gif": "gif",
 };
 
-const convertToPng = imageToPngConverter(process.platform);
+const convertToPng = imageToPngConverter(hostPlatform());
 
 /**
  * HB-30: decodes the image (HEIC, HEIF and GIF are first turned into PNG by the platform,
@@ -779,21 +781,21 @@ const dataDeleter =
       })
     : null;
 
-const platformDefaults = defaultHotkeyBindings(process.platform);
+const platformDefaults = defaultHotkeyBindings(hostPlatform());
 const settingsStore = createSettingsStore(database, {
   holdShortcut:
     platformDefaults[0]?.trigger.type === "key"
       ? platformDefaults[0].trigger
       : { type: "key", keyCode: 61, modifiers: [] },
   handsFreeShortcut: null,
-  rewriteShortcut: defaultRewriteShortcut(process.platform),
-  commandShortcut: defaultCommandShortcut(process.platform),
+  rewriteShortcut: defaultRewriteShortcut(hostPlatform()),
+  commandShortcut: defaultCommandShortcut(hostPlatform()),
   commandMode: DEFAULT_COMMAND_MODE,
-  instructShortcut: defaultInstructShortcut(process.platform),
+  instructShortcut: defaultInstructShortcut(hostPlatform()),
   instruct: DEFAULT_INSTRUCT,
-  focusShortcut: defaultFocusShortcut(process.platform),
+  focusShortcut: defaultFocusShortcut(hostPlatform()),
   focus: DEFAULT_FOCUS,
-  scratchpadShortcut: defaultScratchpadShortcut(process.platform),
+  scratchpadShortcut: defaultScratchpadShortcut(hostPlatform()),
   // NT-03: unset until the owner picks one; the check refuses clashes with dictation keys.
   meetingShortcut: null,
   scratchpad: { enabled: true, newTab: true },
@@ -846,7 +848,7 @@ const settingsStore = createSettingsStore(database, {
     slackTagging: false,
   },
 });
-const keys = keyPlatform(process.platform);
+const keys = keyPlatform(hostPlatform());
 /** Plan gates (RW-22): read on every action, so a plan change applies at once. */
 const allows = (feature: PlanFeature) => planAllows(settingsStore.get().plan, feature);
 // TM-13 to TM-16, TM-21: the policy in force, from the managed file and the team's policy. Every
@@ -1475,7 +1477,7 @@ const qualityGeneration = createGenerationService({
   modelReady: () => qualityModel.isReady(),
   logger: createConsoleLogger("[generate]"),
 });
-const activateApp = appActivator(process.platform);
+const activateApp = appActivator(hostPlatform());
 const rewriteController = createRewriteController({
   helper,
   rewrites: {
@@ -1710,7 +1712,7 @@ async function writeDiagnostics(): Promise<TestingToolResult> {
       electron: process.versions.electron ?? "",
       node: process.versions.node,
     },
-    system: { platform: process.platform, release: os.release(), arch: process.arch },
+    system: { platform: hostPlatform(), release: os.release(), arch: process.arch },
     helper: helper.getStatus(),
     settings: settingsStore.get(),
     counts: dataDeleter?.counts() ?? { categories: [], failedFiles: 0 },
@@ -3279,7 +3281,7 @@ helper.onTypingActivity((activity) => typingReminder.record(activity.words));
 setInterval(() => syncTypingWatch(), 60_000).unref();
 
 async function openPermissionSettings(kind: PermissionKind): Promise<void> {
-  const url = process.platform === "darwin" ? permissionSettingsUrl(kind) : null;
+  const url = permissionSettingsLink(hostPlatform(), kind);
   if (url === null) {
     throw new Error("No System Settings pane is known for this permission on this platform");
   }
@@ -3365,7 +3367,7 @@ function createHubWindow(): BrowserWindow {
   const window = new BrowserWindow({
     ...createHubWindowOptions({
       preloadPath: path.join(__dirname, "preload.cjs"),
-      platform: process.platform,
+      platform: hostPlatform(),
       isDevelopment,
     }),
     width: hubSaved.width,
@@ -3418,7 +3420,7 @@ function openScratchpad(noteId?: string): void {
   const window = new BrowserWindow({
     ...createHubWindowOptions({
       preloadPath: path.join(__dirname, "preload.cjs"),
-      platform: process.platform,
+      platform: hostPlatform(),
       isDevelopment,
     }),
     title: "Scratchpad",
@@ -4408,7 +4410,7 @@ function registerIpc(): void {
     getAppInfo: () => ({
       name: app.getName(),
       version: app.getVersion(),
-      platform: process.platform,
+      platform: hostPlatform(),
     }),
     getHelperStatus: () => helper.getStatus(),
     getPermissions: () => permissions.check("hub refresh"),
@@ -4716,7 +4718,7 @@ void app.whenReady().then(() => {
 });
 
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
+  if (quitsWhenLastWindowCloses(hostPlatform())) {
     app.quit();
   }
 });

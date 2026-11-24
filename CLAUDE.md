@@ -160,6 +160,8 @@ Local server (the team backend on 127.0.0.1: accounts, sessions, the API, runnin
 
 Team backend on Supabase (the schema, row-level security, the functions, applying the migrations, the SQL tests, the dashboard settings): see `docs/supabase.md`.
 
+Platform helper and adapter (the `PlatformHelper` interface, the one place that reads the OS, the conformance suite every helper must pass, the Windows gap): see `docs/platform.md`.
+
 Local MCP server (the read and write tools for AI clients, the socket and the `murmur-mcp` command, HTTP on 127.0.0.1, per-app tokens, writing an app's config after an approved diff, the call log, limits, what is never returned): see `docs/mcp.md`.
 
 Insights (daily counts, the cards, streaks, top apps, CSV export, milestones, the progress card): see `docs/insights.md`.
