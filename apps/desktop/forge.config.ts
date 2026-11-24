@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { ForgeConfig } from "@electron-forge/shared-types";
+import { MakerSquirrel } from "@electron-forge/maker-squirrel";
 import { VitePlugin } from "@electron-forge/plugin-vite";
 import {
   LLM_MODULES_DIR,
@@ -20,6 +21,14 @@ const windowsHelperFolder = path.resolve("../../native/helper-win/publish");
 /** Where `npm run build:helper` puts the Swift helper, relative to this directory. */
 const helperBinary = path.resolve("../../native/helper-mac/.build/release/murmur-helper");
 
+/**
+ * The Windows installer (SW-13). It is signed when a certificate is given in the environment
+ * (`MURMUR_WIN_CERT_FILE` and `MURMUR_WIN_CERT_PASSWORD`); without one it is built unsigned, which
+ * is for testing the installer only and is never distributed.
+ */
+const certificateFile = process.env.MURMUR_WIN_CERT_FILE;
+const certificatePassword = process.env.MURMUR_WIN_CERT_PASSWORD;
+
 const config: ForgeConfig = {
   packagerConfig: {
     name: "Murmur",
@@ -29,6 +38,15 @@ const config: ForgeConfig = {
       NSMicrophoneUsageDescription: "Murmur listens to your voice so it can turn it into text.",
     },
   },
+  makers: [
+    new MakerSquirrel({
+      name: "Murmur",
+      authors: "tirthfx",
+      description: "Voice dictation and meeting notes",
+      setupExe: "Murmur-Setup.exe",
+      ...(certificateFile && certificatePassword ? { certificateFile, certificatePassword } : {}),
+    }),
+  ],
   hooks: {
     // Copies the built helper to Contents/Resources/helper/murmur-helper. If the helper
     // has not been built, the package is still made and the app shows the helper as unavailable.
