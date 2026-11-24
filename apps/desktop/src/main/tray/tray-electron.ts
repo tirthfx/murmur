@@ -1,5 +1,6 @@
 import { Menu, nativeImage, Tray, type MenuItemConstructorOptions } from "electron";
 import type { TrayHost, TrayView } from "./tray-controller";
+import { hostPlatform, trayShowsTitle } from "../platform";
 import { micPng } from "./tray-icon";
 import type { TrayAction, TrayItem, TrayStatus } from "./tray-menu";
 
@@ -53,7 +54,7 @@ export function createElectronTray(perform: (action: TrayAction) => void): Elect
     render(view: TrayView) {
       tray.setContextMenu(Menu.buildFromTemplate(template(view.items, perform)));
       tray.setToolTip(view.tooltip);
-      if (process.platform === "darwin") {
+      if (trayShowsTitle(hostPlatform())) {
         const text = view.elapsed ?? view.nextText;
         tray.setTitle(text ? `${DOT[view.status]} ${text}`.trim() : DOT[view.status]);
       }
