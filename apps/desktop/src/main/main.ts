@@ -126,6 +126,7 @@ import {
   type PermissionSnapshot,
   type SoundName,
   matchersForOs,
+  shouldWarnAboutPlayback,
 } from "@murmur/shared";
 import {
   createNavigationGuard,
@@ -2666,6 +2667,18 @@ const meetings = meetingsStore
             return wanted !== "inbox" && foldersStore?.get(wanted) ? wanted : null;
           })(),
         };
+      },
+      playbackWarning: (channels) =>
+        shouldWarnAboutPlayback(
+          matcherOs(hostPlatform()),
+          channels,
+          settingsStore.get().notetaker.windowsAudio,
+        ),
+      onPlaybackWarned: () => {
+        const notetaker = settingsStore.get().notetaker;
+        settingsStore.update({
+          notetaker: { ...notetaker, windowsAudio: { ...notetaker.windowsAudio, warned: true } },
+        });
       },
       onState: (state) => {
         // The menu bar shows the time while recording, so it is redrawn every second.

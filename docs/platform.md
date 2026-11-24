@@ -49,6 +49,12 @@ Windows 11.
   the app hashes the binary and does not launch one that differs; the Hub shows the helper as
   unavailable with the reason. A build with no hash file (development) is not checked.
 
+- **Playback warning (SW-12).** On Windows the system channel is the default output, so it
+  records everything playing. The first time that channel starts, the recording carries a
+  `system_playback` warning (shown on the Notetaker page) and `notetaker.windowsAudio.warned`
+  is set so it is not said again. `notetaker.windowsAudio.warnOnPlayback` turns it off, and
+  turning off "record the computer's sound" pauses the channel. `endpoint` is `default` for now.
+
 ## Platform differences (SW-11)
 
 | Area           | State                                                                                                            |
@@ -68,5 +74,5 @@ Windows 11.
 ## Still needs a Windows 11 machine
 
 The Windows helper itself (language still to choose, C++ or .NET), the conformance suite
-passing on it, the system-audio playback warning (SW-12), installer and signing (SW-13) and the
+passing on it, installer and signing (SW-13) and the
 speech backend.
