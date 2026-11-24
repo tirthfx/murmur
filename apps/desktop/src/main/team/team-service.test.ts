@@ -671,3 +671,103 @@ describe("proposing an entry to the team", () => {
     server = createLocalServer({ dbPath: ":memory:", port: 0 });
   });
 });
+
+describe("shared Skills and folders", () => {
+  const SKILL = {
+    name: "Call recap",
+    description: "Sums up a call",
+    body: "---\nname: Call recap\n---\nSummarise the call in five lines.",
+  };
+
+  it("pulls the Skills and folders the team shares into the view, with the team they are from", async () => {
+    const { r, token, team } = await seeded();
+    await api("POST", `/v1/teams/${team}/skills`, token, SKILL);
+    await api("POST", `/v1/teams/${team}/folders`, token, { name: "All hands", kind: "company" });
+    expect(r.service.view().shared).toEqual({ skills: [], folders: [] });
+    await r.service.syncNow();
+    const { shared } = r.service.view();
+    expect(shared.skills).toHaveLength(1);
+    expect(shared.skills[0]).toMatchObject({ name: "Call recap", version: 1, teamName: "Acme" });
+    expect(shared.folders[0]).toMatchObject({
+      name: "All hands",
+      kind: "company",
+      teamName: "Acme",
+    });
+  });
+
+  it("keeps them while the server is out of reach, and notices a new version", async () => {
+    const { r, token, team } = await seeded();
+    const made = await api("POST", `/v1/teams/${team}/skills`, token, SKILL);
+    await r.service.syncNow();
+    await api("PATCH", `/v1/teams/${team}/skills/${made.json!["skill"].id}`, token, {
+      body: "---\nname: Call recap\n---\nSummarise the call in three lines.",
+    });
+    await r.service.syncNow();
+    expect(r.service.view().shared.skills[0]).toMatchObject({ version: 2 });
+    await server.close();
+    await r.service.syncNow();
+    expect(r.service.view().shared.skills[0]).toMatchObject({ version: 2 });
+    expect(r.service.skillText(team, made.json!["skill"].id)).toContain("three lines");
+    server = createLocalServer({ dbPath: ":memory:", port: 0 });
+  });
+
+  it("forgets them at sign-out, and for a team the person has left", async () => {
+    const { r, token, team } = await seeded();
+    await api("POST", `/v1/teams/${team}/skills`, token, SKILL);
+    await r.service.syncNow();
+    expect(r.service.view().shared.skills).toHaveLength(1);
+    await r.service.signOut();
+    expect(r.service.view().shared).toEqual({ skills: [], folders: [] });
+    expect(JSON.parse(r.file.text ?? "{}").content).toEqual({});
+  });
+
+  it("makes a shared folder, shares a note into it and reads it back", async () => {
+    const { r, token, team } = await seeded();
+    await r.service.syncNow();
+    const people = await r.service.people(team);
+    expect(people.ok && people.value.map((p) => p.email)).toEqual(["ada@example.com"]);
+    const made = await r.service.createFolder({ teamId: team, name: "Q4 deal", members: [] });
+    expect(made).toMatchObject({ ok: true, value: { name: "Q4 deal", kind: "shared" } });
+    const folderId = made.ok ? made.value.id : "";
+    const sent = await r.service.shareNote({
+      teamId: team,
+      folderId,
+      title: "Kickoff",
+      body: "# Kickoff\n- Agreed on the date",
+      sourceRef: "meeting:7",
+    });
+    expect(sent.ok).toBe(true);
+    const read = await r.service.readNote({
+      teamId: team,
+      folderId,
+      noteId: sent.ok ? sent.value.id : "",
+    });
+    expect(read).toMatchObject({ ok: true, value: { title: "Kickoff", sourceRef: "meeting:7" } });
+    expect(read.ok && read.value.body).toContain("Agreed on the date");
+    await r.service.syncNow();
+    expect(r.service.view().shared.folders[0]?.items.map((i) => i.title)).toEqual(["Kickoff"]);
+    void token;
+  });
+
+  it("says why an action cannot be done: not signed in, not in the team, or the server refuses", async () => {
+    const fresh = rig();
+    expect(await fresh.service.people("t")).toEqual({
+      ok: false,
+      message: "Sign in to a team first.",
+    });
+    const { r, team } = await seeded();
+    await r.service.syncNow();
+    expect(await r.service.people("someone-elses")).toEqual({
+      ok: false,
+      message: "You are not in that team.",
+    });
+    const refused = await r.service.createFolder({ teamId: team, name: "", members: [] });
+    expect(refused.ok).toBe(false);
+  });
+
+  it("has no Skill text for one that is not shared", async () => {
+    const { r, team } = await seeded();
+    await r.service.syncNow();
+    expect(r.service.skillText(team, "nope")).toBeNull();
+  });
+});

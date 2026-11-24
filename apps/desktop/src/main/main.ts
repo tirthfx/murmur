@@ -161,6 +161,7 @@ import {
 } from "./policy/retention";
 import { createPolicyService } from "./policy/policy-service";
 import { createTeamService } from "./team/team-service";
+import { meetingShare } from "./meetings/meeting-share";
 import { createUsageCounts } from "./team/usage-counts";
 import { createMilestonesStore } from "./milestones/milestones-store";
 import { createNotifier } from "./notifications/notifier";
@@ -3868,6 +3869,44 @@ function registerIpc(): void {
     teamDisconnect: () => teamService.disconnect(),
     teamNoticesSeen: () => teamService.noticesSeen(),
     teamPropose: (input) => teamService.propose(input),
+    teamPeople: (teamId) => teamService.people(teamId),
+    teamFolderCreate: (input) => teamService.createFolder(input),
+    teamNoteRead: (input) => teamService.readNote(input),
+    teamSkillAdd: async (input) => {
+      if (!skillsService) return { ...noSkills, line: null };
+      const text = teamService.skillText(input.teamId, input.skillId);
+      if (!text) return { ok: false, message: "That Skill is no longer shared.", line: null };
+      return skillsService.importFile(text);
+    },
+    teamShareMeeting: async (input) => {
+      const meeting = meetingsStore?.get(input.meetingId);
+      if (!meeting) return { ok: false, message: "That meeting is not there any more." };
+      const summary = (meetingSummaries?.list(input.meetingId) ?? [])
+        .filter((entry) => !entry.quick)
+        .at(-1);
+      const shared = meetingShare({
+        title: meeting.title,
+        startedAt: meeting.startedAt,
+        durationMs: meeting.durationMs,
+        summary: summary ? { markdown: summary.markdown, skillName: summary.skillName } : null,
+        tasks: (tasksService?.list({ meetingId: input.meetingId }).tasks ?? []).map((task) => ({
+          title: task.title,
+          status: task.status,
+          owner: task.owner,
+          ownerIsMe: task.ownerIsMe,
+          dueOn: task.dueOn,
+        })),
+      });
+      if (!shared)
+        return { ok: false, message: "This meeting has no summary yet. Make one first." };
+      return teamService.shareNote({
+        teamId: input.teamId,
+        folderId: input.folderId,
+        title: shared.title,
+        body: shared.body,
+        sourceRef: `meeting:${input.meetingId}`,
+      });
+    },
     teamOpenAdmin: async () => {
       const server = teamService.view().serverUrl;
       if (!/^https?:\/\//i.test(server))
