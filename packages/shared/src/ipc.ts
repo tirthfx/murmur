@@ -33,13 +33,23 @@ import type { AskActionResult } from "./ask-actions";
 import { askActionRequestSchema, type AskActionRequest } from "./ask-actions";
 import type { ExtensionsView } from "./extensions";
 import type { PolicyView } from "./policy";
+import type { SharedFolder, SharedNote, TeamPerson } from "./team-content";
 import {
   teamConnectSchema,
+  teamFolderCreateSchema,
+  teamNoteReadSchema,
   teamProposeSchema,
   teamRedeemSchema,
   teamSetupSchema,
+  teamShareMeetingSchema,
   teamSignInSchema,
+  teamSkillAddSchema,
+  type TeamContentResult,
+  type TeamFolderCreateInput,
+  type TeamNoteReadInput,
   type TeamProposeInput,
+  type TeamShareMeetingInput,
+  type TeamSkillAddInput,
   type TeamProposeResult,
   type TeamRedeemResult,
   type TeamResult,
@@ -530,6 +540,11 @@ export const IPC_CHANNELS = {
   teamNoticesSeen: "team:notices-seen",
   teamOpenAdmin: "team:open-admin",
   teamPropose: "team:propose",
+  teamPeople: "team:people",
+  teamFolderCreate: "team:folder-create",
+  teamNoteRead: "team:note-read",
+  teamSkillAdd: "team:skill-add",
+  teamShareMeeting: "team:share-meeting",
   askActionPropose: "ask:action-propose",
   slackPostState: "slack-post:state",
   slackPostStart: "slack-post:start",
@@ -1192,6 +1207,26 @@ export const IPC_CONTRACT = {
     args: z.tuple([teamProposeSchema]),
     result: z.custom<TeamProposeResult>(),
   },
+  [IPC_CHANNELS.teamPeople]: {
+    args: z.tuple([z.string().min(1).max(64)]),
+    result: z.custom<TeamContentResult<TeamPerson[]>>(),
+  },
+  [IPC_CHANNELS.teamFolderCreate]: {
+    args: z.tuple([teamFolderCreateSchema]),
+    result: z.custom<TeamContentResult<SharedFolder>>(),
+  },
+  [IPC_CHANNELS.teamNoteRead]: {
+    args: z.tuple([teamNoteReadSchema]),
+    result: z.custom<TeamContentResult<SharedNote>>(),
+  },
+  [IPC_CHANNELS.teamSkillAdd]: {
+    args: z.tuple([teamSkillAddSchema]),
+    result: z.custom<SkillImportResult>(),
+  },
+  [IPC_CHANNELS.teamShareMeeting]: {
+    args: z.tuple([teamShareMeetingSchema]),
+    result: z.custom<TeamContentResult<{ id: string }>>(),
+  },
   [IPC_CHANNELS.teamOpenAdmin]: {
     args: z.tuple([]),
     result: z.custom<{ ok: boolean; message?: string }>(),
@@ -1707,6 +1742,16 @@ export interface MurmurApi {
   teamOpenAdmin(): Promise<{ ok: boolean; message?: string }>;
   /** TM-06, TM-07: proposes a dictionary entry or snippet to the person's team. */
   teamPropose(input: TeamProposeInput): Promise<TeamProposeResult>;
+  /** NT-17: the people in a team, to choose who is in a shared folder. */
+  teamPeople(teamId: string): Promise<TeamContentResult<TeamPerson[]>>;
+  /** NT-17: makes a shared folder for named people. */
+  teamFolderCreate(input: TeamFolderCreateInput): Promise<TeamContentResult<SharedFolder>>;
+  /** NT-17: one shared note, with its text. */
+  teamNoteRead(input: TeamNoteReadInput): Promise<TeamContentResult<SharedNote>>;
+  /** NT-16: copies a team's Skill into the person's own Skills. */
+  teamSkillAdd(input: TeamSkillAddInput): Promise<SkillImportResult>;
+  /** NT-17: shares a meeting's summary and tasks (text, never audio) into a team folder. */
+  teamShareMeeting(input: TeamShareMeetingInput): Promise<TeamContentResult<{ id: string }>>;
   /** The team state changed: locked, signed in or out, or a sync finished. */
   onTeamChanged(handler: (view: TeamView) => void): () => void;
   onPolicyChanged(handler: (view: PolicyView) => void): () => void;

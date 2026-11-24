@@ -35,6 +35,7 @@ export const SAMPLE_TEAM_VIEW: TeamView = {
   syncProblem: "",
   sharedCounts: { dictionary: 0, snippets: 0 },
   notices: [],
+  shared: { skills: [], folders: [] },
 };
 
 export const SAMPLE_SETTINGS: SettingsView = {
@@ -509,6 +510,11 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
     teamNoticesSeen: vi.fn().mockResolvedValue({ ok: true, view: SAMPLE_TEAM_VIEW }),
     teamOpenAdmin: vi.fn().mockResolvedValue({ ok: true }),
     teamPropose: vi.fn().mockResolvedValue({ ok: true, status: "pending", teamName: "Acme" }),
+    teamPeople: vi.fn().mockResolvedValue({ ok: true, value: [] }),
+    teamFolderCreate: vi.fn().mockResolvedValue({ ok: false, message: "No team." }),
+    teamNoteRead: vi.fn().mockResolvedValue({ ok: false, message: "No team." }),
+    teamSkillAdd: vi.fn().mockResolvedValue({ ok: false, message: "No team.", line: null }),
+    teamShareMeeting: vi.fn().mockResolvedValue({ ok: false, message: "No team." }),
     onTeamChanged: vi.fn(() => () => {}),
     onPolicyChanged: vi.fn(() => () => {}),
     policyView: vi.fn().mockResolvedValue(EMPTY_POLICY_VIEW),

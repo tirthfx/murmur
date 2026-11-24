@@ -8,6 +8,7 @@ import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { VStack } from "@astryxdesign/core/VStack";
 import { TEAM_LIMITS, type TeamView } from "@murmur/shared";
+import { SharedContent } from "./SharedContent";
 
 const IDLE_CHOICES = [5, 15, 30, 60, 120];
 const ROLE_TEXT: Record<string, string> = {
@@ -214,10 +215,10 @@ export function TeamPage() {
   return (
     <VStack gap={4}>
       <Text color="secondary">
-        Team mode lets Murmur use a team server: the team&apos;s shared dictionary and snippets, and
-        a usage count (numbers only, never text) for the team&apos;s dashboard. It is off until you
-        connect to a server on this Mac or your network. What you dictate and record stays on this
-        Mac.
+        Team mode lets Murmur use a team server: the team&apos;s shared dictionary, snippets, Skills
+        and folders of notes, and a usage count (numbers only, never text) for the team&apos;s
+        dashboard. It is off until you connect to a server on this Mac or your network. What you
+        dictate and record stays on this Mac.
       </Text>
 
       {!view.enabled ? <ConnectForm onView={setView} /> : null}
@@ -309,6 +310,8 @@ export function TeamPage() {
             . {view.lastSyncAt ? `Last updated ${when(view.lastSyncAt)}.` : "Not updated yet."} Your
             own entries are used first.
           </Text>
+
+          {view.state === "signed_in" ? <SharedContent view={view} /> : null}
 
           <HStack gap={2} wrap="wrap">
             <Button

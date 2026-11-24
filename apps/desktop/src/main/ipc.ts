@@ -163,7 +163,15 @@ import {
   type TeamSetupInput,
   type TeamSignInInput,
   type PolicyView,
+  type TeamContentResult,
+  type TeamFolderCreateInput,
+  type TeamNoteReadInput,
+  type TeamPerson,
+  type SharedFolder,
+  type SharedNote,
   type TeamProposeInput,
+  type TeamShareMeetingInput,
+  type TeamSkillAddInput,
   type TeamProposeResult,
   type TeamView,
   isLockedChannel,
@@ -270,6 +278,11 @@ export interface IpcDeps {
   teamNoticesSeen: () => Promise<TeamResult>;
   teamOpenAdmin: () => Promise<{ ok: boolean; message?: string }>;
   teamPropose: (input: TeamProposeInput) => Promise<TeamProposeResult>;
+  teamPeople: (teamId: string) => Promise<TeamContentResult<TeamPerson[]>>;
+  teamFolderCreate: (input: TeamFolderCreateInput) => Promise<TeamContentResult<SharedFolder>>;
+  teamNoteRead: (input: TeamNoteReadInput) => Promise<TeamContentResult<SharedNote>>;
+  teamSkillAdd: (input: TeamSkillAddInput) => Promise<SkillImportResult>;
+  teamShareMeeting: (input: TeamShareMeetingInput) => Promise<TeamContentResult<{ id: string }>>;
   /** Whether Murmur is locked (team mode): meetings, notes and questions are refused. */
   isLocked?: () => boolean;
   briefOverview: () => BriefOverview;
@@ -817,6 +830,16 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.teamOpenAdmin();
       case IPC_CHANNELS.teamPropose:
         return deps.teamPropose(request.args[0] as TeamProposeInput);
+      case IPC_CHANNELS.teamPeople:
+        return deps.teamPeople(request.args[0] as string);
+      case IPC_CHANNELS.teamFolderCreate:
+        return deps.teamFolderCreate(request.args[0] as TeamFolderCreateInput);
+      case IPC_CHANNELS.teamNoteRead:
+        return deps.teamNoteRead(request.args[0] as TeamNoteReadInput);
+      case IPC_CHANNELS.teamSkillAdd:
+        return deps.teamSkillAdd(request.args[0] as TeamSkillAddInput);
+      case IPC_CHANNELS.teamShareMeeting:
+        return deps.teamShareMeeting(request.args[0] as TeamShareMeetingInput);
       case IPC_CHANNELS.briefOverview:
         return deps.briefOverview();
       case IPC_CHANNELS.briefGet:

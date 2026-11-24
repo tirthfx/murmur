@@ -5,11 +5,19 @@ import {
   type EffectivePolicy,
   type InsightsDay,
   type Keychain,
+  type SharedFolder,
+  type SharedNote,
+  type SharedSkill,
   type TeamClient,
   type TeamClientError,
   type TeamClientResult,
   type TeamClientSession,
+  type TeamContentClient,
+  type TeamContentResult,
   type TeamNotice,
+  type TeamPerson,
+  type TeamSharedFolder,
+  type TeamSharedSkill,
   type TeamProposeInput,
   type TeamProposeResult,
   type TeamRedeemInput,
@@ -54,6 +62,8 @@ export interface TeamFile {
   cache: Record<string, { revision: number; set: SharedSet }>;
   /** The last effective policy of each team, enforced while the server is out of reach. */
   policies: Record<string, EffectivePolicy>;
+  /** The Skills and folders each team shares, as last pulled, so they show while the server is out of reach. */
+  content: Record<string, { revision: number; skills: SharedSkill[]; folders: SharedFolder[] }>;
   usage: UsageMemory;
 }
 
@@ -67,6 +77,7 @@ const EMPTY_FILE: TeamFile = {
   user: null,
   cache: {},
   policies: {},
+  content: {},
   usage: EMPTY_USAGE_MEMORY,
 };
 
@@ -124,6 +135,11 @@ export function createTeamService(deps: TeamDeps) {
   /** The client for the backend the address is (a test's own client always wins). */
   const pick = (): TeamClient =>
     file.backend === "supabase" && !deps.client ? supabaseClient : localClient;
+  /** The shared Skills and folders of the backend in use, when it has them (`teamContent.v1`). */
+  const contentClient = (): TeamContentClient | null => {
+    const picked = pick();
+    return "contentVersion" in picked ? (picked as TeamClient & TeamContentClient) : null;
+  };
   const client: TeamClient = {
     version: TEAM_CLIENT_VERSION,
     health: () => pick().health(),
@@ -147,6 +163,7 @@ export function createTeamService(deps: TeamDeps) {
   let syncProblem = "";
   let notices: TeamNotice[] = [];
   let revisions = new Map<string, number>();
+  let contentRevisions = new Map<string, number>();
   let syncing: Promise<void> | null = null;
   let timers: unknown[] = [];
 
@@ -161,6 +178,7 @@ export function createTeamService(deps: TeamDeps) {
         usage: { ...EMPTY_USAGE_MEMORY, ...(parsed.usage ?? {}) },
         cache: parsed.cache ?? {},
         policies: parsed.policies ?? {},
+        content: parsed.content ?? {},
       };
     } catch {
       return { ...EMPTY_FILE };
@@ -174,6 +192,21 @@ export function createTeamService(deps: TeamDeps) {
       keep("[team] The team settings could not be saved.");
     }
   };
+
+  /** What the teams share, with the team each is from, in the order the teams are listed. */
+  function sharedView(): TeamView["shared"] {
+    const skills: TeamSharedSkill[] = [];
+    const folders: TeamSharedFolder[] = [];
+    for (const team of teams) {
+      const entry = file.content[team.id];
+      if (!entry) continue;
+      for (const skill of entry.skills)
+        skills.push({ ...skill, teamId: team.id, teamName: team.name });
+      for (const folder of entry.folders)
+        folders.push({ ...folder, teamId: team.id, teamName: team.name });
+    }
+    return { skills, folders };
+  }
 
   function view(): TeamView {
     return {
@@ -189,6 +222,7 @@ export function createTeamService(deps: TeamDeps) {
       syncProblem,
       sharedCounts: deps.vocabulary.counts(),
       notices,
+      shared: sharedView(),
     };
   }
 
@@ -221,7 +255,8 @@ export function createTeamService(deps: TeamDeps) {
     notices = [];
     state = file.enabled ? "signed_out" : "off";
     syncProblem = problem;
-    file = { ...file, locked: false, user: null, policies: {} };
+    contentRevisions = new Map();
+    file = { ...file, locked: false, user: null, policies: {}, content: {} };
     save();
     emit();
   }
@@ -316,6 +351,34 @@ export function createTeamService(deps: TeamDeps) {
         if (effective.ok) policies[team.id] = effective.data;
         // The server's plan has no policy (or the person may not see it): none applies.
         else if (effective.error.code === "forbidden") delete policies[team.id];
+
+        const shared = contentClient();
+        if (shared) {
+          const answer = await authed(shared.content(team.id, contentRevisions.get(team.id)));
+          if (answer.ok && !answer.data.unchanged) {
+            contentRevisions.set(team.id, answer.data.revision);
+            file = {
+              ...file,
+              content: {
+                ...file.content,
+                [team.id]: {
+                  revision: answer.data.revision,
+                  skills: answer.data.skills,
+                  folders: answer.data.folders,
+                },
+              },
+            };
+          } else if (!answer.ok && answer.error.code === "forbidden") {
+            // The plan has no shared Skills or folders (or the person may not see them).
+            file = {
+              ...file,
+              content: Object.fromEntries(
+                Object.entries(file.content).filter(([id]) => id !== team.id),
+              ),
+            };
+            contentRevisions.delete(team.id);
+          }
+        }
       }
       deps.vocabulary.set(sets);
       notices = found;
@@ -326,6 +389,7 @@ export function createTeamService(deps: TeamDeps) {
         ...file,
         policies: kept,
         cache: Object.fromEntries(Object.entries(file.cache).filter(([id]) => inTeams(id))),
+        content: Object.fromEntries(Object.entries(file.content).filter(([id]) => inTeams(id))),
       };
       save();
       await usage.flush().catch(() => 0);
@@ -344,6 +408,35 @@ export function createTeamService(deps: TeamDeps) {
   }
 
   const sync = (): Promise<void> => (syncing ??= syncOnce().finally(() => (syncing = null)));
+
+  /** An action on shared content: signed in, a backend that has it, and the words for a failure. */
+  async function shared<T>(
+    teamId: string,
+    run: (content: TeamContentClient) => Promise<TeamClientResult<T>>,
+  ): Promise<TeamContentResult<T>> {
+    if (state !== "signed_in") return { ok: false, message: "Sign in to a team first." };
+    if (!teams.some((team) => team.id === teamId))
+      return { ok: false, message: "You are not in that team." };
+    const content = contentClient();
+    if (!content)
+      return { ok: false, message: "This team server does not have shared Skills and folders." };
+    try {
+      const result = await authed(run(content));
+      return result.ok
+        ? { ok: true, value: result.data }
+        : { ok: false, message: result.error.message };
+    } catch (error) {
+      return {
+        ok: false,
+        message:
+          error instanceof Unreachable
+            ? TEAM_MESSAGES.unreachable
+            : error instanceof Error
+              ? error.message
+              : TEAM_MESSAGES.strictLocal,
+      };
+    }
+  }
 
   // ---- idle lock ----
 
@@ -443,7 +536,14 @@ export function createTeamService(deps: TeamDeps) {
       ) {
         // A different server: whatever was kept for the old one goes.
         await endSession("");
-        file = { ...file, user: null, cache: {}, policies: {}, usage: EMPTY_USAGE_MEMORY };
+        file = {
+          ...file,
+          user: null,
+          cache: {},
+          policies: {},
+          content: {},
+          usage: EMPTY_USAGE_MEMORY,
+        };
       }
       if (state === "off") state = "signed_out";
       save();
@@ -545,10 +645,62 @@ export function createTeamService(deps: TeamDeps) {
       state = "off";
       serverSetUp = null;
       revisions = new Map();
+      contentRevisions = new Map();
       save();
       emit();
       return { ok: true, view: view() };
     },
+
+    // ---- shared Skills and folders ----
+
+    /** The text of a Skill a team published, for the person to copy into their own Skills. */
+    skillText(teamId: string, skillId: string): string | null {
+      return file.content[teamId]?.skills.find((skill) => skill.id === skillId)?.body ?? null;
+    },
+
+    /** The people in a team, to choose who is in a shared folder. */
+    people: (teamId: string): Promise<TeamContentResult<TeamPerson[]>> =>
+      shared(teamId, (c) => c.people(teamId)),
+
+    /** Makes a shared folder for named people (a department or the company is made in the admin console). */
+    async createFolder(input: {
+      teamId: string;
+      name: string;
+      members: string[];
+    }): Promise<TeamContentResult<SharedFolder>> {
+      const made = await shared(input.teamId, (c) =>
+        c.createFolder(input.teamId, { name: input.name, kind: "shared", members: input.members }),
+      );
+      if (made.ok) void sync();
+      return made;
+    },
+
+    /** Adds a copy of notes, as text, to a folder. */
+    async shareNote(input: {
+      teamId: string;
+      folderId: string;
+      title: string;
+      body: string;
+      sourceRef: string;
+    }): Promise<TeamContentResult<{ id: string }>> {
+      const sent = await shared(input.teamId, (c) =>
+        c.shareNote(input.teamId, input.folderId, {
+          title: input.title,
+          body: input.body,
+          sourceRef: input.sourceRef,
+        }),
+      );
+      if (sent.ok) void sync();
+      return sent;
+    },
+
+    /** One shared note, with its text. */
+    readNote: (input: {
+      teamId: string;
+      folderId: string;
+      noteId: string;
+    }): Promise<TeamContentResult<SharedNote>> =>
+      shared(input.teamId, (c) => c.readNote(input.teamId, input.folderId, input.noteId)),
 
     /** Proposes an entry to the person's team; the server says if it is live or waits for review. */
     async propose(input: TeamProposeInput): Promise<TeamProposeResult> {

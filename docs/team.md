@@ -117,3 +117,11 @@ The choice is per address (and so per connection), which is what a team is today
 - **Skills** are the Skill file as text. Members read them (and the app can copy one into their own Skills); admins publish, change and remove; each change is a new version (`updateSkill`, `skillVersions`).
 - **Folders** are `shared` (named people, a write flag each), `department` or `company`. A note is a title and Markdown text, 60 KB at most, never audio. `people(teamId)` lists who can be chosen for a shared folder.
 - **The contract** (`team-content-contract.ts`) runs on the same fixture as the team client contract, against the local server in CI and against a Supabase project when one is configured (see `docs/supabase.md`). A viewer is refused before a folder is looked at, on both.
+
+### Shared Skills and folders in the app (NT-16, NT-17)
+
+The team service pulls `content` with each sync and keeps it in the team settings file, so the Skills and folders show while the server is out of reach; it is dropped at sign-out, for a team the person has left, and when the backend, address or key changes. `TeamView.shared` carries it, with the team each item is from.
+
+- **Team page, "Shared with you":** Skills your teams share (name, version, description, **Add to my Skills**, which copies the Skill file into the person's own Skills through the same import the Skills tab uses; a newer version is copied again as a new Skill), and folders (kind, number of notes, **Show** to list the notes by title, **Read** to open one). **New shared folder** makes a folder for named people picked from the team (the person is always in it). Department and company folders and publishing Skills are in the admin console.
+- **Meeting export panel, "Share with your team":** shown only while signed in to a team that has a folder the person may add to. It puts the meeting's **summary and open tasks, as Markdown text**, into the chosen folder (`src/main/meetings/meeting-share.ts`). The transcript, the person's own notes and the audio are never sent; a link into the transcript is reduced to its words. A meeting with no summary is refused with "Make one first".
+- **IPC:** `team:people`, `team:folder-create`, `team:note-read`, `team:skill-add`, `team:share-meeting`. The renderer names no backend.

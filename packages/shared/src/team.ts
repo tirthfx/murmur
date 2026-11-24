@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { SharedFolder, SharedSkill } from "./team-content";
 
 /**
  * Team mode in the app (TM-01 client, TM-06): the app signs in to a team server, keeps a session
@@ -27,6 +28,21 @@ export interface TeamNotice {
   note: string;
 }
 
+/** A Skill a team published, with the team it is from. */
+export interface TeamSharedSkill extends SharedSkill {
+  teamId: string;
+  teamName: string;
+}
+
+/** A shared folder, with the team it is from. */
+export interface TeamSharedFolder extends SharedFolder {
+  teamId: string;
+  teamName: string;
+}
+
+/** The result of an action on shared content: a value, or the words to show. */
+export type TeamContentResult<T> = { ok: true; value: T } | { ok: false; message: string };
+
 export interface TeamView {
   enabled: boolean;
   /** Which kind of backend the address is. */
@@ -44,6 +60,8 @@ export interface TeamView {
   /** The shared entries in use now. */
   sharedCounts: { dictionary: number; snippets: number };
   notices: TeamNotice[];
+  /** The Skills and folders the teams share with this person. */
+  shared: { skills: TeamSharedSkill[]; folders: TeamSharedFolder[] };
 }
 
 export type TeamResult =
@@ -91,6 +109,31 @@ export const teamProposeSchema = z.discriminatedUnion("kind", [
   }),
 ]);
 export type TeamProposeInput = z.infer<typeof teamProposeSchema>;
+
+const idField = z.string().min(1).max(64);
+/** A shared folder for named people (NT-17). */
+export const teamFolderCreateSchema = z.strictObject({
+  teamId: idField,
+  name: z.string().trim().min(1).max(100),
+  members: z.array(idField).max(200),
+});
+export const teamNoteReadSchema = z.strictObject({
+  teamId: idField,
+  folderId: idField,
+  noteId: idField,
+});
+/** Copy a team's Skill into the person's own Skills. */
+export const teamSkillAddSchema = z.strictObject({ teamId: idField, skillId: idField });
+/** Share a meeting's summary and tasks into a team folder. */
+export const teamShareMeetingSchema = z.strictObject({
+  meetingId: idField,
+  teamId: idField,
+  folderId: idField,
+});
+export type TeamFolderCreateInput = z.infer<typeof teamFolderCreateSchema>;
+export type TeamNoteReadInput = z.infer<typeof teamNoteReadSchema>;
+export type TeamSkillAddInput = z.infer<typeof teamSkillAddSchema>;
+export type TeamShareMeetingInput = z.infer<typeof teamShareMeetingSchema>;
 export type TeamProposeResult =
   { ok: true; status: "live" | "pending"; teamName: string } | { ok: false; message: string };
 export type TeamConnectInput = z.infer<typeof teamConnectSchema>;

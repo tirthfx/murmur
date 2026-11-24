@@ -214,6 +214,11 @@ const api: MurmurApi = {
   teamNoticesSeen: () => ipcRenderer.invoke(IPC_CHANNELS.teamNoticesSeen),
   teamOpenAdmin: () => ipcRenderer.invoke(IPC_CHANNELS.teamOpenAdmin),
   teamPropose: (input) => ipcRenderer.invoke(IPC_CHANNELS.teamPropose, input),
+  teamPeople: (teamId) => ipcRenderer.invoke(IPC_CHANNELS.teamPeople, teamId),
+  teamFolderCreate: (input) => ipcRenderer.invoke(IPC_CHANNELS.teamFolderCreate, input),
+  teamNoteRead: (input) => ipcRenderer.invoke(IPC_CHANNELS.teamNoteRead, input),
+  teamSkillAdd: (input) => ipcRenderer.invoke(IPC_CHANNELS.teamSkillAdd, input),
+  teamShareMeeting: (input) => ipcRenderer.invoke(IPC_CHANNELS.teamShareMeeting, input),
   onPolicyChanged: (handler) => {
     const listener = (_event: unknown, view: Parameters<typeof handler>[0]) => handler(view);
     ipcRenderer.on(IPC_EVENTS.policyChanged, listener);
