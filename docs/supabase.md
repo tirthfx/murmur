@@ -104,6 +104,29 @@ A hosted test project works the same way: make it, apply the migrations and `res
 
 Without those four variables the suite is skipped, so CI and a normal `npm test` never touch a project. One test is left out for Supabase: the wait after five wrong passwords is the local server's rule, and Supabase Auth has limits of its own (the contract's `signInLockout` capability).
 
+## Moving a team server to Supabase
+
+`services/supabase/src/migrate.ts` (and its command line, `migrate-cli.ts`) moves a local team server's data into a project and checks it afterwards (SW-01 phase 4). It reads the server's database file read-only, so it can be run while the server is stopped or running.
+
+```bash
+# What would move, and what would not (reads only the server's database):
+npm run migrate --workspace @murmur/supabase -- plan --from path/to/server.db
+
+# Write it to an empty project (the address and the service key come from the environment):
+MURMUR_SUPABASE_URL=https://<ref>.supabase.co MURMUR_SUPABASE_SERVICE_KEY=<service role key> \
+  npm run migrate --workspace @murmur/supabase -- apply --from path/to/server.db --out ./migration-output
+
+# Count every table in the project against the server's:
+MURMUR_SUPABASE_URL=... MURMUR_SUPABASE_SERVICE_KEY=... \
+  npm run migrate --workspace @murmur/supabase -- verify --from path/to/server.db
+```
+
+- **What moves:** accounts (with the same ids, so every reference holds), teams, departments (parents first), members, the plan tier, team settings, the shared dictionary and snippets with their history and notices, policy, usage counts, shared Skills with their versions, shared folders with their people and notes.
+- **What does not, and why:** passwords (another hash; each account gets a random temporary password, written to `accounts.csv` with mode 600, to hand out and delete); the audit log (its chain is hashed another way and cannot be carried over and still verify, so it is archived whole in `audit-archive.jsonl`, and each team's new chain starts with a `migration.imported` event that records the old log's length and last hash); invites and join requests (make them again); changes waiting on a live entry (the new backend has no such flow).
+- **Safety:** `apply` is for an empty project. If any of the teams is already there it refuses and writes nothing. The service key is read from the environment only, never the command line, and is used by the tool and nowhere else. Nothing is deleted from the server.
+- **Check:** `verify` counts each table in the project against the server's and exits with an error if one differs. The tests plan from a real, used server; with a test project configured (see "Running the contract suite") they also apply, verify, sign an imported account in with its temporary password, and check that the old password does not work and that a second import is refused.
+- **After the move:** point the app at the project (the Connect form's project key), and people sign in with the temporary passwords. There is no password change in the app for a Supabase project yet; a person can change theirs once an email provider is set up in the project, or the owner can reset it in the dashboard.
+
 ## Settings the project needs
 
 These are set in the Supabase dashboard (Authentication), not in SQL:
@@ -114,4 +137,4 @@ These are set in the Supabase dashboard (Authentication), not in SQL:
 
 ## Not built yet
 
-Choosing the backend per team in the app, a run of the contract suite against a hosted Supabase project (it has passed on a local stack), departments and member management functions beyond what the contract needs, sync with an outbox, shadow mode and cutover, and SSO, SCIM and domain capture.
+Choosing the backend per team in the app, a run of the contract suite against a hosted Supabase project (it has passed on a local stack), departments and member management functions beyond what the contract needs, sync with an outbox, a password change in the app for a Supabase project, and SSO, SCIM and domain capture.
