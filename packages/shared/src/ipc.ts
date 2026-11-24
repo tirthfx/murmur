@@ -1687,7 +1687,7 @@ export interface MurmurApi {
   /** TM-13 to TM-16, TM-21: what the managed file and the team policy set (shown, not changed). */
   policyView(): Promise<PolicyView>;
   teamView(): Promise<TeamView>;
-  teamConnect(input: { serverUrl: string }): Promise<TeamResult>;
+  teamConnect(input: { serverUrl: string; projectKey?: string }): Promise<TeamResult>;
   teamSetup(input: { name: string; email: string; password: string }): Promise<TeamResult>;
   teamSignIn(input: { email: string; password: string }): Promise<TeamResult>;
   teamSignOut(): Promise<TeamResult>;

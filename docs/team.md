@@ -96,3 +96,15 @@ codes. A second backend implements the same interface and passes the same tests.
   the preload script and the main process outside the team folder name no backend address, key or
   SDK.
 - **Frozen:** a breaking change is a new version with a shim, not an edit of `teamClient.v1`.
+
+### Choosing the backend
+
+The Team page's Connect form takes an address and, optionally, a project key (it is labelled "Project key (optional)" and names no backend: the renderer never does).
+
+- **No key:** the address is a Murmur team server (the local server) and the service uses `local-team-client.ts`.
+- **A key:** the address is a Supabase project and the service uses `supabase-team-client.ts` (see `docs/supabase.md`). The key is the project's public key (anon or publishable); it is not a secret and gives no access alone, so it is kept in the team settings file, not the Keychain. A bare address is taken as https; plain http is allowed only on this Mac (a local stack).
+- **A change of backend, address or key is a change of server:** the old session, cached entries, policies and usage memory are dropped, as for any new address.
+- **The session token is kept in the Keychain either way.** For a Supabase project the token holds both the access and the refresh token; when the client renews an expired session it hands the new token back and the service stores it in the Keychain, so the person stays signed in across restarts.
+- The service picks the client for each call from what it is connected to; a test that passes its own `client` always gets that one.
+
+The choice is per address (and so per connection), which is what a team is today: one connection, one backend. Moving a team from the local server to Supabase is a new connection, with its data brought over by the migration tool.

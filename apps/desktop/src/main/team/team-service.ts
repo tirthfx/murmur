@@ -1,4 +1,5 @@
 import {
+  TEAM_CLIENT_VERSION,
   TEAM_LIMITS,
   TEAM_MESSAGES,
   type EffectivePolicy,
@@ -19,6 +20,7 @@ import {
   type TeamView,
 } from "@murmur/shared";
 import { createLocalTeamClient } from "./local-team-client";
+import { createSupabaseTeamClient } from "./supabase-team-client";
 import type { SharedSet, SharedVocabulary } from "./shared-vocabulary";
 import type { DayCounts } from "./usage-counts";
 import {
@@ -39,7 +41,11 @@ export const TEAM_KEYCHAIN = { service: "dev.murmur.team", account: "session" } 
 /** What is kept on disk (never the token, and never a password). */
 export interface TeamFile {
   enabled: boolean;
+  /** Which backend the address is: a Murmur team server, or a Supabase project. */
+  backend: "local" | "supabase";
   serverUrl: string;
+  /** The Supabase project's public key (not a secret); empty for a team server. */
+  projectKey: string;
   idleLockMinutes: number;
   /** Locked when the app was last closed, so a restart does not open it. */
   locked: boolean;
@@ -53,7 +59,9 @@ export interface TeamFile {
 
 const EMPTY_FILE: TeamFile = {
   enabled: false,
+  backend: "local",
   serverUrl: "",
+  projectKey: "",
   idleLockMinutes: TEAM_LIMITS.idleLockMinutes.default,
   locked: false,
   user: null,
@@ -89,14 +97,49 @@ export interface TeamDeps {
 
 class Unreachable extends Error {}
 
+/** Addresses that are this Mac; a local Supabase stack may be reached over plain http. */
+const LOOPBACK = new Set(["127.0.0.1", "localhost", "[::1]"]);
+
 export function createTeamService(deps: TeamDeps) {
   const keep = deps.log ?? (() => undefined);
   let file: TeamFile = load();
   let token: string | null = null;
   const connection = { serverUrl: () => file.serverUrl, token: () => token };
-  const client: TeamClient = deps.client
+  /** A session the Supabase client renewed: kept in memory and in the Keychain, as a sign-in's is. */
+  const remember = (next: string) => {
+    token = next;
+    void deps.keychain.set(TEAM_KEYCHAIN.service, TEAM_KEYCHAIN.account, next).catch(() => false);
+  };
+  const localClient: TeamClient = deps.client
     ? deps.client(connection)
     : createLocalTeamClient({ ...connection, fetch: deps.fetch, networkCheck: deps.networkCheck });
+  const supabaseClient: TeamClient = createSupabaseTeamClient({
+    url: () => file.serverUrl,
+    anonKey: () => file.projectKey,
+    token: () => token,
+    saveToken: remember,
+    fetch: deps.fetch,
+    networkCheck: deps.networkCheck,
+  });
+  /** The client for the backend the address is (a test's own client always wins). */
+  const pick = (): TeamClient =>
+    file.backend === "supabase" && !deps.client ? supabaseClient : localClient;
+  const client: TeamClient = {
+    version: TEAM_CLIENT_VERSION,
+    health: () => pick().health(),
+    setupOwner: (input) => pick().setupOwner(input),
+    signIn: (input) => pick().signIn(input),
+    signOut: () => pick().signOut(),
+    redeemInvite: (input) => pick().redeemInvite(input),
+    teams: () => pick().teams(),
+    vocabulary: (teamId, since) => pick().vocabulary(teamId, since),
+    notices: (teamId) => pick().notices(teamId),
+    markNoticesSeen: (teamId) => pick().markNoticesSeen(teamId),
+    policy: (teamId) => pick().policy(teamId),
+    sendUsage: (teamId, batchId, events) => pick().sendUsage(teamId, batchId, events),
+    reportRetention: (teamId, counts) => pick().reportRetention(teamId, counts),
+    propose: (teamId, input) => pick().propose(teamId, input),
+  };
   let state: TeamState = "off";
   let serverSetUp: boolean | null = null;
   let teams: TeamSummary[] = [];
@@ -135,6 +178,7 @@ export function createTeamService(deps: TeamDeps) {
   function view(): TeamView {
     return {
       enabled: file.enabled,
+      backend: file.backend,
       serverUrl: file.serverUrl,
       state,
       serverSetUp,
@@ -358,7 +402,12 @@ export function createTeamService(deps: TeamDeps) {
     isLocked: () => state === "locked",
 
     /** Points the app at a team server and asks whether it has an owner yet. */
-    async connect(input: { serverUrl: string }): Promise<TeamResult> {
+    async connect(input: {
+      serverUrl: string;
+      projectKey?: string | undefined;
+    }): Promise<TeamResult> {
+      const projectKey = (input.projectKey ?? "").trim();
+      const backend = projectKey === "" ? ("local" as const) : ("supabase" as const);
       if (
         /^[a-z][a-z0-9+.-]*:\/\//i.test(input.serverUrl) &&
         !/^https?:\/\//i.test(input.serverUrl)
@@ -366,23 +415,32 @@ export function createTeamService(deps: TeamDeps) {
         return failure("Use an http or https address.");
       let url: URL;
       try {
+        // A Supabase project is on https; a team server is usually on this Mac or the local network.
         url = new URL(
-          /^https?:\/\//i.test(input.serverUrl) ? input.serverUrl : `http://${input.serverUrl}`,
+          /^https?:\/\//i.test(input.serverUrl)
+            ? input.serverUrl
+            : `${backend === "supabase" ? "https" : "http"}://${input.serverUrl}`,
         );
       } catch {
         return failure("That is not a web address, like http://127.0.0.1:7830.");
       }
       if (url.protocol !== "http:" && url.protocol !== "https:")
         return failure("Use an http or https address.");
+      if (backend === "supabase" && url.protocol === "http:" && !LOOPBACK.has(url.hostname))
+        return failure("A Supabase project is reached over https.");
       const previous = file;
-      file = { ...file, serverUrl: `${url.origin}/`, enabled: true };
+      file = { ...file, backend, projectKey, serverUrl: `${url.origin}/`, enabled: true };
       const health = await client.health();
       if (!health.ok) {
         file = previous;
         return failed(health.error);
       }
       serverSetUp = health.data.setUp;
-      if (previous.serverUrl !== file.serverUrl) {
+      if (
+        previous.serverUrl !== file.serverUrl ||
+        previous.backend !== file.backend ||
+        previous.projectKey !== file.projectKey
+      ) {
         // A different server: whatever was kept for the old one goes.
         await endSession("");
         file = { ...file, user: null, cache: {}, policies: {}, usage: EMPTY_USAGE_MEMORY };
