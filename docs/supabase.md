@@ -26,20 +26,23 @@ A migration is never edited after it has been applied. A fix is a new file (`000
 - Functions that change data are `security definer`, with an empty `search_path`, and check `auth.uid()` themselves. The ones a client may call are in `public`; helpers are in `private`, which the API does not expose.
 - Nothing is open by default: new tables and functions are closed to `anon` and `authenticated` until a migration grants them. Only `murmur_health` and `check_invite` are open to anonymous callers.
 - Errors carry a PostgREST status code in the SQLSTATE (`PT403` is HTTP 403), so the client can tell forbidden from not found from a conflict.
-- Who may do what comes from `services/local-server/src/permissions.json`, and which plan has which feature from `packages/shared/src/plans.ts`. Migration `0002` is generated from them (`npm run seed --workspace @murmur/supabase`), and a test fails if it differs from its sources.
+- Who may do what comes from `services/local-server/src/permissions.json`, and which plan has which feature from `packages/shared/src/plans.ts`. The seed migrations (`0002`, then `0007` and later) are generated from them (`npm run seed --workspace @murmur/supabase`). A migration is never edited once applied, so a change to a matrix is a new seed migration that replaces every row, and a test fails if the newest one differs from its sources.
 
 ## The functions
 
-| Function                                                 | What it does                                               |
-| -------------------------------------------------------- | ---------------------------------------------------------- |
-| `murmur_health`, `claim_owner`                           | Whether there is an owner; the first account takes it      |
-| `create_team`, `my_teams`, `add_member`, `set_team_plan` | Teams and members                                          |
-| `create_invite`, `check_invite`, `redeem_invite`         | Invites; a code is checked before an account is made       |
-| `team_vocabulary`, `propose_item`, `review_item`         | Shared entries, with governance                            |
-| `my_notices`, `mark_notices_seen`, `set_team_setting`    | Turned-down proposals and the team's vocabulary settings   |
-| `policy_layers`, `set_policy_values`, `report_retention` | Policy layers (the client merges them), counts-only report |
-| `send_usage`                                             | A batch of counts, counted once however often it is sent   |
-| `verify_audit_chain`                                     | Walks a team's hash chain                                  |
+| Function                                                                                       | What it does                                                             |
+| ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `murmur_health`, `claim_owner`                                                                 | Whether there is an owner; the first account takes it                    |
+| `create_team`, `my_teams`, `add_member`, `set_team_plan`                                       | Teams and members                                                        |
+| `create_invite`, `check_invite`, `redeem_invite`                                               | Invites; a code is checked before an account is made                     |
+| `team_vocabulary`, `propose_item`, `review_item`                                               | Shared entries, with governance                                          |
+| `my_notices`, `mark_notices_seen`, `set_team_setting`                                          | Turned-down proposals and the team's vocabulary settings                 |
+| `policy_layers`, `set_policy_values`, `report_retention`                                       | Policy layers (the client merges them), counts-only report               |
+| `send_usage`                                                                                   | A batch of counts, counted once however often it is sent                 |
+| `verify_audit_chain`                                                                           | Walks a team's hash chain                                                |
+| `team_content`, `publish_skill`, `update_skill`, `remove_skill`, `skill_versions`              | Shared Skills: one answer to keep in step with, publish, version, remove |
+| `create_folder`, `rename_folder`, `remove_folder`, `set_folder_member`, `remove_folder_member` | Shared, department and company folders                                   |
+| `share_folder_item`, `read_folder_item`, `remove_folder_item`                                  | Copies of notes in a folder, as text, read one at a time                 |
 
 Storage is a private `shared-exports` bucket (migration `0006`), for shared exports and team attachments only. It takes document types (text, markdown, CSV, JSON, PDF, Word) and never audio or video: the bucket lists no such type, and the upload policy also refuses a file name with an audio or video extension whatever type it declares. Files live under `<team id>/`; a team's members read them, members who may write upload, the uploader or an admin deletes, and the team's plan must have teams. Access is by signed URL (the app asks for ten minutes). Where Storage is not installed (a minimal local stack) the migration says so and does nothing.
 
@@ -111,4 +114,4 @@ These are set in the Supabase dashboard (Authentication), not in SQL:
 
 ## Not built yet
 
-Choosing the backend per team in the app, a run of the contract suite against a hosted Supabase project (it has passed on a local stack), departments and member management functions beyond what the contract needs, shared Skills and folders, sync with an outbox, shadow mode and cutover, and SSO, SCIM and domain capture.
+Choosing the backend per team in the app, a run of the contract suite against a hosted Supabase project (it has passed on a local stack), departments and member management functions beyond what the contract needs, sync with an outbox, shadow mode and cutover, and SSO, SCIM and domain capture.

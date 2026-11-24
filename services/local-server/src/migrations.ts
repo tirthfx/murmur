@@ -414,6 +414,83 @@ export const MIGRATIONS: readonly Migration[] = [
       );
     `,
   },
+  {
+    version: 9,
+    name: "shared_skills_and_folders",
+    sql: `
+      -- Skills a team publishes (NT-16): the Skill file as text, read-only for members, a new
+      -- version for each change. A department's Skills are seen by that department.
+      CREATE TABLE team_skills (
+        id            TEXT PRIMARY KEY,
+        team_id       TEXT NOT NULL REFERENCES teams (id) ON DELETE CASCADE,
+        name          TEXT NOT NULL,
+        description   TEXT NOT NULL DEFAULT '',
+        body          TEXT NOT NULL,
+        scope         TEXT NOT NULL CHECK (scope IN ('company', 'department')),
+        department_id TEXT REFERENCES departments (id) ON DELETE CASCADE,
+        version       INTEGER NOT NULL DEFAULT 1,
+        status        TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'deleted')),
+        created_by    TEXT REFERENCES users (id),
+        created_at    INTEGER NOT NULL,
+        updated_at    INTEGER NOT NULL,
+        CHECK ((scope = 'company') = (department_id IS NULL))
+      );
+      CREATE UNIQUE INDEX team_skills_name
+        ON team_skills (team_id, scope, COALESCE(department_id, ''), lower(name))
+        WHERE status = 'active';
+
+      CREATE TABLE team_skill_versions (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        skill_id   TEXT NOT NULL REFERENCES team_skills (id) ON DELETE CASCADE,
+        version    INTEGER NOT NULL,
+        name       TEXT NOT NULL,
+        body       TEXT NOT NULL,
+        changed_by TEXT REFERENCES users (id),
+        changed_at INTEGER NOT NULL
+      );
+      CREATE INDEX team_skill_versions_skill ON team_skill_versions (skill_id, version);
+
+      -- Folders of shared meeting notes (NT-17): named people, a department, or the company.
+      CREATE TABLE shared_folders (
+        id            TEXT PRIMARY KEY,
+        team_id       TEXT NOT NULL REFERENCES teams (id) ON DELETE CASCADE,
+        name          TEXT NOT NULL,
+        kind          TEXT NOT NULL CHECK (kind IN ('shared', 'department', 'company')),
+        department_id TEXT REFERENCES departments (id) ON DELETE CASCADE,
+        status        TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'deleted')),
+        created_by    TEXT REFERENCES users (id),
+        created_at    INTEGER NOT NULL,
+        CHECK ((kind = 'department') = (department_id IS NOT NULL))
+      );
+      CREATE INDEX shared_folders_team ON shared_folders (team_id, status);
+
+      -- Who is in a "shared" folder, and whether they may add to it. (Department and company
+      -- folders follow the department and the team, so they have no rows here.)
+      CREATE TABLE folder_members (
+        folder_id TEXT NOT NULL REFERENCES shared_folders (id) ON DELETE CASCADE,
+        user_id   TEXT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        can_write INTEGER NOT NULL DEFAULT 1,
+        added_by  TEXT REFERENCES users (id),
+        added_at  INTEGER NOT NULL,
+        PRIMARY KEY (folder_id, user_id)
+      );
+
+      -- What a person chose to share into a folder: a copy of the notes, never audio.
+      CREATE TABLE folder_items (
+        id         TEXT PRIMARY KEY,
+        folder_id  TEXT NOT NULL REFERENCES shared_folders (id) ON DELETE CASCADE,
+        title      TEXT NOT NULL,
+        body_md    TEXT NOT NULL,
+        source_ref TEXT NOT NULL DEFAULT '',
+        shared_by  TEXT REFERENCES users (id),
+        shared_at  INTEGER NOT NULL
+      );
+      CREATE INDEX folder_items_folder ON folder_items (folder_id, shared_at);
+
+      -- Goes up whenever Skills or folders change, so a client can ask "anything new since?".
+      ALTER TABLE team_revisions ADD COLUMN content_revision INTEGER NOT NULL DEFAULT 0;
+    `,
+  },
 ];
 
 export function migrate(db: DatabaseSync, migrations: readonly Migration[] = MIGRATIONS): number {

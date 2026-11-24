@@ -44,6 +44,10 @@ const EXPECTED: Record<ActionName, Role[] | "server"> = {
   "network.manage": "server",
   "plan.manage": "server",
   "compliance.manage": ["owner", "admin"],
+  "skills.view": ["owner", "admin", "manager", "member", "viewer"],
+  "skills.manage": ["owner", "admin", "manager"],
+  "folders.view": ["owner", "admin", "manager", "member", "viewer"],
+  "folders.contribute": ["owner", "admin", "manager", "member"],
 };
 
 describe("the permission matrix", () => {
