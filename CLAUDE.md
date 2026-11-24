@@ -47,6 +47,7 @@ Layout:
 | ----------------------- | -------------------------------------- |
 | `apps/desktop`          | Electron app (main, preload, renderer) |
 | `native/helper-mac`     | Swift helper package                   |
+| `native/helper-win`     | .NET helper for Windows                |
 | `packages/shared`       | Shared types and helper protocol       |
 | `services/local-server` | Local backend for team, sync and admin |
 | `docs/`                 | In-repo technical documentation        |
@@ -101,6 +102,7 @@ Run all commands from the repo root.
 - Build helper (Swift): `npm run build:helper` (runs `swift build -c release`; output in `native/helper-mac/.build/release/murmur-helper`). Needs macOS with Xcode or the Swift toolchain. In development the app finds the binary there, or at `MURMUR_HELPER_PATH`. If it is missing the app still starts and the Hub shows the helper as unavailable.
 - Smoke test: `npm run smoke` (owner's Mac only; see `docs/smoke-test.md`).
 - Helper tests: `npm run test:helper` (runs `swift test`). Not part of CI yet; run it locally when `native/helper-mac` changes.
+- Windows helper: `npm run build:helper:win` and `npm run test:helper:win` (need the .NET 9 SDK). CI runs both, the app's conformance suite against the helper, and `--self-test` on a Windows runner.
 
 The Hub (sidebar order, hidden pages, hash routes, the remembered page and window size, Home, the Dictation page and retry from the Hub, themes): see `docs/hub.md`.
 
@@ -160,7 +162,7 @@ Local server (the team backend on 127.0.0.1: accounts, sessions, the API, runnin
 
 Team backend on Supabase (the schema, row-level security, the functions, applying the migrations, the SQL tests, the dashboard settings): see `docs/supabase.md`.
 
-Platform helper and adapter (the `PlatformHelper` interface, the one place that reads the OS, the conformance suite every helper must pass, the Windows gap): see `docs/platform.md`.
+Platform helper and adapter (the `PlatformHelper` interface, the one place that reads the OS, the conformance suite every helper must pass, the Windows helper in `native/helper-win`, what is checked where): see `docs/platform.md`.
 
 Local MCP server (the read and write tools for AI clients, the socket and the `murmur-mcp` command, HTTP on 127.0.0.1, per-app tokens, writing an app's config after an approved diff, the call log, limits, what is never returned): see `docs/mcp.md`.
 

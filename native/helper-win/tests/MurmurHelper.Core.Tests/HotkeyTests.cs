@@ -1,0 +1,124 @@
+using System.Text.Json.Nodes;
+using Xunit;
+
+namespace Murmur.Helper.Tests;
+
+public class HotkeyTests
+{
+    private const int F11 = 0x7A, Space = 0x20, KeyA = 0x41, KeyB = 0x42;
+
+    private static HotkeyBinding Bind(string id, int key, string mode = "hold", string[]? mods = null, bool exclusive = false, string action = "dictate.hold") =>
+        new(id, action, "key", key, mods ?? Array.Empty<string>(), mode, null, exclusive);
+
+    private static (HotkeyEngine Engine, List<(string Id, string State)> Events, List<bool> Listening) Make()
+    {
+        var events = new List<(string, string)>();
+        var listening = new List<bool>();
+        var engine = new HotkeyEngine((_, p) => events.Add((p["bindingId"]!.GetValue<string>(), p["state"]!.GetValue<string>())), () => 5, listening.Add);
+        return (engine, events, listening);
+    }
+
+    [Fact]
+    public void AHoldBindingSaysDownThenUp()
+    {
+        var (engine, events, _) = Make();
+        engine.Configure(new[] { Bind("d", F11) });
+        engine.OnKey(F11, true);
+        engine.OnKey(F11, true); // key repeat is ignored
+        engine.OnKey(F11, false);
+        Assert.Equal(new[] { ("d", "down"), ("d", "up") }, events);
+    }
+
+    [Fact]
+    public void ModifiersMustMatchExactlyAndLeftAndRightAreOneKey()
+    {
+        var (engine, events, _) = Make();
+        engine.Configure(new[] { Bind("d", Space, mods: new[] { "control" }) });
+        engine.OnKey(Space, true); engine.OnKey(Space, false);
+        Assert.Empty(events); // no modifier
+        engine.OnKey(0xA3, true); // right control
+        engine.OnKey(Space, true);
+        engine.OnKey(Space, false);
+        engine.OnKey(0xA3, false);
+        Assert.Equal(new[] { ("d", "down"), ("d", "up") }, events);
+        events.Clear();
+        engine.OnKey(0x11, true); engine.OnKey(0x10, true); // control and shift: not the binding
+        engine.OnKey(Space, true); engine.OnKey(Space, false);
+        Assert.Empty(events);
+    }
+
+    [Fact]
+    public void ReleasingAModifierEndsAHold()
+    {
+        var (engine, events, _) = Make();
+        engine.Configure(new[] { Bind("d", Space, mods: new[] { "control" }) });
+        engine.OnKey(0x11, true); engine.OnKey(Space, true);
+        engine.OnKey(0x11, false);
+        Assert.Equal(new[] { ("d", "down"), ("d", "up") }, events);
+        engine.OnKey(Space, false);
+        Assert.Equal(2, events.Count);
+    }
+
+    [Fact]
+    public void AnExclusiveHoldIsInterruptedByAnotherKeyAndThenSaysNoUp()
+    {
+        var (engine, events, _) = Make();
+        engine.Configure(new[] { Bind("d", F11, exclusive: true) });
+        engine.OnKey(F11, true);
+        engine.OnKey(KeyA, true);
+        engine.OnKey(F11, false);
+        Assert.Equal(new[] { ("d", "down"), ("d", "interrupted") }, events);
+    }
+
+    [Fact]
+    public void PressAndToggleBindingsSayPressOnce()
+    {
+        var (engine, events, _) = Make();
+        engine.Configure(new[] { Bind("p", KeyA, "press"), Bind("t", KeyB, "toggle") });
+        engine.OnKey(KeyA, true); engine.OnKey(KeyA, true); engine.OnKey(KeyA, false);
+        engine.OnKey(KeyB, true); engine.OnKey(KeyB, false);
+        Assert.Equal(new[] { ("p", "press"), ("t", "press") }, events);
+    }
+
+    [Fact]
+    public void ListensOnlyWhileABindingIsSetAndRejectsWhatItCannotDo()
+    {
+        var (engine, _, listening) = Make();
+        var result = engine.Configure(new[]
+        {
+            Bind("ok", F11),
+            Bind("ok", KeyA),
+            Bind("fn", KeyA, mods: new[] { "fn" }),
+            new HotkeyBinding("mouse", "dictate.hold", "mouse", 4, Array.Empty<string>(), "hold", null, false),
+            Bind("high", 200),
+            Bind("rw", KeyB, action: "rewrite"),
+            Bind("ex", KeyB, "press", exclusive: true),
+        });
+        Assert.Equal(new[] { "ok" }, result.Registered);
+        Assert.Equal(
+            new[] { "DUPLICATE_ID", "UNSUPPORTED_MODIFIER", "UNSUPPORTED_TRIGGER", "UNSUPPORTED_KEY", "INVALID_BINDING", "INVALID_BINDING" },
+            result.Rejected.Select(r => r.Code));
+        engine.Configure(Array.Empty<HotkeyBinding>());
+        Assert.Equal(new[] { true, false }, listening);
+    }
+
+    [Fact]
+    public void ARewriteBindingCarriesItsRewriteId()
+    {
+        var events = new List<JsonObject>();
+        var engine = new HotkeyEngine((_, p) => events.Add(p), () => 1);
+        engine.Configure(new[] { new HotkeyBinding("r", "rewrite", "key", KeyA, Array.Empty<string>(), "press", "rw-1", false) });
+        engine.OnKey(KeyA, true);
+        Assert.Equal("rw-1", events.Single()["rewriteId"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public void ParsesABindingFromARequest()
+    {
+        var json = JsonNode.Parse("""{"id":"d","action":"dictate.hold","trigger":{"type":"key","keyCode":122,"modifiers":["shift"]},"mode":"hold","exclusive":true}""")!.AsObject();
+        var binding = HotkeyBinding.Parse(json);
+        Assert.Equal(122, binding.KeyCode);
+        Assert.Equal(new[] { "shift" }, binding.Modifiers);
+        Assert.True(binding.Exclusive);
+    }
+}
