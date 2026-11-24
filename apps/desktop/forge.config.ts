@@ -41,6 +41,8 @@ const config: ForgeConfig = {
   makers: [
     new MakerSquirrel({
       name: "Murmur",
+      authors: "tirthfx",
+      description: "Voice dictation and meeting notes",
       setupExe: "Murmur-Setup.exe",
       ...(certificateFile && certificatePassword ? { certificateFile, certificatePassword } : {}),
     }),
