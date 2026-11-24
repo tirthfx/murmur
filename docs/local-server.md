@@ -401,6 +401,18 @@ and streaming, the address allowlist). Shared Skills are not built, so there is 
 - Not built: the `team.admin.requireMfa` simulation of a TOTP step, and Astryx components (the
   spec asks for a React bundle; see the ADR).
 
+### A second step for the console (`team.admin.requireMfa`)
+
+The console can ask for a time-based one-time password (RFC 6238: HMAC-SHA1, six digits, thirty seconds) after the password. Any authenticator app reads the key. `src/mfa.ts` has the code, the recovery codes and the checks.
+
+- **Setting up** asks for the password, not a session, because a person who must have a second step cannot get a session without one: `POST /v1/admin/mfa/begin` gives the key and an `otpauth://` address once; `POST /v1/admin/mfa/confirm` with a right code turns it on and gives eight recovery codes, once. The console's sign-in page does both.
+- **Signing in** with a second step on needs `code` in `POST /v1/admin/session`: the code from the app, or a recovery code. A code works once (its time step is remembered); the steps either side of now are accepted for a clock that is a little off; a recovery code works once. Without a code the answer is 401 `mfa_required`, with a wrong one 401 `mfa_invalid`, and no session is made.
+- **Five wrong codes in a row** make a wait of thirty seconds, as for passwords, and say how long (`delayed`, 429).
+- **Requiring it:** the server owner turns `team.admin.requireMfa` on (`PUT /v1/admin/mfa-policy`, from the console's Settings page) and a console account with none is refused with 403 `mfa_enrollment_required` until it sets one up. The owner must have one first, or turning it on is refused (`enroll_first`). While it is required a person cannot turn their own off (`POST /v1/admin/mfa/disable` needs a code and is refused with `mfa_required_by_owner`).
+- **A lost phone and no recovery codes:** the owner resets the person's second step (`POST /v1/users/:userId/mfa/reset`, the Members page), and they set it up again.
+- **What is kept:** the key as it is (a code cannot be checked from a hash) and only hashes of the recovery codes. The audit log has `mfa.enrollment_started`, `mfa.enrolled`, `mfa.failed`, `mfa.recovery_used`, `mfa.disabled`, `mfa.reset` and `admin.mfa_policy_changed`, with counts and never a key, a code or an address.
+- **Honest limits:** the database is not encrypted at rest, so this guards the console against a stolen password; it does not guard against someone who can read the server's files. The setting is for the whole server, because the console's sign-in is.
+
 ## What it refuses
 
 - A `Host` that is not this machine, and a request with a different `Origin`: a web page cannot

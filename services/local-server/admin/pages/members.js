@@ -70,8 +70,24 @@ export default {
           {},
           h("h3", {}, "Accounts on this server"),
           table(
-            ["Name", "Email", "Status", "Created"],
-            users.users.map((user) => [user.name, user.email, user.status, when(user.createdAt)]),
+            ["Name", "Email", "Status", "Created", ""],
+            users.users.map((user) => [
+              user.name,
+              user.email,
+              user.status,
+              when(user.createdAt),
+              action(
+                "Reset second step",
+                () =>
+                  call("POST /v1/users/:userId/mfa/reset", { params: { userId: user.id } }).then(
+                    reload,
+                  ),
+                {
+                  kind: "danger",
+                  confirm: `Turn off ${user.name}'s second step, so they can set it up again?`,
+                },
+              ),
+            ]),
           ),
           h("h3", {}, "Add an account"),
           h(

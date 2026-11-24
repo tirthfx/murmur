@@ -390,6 +390,30 @@ export const MIGRATIONS: readonly Migration[] = [
       );
     `,
   },
+  {
+    version: 8,
+    name: "admin_mfa",
+    sql: `
+      -- A time-based one-time password (RFC 6238) for the admin console. The secret has to be
+      -- kept to check a code, so it is stored as it is; the database is not encrypted at rest
+      -- (the same open question as the rest of the file). last_step stops a code being used twice.
+      CREATE TABLE account_mfa (
+        user_id      TEXT PRIMARY KEY REFERENCES users (id) ON DELETE CASCADE,
+        secret       TEXT NOT NULL,
+        confirmed_at INTEGER,
+        last_step    INTEGER NOT NULL DEFAULT 0,
+        created_at   INTEGER NOT NULL
+      );
+
+      -- One-use recovery codes, shown once; only their hashes are kept.
+      CREATE TABLE mfa_recovery (
+        user_id   TEXT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        code_hash TEXT NOT NULL,
+        used_at   INTEGER,
+        PRIMARY KEY (user_id, code_hash)
+      );
+    `,
+  },
 ];
 
 export function migrate(db: DatabaseSync, migrations: readonly Migration[] = MIGRATIONS): number {

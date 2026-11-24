@@ -31,6 +31,7 @@ import { createInvites, type Invites } from "./invites.ts";
 import { ACTIONS, allows } from "./permissions.ts";
 import { createNetwork, type Network } from "./network.ts";
 import { gateOf } from "./plan-gates.ts";
+import { createMfa, type Mfa } from "./mfa.ts";
 import { createPlan, type Plan } from "./plan.ts";
 import { createPolicy, type Policy } from "./policy.ts";
 import { auditRoutes } from "./routes/audit.ts";
@@ -96,6 +97,7 @@ export interface LocalServer {
   listen(): Promise<{ host: string; port: number }>;
   close(): Promise<void>;
   accounts: Accounts;
+  mfa: Mfa;
   audit: Audit;
   siem: Siem;
   teams: Teams;
@@ -210,8 +212,10 @@ export function createLocalServer(config: ServerConfig): LocalServer {
   const log = config.log ?? (() => undefined);
   let timer: NodeJS.Timeout | null = null;
 
+  const mfa = createMfa({ db, now, audit: record });
   const deps: RouteDeps = {
     accounts,
+    mfa,
     audit,
     siem,
     settings,
@@ -374,6 +378,7 @@ export function createLocalServer(config: ServerConfig): LocalServer {
 
   return {
     accounts,
+    mfa,
     audit,
     siem,
     teams,
