@@ -23,7 +23,8 @@ begin
   end if;
   -- The audit log refuses deletes on purpose; a test project may start again from nothing.
   truncate table public.audit_events, public.teams restart identity cascade;
-  delete from auth.users;
+  -- The API's roles refuse a delete with no WHERE (pg_safeupdate); this one is on purpose.
+  delete from auth.users where true;
   return jsonb_build_object('reset', true);
 end;
 $$;

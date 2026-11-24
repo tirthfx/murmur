@@ -5,7 +5,10 @@
 -- raising "ALL TESTS PASSED". The error undoes everything the script did, so nothing is left in
 -- the database. A failed check raises "FAIL <label>" instead.
 --
--- It runs as one request: paste it into the SQL editor, or send it with `psql -f`.
+-- It runs as one transaction (the begin below): paste it into the SQL editor, or send it with `psql -f`; the final error rolls everything back.
+
+-- One transaction, so the final error undoes the helper schema and everything else, even in psql.
+begin;
 
 create schema t;
 grant usage on schema t to anon, authenticated;

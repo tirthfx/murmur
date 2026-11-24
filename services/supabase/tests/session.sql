@@ -3,6 +3,9 @@
 -- Run it like rls.sql: against a database with the migrations applied. It ends by raising
 -- "ALL TESTS PASSED", which undoes everything it did.
 
+-- One transaction, so the final error undoes the helper schema and everything else, even in psql.
+begin;
+
 create schema t;
 grant usage on schema t to anon, authenticated;
 

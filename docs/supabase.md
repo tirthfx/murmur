@@ -66,19 +66,36 @@ Run it against a development project or a local stack (`supabase start`), not on
 
 ## Running the contract suite
 
-The suite that the local server passes also runs against a Supabase project, but only against a throwaway one, because every test starts by emptying it. To set one up:
+The suite that the local server passes also runs against a Supabase backend, but only against a throwaway one, because every test starts by emptying it. The simplest is a local stack with the Supabase CLI and Docker (a hosted free plan may not have room for a second project). It was run this way and passed: 22 tests passed and 1 was left out (see below).
 
-1. Make a second Supabase project, apply the migrations, then apply `services/supabase/tests/reset.sql` to it. That file makes a reset function that works only with the service key and only on a project that ran the file.
-2. In that project's Authentication settings, turn Confirm email off.
-3. Run the suite with the project's details in the environment:
+1. In a scratch folder (not in the repo), install the CLI and make a project: `npm install supabase`, then `npx supabase init`.
+2. In that project's `supabase/config.toml`, set `minimum_password_length = 12` and raise `[auth.rate_limit] sign_in_sign_ups` (to 10000), because the suite signs in and up many times in a few minutes. Confirm email is off by default locally.
+3. Link the repo's migrations in place of the project's own: `rm -rf supabase/migrations && ln -s <repo>/services/supabase/migrations supabase/migrations`.
+4. Start only what the suite needs (the first start pulls the images):
 
 ```bash
-MURMUR_SUPABASE_TEST_URL=https://<ref>.supabase.co \
-MURMUR_SUPABASE_TEST_ANON_KEY=<anon key> \
-MURMUR_SUPABASE_TEST_SERVICE_KEY=<service role key> \
+npx supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+```
+
+5. Apply the reset function to the local database, which makes the project a test project (`reset.sql` works only with the service key and only where its marker table exists):
+
+```bash
+docker exec -i supabase_db_<project> psql -U postgres -v ON_ERROR_STOP=1 < services/supabase/tests/reset.sql
+```
+
+6. Run the suite with the local stack's address and keys (`npx supabase status -o env` prints them; they are the well-known local development keys, not secrets):
+
+```bash
+MURMUR_SUPABASE_TEST_URL=http://127.0.0.1:54321 \
+MURMUR_SUPABASE_TEST_ANON_KEY=<ANON_KEY> \
+MURMUR_SUPABASE_TEST_SERVICE_KEY=<SERVICE_ROLE_KEY> \
 MURMUR_SUPABASE_TEST_WIPE=yes \
 npx vitest run apps/desktop/src/main/team/supabase-contract.test.ts
 ```
+
+The SQL tests run against the same database with `docker exec -i supabase_db_<project> psql -U postgres -v ON_ERROR_STOP=1 < services/supabase/tests/rls.sql` (and `session.sql`). Each ends with the error `ALL TESTS PASSED`, which undoes what it did.
+
+A hosted test project works the same way: make it, apply the migrations and `reset.sql`, turn Confirm email off, and use its address and keys.
 
 Without those four variables the suite is skipped, so CI and a normal `npm test` never touch a project. One test is left out for Supabase: the wait after five wrong passwords is the local server's rule, and Supabase Auth has limits of its own (the contract's `signInLockout` capability).
 
@@ -92,4 +109,4 @@ These are set in the Supabase dashboard (Authentication), not in SQL:
 
 ## Not built yet
 
-Choosing the backend per team in the app, a run of the contract suite against a test project (the suite and its fixture are written and skipped until one exists), departments and member management functions beyond what the contract needs, shared Skills and folders, sync with an outbox, shadow mode and cutover, and SSO, SCIM and domain capture.
+Choosing the backend per team in the app, a run of the contract suite against a hosted Supabase project (it has passed on a local stack), departments and member management functions beyond what the contract needs, shared Skills and folders, sync with an outbox, shadow mode and cutover, and SSO, SCIM and domain capture.

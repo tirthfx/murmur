@@ -344,10 +344,28 @@ describe("the Supabase team client", () => {
       expect(error.message).toBe(`words for ${code}`);
     });
 
-    it("says unauthorized with no session at all, without calling the service", async () => {
-      const { client, calls } = setup([]);
-      expectError(await client.teams(), "unauthorized");
-      expect(calls).toEqual([]);
+    it("says unauthorized with no session, asking without a token, and offline or refused first when that is the case", async () => {
+      const none = setup([
+        rpcRoute("my_teams", {
+          status: 401,
+          json: { code: "42501", message: "permission denied for function my_teams" },
+        }),
+      ]);
+      expectError(await none.client.teams(), "unauthorized");
+      expect(none.calls).toHaveLength(1);
+      expect(none.calls[0]?.headers["authorization"]).toBeUndefined();
+
+      const gone = setup([]);
+      gone.deps.fetch = (async () => {
+        throw new TypeError("fetch failed");
+      }) as unknown as typeof fetch;
+      expectError(await createSupabaseTeamClient(gone.deps).teams(), "offline");
+
+      const blocked = setup([]);
+      blocked.deps.networkCheck = () => {
+        throw new Error("Strict local mode: that address is not allowed.");
+      };
+      expectError(await createSupabaseTeamClient(blocked.deps).teams(), "refused");
     });
   });
 
