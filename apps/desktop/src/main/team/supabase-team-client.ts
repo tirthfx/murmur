@@ -199,7 +199,9 @@ export function createSupabaseTeamClient(deps: SupabaseTeamClientDeps): TeamClie
     const path = `/rest/v1/rpc/${name}`;
     if (!options.auth) return send("POST", path, { body: args });
     const pair = current();
-    if (!pair) return { status: 401, json: { message: "Sign in to continue." }, retryAfter: null };
+    // With no session the call still goes out, without a token: the answer is 401, and a backend
+    // that cannot be reached, or that Murmur's rules refuse, is reported as that first.
+    if (!pair) return send("POST", path, { body: args });
     const first = await send("POST", path, { body: args, bearer: pair.access });
     if (first.status !== 401 || !pair.refresh) return first;
     const stored = deps.token();
