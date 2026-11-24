@@ -313,6 +313,14 @@ export function TeamPage() {
 
           {view.state === "signed_in" ? <SharedContent view={view} /> : null}
 
+          {view.outbox > 0 ? (
+            <Text size="sm" color="secondary" role="status">
+              {view.outbox} {view.outbox === 1 ? "proposal is" : "proposals are"} waiting to be sent
+              to the team server. {view.outbox === 1 ? "It is" : "They are"} sent when it can be
+              reached.
+            </Text>
+          ) : null}
+
           <HStack gap={2} wrap="wrap">
             <Button
               size="sm"

@@ -70,6 +70,19 @@ describe("sharing an entry with the team", () => {
     expect(await screen.findByText("Sent to Acme. It waits for a review.")).toBeTruthy();
   });
 
+  it("says it is saved when the server cannot be reached, and will be sent later", async () => {
+    window.murmur = createMockApi({
+      dictionaryList: vi.fn().mockResolvedValue([word]),
+      teamView: vi.fn().mockResolvedValue(SIGNED_IN),
+      teamPropose: vi.fn().mockResolvedValue({ ok: true, status: "queued", teamName: "Acme" }),
+    });
+    render(<DictionaryPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Share Kubernetes with the team" }));
+    expect(
+      await screen.findByText("Saved. It is sent to Acme when the team server can be reached."),
+    ).toBeTruthy();
+  });
+
   it("says when it went live, and shows the server's reason when it was refused", async () => {
     const teamPropose = vi
       .fn()
