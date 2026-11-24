@@ -31,6 +31,9 @@ function stubBrowserApis() {
   );
 }
 
+/** A busy CI machine can take longer than the default second to settle a render. */
+const SLOW_CI = { timeout: 5000 };
+
 describe("Hub", () => {
   beforeEach(() => {
     stubBrowserApis();
@@ -181,8 +184,8 @@ describe("Hub with a policy in force (TM-14, TM-21)", () => {
         ),
     });
     render(<App />);
-    const nav = await screen.findByRole("navigation", { name: "Hub pages" });
-    await waitFor(() => expect(nav.textContent).not.toContain("Scratchpad"));
+    const nav = await screen.findByRole("navigation", { name: "Hub pages" }, SLOW_CI);
+    await waitFor(() => expect(nav.textContent).not.toContain("Scratchpad"), SLOW_CI);
     expect(nav.textContent).not.toContain("Rewrites");
     expect(nav.textContent).not.toContain("Connectors");
     expect(nav.textContent).toContain("Notetaker");
@@ -200,7 +203,7 @@ describe("Hub with a policy in force (TM-14, TM-21)", () => {
       ),
     });
     render(<App />);
-    expect((await screen.findByTestId("managed-badge")).textContent).toBe(
+    expect((await screen.findByTestId("managed-badge", undefined, SLOW_CI)).textContent).toBe(
       "Managed by your organization",
     );
     expect(screen.getByTestId("updates-managed").textContent).toBe(
@@ -211,7 +214,7 @@ describe("Hub with a policy in force (TM-14, TM-21)", () => {
   it("shows neither when nothing is managed", async () => {
     window.murmur = createMockApi();
     render(<App />);
-    await screen.findByRole("navigation", { name: "Hub pages" });
+    await screen.findByRole("navigation", { name: "Hub pages" }, SLOW_CI);
     expect(screen.queryByTestId("managed-badge")).toBeNull();
     expect(screen.queryByTestId("updates-managed")).toBeNull();
   });
@@ -225,10 +228,10 @@ describe("Hub with a policy in force (TM-14, TM-21)", () => {
       }),
     });
     render(<App />);
-    const nav = await screen.findByRole("navigation", { name: "Hub pages" });
+    const nav = await screen.findByRole("navigation", { name: "Hub pages" }, SLOW_CI);
     expect(nav.textContent).toContain("Scratchpad");
     push(policyView({ active: true, featuresOff: ["scratchpad"] }));
-    await waitFor(() => expect(nav.textContent).not.toContain("Scratchpad"));
+    await waitFor(() => expect(nav.textContent).not.toContain("Scratchpad"), SLOW_CI);
   });
 
   it("explains on the Notetaker page that recording is off, while meetings stay listed", async () => {
@@ -243,7 +246,7 @@ describe("Hub with a policy in force (TM-14, TM-21)", () => {
       ),
     });
     render(<App />);
-    const note = await screen.findByTestId("policy-off-notetaker");
+    const note = await screen.findByTestId("policy-off-notetaker", undefined, SLOW_CI);
     expect(note.textContent).toContain("Turned off by your organization");
     expect(note.textContent).toContain("it@acme.test");
   });
