@@ -108,3 +108,12 @@ The Team page's Connect form takes an address and, optionally, a project key (it
 - The service picks the client for each call from what it is connected to; a test that passes its own `client` always gets that one.
 
 The choice is per address (and so per connection), which is what a team is today: one connection, one backend. Moving a team from the local server to Supabase is a new connection, with its data brought over by the migration tool.
+
+### Shared Skills and folders: `teamContent.v1`
+
+`TeamClient` v1 is frozen, so shared Skills and folders (NT-16, NT-17) are a second interface, `TeamContentClient` (`packages/shared/src/team-content.ts`, version `teamContent.v1`), that a backend implements next to it. Both clients do: `local-team-client.ts` and `supabase-team-client.ts` return a `TeamClient & TeamContentClient`.
+
+- **One answer to keep in step with:** `content(teamId, since?)` gives the Skills and folders this person can see, with a revision, or `unchanged`. A folder lists its people and the titles of its notes; a note's text is read one at a time (`readNote`).
+- **Skills** are the Skill file as text. Members read them (and the app can copy one into their own Skills); admins publish, change and remove; each change is a new version (`updateSkill`, `skillVersions`).
+- **Folders** are `shared` (named people, a write flag each), `department` or `company`. A note is a title and Markdown text, 60 KB at most, never audio. `people(teamId)` lists who can be chosen for a shared folder.
+- **The contract** (`team-content-contract.ts`) runs on the same fixture as the team client contract, against the local server in CI and against a Supabase project when one is configured (see `docs/supabase.md`). A viewer is refused before a folder is looked at, on both.

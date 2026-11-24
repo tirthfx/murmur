@@ -588,6 +588,85 @@ describe("the Supabase team client", () => {
     });
   });
 
+  describe("shared Skills and folders", () => {
+    const call = (name: string, reply: Reply) => rpcRoute(name, reply);
+
+    it("asks for the content with the revision it has, and reads the answer", async () => {
+      const { client, calls } = setup(
+        [
+          call("team_content", { status: 200, json: { revision: 4, unchanged: true } }),
+          call("team_people", {
+            status: 200,
+            json: [{ userId: "u1", name: "Ada", email: "ada@example.com", role: "owner" }],
+          }),
+        ],
+        { token: signed() },
+      );
+      expect(expectOk(await client.content("t1", 4))).toEqual({ unchanged: true, revision: 4 });
+      expect(calls[0]?.body).toEqual({ p_team: "t1", p_since: 4 });
+      expect(expectOk(await client.people("t1"))[0]).toMatchObject({ name: "Ada", role: "owner" });
+    });
+
+    it("sends each call under the names the function takes", async () => {
+      const ok = (json: unknown): Reply => ({ status: 200, json });
+      const { client, calls } = setup(
+        [
+          call("publish_skill", ok({ skill: { id: "s1", version: 1 } })),
+          call("update_skill", ok({ skill: { id: "s1", version: 2 }, changed: true })),
+          call("remove_skill", ok({ removed: true })),
+          call("create_folder", ok({ folder: { id: "f1" } })),
+          call("set_folder_member", ok({ folder: { id: "f1" } })),
+          call("share_folder_item", ok({ id: "n1" })),
+          call("read_folder_item", ok({ item: { id: "n1", title: "T", body: "B" } })),
+          call("remove_folder_item", ok({ removed: true })),
+        ],
+        { token: signed() },
+      );
+      expectOk(await client.publishSkill("t1", { name: "A", description: "d", body: "b" }));
+      expectOk(await client.updateSkill("t1", "s1", { body: "new" }));
+      expectOk(await client.removeSkill("t1", "s1"));
+      expectOk(await client.createFolder("t1", { name: "Q4", kind: "shared", members: ["u2"] }));
+      expectOk(await client.setFolderMember("t1", "f1", "u2", false));
+      expectOk(await client.shareNote("t1", "f1", { title: "T", body: "B", sourceRef: "m:1" }));
+      expect(expectOk(await client.readNote("t1", "f1", "n1"))).toMatchObject({ title: "T" });
+      expectOk(await client.removeNote("t1", "f1", "n1"));
+      expect(calls.map((c) => c.body)).toEqual([
+        {
+          p_team: "t1",
+          p_name: "A",
+          p_description: "d",
+          p_body: "b",
+          p_scope: "company",
+          p_department: null,
+        },
+        { p_team: "t1", p_skill: "s1", p_name: null, p_description: null, p_body: "new" },
+        { p_team: "t1", p_skill: "s1" },
+        { p_team: "t1", p_name: "Q4", p_kind: "shared", p_department: null, p_members: ["u2"] },
+        { p_team: "t1", p_folder: "f1", p_user: "u2", p_can_write: false },
+        { p_team: "t1", p_folder: "f1", p_title: "T", p_body: "B", p_source_ref: "m:1" },
+        { p_team: "t1", p_folder: "f1", p_item: "n1" },
+        { p_team: "t1", p_folder: "f1", p_item: "n1" },
+      ]);
+    });
+
+    it("maps what the database says to the shared errors", async () => {
+      const { client } = setup(
+        [
+          call("share_folder_item", {
+            status: 403,
+            json: { code: "PT403", message: "You cannot add to this folder." },
+          }),
+        ],
+        { token: signed() },
+      );
+      const error = expectError(
+        await client.shareNote("t1", "f1", { title: "T", body: "B" }),
+        "forbidden",
+      );
+      expect(error.message).toBe("You cannot add to this folder.");
+    });
+  });
+
   it("sends the session only as the authorization of a signed-in call", async () => {
     const { client, calls } = setup([rpcRoute("my_teams", { status: 200, json: [] })], {
       token: signed("access-9"),

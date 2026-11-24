@@ -5,6 +5,7 @@ import {
   type ContractBackend,
 } from "./team-client-contract";
 import { createSupabaseTeamClient, decodeSupabaseToken } from "./supabase-team-client";
+import { describeTeamContentContract } from "./team-content-contract";
 
 /**
  * The contract suite against a real Supabase project (SW-01 phase 2). It runs only when a
@@ -190,4 +191,5 @@ async function start(): Promise<ContractBackend> {
 // Left out, with a note, unless a test project is configured.
 describe.skipIf(!READY)("Supabase test project", () => {
   describeTeamClientContract("Supabase", { start });
+  describeTeamContentContract("Supabase", { start });
 });

@@ -137,7 +137,7 @@ begin
   perform t.check(jsonb_array_length(public.team_content(team) -> 'folders') = 0, 'a person outside the folder does not see it');
   perform t.check((select count(*) from public.shared_folders) = 0 and (select count(*) from public.folder_items) = 0, 'nor through the tables');
   perform t.expect(format($q$select public.read_folder_item('%s', '%s', '%s')$q$, team, folder, item), 'PT404', 'nor read a note');
-  perform t.expect(format($q$select public.share_folder_item('%s', '%s', 'x', 'y')$q$, team, folder), 'PT404', 'nor add one');
+  perform t.expect(format($q$select public.share_folder_item('%s', '%s', 'x', 'y')$q$, team, folder), 'PT403', 'nor add one (a viewer is refused first)');
   perform t.expect(format($q$select public.create_folder('%s', 'Mine', 'shared')$q$, team), 'PT403', 'a viewer cannot make a folder');
   perform t.as_user(ada);
   perform t.check(jsonb_array_length(public.team_content(team) -> 'folders') = 1, 'an admin sees every folder');
