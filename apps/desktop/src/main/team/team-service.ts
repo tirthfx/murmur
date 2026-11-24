@@ -9,6 +9,7 @@ import {
   type SharedFolder,
   type SharedNote,
   type SharedSkill,
+  type TeamAccountClient,
   type TeamClient,
   type TeamClientError,
   type TeamClientResult,
@@ -704,6 +705,25 @@ export function createTeamService(deps: TeamDeps) {
       save();
       emit();
       return { ok: true, view: view() };
+    },
+
+    /** Changes the person's own password on the backend. A wrong current password is said in words, not taken for an ended session. */
+    async changePassword(input: {
+      current: string;
+      next: string;
+    }): Promise<TeamContentResult<null>> {
+      if (state !== "signed_in") return { ok: false, message: "Sign in to a team first." };
+      const picked = pick();
+      if (!("accountVersion" in picked))
+        return { ok: false, message: "This team server cannot change a password from here." };
+      const result = await (picked as TeamClient & TeamAccountClient).changePassword(input);
+      if (result.ok) return { ok: true, value: null };
+      if (result.error.code === "unauthorized") {
+        await endSession(TEAM_MESSAGES.sessionEnded);
+        return { ok: false, message: TEAM_MESSAGES.sessionEnded };
+      }
+      if (result.error.code === "offline") return { ok: false, message: TEAM_MESSAGES.unreachable };
+      return { ok: false, message: result.error.message };
     },
 
     // ---- shared Skills and folders ----

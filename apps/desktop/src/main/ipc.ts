@@ -166,6 +166,7 @@ import {
   type TeamContentResult,
   type TeamFolderCreateInput,
   type TeamNoteReadInput,
+  type TeamPasswordChangeInput,
   type TeamPerson,
   type SharedFolder,
   type SharedNote,
@@ -278,6 +279,7 @@ export interface IpcDeps {
   teamNoticesSeen: () => Promise<TeamResult>;
   teamOpenAdmin: () => Promise<{ ok: boolean; message?: string }>;
   teamPropose: (input: TeamProposeInput) => Promise<TeamProposeResult>;
+  teamChangePassword: (input: TeamPasswordChangeInput) => Promise<TeamContentResult<null>>;
   teamPeople: (teamId: string) => Promise<TeamContentResult<TeamPerson[]>>;
   teamFolderCreate: (input: TeamFolderCreateInput) => Promise<TeamContentResult<SharedFolder>>;
   teamNoteRead: (input: TeamNoteReadInput) => Promise<TeamContentResult<SharedNote>>;
@@ -830,6 +832,8 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.teamOpenAdmin();
       case IPC_CHANNELS.teamPropose:
         return deps.teamPropose(request.args[0] as TeamProposeInput);
+      case IPC_CHANNELS.teamChangePassword:
+        return deps.teamChangePassword(request.args[0] as TeamPasswordChangeInput);
       case IPC_CHANNELS.teamPeople:
         return deps.teamPeople(request.args[0] as string);
       case IPC_CHANNELS.teamFolderCreate:

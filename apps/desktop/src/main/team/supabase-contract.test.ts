@@ -5,6 +5,7 @@ import {
   type ContractBackend,
 } from "./team-client-contract";
 import { createSupabaseTeamClient, decodeSupabaseToken } from "./supabase-team-client";
+import { describeTeamAccountContract } from "./team-account-contract";
 import { describeTeamContentContract } from "./team-content-contract";
 
 /**
@@ -192,4 +193,5 @@ async function start(): Promise<ContractBackend> {
 describe.skipIf(!READY)("Supabase test project", () => {
   describeTeamClientContract("Supabase", { start });
   describeTeamContentContract("Supabase", { start });
+  describeTeamAccountContract("Supabase", { start });
 });

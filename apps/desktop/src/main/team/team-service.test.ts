@@ -864,3 +864,52 @@ describe("proposals saved while the server is out of reach", () => {
     server = createLocalServer({ dbPath: ":memory:", port: 0 });
   });
 });
+
+describe("changing the person's own password", () => {
+  const NEW = "another long enough password";
+
+  it("changes it on the server: the new password signs in and the old one does not", async () => {
+    const { r, token } = await seeded();
+    await r.service.syncNow();
+    const done = await r.service.changePassword({ current: PASSWORD, next: NEW });
+    expect(done).toEqual({ ok: true, value: null });
+    const old = await api("POST", "/v1/sessions", null, {
+      email: "ada@example.com",
+      password: PASSWORD,
+    });
+    expect(old.status).toBe(401);
+    const fresh = await api("POST", "/v1/sessions", null, {
+      email: "ada@example.com",
+      password: NEW,
+    });
+    expect(fresh.status).toBe(200);
+    // The person's own session is kept.
+    expect((await api("GET", "/v1/teams", token)).status).toBe(200);
+    expect(r.service.view().state).toBe("signed_in");
+  });
+
+  it("says in words that the current password is wrong, and does not end the session for it", async () => {
+    const { r } = await seeded();
+    const wrong = await r.service.changePassword({ current: "not the password at all", next: NEW });
+    expect(wrong).toEqual({ ok: false, message: "The current password is not right." });
+    expect(r.service.view().state).toBe("signed_in");
+    const weak = await r.service.changePassword({ current: PASSWORD, next: "short" });
+    expect(weak.ok).toBe(false);
+    expect(r.service.view().state).toBe("signed_in");
+  });
+
+  it("needs a signed-in person, and says so when the server is out of reach", async () => {
+    const fresh = rig();
+    expect(await fresh.service.changePassword({ current: "x", next: NEW })).toEqual({
+      ok: false,
+      message: "Sign in to a team first.",
+    });
+    const { r } = await seeded();
+    await server.close();
+    expect(await r.service.changePassword({ current: PASSWORD, next: NEW })).toEqual({
+      ok: false,
+      message: "Could not reach the team server.",
+    });
+    server = createLocalServer({ dbPath: ":memory:", port: 0 });
+  });
+});

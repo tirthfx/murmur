@@ -118,6 +118,56 @@ function SignInForms({ view, onView }: { view: TeamView; onView: (view: TeamView
 }
 
 /** An invite code: joins a team, or asks to; with no account yet it makes one. */
+/** The person's own password on the team backend. The backend says if the new one is acceptable. */
+function ChangePassword() {
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [said, setSaid] = useState<{ status: "info" | "warning"; text: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function change() {
+    setBusy(true);
+    setSaid(null);
+    try {
+      const result = await window.murmur.teamChangePassword({ current, next });
+      if (result.ok) {
+        setSaid({ status: "info", text: "Your password was changed." });
+        setCurrent("");
+        setNext("");
+      } else setSaid({ status: "warning", text: result.message });
+    } catch {
+      setSaid({ status: "warning", text: "That could not be changed." });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <VStack gap={2}>
+      <Text weight="semibold">Change your password</Text>
+      <HStack gap={2} align="end" wrap="wrap">
+        <TextInput label="Current password" type="password" value={current} onChange={setCurrent} />
+        <TextInput
+          label="New password (at least 12 characters)"
+          type="password"
+          value={next}
+          onChange={setNext}
+        />
+        <Button
+          size="sm"
+          variant="secondary"
+          label="Change the password"
+          isDisabled={busy || current === "" || next === ""}
+          onClick={() => void change()}
+        >
+          Change
+        </Button>
+      </HStack>
+      {said ? <Banner status={said.status} title={said.text} /> : null}
+    </VStack>
+  );
+}
+
 function InviteForm({ view, onView }: { view: TeamView; onView: (view: TeamView) => void }) {
   const signedIn = view.state === "signed_in";
   const [code, setCode] = useState("");
@@ -312,6 +362,7 @@ export function TeamPage() {
           </Text>
 
           {view.state === "signed_in" ? <SharedContent view={view} /> : null}
+          {view.state === "signed_in" ? <ChangePassword /> : null}
 
           {view.outbox > 0 ? (
             <Text size="sm" color="secondary" role="status">
