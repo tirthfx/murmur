@@ -3,6 +3,7 @@ import type { Audit } from "../audit.ts";
 import type { Compliance } from "../compliance.ts";
 import type { Identity } from "../identity.ts";
 import type { Invites } from "../invites.ts";
+import type { Mfa } from "../mfa.ts";
 import type { Network } from "../network.ts";
 import type { Plan } from "../plan.ts";
 import type { Policy } from "../policy.ts";
@@ -20,6 +21,7 @@ import type { UserView } from "../accounts.ts";
 /** What the route handlers work with. */
 export interface RouteDeps {
   accounts: Accounts;
+  mfa: Mfa;
   audit: Audit;
   siem: Siem;
   settings: Settings;

@@ -1,11 +1,55 @@
 import { call } from "../api.js";
-import { action, field, h, lines, notice, select } from "../ui.js";
+import { action, check, field, h, lines, notice, select } from "../ui.js";
 
 export default {
   id: "settings",
   title: "Settings",
   async render({ reload }) {
     const box = h("div", {});
+    try {
+      const policy = await call("GET /v1/admin/mfa-policy");
+      let wanted = policy.requireMfa;
+      box.append(
+        h(
+          "section",
+          {},
+          h("h3", {}, "Second step for the console"),
+          h(
+            "p",
+            { class: "muted" },
+            "A time-based code from an authenticator app, asked for after the password. It guards the console against a stolen password; the server keeps the key as it is, so it is not a defence against someone who can read this server's files.",
+          ),
+          check("Every console account must use one", policy.requireMfa, (value) => {
+            wanted = value;
+          }),
+          h(
+            "div",
+            { class: "row" },
+            action(
+              "Save",
+              () => call("PUT /v1/admin/mfa-policy", { body: { requireMfa: wanted } }).then(reload),
+              { kind: "act" },
+            ),
+          ),
+          h(
+            "p",
+            { class: "muted" },
+            "Set up your own first (on the sign-in page), or turning this on is refused. A person who lost their phone and recovery codes is reset on the Members page.",
+          ),
+        ),
+      );
+    } catch (error) {
+      box.append(
+        h(
+          "section",
+          {},
+          h("h3", {}, "Second step for the console"),
+          notice(
+            error.status === 403 ? "Only the owner of this server decides this." : error.message,
+          ),
+        ),
+      );
+    }
     try {
       const audit = await call("GET /v1/audit/settings");
       const days = h("input", {

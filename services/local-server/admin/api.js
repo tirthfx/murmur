@@ -47,7 +47,9 @@ export async function call(route, options = {}) {
   const data = !text ? null : type.includes("json") ? JSON.parse(text) : text;
   if (!res.ok) {
     const error = data && typeof data === "object" ? data.error : null;
-    if (res.status === 401) window.dispatchEvent(new Event("admin-signed-out"));
+    // A 401 from the sign-in routes is an answer to the form, not a session that ended.
+    if (res.status === 401 && !path.startsWith("/v1/admin/"))
+      window.dispatchEvent(new Event("admin-signed-out"));
     const { code, message, ...extra } = error ?? {};
     throw new ApiError(res.status, code ?? "error", message ?? "The request was refused.", extra);
   }
