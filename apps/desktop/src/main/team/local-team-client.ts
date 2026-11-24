@@ -3,7 +3,15 @@ import {
   TEAM_MESSAGES,
   effectivePolicySchema,
   teamClientErrorFor,
+  TEAM_CONTENT_VERSION,
+  type SharedFolder,
+  type SharedNote,
+  type SharedSkill,
+  type SharedSkillVersion,
   type TeamClient,
+  type TeamContentAnswer,
+  type TeamContentClient,
+  type TeamPerson,
   type TeamClientErrorCode,
   type TeamClientResult,
   type TeamClientSession,
@@ -55,7 +63,7 @@ const fail = (
 
 const ok = <T>(data: T): TeamClientResult<T> => ({ ok: true, data });
 
-export function createLocalTeamClient(deps: LocalTeamClientDeps): TeamClient {
+export function createLocalTeamClient(deps: LocalTeamClientDeps): TeamClient & TeamContentClient {
   async function request(
     method: string,
     path: string,
@@ -125,7 +133,145 @@ export function createLocalTeamClient(deps: LocalTeamClientDeps): TeamClient {
     return { token: json["token"] as string, user: { name: user.name, email: user.email } };
   };
 
-  return {
+  const team = (teamId: string) => `v1/teams/${teamId}`;
+  const done = (answer: Answer, fallback: string): TeamClientResult<null> =>
+    answer.status < 300 ? ok(null) : refusal(answer, fallback);
+
+  /** Shared Skills and folders (`teamContent.v1`), next to the team client and not in it. */
+  const content: TeamContentClient = {
+    contentVersion: TEAM_CONTENT_VERSION,
+
+    people: (teamId) =>
+      run(async () => {
+        const answer = await request("GET", `${team(teamId)}/members`);
+        if (answer.status !== 200) return refusal(answer, "The people could not be read.");
+        const list = (answer.json?.["members"] as Record<string, unknown>[]) ?? [];
+        return ok<TeamPerson[]>(
+          list.map((m) => ({
+            userId: String(m["userId"] ?? ""),
+            name: String(m["name"] ?? ""),
+            email: String(m["email"] ?? ""),
+            role: String(m["role"] ?? ""),
+          })),
+        );
+      }),
+
+    content: (teamId, since) =>
+      run(async () => {
+        const answer = await request(
+          "GET",
+          `${team(teamId)}/content${since !== undefined ? `?since=${since}` : ""}`,
+        );
+        if (answer.status !== 200 || !answer.json)
+          return refusal(answer, "The shared Skills and folders could not be read.");
+        const body = answer.json;
+        if (body["unchanged"] === true)
+          return ok<TeamContentAnswer>({
+            unchanged: true,
+            revision: Number(body["revision"] ?? 0),
+          });
+        return ok<TeamContentAnswer>({
+          unchanged: false,
+          revision: Number(body["revision"] ?? 0),
+          skills: (body["skills"] as SharedSkill[]) ?? [],
+          folders: (body["folders"] as SharedFolder[]) ?? [],
+        });
+      }),
+
+    publishSkill: (teamId, input) =>
+      run(async () => {
+        const answer = await request("POST", `${team(teamId)}/skills`, { body: input });
+        if (answer.status !== 201) return refusal(answer, "The Skill was not published.");
+        return ok(answer.json?.["skill"] as SharedSkill);
+      }),
+    updateSkill: (teamId, skillId, patch) =>
+      run(async () => {
+        const answer = await request("PATCH", `${team(teamId)}/skills/${skillId}`, { body: patch });
+        if (answer.status !== 200) return refusal(answer, "The Skill was not changed.");
+        return ok({
+          skill: answer.json?.["skill"] as SharedSkill,
+          changed: answer.json?.["changed"] === true,
+        });
+      }),
+    removeSkill: (teamId, skillId) =>
+      run(async () =>
+        done(
+          await request("DELETE", `${team(teamId)}/skills/${skillId}`),
+          "The Skill was not removed.",
+        ),
+      ),
+    skillVersions: (teamId, skillId) =>
+      run(async () => {
+        const answer = await request("GET", `${team(teamId)}/skills/${skillId}/versions`);
+        if (answer.status !== 200) return refusal(answer, "The versions could not be read.");
+        return ok((answer.json?.["versions"] as SharedSkillVersion[]) ?? []);
+      }),
+
+    createFolder: (teamId, input) =>
+      run(async () => {
+        const answer = await request("POST", `${team(teamId)}/folders`, { body: input });
+        if (answer.status !== 201) return refusal(answer, "The folder was not made.");
+        return ok(answer.json?.["folder"] as SharedFolder);
+      }),
+    renameFolder: (teamId, folderId, name) =>
+      run(async () => {
+        const answer = await request("PATCH", `${team(teamId)}/folders/${folderId}`, {
+          body: { name },
+        });
+        if (answer.status !== 200) return refusal(answer, "The folder was not renamed.");
+        return ok(answer.json?.["folder"] as SharedFolder);
+      }),
+    removeFolder: (teamId, folderId) =>
+      run(async () =>
+        done(
+          await request("DELETE", `${team(teamId)}/folders/${folderId}`),
+          "The folder was not removed.",
+        ),
+      ),
+    setFolderMember: (teamId, folderId, userId, canWrite) =>
+      run(async () => {
+        const answer = await request(
+          "PUT",
+          `${team(teamId)}/folders/${folderId}/members/${userId}`,
+          {
+            body: { canWrite },
+          },
+        );
+        if (answer.status !== 200) return refusal(answer, "The folder was not changed.");
+        return ok(answer.json?.["folder"] as SharedFolder);
+      }),
+    removeFolderMember: (teamId, folderId, userId) =>
+      run(async () =>
+        done(
+          await request("DELETE", `${team(teamId)}/folders/${folderId}/members/${userId}`),
+          "The person was not removed.",
+        ),
+      ),
+
+    shareNote: (teamId, folderId, input) =>
+      run(async () => {
+        const answer = await request("POST", `${team(teamId)}/folders/${folderId}/items`, {
+          body: input,
+        });
+        if (answer.status !== 201) return refusal(answer, "The note was not shared.");
+        return ok({ id: String(answer.json?.["id"] ?? "") });
+      }),
+    readNote: (teamId, folderId, noteId) =>
+      run(async () => {
+        const answer = await request("GET", `${team(teamId)}/folders/${folderId}/items/${noteId}`);
+        if (answer.status !== 200) return refusal(answer, "The note could not be read.");
+        return ok(answer.json?.["item"] as SharedNote);
+      }),
+    removeNote: (teamId, folderId, noteId) =>
+      run(async () =>
+        done(
+          await request("DELETE", `${team(teamId)}/folders/${folderId}/items/${noteId}`),
+          "The note was not removed.",
+        ),
+      ),
+  };
+
+  const base: TeamClient = {
     version: TEAM_CLIENT_VERSION,
 
     health: () =>
@@ -277,4 +423,6 @@ export function createLocalTeamClient(deps: LocalTeamClientDeps): TeamClient {
         return refusal(answer, "The team did not take that.");
       }),
   };
+
+  return { ...base, ...content };
 }

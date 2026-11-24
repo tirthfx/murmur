@@ -5,8 +5,16 @@ import {
   isPolicyKey,
   mergePolicy,
   teamClientErrorFor,
+  TEAM_CONTENT_VERSION,
   type PolicyValues,
+  type SharedFolder,
+  type SharedNote,
+  type SharedSkill,
+  type SharedSkillVersion,
   type TeamClient,
+  type TeamContentAnswer,
+  type TeamContentClient,
+  type TeamPerson,
   type TeamClientErrorCode,
   type TeamClientResult,
   type TeamClientSession,
@@ -107,7 +115,9 @@ const asRecord = (value: unknown): Record<string, unknown> =>
     ? (value as Record<string, unknown>)
     : {};
 
-export function createSupabaseTeamClient(deps: SupabaseTeamClientDeps): TeamClient {
+export function createSupabaseTeamClient(
+  deps: SupabaseTeamClientDeps,
+): TeamClient & TeamContentClient {
   /** The session after a renewal, for as long as the app still holds the token it came from. */
   let renewed: { from: string; pair: Pair } | null = null;
   let renewing: Promise<Pair | null> | null = null;
@@ -281,7 +291,158 @@ export function createSupabaseTeamClient(deps: SupabaseTeamClientDeps): TeamClie
 
   const teamId = (id: string) => ({ p_team: id });
 
-  return {
+  const none = (answer: Answer, fallback: string): TeamClientResult<null> =>
+    answer.status === 200 ? ok(null) : refusal(answer, fallback);
+
+  /** Shared Skills and folders (`teamContent.v1`), next to the team client and not in it. */
+  const content: TeamContentClient = {
+    contentVersion: TEAM_CONTENT_VERSION,
+
+    people: (id) =>
+      run(async () => {
+        const answer = await rpc("team_people", teamId(id));
+        if (answer.status !== 200 || !Array.isArray(answer.json))
+          return refusal(answer, "The people could not be read.");
+        return ok(answer.json as TeamPerson[]);
+      }),
+
+    content: (id, since) =>
+      run(async () => {
+        const answer = await rpc("team_content", { ...teamId(id), p_since: since ?? null });
+        if (answer.status !== 200)
+          return refusal(answer, "The shared Skills and folders could not be read.");
+        const body = asRecord(answer.json);
+        const revision = typeof body["revision"] === "number" ? body["revision"] : 0;
+        if (body["unchanged"] === true) return ok<TeamContentAnswer>({ unchanged: true, revision });
+        return ok<TeamContentAnswer>({
+          unchanged: false,
+          revision,
+          skills: (Array.isArray(body["skills"]) ? body["skills"] : []) as SharedSkill[],
+          folders: (Array.isArray(body["folders"]) ? body["folders"] : []) as SharedFolder[],
+        });
+      }),
+
+    publishSkill: (id, input) =>
+      run(async () => {
+        const answer = await rpc("publish_skill", {
+          ...teamId(id),
+          p_name: input.name,
+          p_description: input.description,
+          p_body: input.body,
+          p_scope: input.scope ?? "company",
+          p_department: input.departmentId ?? null,
+        });
+        if (answer.status !== 200) return refusal(answer, "The Skill was not published.");
+        return ok(asRecord(answer.json)["skill"] as SharedSkill);
+      }),
+    updateSkill: (id, skillId, patch) =>
+      run(async () => {
+        const answer = await rpc("update_skill", {
+          ...teamId(id),
+          p_skill: skillId,
+          p_name: patch.name ?? null,
+          p_description: patch.description ?? null,
+          p_body: patch.body ?? null,
+        });
+        if (answer.status !== 200) return refusal(answer, "The Skill was not changed.");
+        const body = asRecord(answer.json);
+        return ok({ skill: body["skill"] as SharedSkill, changed: body["changed"] === true });
+      }),
+    removeSkill: (id, skillId) =>
+      run(async () =>
+        none(
+          await rpc("remove_skill", { ...teamId(id), p_skill: skillId }),
+          "The Skill was not removed.",
+        ),
+      ),
+    skillVersions: (id, skillId) =>
+      run(async () => {
+        const answer = await rpc("skill_versions", { ...teamId(id), p_skill: skillId });
+        if (answer.status !== 200) return refusal(answer, "The versions could not be read.");
+        const list = asRecord(answer.json)["versions"];
+        return ok((Array.isArray(list) ? list : []) as SharedSkillVersion[]);
+      }),
+
+    createFolder: (id, input) =>
+      run(async () => {
+        const answer = await rpc("create_folder", {
+          ...teamId(id),
+          p_name: input.name,
+          p_kind: input.kind,
+          p_department: input.departmentId ?? null,
+          p_members: input.members ?? [],
+        });
+        if (answer.status !== 200) return refusal(answer, "The folder was not made.");
+        return ok(asRecord(answer.json)["folder"] as SharedFolder);
+      }),
+    renameFolder: (id, folderId, name) =>
+      run(async () => {
+        const answer = await rpc("rename_folder", {
+          ...teamId(id),
+          p_folder: folderId,
+          p_name: name,
+        });
+        if (answer.status !== 200) return refusal(answer, "The folder was not renamed.");
+        return ok(asRecord(answer.json)["folder"] as SharedFolder);
+      }),
+    removeFolder: (id, folderId) =>
+      run(async () =>
+        none(
+          await rpc("remove_folder", { ...teamId(id), p_folder: folderId }),
+          "The folder was not removed.",
+        ),
+      ),
+    setFolderMember: (id, folderId, userId, canWrite) =>
+      run(async () => {
+        const answer = await rpc("set_folder_member", {
+          ...teamId(id),
+          p_folder: folderId,
+          p_user: userId,
+          p_can_write: canWrite,
+        });
+        if (answer.status !== 200) return refusal(answer, "The folder was not changed.");
+        return ok(asRecord(answer.json)["folder"] as SharedFolder);
+      }),
+    removeFolderMember: (id, folderId, userId) =>
+      run(async () =>
+        none(
+          await rpc("remove_folder_member", { ...teamId(id), p_folder: folderId, p_user: userId }),
+          "The person was not removed.",
+        ),
+      ),
+
+    shareNote: (id, folderId, input) =>
+      run(async () => {
+        const answer = await rpc("share_folder_item", {
+          ...teamId(id),
+          p_folder: folderId,
+          p_title: input.title,
+          p_body: input.body,
+          p_source_ref: input.sourceRef ?? "",
+        });
+        if (answer.status !== 200) return refusal(answer, "The note was not shared.");
+        return ok({ id: String(asRecord(answer.json)["id"] ?? "") });
+      }),
+    readNote: (id, folderId, noteId) =>
+      run(async () => {
+        const answer = await rpc("read_folder_item", {
+          ...teamId(id),
+          p_folder: folderId,
+          p_item: noteId,
+        });
+        if (answer.status !== 200) return refusal(answer, "The note could not be read.");
+        return ok(asRecord(answer.json)["item"] as SharedNote);
+      }),
+    removeNote: (id, folderId, noteId) =>
+      run(async () =>
+        none(
+          await rpc("remove_folder_item", { ...teamId(id), p_folder: folderId, p_item: noteId }),
+          "The note was not removed.",
+        ),
+      ),
+  };
+
+  const base: TeamClient = {
     version: TEAM_CLIENT_VERSION,
 
     health: () =>
@@ -486,4 +647,6 @@ export function createSupabaseTeamClient(deps: SupabaseTeamClientDeps): TeamClie
         return ok<{ live: boolean }>({ live: asRecord(answer.json)["live"] === true });
       }),
   };
+
+  return { ...base, ...content };
 }
