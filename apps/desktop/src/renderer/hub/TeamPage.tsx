@@ -21,6 +21,7 @@ const ROLE_TEXT: Record<string, string> = {
 /** Connect: the address of a team server on this Mac or the local network. */
 function ConnectForm({ onView }: { onView: (view: TeamView) => void }) {
   const [serverUrl, setServerUrl] = useState("http://127.0.0.1:7830");
+  const [projectKey, setProjectKey] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -28,7 +29,10 @@ function ConnectForm({ onView }: { onView: (view: TeamView) => void }) {
     setBusy(true);
     setMessage(null);
     try {
-      const result = await window.murmur.teamConnect({ serverUrl });
+      const key = projectKey.trim();
+      const result = await window.murmur.teamConnect(
+        key === "" ? { serverUrl } : { serverUrl, projectKey: key },
+      );
       if (result.ok) onView(result.view);
       else setMessage(result.message);
     } finally {
@@ -41,6 +45,7 @@ function ConnectForm({ onView }: { onView: (view: TeamView) => void }) {
       {message ? <Banner status="warning" title={message} /> : null}
       <HStack gap={2} align="end" wrap="wrap">
         <TextInput label="Team server address" value={serverUrl} onChange={setServerUrl} />
+        <TextInput label="Project key (optional)" value={projectKey} onChange={setProjectKey} />
         <Button
           variant="primary"
           label="Connect to the team server"

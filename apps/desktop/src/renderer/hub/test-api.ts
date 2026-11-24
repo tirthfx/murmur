@@ -24,6 +24,7 @@ import type {
 /** Team mode off: what the Hub sees until a server is connected. */
 export const SAMPLE_TEAM_VIEW: TeamView = {
   enabled: false,
+  backend: "local",
   serverUrl: "",
   state: "off",
   serverSetUp: null,

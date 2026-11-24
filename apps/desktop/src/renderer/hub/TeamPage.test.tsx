@@ -59,6 +59,30 @@ describe("Team page", () => {
     expect(await screen.findByRole("button", { name: "Sign in" })).toBeTruthy();
   });
 
+  it("sends the project key with the address only when one is written", async () => {
+    const connected = view({
+      enabled: true,
+      serverUrl: "https://project.example.com/",
+      state: "signed_out",
+    });
+    const { api } = mount(SAMPLE_TEAM_VIEW, {
+      teamConnect: vi.fn().mockResolvedValue({ ok: true, view: connected }),
+    });
+    fireEvent.change(await screen.findByRole("textbox", { name: "Team server address" }), {
+      target: { value: "https://project.example.com" },
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: "Project key (optional)" }), {
+      target: { value: "  public-key  " },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Connect to the team server" }));
+    await waitFor(() =>
+      expect(api.teamConnect).toHaveBeenCalledWith({
+        serverUrl: "https://project.example.com",
+        projectKey: "public-key",
+      }),
+    );
+  });
+
   it("says so when the server cannot be reached", async () => {
     mount(SAMPLE_TEAM_VIEW, {
       teamConnect: vi

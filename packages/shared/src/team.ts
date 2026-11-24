@@ -29,6 +29,8 @@ export interface TeamNotice {
 
 export interface TeamView {
   enabled: boolean;
+  /** Which kind of backend the address is. */
+  backend: "local" | "supabase";
   serverUrl: string;
   state: TeamState;
   /** Whether the server already has an owner: null until it has been asked. */
@@ -51,7 +53,14 @@ export type TeamRedeemResult =
   | { ok: true; status: "joined" | "pending"; teamName: string; view: TeamView }
   | { ok: false; message: string };
 
-export const teamConnectSchema = z.strictObject({ serverUrl: z.string().trim().min(1).max(300) });
+export const teamConnectSchema = z.strictObject({
+  serverUrl: z.string().trim().min(1).max(300),
+  /**
+   * The public key of a Supabase project. With it the address is a Supabase project; without it
+   * the address is a Murmur team server. The key is not a secret and gives no access alone.
+   */
+  projectKey: z.string().trim().max(500).optional(),
+});
 export const teamSetupSchema = z.strictObject({
   name: z.string().trim().min(1).max(100),
   email: z.string().trim().min(3).max(200),
