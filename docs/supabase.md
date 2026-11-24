@@ -26,7 +26,7 @@ A migration is never edited after it has been applied. A fix is a new file (`000
 - Functions that change data are `security definer`, with an empty `search_path`, and check `auth.uid()` themselves. The ones a client may call are in `public`; helpers are in `private`, which the API does not expose.
 - Nothing is open by default: new tables and functions are closed to `anon` and `authenticated` until a migration grants them. Only `murmur_health` and `check_invite` are open to anonymous callers.
 - Errors carry a PostgREST status code in the SQLSTATE (`PT403` is HTTP 403), so the client can tell forbidden from not found from a conflict.
-- Who may do what comes from `services/local-server/src/permissions.json`, and which plan has which feature from `packages/shared/src/plans.ts`. Migration `0002` is generated from them (`npm run seed --workspace @murmur/supabase`), and a test fails if it differs from its sources.
+- Who may do what comes from `services/local-server/src/permissions.json`, and which plan has which feature from `packages/shared/src/plans.ts`. The seed migrations (`0002`, then `0007` and later) are generated from them (`npm run seed --workspace @murmur/supabase`). A migration is never edited once applied, so a change to a matrix is a new seed migration that replaces every row, and a test fails if the newest one differs from its sources.
 
 ## The functions
 

@@ -114,6 +114,23 @@
     "plan.manage": {
       "scope": "server",
       "roles": ["owner"]
+    },
+    "skills.view": {
+      "scope": "team",
+      "roles": ["owner", "admin", "manager", "member", "viewer"]
+    },
+    "skills.manage": {
+      "scope": "team",
+      "roles": ["owner", "admin", "manager"],
+      "departmentScoped": ["manager"]
+    },
+    "folders.view": {
+      "scope": "team",
+      "roles": ["owner", "admin", "manager", "member", "viewer"]
+    },
+    "folders.contribute": {
+      "scope": "team",
+      "roles": ["owner", "admin", "manager", "member"]
     }
   }
 }

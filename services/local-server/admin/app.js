@@ -4,6 +4,7 @@ import members from "./pages/members.js";
 import invites from "./pages/invites.js";
 import teams from "./pages/teams.js";
 import governance from "./pages/governance.js";
+import skills from "./pages/skills.js";
 import policies from "./pages/policies.js";
 import usage from "./pages/usage.js";
 import audit from "./pages/audit.js";
@@ -16,6 +17,7 @@ const PAGES = [
   invites,
   teams,
   governance,
+  skills,
   policies,
   usage,
   audit,

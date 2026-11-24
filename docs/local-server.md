@@ -413,6 +413,16 @@ The console can ask for a time-based one-time password (RFC 6238: HMAC-SHA1, six
 - **What is kept:** the key as it is (a code cannot be checked from a hash) and only hashes of the recovery codes. The audit log has `mfa.enrollment_started`, `mfa.enrolled`, `mfa.failed`, `mfa.recovery_used`, `mfa.disabled`, `mfa.reset` and `admin.mfa_policy_changed`, with counts and never a key, a code or an address.
 - **Honest limits:** the database is not encrypted at rest, so this guards the console against a stolen password; it does not guard against someone who can read the server's files. The setting is for the whole server, because the console's sign-in is.
 
+### Shared Skills and folders (NT-16, NT-17)
+
+What a team shares besides its dictionary and snippets (`src/shared-content.ts`, `routes/shared-content.ts`). It is for Team and up (the same gate as the shared dictionary) and for people in the team.
+
+- **Skills.** An admin publishes a Skill (the Skill file as text: front matter, then the prompt) to the whole team or one department; a department's manager publishes only to their own. Members and viewers read it and copy it into their own Skills in the app; they cannot change or remove it. Each change makes a new version and the old ones stay (`GET …/skills/:id/versions`). A publish is refused when the team's policy turns Notetaker off. Names are unique in a place. A Skill file is at most 20 KB.
+- **Folders** hold copies of notes a person chose to share, as text; the server has no field for audio. Kinds: `shared` (named people, each can write or only read; the maker is in it), `department` (that department) and `company` (the team). A viewer reads folders they can see and adds to none. Admins see every folder. The maker, an admin, or a department's manager for a department folder renames or removes it (its notes go with it); a person may leave a shared folder; a note is removed by the person who shared it or by those who manage the folder. A note is at most 60 KB (the server's request limit is 64 KB).
+- **One answer to keep in step with:** `GET /v1/teams/:teamId/content?since=<revision>` gives the Skills and folders (with each folder's people and the titles of its notes, not their text) and a revision, or `unchanged`. A note's text is read one at a time (`GET …/folders/:id/items/:itemId`).
+- **Matrix and audit:** the actions are `skills.view`, `skills.manage` (a manager's is for their department), `folders.view` and `folders.contribute`. The audit log has `skill.published`, `skill.updated`, `skill.removed` and the `folder.*` entries, with the kind and version and never a prompt or a note's text.
+- **The console** has a Skills and folders page to publish, edit, remove and make department and company folders.
+
 ## What it refuses
 
 - A `Host` that is not this machine, and a request with a different `Origin`: a web page cannot

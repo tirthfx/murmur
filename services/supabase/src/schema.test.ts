@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { PLAN_FEATURES } from "../../../packages/shared/src/plans.ts";
-import { SEED_FILE, seedSql } from "./seed.ts";
+import { latestSeed, seedSql, statementsOf } from "./seed.ts";
 
 /**
  * Checks on the migrations that need no database (SW-04). The SQL tests in `tests/rls.sql` run
@@ -32,8 +32,9 @@ describe("the migrations", () => {
   });
 
   it("carry the permission and plan matrices exactly as the sources write them", () => {
-    const seed = readFileSync(SEED_FILE, "utf8");
-    expect(seed).toBe(seedSql());
+    // A change to a matrix needs a new seed migration (`npm run seed --workspace @murmur/supabase`);
+    // the newest one must say what the sources say now.
+    expect(statementsOf(latestSeed().sql)).toBe(statementsOf(seedSql()));
   });
 
   it("turn row-level security on for every table in public", () => {

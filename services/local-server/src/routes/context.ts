@@ -9,6 +9,7 @@ import type { Plan } from "../plan.ts";
 import type { Policy } from "../policy.ts";
 import type { Scim } from "../scim.ts";
 import type { Settings } from "../settings.ts";
+import type { SharedContent } from "../shared-content.ts";
 import type { Siem } from "../siem.ts";
 import type { TeamSettings, UsageSettingsStore } from "../team-settings.ts";
 import type { Teams } from "../teams.ts";
@@ -29,6 +30,7 @@ export interface RouteDeps {
   invites: Invites;
   teamSettings: TeamSettings;
   vocabulary: Vocabulary;
+  sharedContent: SharedContent;
   policy: Policy;
   usage: Usage;
   identity: Identity;

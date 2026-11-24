@@ -15,7 +15,10 @@ const RULES: { test: RegExp; feature: PlanFeature }[] = [
   { test: /^\/v1\/teams\/:teamId\/(identity|capture|domain-join)/, feature: "identity" },
   { test: /^\/v1\/teams\/:teamId\/compliance/, feature: "complianceMode" },
   { test: /^\/v1\/teams\/:teamId\/policy/, feature: "policyBasic" },
-  { test: /^\/v1\/teams\/:teamId\/(dictionary|snippets|vocabulary)/, feature: "teamVocabulary" },
+  {
+    test: /^\/v1\/teams\/:teamId\/(dictionary|snippets|vocabulary|skills|folders|content)/,
+    feature: "teamVocabulary",
+  },
   { test: /^\/v1\/teams\/:teamId\/leaderboard/, feature: "leaderboard" },
   { test: /^\/v1\/teams\/:teamId\/usage/, feature: "usageDashboards" },
   { test: /^\/v1\/(teams|invites|me\/join-requests)/, feature: "teams" },

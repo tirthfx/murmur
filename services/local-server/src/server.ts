@@ -32,6 +32,8 @@ import { ACTIONS, allows } from "./permissions.ts";
 import { createNetwork, type Network } from "./network.ts";
 import { gateOf } from "./plan-gates.ts";
 import { createMfa, type Mfa } from "./mfa.ts";
+import { createSharedContent, type SharedContent } from "./shared-content.ts";
+import { sharedContentRoutes } from "./routes/shared-content.ts";
 import { createPlan, type Plan } from "./plan.ts";
 import { createPolicy, type Policy } from "./policy.ts";
 import { auditRoutes } from "./routes/audit.ts";
@@ -103,6 +105,7 @@ export interface LocalServer {
   teams: Teams;
   invites: Invites;
   vocabulary: Vocabulary;
+  sharedContent: SharedContent;
   policy: Policy;
   usage: Usage;
   identity: Identity;
@@ -213,6 +216,12 @@ export function createLocalServer(config: ServerConfig): LocalServer {
   let timer: NodeJS.Timeout | null = null;
 
   const mfa = createMfa({ db, now, audit: record });
+  const sharedContent = createSharedContent({
+    db,
+    now,
+    audit: record,
+    effectivePolicy: (who, teamId) => policy.effective(who, teamId),
+  });
   const deps: RouteDeps = {
     accounts,
     mfa,
@@ -223,6 +232,7 @@ export function createLocalServer(config: ServerConfig): LocalServer {
     invites,
     teamSettings,
     vocabulary,
+    sharedContent,
     policy,
     usage,
     usageSettings,
@@ -239,6 +249,7 @@ export function createLocalServer(config: ServerConfig): LocalServer {
     ...auditRoutes(deps),
     ...teamRoutes(deps),
     ...vocabularyRoutes(deps),
+    ...sharedContentRoutes(deps),
     ...policyRoutes(deps),
     ...usageRoutes(deps),
     ...identityRoutes(deps),
@@ -384,6 +395,7 @@ export function createLocalServer(config: ServerConfig): LocalServer {
     teams,
     invites,
     vocabulary,
+    sharedContent,
     policy,
     usage,
     identity,
