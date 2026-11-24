@@ -34,7 +34,21 @@ export interface ContractAdmin {
   retentionReports(): Promise<number>;
 }
 
+/**
+ * What a backend does that the contract cannot take for granted. A backend that leaves a flag
+ * out is held to the strictest reading.
+ */
+export interface ContractCapabilities {
+  /**
+   * Five wrong passwords make a person wait (the local server's rule). A backend whose sign-in
+   * limits belong to a provider (Supabase Auth) says false, and that one test is left out.
+   */
+  signInLockout: boolean;
+}
+
 export interface ContractBackend {
+  /** What this backend promises beyond the common set; all of it when left out. */
+  capabilities?: Partial<ContractCapabilities>;
   /** A client for this session (null: signed out). */
   client(token: string | null): TeamClient;
   /** A client whose backend cannot be reached. */
@@ -159,7 +173,8 @@ export function describeTeamClientContract(name: string, options: ContractOption
         );
       });
 
-      it("makes a person wait after five wrong passwords, and says for how long", async () => {
+      it("makes a person wait after five wrong passwords, and says for how long", async (context) => {
+        if (backend.capabilities?.signInLockout === false) return context.skip();
         await owner();
         let last: TeamClientResult<unknown> | null = null;
         for (let i = 0; i < 6; i++)
@@ -307,18 +322,22 @@ export function describeTeamClientContract(name: string, options: ContractOption
     });
 
     describe("usage and the retention report", () => {
+      /** A day a backend will take: batches reach back a few weeks, so the days follow the clock. */
+      const day = (daysAgo: number) =>
+        new Date(Date.now() - daysAgo * 86_400_000).toISOString().slice(0, 10);
+
       it("counts a batch once, however often it is sent", async () => {
         const { client, teamId } = await owner();
         const events = [
-          { day: "2026-11-20", metric: "words", count: 120, bucket: "mail" },
-          { day: "2026-11-20", metric: "dictations", count: 6, bucket: "mail" },
+          { day: day(2), metric: "words", count: 120, bucket: "mail" },
+          { day: day(2), metric: "dictations", count: 6, bucket: "mail" },
         ];
         expectOk(await client.sendUsage(teamId, "batch-0001", events));
         expectOk(await client.sendUsage(teamId, "batch-0001", events));
         expect(await backend.admin.usageTotal(teamId, "words")).toBe(120);
         expectOk(
           await client.sendUsage(teamId, "batch-0002", [
-            { day: "2026-11-21", metric: "words", count: 30 },
+            { day: day(1), metric: "words", count: 30 },
           ]),
         );
         expect(await backend.admin.usageTotal(teamId, "words")).toBe(150);

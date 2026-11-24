@@ -1,6 +1,6 @@
 # The team backend on Supabase
 
-Murmur's optional Team mode can talk to a Supabase project instead of the local server (SW-01, milestone M8). This page covers the database side: the schema, the row-level security, the functions the app calls, how to apply the migrations and how to test them. The app side (`SupabaseTeamClient`) is the next step; today the app still uses the local server.
+Murmur's optional Team mode can talk to a Supabase project instead of the local server (SW-01, milestone M8). This page covers the database side: the schema, the row-level security, the functions the app calls, how to apply the migrations and how to test them. The app side is `SupabaseTeamClient` in `apps/desktop/src/main/team/supabase-team-client.ts`. It is built and tested, but the app does not choose it yet: today every team uses the local server, and picking a backend per team comes with shadow mode and cutover.
 
 Nothing here is needed to use Murmur. Dictation and meeting notes work with no account. Sign-in exists only for Team mode.
 
@@ -53,6 +53,35 @@ psql "$DATABASE_URL" -f services/supabase/tests/rls.sql
 
 Run it against a development project or a local stack (`supabase start`), not one with data you care about, although it leaves nothing behind.
 
+## The client
+
+`createSupabaseTeamClient` implements `TeamClient` v1 over `fetch`, with no SDK: Supabase Auth for sign-up, sign-in, renewal and sign-out, and PostgREST for the functions above. Only the project's public key and a person's session go out; the service key is never in the app.
+
+- **One opaque token.** The session token the app keeps holds the access token and the refresh token. An expired access token is renewed inside the client and the new token is handed to `saveToken`, so the app can store it (a refresh token works once). A token with no refresh token, or a refresh token that no longer works, is `unauthorized`.
+- **Sign-out is immediate.** Migration `0005` makes every function check that the session named in the token still exists, so a token from a session that was signed out is refused, not just forgotten. Direct table reads can still use the token until it expires (at most the project's access token lifetime).
+- **Account first, then the invite.** An invite is checked before an account is made for it, so a wrong code makes no account. Joining with an invite needs the project to allow sign-ups.
+- **Passwords** are checked for Murmur's minimum of 12 before anything is sent.
+- **Errors** map as the interface says: the database's own words with the status they carry (`PT403` is forbidden, `PT404` not found, `PT409` conflict, `PT400` invalid), Supabase Auth's own limits as `rate_limited` with the wait it gives, no session as `unauthorized`, no connection as `offline`.
+- **Policy** is merged in the client from the three layers the database returns, with the same code the app uses to enforce it; a value the app does not accept is dropped.
+
+## Running the contract suite
+
+The suite that the local server passes also runs against a Supabase project, but only against a throwaway one, because every test starts by emptying it. To set one up:
+
+1. Make a second Supabase project, apply the migrations, then apply `services/supabase/tests/reset.sql` to it. That file makes a reset function that works only with the service key and only on a project that ran the file.
+2. In that project's Authentication settings, turn Confirm email off.
+3. Run the suite with the project's details in the environment:
+
+```bash
+MURMUR_SUPABASE_TEST_URL=https://<ref>.supabase.co \
+MURMUR_SUPABASE_TEST_ANON_KEY=<anon key> \
+MURMUR_SUPABASE_TEST_SERVICE_KEY=<service role key> \
+MURMUR_SUPABASE_TEST_WIPE=yes \
+npx vitest run apps/desktop/src/main/team/supabase-contract.test.ts
+```
+
+Without those four variables the suite is skipped, so CI and a normal `npm test` never touch a project. One test is left out for Supabase: the wait after five wrong passwords is the local server's rule, and Supabase Auth has limits of its own (the contract's `signInLockout` capability).
+
 ## Settings the project needs
 
 These are set in the Supabase dashboard (Authentication), not in SQL:
@@ -63,4 +92,4 @@ These are set in the Supabase dashboard (Authentication), not in SQL:
 
 ## Not built yet
 
-The app's `SupabaseTeamClient` and the contract suite run against it, sign-in rate limiting (Supabase Auth has its own limits), departments and member management functions beyond what the contract needs, shared Skills and folders, sync with an outbox, shadow mode and cutover, and SSO, SCIM and domain capture.
+Choosing the backend per team in the app, a run of the contract suite against a test project (the suite and its fixture are written and skipped until one exists), departments and member management functions beyond what the contract needs, shared Skills and folders, sync with an outbox, shadow mode and cutover, and SSO, SCIM and domain capture.
