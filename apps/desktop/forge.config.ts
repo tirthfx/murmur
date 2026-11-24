@@ -14,6 +14,9 @@ import {
 /** The command MCP clients launch; it relays stdio to the app's local socket (CN-11). */
 const mcpShim = path.resolve("packaging/murmur-mcp");
 
+/** Where `npm run publish:helper:win` puts the Windows helper: one file, so one hash covers it. */
+const windowsHelperFolder = path.resolve("../../native/helper-win/publish");
+
 /** Where `npm run build:helper` puts the Swift helper, relative to this directory. */
 const helperBinary = path.resolve("../../native/helper-mac/.build/release/murmur-helper");
 
@@ -30,6 +33,29 @@ const config: ForgeConfig = {
     // Copies the built helper to Contents/Resources/helper/murmur-helper. If the helper
     // has not been built, the package is still made and the app shows the helper as unavailable.
     postPackage: async (_config, { outputPaths, platform }) => {
+      if (platform === "win32") {
+        // The Windows helper goes to resources/helper/murmur-helper.exe, with its hash beside it;
+        // the app refuses to start a helper that does not match (SW-13).
+        const exe = path.join(windowsHelperFolder, "murmur-helper.exe");
+        if (!existsSync(exe)) {
+          console.warn(
+            "[package] Windows helper not found; run `npm run publish:helper:win` to include it",
+          );
+          return;
+        }
+        for (const outputPath of outputPaths) {
+          const target = path.join(outputPath, "resources", "helper");
+          mkdirSync(target, { recursive: true });
+          cpSync(exe, path.join(target, "murmur-helper.exe"));
+          const hash = createHash("sha256").update(readFileSync(exe)).digest("hex");
+          writeFileSync(
+            path.join(target, "murmur-helper.exe.sha256"),
+            `${hash}  murmur-helper.exe\n`,
+          );
+          console.log(`[package] included the Windows helper at ${target}`);
+        }
+        return;
+      }
       if (platform !== "darwin") return;
       // The cleanup model's runtime (node-llama-cpp and what it needs) goes next to the app,
       // outside the asar archive, so its native library can load.

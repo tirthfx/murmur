@@ -91,3 +91,45 @@ jobs:
 
       - name: Self-test on Windows
         run: native/helper-win/src/MurmurHelper/bin/Release/net9.0-windows/murmur-helper.exe --self-test
+
+  package-win:
+    # Packages the app on Windows with the helper inside, and checks the helper's hash file and that
+    # the packaged helper runs. The build is not signed and is not kept.
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Install
+        run: npm ci
+
+      - name: Publish the helper
+        run: npm run publish:helper:win
+
+      - name: Package the app
+        run: npm run package
+
+      - name: Check the packaged helper
+        shell: pwsh
+        run: |
+          $dir = Get-ChildItem apps/desktop/out -Directory | Where-Object { $_.Name -like 'Murmur-win32-*' } | Select-Object -First 1
+          if (-not $dir) { throw 'the app was not packaged' }
+          $helper = Join-Path $dir.FullName 'resources/helper/murmur-helper.exe'
+          if (-not (Test-Path $helper)) { throw "the helper is not in the package: $helper" }
+          $expected = ((Get-Content "$helper.sha256" -Raw).Trim() -split '\s+')[0].ToLower()
+          $actual = (Get-FileHash $helper -Algorithm SHA256).Hash.ToLower()
+          if ($expected -ne $actual) { throw "the helper does not match its hash file ($expected, $actual)" }
+          Write-Host "helper hash ok: $actual"
+          & $helper --self-test
+          if ($LASTEXITCODE -ne 0) { throw 'the packaged helper failed its self-test' }
