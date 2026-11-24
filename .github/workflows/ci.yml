@@ -93,8 +93,9 @@ jobs:
         run: native/helper-win/src/MurmurHelper/bin/Release/net9.0-windows/murmur-helper.exe --self-test
 
   package-win:
-    # Packages the app on Windows with the helper inside, and checks the helper's hash file and that
-    # the packaged helper runs. The build is not signed and is not kept.
+    # Packages the app on Windows with the helper inside, makes the installer, installs it silently,
+    # and checks the installed helper against its hash file and runs its self-test. The build is
+    # not signed and is not kept.
     runs-on: windows-latest
     steps:
       - name: Checkout
@@ -117,8 +118,8 @@ jobs:
       - name: Publish the helper
         run: npm run publish:helper:win
 
-      - name: Package the app
-        run: npm run package
+      - name: Package the app and make the installer
+        run: npm run make
 
       - name: Check the packaged helper
         shell: pwsh
@@ -133,3 +134,26 @@ jobs:
           Write-Host "helper hash ok: $actual"
           & $helper --self-test
           if ($LASTEXITCODE -ne 0) { throw 'the packaged helper failed its self-test' }
+
+      - name: Install it and check the installed helper
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem apps/desktop/out/make -Recurse -Filter 'Murmur-Setup.exe' | Select-Object -First 1
+          if (-not $setup) { throw 'the installer was not made' }
+          Start-Process -FilePath $setup.FullName -ArgumentList '--silent' -Wait
+          $root = Join-Path $env:LOCALAPPDATA 'Murmur'
+          $app = $null
+          for ($i = 0; $i -lt 30 -and -not $app; $i++) {
+            $app = Get-ChildItem $root -Directory -Filter 'app-*' -ErrorAction SilentlyContinue | Select-Object -First 1
+            if (-not $app) { Start-Sleep -Seconds 2 }
+          }
+          if (-not $app) { throw "nothing was installed under $root" }
+          $helper = Join-Path $app.FullName 'resources/helper/murmur-helper.exe'
+          if (-not (Test-Path $helper)) { throw "the installed app has no helper: $helper" }
+          $expected = ((Get-Content "$helper.sha256" -Raw).Trim() -split '\s+')[0].ToLower()
+          $actual = (Get-FileHash $helper -Algorithm SHA256).Hash.ToLower()
+          if ($expected -ne $actual) { throw 'the installed helper does not match its hash file' }
+          Write-Host "installed at $($app.FullName), helper hash ok"
+          & $helper --self-test
+          if ($LASTEXITCODE -ne 0) { throw 'the installed helper failed its self-test' }
+          Get-Process Murmur -ErrorAction SilentlyContinue | Stop-Process -Force

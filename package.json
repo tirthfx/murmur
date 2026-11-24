@@ -14,6 +14,7 @@
   "scripts": {
     "dev": "npm run dev --workspace @murmur/desktop",
     "package": "npm run package --workspace @murmur/desktop",
+    "make": "npm run make --workspace @murmur/desktop",
     "build:helper": "swift build -c release --package-path native/helper-mac",
     "lint": "eslint .",
     "format": "prettier --write .",
