@@ -1,4 +1,10 @@
-import type { HotkeyBinding, HotkeyTrigger, PermissionKind, PlatformHelper } from "@murmur/shared";
+import type {
+  HotkeyBinding,
+  HotkeyTrigger,
+  MatcherOs,
+  PermissionKind,
+  PlatformHelper,
+} from "@murmur/shared";
 import { convertMacImageToPng } from "./mac-image";
 import { createConsoleLogger, spawnHelperProcess, systemClock } from "../helper/node-runtime";
 import { HelperSupervisor } from "../helper/supervisor";
@@ -132,4 +138,11 @@ export function quitsWhenLastWindowCloses(platform: NodeJS.Platform): boolean {
 /** Whether the tray icon can carry text beside it (the elapsed time on a Mac). */
 export function trayShowsTitle(platform: NodeJS.Platform): boolean {
   return platform === "darwin";
+}
+
+/** Which helper's matchers fit this OS, or null when there is no helper for it. */
+export function matcherOs(platform: NodeJS.Platform): MatcherOs | null {
+  if (platform === "darwin") return "mac";
+  if (platform === "win32") return "windows";
+  return null;
 }

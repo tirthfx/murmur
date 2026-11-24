@@ -1,7 +1,7 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { resolveMacHelperBinary } from "./mac-helper";
-import { createPlatformHelper } from "./index";
+import { createPlatformHelper, matcherOs } from "./index";
 
 const base = {
   isPackaged: false,
@@ -85,5 +85,13 @@ describe("createPlatformHelper", () => {
     });
     await expect(helper.start()).rejects.toThrow(/has not been built/);
     expect(helper.getStatus().state).toBe("unavailable");
+  });
+});
+
+describe("matcherOs", () => {
+  it("names the helper family for an OS, and none for an OS without a helper", () => {
+    expect(matcherOs("darwin")).toBe("mac");
+    expect(matcherOs("win32")).toBe("windows");
+    expect(matcherOs("linux")).toBeNull();
   });
 });

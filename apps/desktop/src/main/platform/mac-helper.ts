@@ -4,6 +4,7 @@ import type { PlatformHelper } from "@murmur/shared";
 import { createConsoleLogger, spawnHelperProcess, systemClock } from "../helper/node-runtime";
 import { HelperSupervisor, type HelperBinary } from "../helper/supervisor";
 import type { Clock, Logger, SpawnHelper } from "../helper/types";
+import { checkHelperBinary, type IntegrityResult } from "./helper-integrity";
 
 export const MAC_HELPER_BINARY_NAME = "murmur-helper";
 
@@ -56,12 +57,22 @@ export interface MacHelperDeps extends MacHelperPathOptions {
   logger?: Logger;
   clock?: Clock;
   spawn?: SpawnHelper;
+  /** Checks the binary against its hash file before it is launched (SW-13). */
+  integrity?: (binaryPath: string) => IntegrityResult;
+}
+
+/** The binary, or why it is not used: a binary that does not match its hash is not started. */
+export function resolveVerifiedMacHelper(deps: MacHelperDeps): HelperBinary {
+  const binary = resolveMacHelperBinary(deps);
+  if (binary.path === null) return binary;
+  const result = (deps.integrity ?? checkHelperBinary)(binary.path);
+  return result.ok ? binary : { path: null, message: result.message };
 }
 
 /** The macOS implementation of `PlatformHelper`: the Swift helper under supervision. */
 export function createMacHelper(deps: MacHelperDeps): PlatformHelper {
   return new HelperSupervisor({
-    binary: resolveMacHelperBinary(deps),
+    binary: resolveVerifiedMacHelper(deps),
     appVersion: deps.appVersion,
     spawn: deps.spawn ?? spawnHelperProcess,
     clock: deps.clock ?? systemClock,
