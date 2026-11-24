@@ -33,3 +33,61 @@ jobs:
 
       - name: Test
         run: npm test
+
+  helper-win:
+    # The Windows helper (native/helper-win): its unit tests, a cross-build for Windows, and the
+    # app's conformance suite run against the real helper process on its fake operating system.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Install
+        run: npm ci
+
+      - name: Helper unit tests
+        run: npm run test:helper:win
+
+      - name: Build the helper for Windows
+        run: dotnet publish native/helper-win/src/MurmurHelper -c Release -r win-x64 --self-contained false -o "$RUNNER_TEMP/helper-win"
+
+      - name: Build the helper for the conformance run
+        run: npm run build:helper:win
+
+      - name: Conformance suite against the helper
+        env:
+          MURMUR_REQUIRE_WIN_HELPER: "1"
+        run: npx vitest run apps/desktop/src/main/platform
+
+  helper-win-native:
+    # The same helper on a real Windows machine: its tests, a native build, and `--self-test`,
+    # which runs the Win32 backends (Credential Manager, windows, clipboard, hook, audio list).
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Helper unit tests
+        run: dotnet test native/helper-win/tests/MurmurHelper.Core.Tests
+
+      - name: Build the helper
+        run: dotnet build native/helper-win/src/MurmurHelper -c Release
+
+      - name: Self-test on Windows
+        run: native/helper-win/src/MurmurHelper/bin/Release/net9.0-windows/murmur-helper.exe --self-test

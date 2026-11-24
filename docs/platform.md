@@ -71,8 +71,51 @@ Windows 11.
 | Auto-start     | Handled by Electron's login item setting.                                                                        |
 | Packaging      | Open: installer, signing and update feed need a Windows build machine and a certificate.                         |
 
+## The Windows helper (`native/helper-win`)
+
+A .NET 9 program (C#) that speaks the same protocol as the Mac helper over stdin and stdout
+(SW-10). It is three projects and a test project:
+
+- `MurmurHelper.Core` has no OS calls. It holds the protocol (envelope, router, handshake), the
+  hotkey engine, the microphone session, meeting capture into WAV chunk files, the insertion
+  rules, window matching for call detection, and a fake operating system. Everything here is unit
+  tested on any machine (`npm run test:helper:win`).
+- `MurmurHelper.Windows` has the Win32 calls behind Core's interfaces: Credential Manager, the
+  low-level keyboard hook, the clipboard and `SendInput`, `EnumWindows`, WASAPI through NAudio, and
+  the output mute switch.
+- `MurmurHelper` is the program. `MURMUR_HELPER_FAKE=1` runs it on the fake operating system, and
+  `--self-test` runs the real Windows backends once and prints what worked.
+
+`npm run build:helper:win` builds it. In development the app finds
+`native/helper-win/src/MurmurHelper/bin/{Release,Debug}/net9.0-windows/murmur-helper.exe`, or
+`MURMUR_HELPER_PATH`; packaged, `resources/helper/murmur-helper.exe`, checked by hash first.
+
+### What is checked, and where
+
+| Check                                                                                       | Where it runs                                  |
+| ------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| Protocol, router, hotkeys, audio session, capture, insertion rules, matching                | Unit tests, every CI run                       |
+| The app's conformance suite against the real helper process on the fake OS                  | CI (`helper-win`) and locally with a build     |
+| The helper compiles for Windows                                                             | CI (`helper-win`, cross-build)                 |
+| The Win32 backends run on Windows (`--self-test`)                                           | CI (`helper-win-native`, a Windows runner)     |
+| The conformance suite against the real Windows backends with fixture audio and a text field | Not yet: it needs a Windows 11 desktop session |
+
+### What it does not do yet
+
+- **Speech.** There is no speech engine on Windows, so `transcribe.*` is refused as unsupported and
+  the helper does not announce those capabilities. A Windows backend (whisper.cpp or ONNX Runtime)
+  goes behind the same requests.
+- **Mouse bindings.** A binding on a mouse button is rejected (`UNSUPPORTED_TRIGGER`); the key codes
+  are virtual-key codes limited to 0 to 127 by the protocol, and the fn key does not exist.
+- **Clipboard restore** is for text only. If the clipboard held an image or files, the paste goes
+  ahead and the result says it was not restored.
+- **Not announced, so refused:** selection read, focus context, accessibility inspect, edit
+  watching, typing counts, media pause, process list, installed apps list, live transcription.
+- **Elevated programs** do not receive input from a program that is not elevated, so insertion and
+  hotkeys do not reach them.
+
 ## Still needs a Windows 11 machine
 
-The Windows helper itself (language still to choose, C++ or .NET), the conformance suite
-passing on it, installer and signing (SW-13) and the
-speech backend.
+Seeing the Win32 backends work with a person at the keyboard (hotkeys in a real app, paste into
+Notepad, Teams and Zoom call detection, loopback audio), the installer and signing (SW-13), and
+the speech backend.

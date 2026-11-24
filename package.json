@@ -21,6 +21,8 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "vitest run",
     "test:helper": "swift test --package-path native/helper-mac",
+    "build:helper:win": "dotnet build native/helper-win/src/MurmurHelper -c Release",
+    "test:helper:win": "dotnet test native/helper-win/tests/MurmurHelper.Core.Tests",
     "model:download": "node scripts/download-models.mjs",
     "smoke": "node scripts/smoke.mjs"
   },

@@ -9,6 +9,7 @@ import { convertMacImageToPng } from "./mac-image";
 import { createConsoleLogger, spawnHelperProcess, systemClock } from "../helper/node-runtime";
 import { HelperSupervisor } from "../helper/supervisor";
 import { createMacHelper, type MacHelperDeps } from "./mac-helper";
+import { createWindowsHelper } from "./windows-helper";
 import type { KeyPlatform } from "../settings/shortcuts";
 import {
   MAC_DEFAULT_COMMAND_TRIGGER,
@@ -104,6 +105,9 @@ export type PlatformHelperDeps = MacHelperDeps & { platform: NodeJS.Platform };
 export function createPlatformHelper(deps: PlatformHelperDeps): PlatformHelper {
   if (deps.platform === "darwin") {
     return createMacHelper(deps);
+  }
+  if (deps.platform === "win32") {
+    return createWindowsHelper(deps);
   }
   return new HelperSupervisor({
     binary: { path: null, message: `No helper exists for ${deps.platform} yet.` },
