@@ -71,3 +71,28 @@ Pro, the MCP server needs Pro. A refusal says "Available on Pro". The share-link
   writes `policy.retention_applied`). It is not repeated if the server is out of reach.
 - **Admin console.** Admins see an **Admin console** button on the Team page; it opens the server's
   `/admin` page in the browser (`docs/local-server.md`), unless the policy blocks that address.
+
+## The team client interface (SW-01, SW-08)
+
+Everything the app asks of a team backend goes through one interface, `TeamClient`
+(`packages/shared/src/team-client.ts`, version `teamClient.v1`): health, owner setup, sign-in and
+sign-out, invites, teams, the shared entries (with a revision), notices, the effective policy,
+usage batches, the retention report and proposals. The team service
+(`apps/desktop/src/main/team/team-service.ts`) has no HTTP in it; `local-team-client.ts` implements
+the interface for the local server and is the only place that knows addresses, headers and status
+codes. A second backend implements the same interface and passes the same tests.
+
+- **One error set:** `unauthorized` (the session ended: sign in again), `forbidden`, `not_found`,
+  `conflict`, `invalid`, `rate_limited` (with `retryAfterSeconds`), `offline`, `refused` (Murmur's
+  own rules, such as strict local mode, will not use that address) and `server`. The first six are
+  the spec's; `not_found`, `invalid` and `refused` are added (ADR-0094).
+- **The contract suite** (`team-client-contract.ts`) takes a backend fixture and tests the
+  interface only through `TeamClient`; the fixture is the one place that knows how a backend is
+  set up (a team, a member, a policy, a plan). `local-team-client.test.ts` runs it against the
+  real local server. A new backend adds a fixture and runs `describeTeamClientContract`.
+- **Where a backend may be named:** the lint rule (`eslint.config.js`) refuses a Supabase import
+  outside `services/` and the team client folder, and refuses any import of the local server's
+  code outside the team folder; `apps/desktop/src/team-boundary.test.ts` checks that the renderer,
+  the preload script and the main process outside the team folder name no backend address, key or
+  SDK.
+- **Frozen:** a breaking change is a new version with a shim, not an edit of `teamClient.v1`.
