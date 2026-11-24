@@ -114,8 +114,22 @@ A .NET 9 program (C#) that speaks the same protocol as the Mac helper over stdin
 - **Elevated programs** do not receive input from a program that is not elevated, so insertion and
   hotkeys do not reach them.
 
+## Packaging on Windows (SW-13)
+
+- `npm run publish:helper:win` makes the helper as one file, so one hash covers it. The package
+  step puts it at `resources/helper/murmur-helper.exe` with `murmur-helper.exe.sha256` beside it,
+  and the app does not start a helper that differs from that hash.
+- `npm run make` builds a Squirrel installer (`Murmur-Setup.exe`). It is signed when
+  `MURMUR_WIN_CERT_FILE` and `MURMUR_WIN_CERT_PASSWORD` are set; without them it is unsigned,
+  which is for testing the installer only and is never distributed.
+- CI (`package-win`, a Windows runner) makes the installer, installs it silently, and checks the
+  installed helper's hash and `--self-test`.
+- Not done: signing needs a certificate (the owner's choice and cost); an update feed needs
+  somewhere to be hosted, and the update test (install a second version, keep user data) needs that
+  feed; the cleanup model's runtime and the MCP command are packaged on a Mac only so far.
+
 ## Still needs a Windows 11 machine
 
 Seeing the Win32 backends work with a person at the keyboard (hotkeys in a real app, paste into
-Notepad, Teams and Zoom call detection, loopback audio), the installer and signing (SW-13), and
+Notepad, Teams and Zoom call detection, loopback audio), signing and the update feed (SW-13), and
 the speech backend.
