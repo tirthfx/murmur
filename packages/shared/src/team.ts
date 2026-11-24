@@ -59,6 +59,8 @@ export interface TeamView {
   syncProblem: string;
   /** The shared entries in use now. */
   sharedCounts: { dictionary: number; snippets: number };
+  /** Proposals saved while the server was out of reach, waiting to be sent. */
+  outbox: number;
   notices: TeamNotice[];
   /** The Skills and folders the teams share with this person. */
   shared: { skills: TeamSharedSkill[]; folders: TeamSharedFolder[] };
@@ -135,7 +137,8 @@ export type TeamNoteReadInput = z.infer<typeof teamNoteReadSchema>;
 export type TeamSkillAddInput = z.infer<typeof teamSkillAddSchema>;
 export type TeamShareMeetingInput = z.infer<typeof teamShareMeetingSchema>;
 export type TeamProposeResult =
-  { ok: true; status: "live" | "pending"; teamName: string } | { ok: false; message: string };
+  | { ok: true; status: "live" | "pending" | "queued"; teamName: string }
+  | { ok: false; message: string };
 export type TeamConnectInput = z.infer<typeof teamConnectSchema>;
 export type TeamSetupInput = z.infer<typeof teamSetupSchema>;
 export type TeamSignInInput = z.infer<typeof teamSignInSchema>;

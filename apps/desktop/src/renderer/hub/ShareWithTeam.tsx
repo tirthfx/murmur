@@ -48,7 +48,9 @@ export function ShareWithTeam({ name, input }: { name: string; input: TeamPropos
                 ? result.message
                 : result.status === "live"
                   ? `Shared with ${result.teamName}.`
-                  : `Sent to ${result.teamName}. It waits for a review.`,
+                  : result.status === "queued"
+                    ? `Saved. It is sent to ${result.teamName} when the team server can be reached.`
+                    : `Sent to ${result.teamName}. It waits for a review.`,
             );
           } catch {
             setSaid("That could not be sent.");

@@ -34,6 +34,7 @@ export const SAMPLE_TEAM_VIEW: TeamView = {
   lastSyncAt: null,
   syncProblem: "",
   sharedCounts: { dictionary: 0, snippets: 0 },
+  outbox: 0,
   notices: [],
   shared: { skills: [], folders: [] },
 };

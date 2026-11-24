@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   TEAM_CLIENT_VERSION,
   TEAM_LIMITS,
@@ -46,6 +47,16 @@ import {
  */
 export const TEAM_KEYCHAIN = { service: "dev.murmur.team", account: "session" } as const;
 
+/** A proposal waiting to be sent: only what the person chose to propose. */
+export interface OutboxItem {
+  id: string;
+  teamId: string;
+  input: TeamProposeInput;
+}
+
+/** The most proposals kept waiting; more than this is a sign something is wrong. */
+export const OUTBOX_LIMIT = 50;
+
 /** What is kept on disk (never the token, and never a password). */
 export interface TeamFile {
   enabled: boolean;
@@ -62,6 +73,8 @@ export interface TeamFile {
   cache: Record<string, { revision: number; set: SharedSet }>;
   /** The last effective policy of each team, enforced while the server is out of reach. */
   policies: Record<string, EffectivePolicy>;
+  /** Proposals saved while the server was out of reach, sent in order when it can be reached. */
+  outbox: OutboxItem[];
   /** The Skills and folders each team shares, as last pulled, so they show while the server is out of reach. */
   content: Record<string, { revision: number; skills: SharedSkill[]; folders: SharedFolder[] }>;
   usage: UsageMemory;
@@ -77,6 +90,7 @@ const EMPTY_FILE: TeamFile = {
   user: null,
   cache: {},
   policies: {},
+  outbox: [],
   content: {},
   usage: EMPTY_USAGE_MEMORY,
 };
@@ -179,6 +193,7 @@ export function createTeamService(deps: TeamDeps) {
         cache: parsed.cache ?? {},
         policies: parsed.policies ?? {},
         content: parsed.content ?? {},
+        outbox: parsed.outbox ?? [],
       };
     } catch {
       return { ...EMPTY_FILE };
@@ -221,6 +236,7 @@ export function createTeamService(deps: TeamDeps) {
       lastSyncAt,
       syncProblem,
       sharedCounts: deps.vocabulary.counts(),
+      outbox: file.outbox.length,
       notices,
       shared: sharedView(),
     };
@@ -256,7 +272,8 @@ export function createTeamService(deps: TeamDeps) {
     state = file.enabled ? "signed_out" : "off";
     syncProblem = problem;
     contentRevisions = new Map();
-    file = { ...file, locked: false, user: null, policies: {}, content: {} };
+    // A waiting proposal is one person's: it does not go out under the next person who signs in.
+    file = { ...file, locked: false, user: null, policies: {}, content: {}, outbox: [] };
     save();
     emit();
   }
@@ -391,6 +408,7 @@ export function createTeamService(deps: TeamDeps) {
         cache: Object.fromEntries(Object.entries(file.cache).filter(([id]) => inTeams(id))),
         content: Object.fromEntries(Object.entries(file.content).filter(([id]) => inTeams(id))),
       };
+      await flushOutbox();
       save();
       await usage.flush().catch(() => 0);
       lastSyncAt = deps.now();
@@ -405,6 +423,42 @@ export function createTeamService(deps: TeamDeps) {
       if (now !== "signed_out" && now !== "off") syncProblem = TEAM_MESSAGES.unreachable;
     }
     emit();
+  }
+
+  /**
+   * Sends the proposals saved while the server was out of reach, oldest first. One the server
+   * already has counts as sent; one it refuses is dropped and the person is told why, so a bad
+   * proposal cannot block the ones behind it. Out of reach again: the rest wait.
+   */
+  async function flushOutbox(): Promise<void> {
+    const left: OutboxItem[] = [];
+    let stopped = false;
+    for (const item of file.outbox) {
+      if (stopped) {
+        left.push(item);
+        continue;
+      }
+      const sent = await authed(client.propose(item.teamId, item.input)).catch((error: unknown) => {
+        if (error instanceof Unreachable) return null;
+        throw error;
+      });
+      if (sent === null) {
+        stopped = true;
+        left.push(item);
+      } else if (!sent.ok && sent.error.code !== "conflict") {
+        const what = item.input.kind === "dictionary" ? item.input.term : item.input.trigger;
+        notices = [
+          ...notices,
+          {
+            id: `outbox-${item.id}`,
+            summary: what,
+            note: `Could not be sent: ${sent.error.message}`,
+          },
+        ];
+      }
+    }
+    // A session that ended on the way has already cleared them; they are not put back.
+    if ((state as TeamState) === "signed_in") file = { ...file, outbox: left };
   }
 
   const sync = (): Promise<void> => (syncing ??= syncOnce().finally(() => (syncing = null)));
@@ -542,6 +596,7 @@ export function createTeamService(deps: TeamDeps) {
           cache: {},
           policies: {},
           content: {},
+          outbox: [],
           usage: EMPTY_USAGE_MEMORY,
         };
       }
@@ -705,7 +760,10 @@ export function createTeamService(deps: TeamDeps) {
     /** Proposes an entry to the person's team; the server says if it is live or waits for review. */
     async propose(input: TeamProposeInput): Promise<TeamProposeResult> {
       if (state !== "signed_in") return { ok: false, message: "Sign in to a team first." };
-      const team = teams[0];
+      // A team the person was in at the last sync counts while the server is out of reach.
+      const cachedId = Object.keys(file.cache)[0];
+      const team =
+        teams[0] ?? (cachedId ? { id: cachedId, name: file.cache[cachedId]!.set.teamName } : null);
       if (!team) return { ok: false, message: "You are not in a team yet." };
       try {
         const sent = await authed(client.propose(team.id, input));
@@ -713,6 +771,20 @@ export function createTeamService(deps: TeamDeps) {
           return { ok: true, status: sent.data.live ? "live" : "pending", teamName: team.name };
         return { ok: false, message: sent.error.message };
       } catch (error) {
+        if (error instanceof Unreachable && state === "signed_in") {
+          if (file.outbox.length >= OUTBOX_LIMIT)
+            return {
+              ok: false,
+              message: `${TEAM_MESSAGES.unreachable} ${OUTBOX_LIMIT} proposals are already waiting.`,
+            };
+          file = {
+            ...file,
+            outbox: [...file.outbox, { id: randomUUID(), teamId: team.id, input }],
+          };
+          save();
+          emit();
+          return { ok: true, status: "queued", teamName: team.name };
+        }
         return {
           ok: false,
           message:

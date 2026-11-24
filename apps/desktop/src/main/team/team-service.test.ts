@@ -655,7 +655,7 @@ describe("proposing an entry to the team", () => {
     void r;
   });
 
-  it("needs a signed-in person in a team, and says so when the server is out of reach", async () => {
+  it("needs a signed-in person in a team, and saves the proposal when the server is out of reach", async () => {
     const fresh = rig();
     expect(
       await fresh.service.propose({ kind: "dictionary", term: "x", replacement: null }),
@@ -667,7 +667,8 @@ describe("proposing an entry to the team", () => {
     await r.service.syncNow();
     await server.close();
     const gone = await r.service.propose({ kind: "dictionary", term: "Late", replacement: null });
-    expect(gone).toEqual({ ok: false, message: "Could not reach the team server." });
+    // Not lost: it is saved and sent when the server can be reached (the outbox, below).
+    expect(gone).toEqual({ ok: true, status: "queued", teamName: "Acme" });
     server = createLocalServer({ dbPath: ":memory:", port: 0 });
   });
 });
@@ -769,5 +770,97 @@ describe("shared Skills and folders", () => {
     const { r, team } = await seeded();
     await r.service.syncNow();
     expect(r.service.skillText(team, "nope")).toBeNull();
+  });
+});
+
+describe("proposals saved while the server is out of reach", () => {
+  const entry = (term: string) => ({ kind: "dictionary" as const, term, replacement: null });
+
+  /** The server stopped and started again on the same address, as a restart is. */
+  async function bounce() {
+    await server.close();
+  }
+
+  it("saves a proposal when the server cannot be reached, and says so", async () => {
+    const { r } = await seeded();
+    await r.service.syncNow();
+    await bounce();
+    const saved = await r.service.propose(entry("Offline term"));
+    expect(saved).toEqual({ ok: true, status: "queued", teamName: "Acme" });
+    expect(r.service.view().outbox).toBe(1);
+    expect(JSON.parse(r.file.text ?? "{}").outbox).toHaveLength(1);
+    server = createLocalServer({ dbPath: ":memory:", port: 0 });
+  });
+
+  it("sends what waits at the next sync and empties the outbox, with a duplicate counted as sent", async () => {
+    const { r, token, team } = await seeded();
+    await r.service.syncNow();
+    // Queue by hand what a person made offline: one new, one the server already has.
+    const queued = [
+      { id: "a", teamId: team, input: entry("Brand new") },
+      { id: "b", teamId: team, input: entry("Acme") }, // already in the shared list
+    ];
+    r.file.text = JSON.stringify({ ...JSON.parse(r.file.text ?? "{}"), outbox: queued });
+    const again = rig({ file: r.file, keys: r.keys });
+    await again.service.start();
+    expect(again.service.view().outbox).toBe(2);
+    await again.service.syncNow();
+    expect(again.service.view().outbox).toBe(0);
+    const pending = await api("GET", `/v1/teams/${team}/dictionary`, token);
+    expect(JSON.stringify(pending.json)).toContain("Brand new");
+    // The duplicate was not an error to show.
+    expect(again.service.view().notices).toEqual([]);
+  });
+
+  it("drops one the server refuses, tells the person why, and still sends the ones behind it", async () => {
+    const { r, token, team } = await seeded();
+    await r.service.syncNow();
+    const queued = [
+      {
+        id: "x",
+        teamId: team,
+        input: { kind: "dictionary" as const, term: "   ", replacement: null },
+      },
+      { id: "y", teamId: team, input: entry("After the bad one") },
+    ];
+    r.file.text = JSON.stringify({ ...JSON.parse(r.file.text ?? "{}"), outbox: queued });
+    const again = rig({ file: r.file, keys: r.keys });
+    await again.service.start();
+    await again.service.syncNow();
+    expect(again.service.view().outbox).toBe(0);
+    const notice = again.service.view().notices.find((n) => n.id === "outbox-x");
+    expect(notice?.note).toMatch(/^Could not be sent: /);
+    expect(
+      JSON.stringify((await api("GET", `/v1/teams/${team}/dictionary`, token)).json),
+    ).toContain("After the bad one");
+  });
+
+  it("keeps the rest waiting when the server is out of reach again, and clears them at sign-out", async () => {
+    const { r, team } = await seeded();
+    await r.service.syncNow();
+    r.file.text = JSON.stringify({
+      ...JSON.parse(r.file.text ?? "{}"),
+      outbox: [{ id: "a", teamId: team, input: entry("Waiting") }],
+    });
+    const again = rig({ file: r.file, keys: r.keys });
+    await again.service.start();
+    await server.close();
+    await again.service.syncNow();
+    expect(again.service.view().outbox).toBe(1);
+    server = createLocalServer({ dbPath: ":memory:", port: 0 });
+    await again.service.signOut();
+    expect(again.service.view().outbox).toBe(0);
+    expect(JSON.parse(again.file.text ?? "{}").outbox).toEqual([]);
+  });
+
+  it("refuses to keep more than a limit of waiting proposals", async () => {
+    const { r } = await seeded();
+    await r.service.syncNow();
+    await bounce();
+    for (let i = 0; i < 50; i++) expect((await r.service.propose(entry(`t${i}`))).ok).toBe(true);
+    const full = await r.service.propose(entry("one too many"));
+    expect(full.ok).toBe(false);
+    expect((full as { message: string }).message).toContain("50 proposals are already waiting");
+    server = createLocalServer({ dbPath: ":memory:", port: 0 });
   });
 });

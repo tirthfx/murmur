@@ -173,6 +173,20 @@ describe("Team page", () => {
     expect(api.teamDisconnect).toHaveBeenCalled();
   });
 
+  it("says how many proposals are waiting to be sent, and nothing when there are none", async () => {
+    mount({ ...SIGNED_IN, outbox: 2 });
+    expect(
+      await screen.findByText(/2 proposals are waiting to be sent to the team server\./),
+    ).toBeTruthy();
+    cleanup();
+    mount({ ...SIGNED_IN, outbox: 1 });
+    expect(await screen.findByText(/1 proposal is waiting to be sent/)).toBeTruthy();
+    cleanup();
+    mount(SIGNED_IN);
+    await screen.findByText(/Signed in as Ada/);
+    expect(screen.queryByText(/waiting to be sent/)).toBeNull();
+  });
+
   it("offers the admin console to admins only", async () => {
     mount({ ...SIGNED_IN, teams: [{ id: "t1", name: "Acme", myRole: "member" }] });
     await screen.findByText(/Signed in as Ada/);
