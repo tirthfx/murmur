@@ -1,4 +1,5 @@
-import { chmodSync, cpSync, existsSync, mkdirSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { ForgeConfig } from "@electron-forge/shared-types";
 import { VitePlugin } from "@electron-forge/plugin-vite";
@@ -64,6 +65,9 @@ const config: ForgeConfig = {
         const target = path.join(outputPath, "Murmur.app", "Contents", "Resources", "helper");
         mkdirSync(target, { recursive: true });
         cpSync(helperBinary, path.join(target, "murmur-helper"));
+        // The app checks the helper against this hash before it launches it (SW-13).
+        const hash = createHash("sha256").update(readFileSync(helperBinary)).digest("hex");
+        writeFileSync(path.join(target, "murmur-helper.sha256"), `${hash}  murmur-helper\n`);
         console.log(`[package] included helper at ${path.join(target, "murmur-helper")}`);
       }
     },

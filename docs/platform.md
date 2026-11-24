@@ -35,8 +35,38 @@ window, keys pressed) is reached through a `HelperWorld`, so each platform suppl
 The scenarios are the acceptance list for SW-10: a Windows helper is done when each passes on
 Windows 11.
 
-## Known gap for Windows
+## Platform neutral parts, done ahead of the Windows helper
 
-`capture.start` takes a `folder` that must start with `/`, which a Windows path does not. The
-protocol needs a platform-neutral absolute-path check (a protocol version bump) before the
-Windows helper can record a meeting.
+- **Paths** in helper requests (`capture.start` folder, the speech model folders, a file to
+  transcribe) accept a POSIX path, a Windows drive path or a network share
+  (`absolutePathSchema`). A relative path is still refused.
+- **Meeting matchers** may carry a `windows` part: process image names and words in the window
+  title (SW-12). `matchersForOs` gives a Mac helper `native` and `web`, and a Windows helper
+  `windows` and `web`, and drops a matcher with nothing for that OS. The built-in Zoom, Meet
+  and Teams matchers have a Windows part; the Teams title words are a best effort, and a
+  `meeting-matchers.json` in the profile folder can replace them.
+- **Helper hash.** The package step writes `murmur-helper.sha256` beside the helper. At start
+  the app hashes the binary and does not launch one that differs; the Hub shows the helper as
+  unavailable with the reason. A build with no hash file (development) is not checked.
+
+## Platform differences (SW-11)
+
+| Area           | State                                                                                                            |
+| -------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Permissions    | Handled: statuses and settings links come from the adapter; a Windows helper reports `granted` or `unknown`.     |
+| System audio   | Needs the Windows helper (WASAPI loopback). Limitation to state in release notes: loopback records all playback. |
+| Hotkeys        | Needs the Windows helper. Limitation: an elevated app does not receive input from a non-elevated hook.           |
+| Insertion      | Needs the Windows helper (UI Automation and paste); terminals that need Ctrl+Shift+V are a helper test target.   |
+| Remote desktop | Windows-only test target, after the helper exists.                                                               |
+| Secure storage | Needs the Windows helper (Credential Manager); same key shape as the Keychain calls.                             |
+| Window titles  | Handled in data: the `windows` matchers above.                                                                   |
+| Speech runtime | Open: Windows needs another backend behind the same interface.                                                   |
+| Paths          | Handled in the protocol (above); app data folders come from Electron.                                            |
+| Auto-start     | Handled by Electron's login item setting.                                                                        |
+| Packaging      | Open: installer, signing and update feed need a Windows build machine and a certificate.                         |
+
+## Still needs a Windows 11 machine
+
+The Windows helper itself (language still to choose, C++ or .NET), the conformance suite
+passing on it, the system-audio playback warning (SW-12), installer and signing (SW-13) and the
+speech backend.

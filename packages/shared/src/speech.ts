@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { absolutePathSchema } from "./paths";
 
 /**
  * Speech recognition messages. Main owns the model files (download and SHA-256 check) and
@@ -7,8 +8,8 @@ import { z } from "zod";
 
 export const transcribeLoadPayloadSchema = z.object({
   model: z.string().min(1),
-  modelDir: z.string().startsWith("/"),
-  tokenizerDir: z.string().startsWith("/"),
+  modelDir: absolutePathSchema,
+  tokenizerDir: absolutePathSchema,
 });
 export type SpeechModelLoadInput = z.infer<typeof transcribeLoadPayloadSchema>;
 
@@ -20,7 +21,7 @@ export const transcribeLoadResultSchema = z.object({
 export type SpeechModelLoadResult = z.infer<typeof transcribeLoadResultSchema>;
 
 export const transcribeFilePayloadSchema = z.object({
-  path: z.string().startsWith("/"),
+  path: absolutePathSchema,
   /** BCP-47 codes. Empty means detect the language. */
   languages: z.array(z.string().min(1)).max(20),
   /** Words already on screen, to help spell names and terms (DC-30). */

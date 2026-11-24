@@ -125,6 +125,7 @@ import {
   type PermissionKind,
   type PermissionSnapshot,
   type SoundName,
+  matchersForOs,
 } from "@murmur/shared";
 import {
   createNavigationGuard,
@@ -320,6 +321,7 @@ import {
   imageToPngConverter,
   hostPlatform,
   keyPlatform,
+  matcherOs,
   permissionSettingsLink,
   quitsWhenLastWindowCloses,
 } from "./platform";
@@ -2953,7 +2955,10 @@ if (meetings && meetingStarter) {
 }
 
 const detectionSync = createDetectionSync({
-  matchers: () => meetingMatchers,
+  matchers: () => {
+    const os = matcherOs(hostPlatform());
+    return os === null ? [] : matchersForOs(meetingMatchers, os);
+  },
   settings: () => settingsStore.get().notetaker.detect,
   helperReady: () => helper.getStatus().state === "ready",
   watch: (input) => helper.watchMeetings(input),

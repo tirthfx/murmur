@@ -8,6 +8,7 @@ import {
   summarySettingsSchema,
 } from "./skills";
 import { audioSessionIdSchema } from "./audio";
+import { absolutePathSchema } from "./paths";
 import { DEFAULT_IMPORT_SETTINGS, importSettingsSchema } from "./transcript-import";
 import { DEFAULT_MEETING_RETENTION, meetingRetentionSettingsSchema } from "./meeting-retention";
 import { meetingLanguageCodes } from "./languages";
@@ -39,7 +40,7 @@ export type CaptureWarning = (typeof CAPTURE_WARNINGS)[number];
 export const captureStartPayloadSchema = z.object({
   meetingId: audioSessionIdSchema,
   /** Absolute folder the chunk files go in. */
-  folder: z.string().min(2).max(1024).startsWith("/"),
+  folder: absolutePathSchema.pipe(z.string().min(2).max(1024)),
   channels: z.array(meetingChannelSchema).min(1).max(2).optional(),
   chunkSeconds: z.number().int().min(1).max(300).optional(),
   /** A device id from `audio.devices`, or null for the system default. */
