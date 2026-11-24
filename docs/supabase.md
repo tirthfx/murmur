@@ -41,6 +41,8 @@ A migration is never edited after it has been applied. A fix is a new file (`000
 | `send_usage`                                             | A batch of counts, counted once however often it is sent   |
 | `verify_audit_chain`                                     | Walks a team's hash chain                                  |
 
+Storage is a private `shared-exports` bucket (migration `0006`), for shared exports and team attachments only. It takes document types (text, markdown, CSV, JSON, PDF, Word) and never audio or video: the bucket lists no such type, and the upload policy also refuses a file name with an audio or video extension whatever type it declares. Files live under `<team id>/`; a team's members read them, members who may write upload, the uploader or an admin deletes, and the team's plan must have teams. Access is by signed URL (the app asks for ten minutes). Where Storage is not installed (a minimal local stack) the migration says so and does nothing.
+
 ## Applying and testing
 
 The migrations are applied to the project with the Supabase CLI (`supabase db push`), the dashboard's SQL editor, or an MCP tool that applies migrations. They run in file order.

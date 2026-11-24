@@ -94,6 +94,37 @@ describe("the migrations", () => {
       ).toBe(true);
   });
 
+  it("make a private exports bucket that takes documents and never audio or video (SW-07)", () => {
+    const bucket = all.find((file) => file.name.includes("shared_exports_bucket"))?.sql ?? "";
+    const sql = bucket.replace(/--[^\n]*/g, "");
+    expect(sql).toContain("'shared-exports', 'shared-exports', false");
+    const types = [...sql.matchAll(/'((?:text|application|audio|video|image)\/[^']+)'/g)].map(
+      (m) => m[1] ?? "",
+    );
+    expect(types.length).toBeGreaterThan(2);
+    expect(types.filter((type) => /^(audio|video)\//.test(type))).toEqual([]);
+    // The upload policy also refuses a file name that looks like audio or video, whatever it declares.
+    const guard = /name !~\* '([^']+)'/.exec(sql)?.[1] ?? "";
+    expect(guard).not.toBe("");
+    for (const extension of [
+      "wav",
+      "mp3",
+      "m4a",
+      "flac",
+      "ogg",
+      "opus",
+      "aiff",
+      "mp4",
+      "mov",
+      "webm",
+    ])
+      expect(new RegExp(guard, "i").test(`call.${extension}`), `${extension} is not refused`).toBe(
+        true,
+      );
+    expect(new RegExp(guard, "i").test("notes.md")).toBe(false);
+    expect(new RegExp(guard, "i").test("summary.pdf")).toBe(false);
+  });
+
   it("keep audio and transcripts out of the schema (SW-07)", () => {
     const columns = [
       ...code.matchAll(
