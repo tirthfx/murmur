@@ -6,6 +6,7 @@
   "description": "Murmur's team backend on Supabase: Postgres migrations, row-level security and the SQL tests",
   "scripts": {
     "seed": "node src/seed-cli.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "migrate": "node src/migrate-cli.ts"
   }
 }
