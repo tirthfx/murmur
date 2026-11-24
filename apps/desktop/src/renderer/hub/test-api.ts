@@ -511,6 +511,7 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
     teamNoticesSeen: vi.fn().mockResolvedValue({ ok: true, view: SAMPLE_TEAM_VIEW }),
     teamOpenAdmin: vi.fn().mockResolvedValue({ ok: true }),
     teamPropose: vi.fn().mockResolvedValue({ ok: true, status: "pending", teamName: "Acme" }),
+    teamChangePassword: vi.fn().mockResolvedValue({ ok: true, value: null }),
     teamPeople: vi.fn().mockResolvedValue({ ok: true, value: [] }),
     teamFolderCreate: vi.fn().mockResolvedValue({ ok: false, message: "No team." }),
     teamNoteRead: vi.fn().mockResolvedValue({ ok: false, message: "No team." }),

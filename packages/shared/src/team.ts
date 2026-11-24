@@ -132,6 +132,12 @@ export const teamShareMeetingSchema = z.strictObject({
   teamId: idField,
   folderId: idField,
 });
+/** Changing the person's own password: the backend says if the new one is acceptable. */
+export const teamPasswordChangeSchema = z.strictObject({
+  current: z.string().min(1).max(200),
+  next: z.string().min(1).max(200),
+});
+export type TeamPasswordChangeInput = z.infer<typeof teamPasswordChangeSchema>;
 export type TeamFolderCreateInput = z.infer<typeof teamFolderCreateSchema>;
 export type TeamNoteReadInput = z.infer<typeof teamNoteReadSchema>;
 export type TeamSkillAddInput = z.infer<typeof teamSkillAddSchema>;

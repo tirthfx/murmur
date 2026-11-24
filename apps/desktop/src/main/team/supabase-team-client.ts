@@ -5,12 +5,14 @@ import {
   isPolicyKey,
   mergePolicy,
   teamClientErrorFor,
+  TEAM_ACCOUNT_VERSION,
   TEAM_CONTENT_VERSION,
   type PolicyValues,
   type SharedFolder,
   type SharedNote,
   type SharedSkill,
   type SharedSkillVersion,
+  type TeamAccountClient,
   type TeamClient,
   type TeamContentAnswer,
   type TeamContentClient,
@@ -117,7 +119,7 @@ const asRecord = (value: unknown): Record<string, unknown> =>
 
 export function createSupabaseTeamClient(
   deps: SupabaseTeamClientDeps,
-): TeamClient & TeamContentClient {
+): TeamClient & TeamContentClient & TeamAccountClient {
   /** The session after a renewal, for as long as the app still holds the token it came from. */
   let renewed: { from: string; pair: Pair } | null = null;
   let renewing: Promise<Pair | null> | null = null;
@@ -648,5 +650,57 @@ export function createSupabaseTeamClient(
       }),
   };
 
-  return { ...base, ...content };
+  /** The email in an access token, which is how the current password is checked. */
+  const emailOf = (access: string): string => {
+    try {
+      const payload = JSON.parse(
+        Buffer.from(access.split(".")[1] ?? "", "base64url").toString("utf8"),
+      ) as {
+        email?: unknown;
+      };
+      return typeof payload.email === "string" ? payload.email : "";
+    } catch {
+      return "";
+    }
+  };
+
+  /** The person's own account (`teamAccount.v1`). */
+  const account: TeamAccountClient = {
+    accountVersion: TEAM_ACCOUNT_VERSION,
+    changePassword: (input) =>
+      run(async () => {
+        if (input.next.length < SUPABASE_MIN_PASSWORD)
+          return fail("invalid", `A password has at least ${SUPABASE_MIN_PASSWORD} characters.`);
+        const pair = current();
+        if (!pair) {
+          // Nothing to sign in with, but a backend that is down or refused is said so first.
+          await send("GET", "/auth/v1/settings");
+          return fail("unauthorized", "Sign in to continue.");
+        }
+        const email = emailOf(pair.access);
+        if (email === "") return fail("unauthorized", "Sign in again to change the password.");
+        // The current password is checked by signing in with it: the project's own setting for
+        // that is not one the app can count on.
+        const proof = await send("POST", "/auth/v1/token?grant_type=password", {
+          body: { email, password: input.current },
+        });
+        if (proof.status === 429) return refusal(proof, "Too many tries. Wait a little.");
+        if (proof.status !== 200) return fail("invalid", "The current password is not right.");
+        const changed = await send("PUT", "/auth/v1/user", {
+          body: { password: input.next },
+          bearer: pair.access,
+        });
+        if (changed.status === 200) return ok(null);
+        if (changed.status === 401)
+          return fail("unauthorized", "Sign in again to change the password.");
+        const code = asRecord(changed.json)["error_code"];
+        if (code === "same_password")
+          return fail("invalid", "Choose a password that is not the one you have now.");
+        if (code === "weak_password" || changed.status === 422)
+          return fail("invalid", refusal(changed, "That password is not accepted.").error.message);
+        return refusal(changed, "The password was not changed.");
+      }),
+  };
+
+  return { ...base, ...content, ...account };
 }

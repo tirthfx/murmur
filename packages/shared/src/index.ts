@@ -71,3 +71,4 @@ export * from "./managed";
 export * from "./team";
 export * from "./team-client";
 export * from "./team-content";
+export * from "./team-account";

@@ -118,6 +118,7 @@ function setup() {
     teamNoticesSeen: vi.fn(),
     teamOpenAdmin: vi.fn(),
     teamPropose: vi.fn(),
+    teamChangePassword: vi.fn(),
     teamPeople: vi.fn(),
     teamFolderCreate: vi.fn(),
     teamNoteRead: vi.fn(),

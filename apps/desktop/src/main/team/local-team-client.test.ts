@@ -7,6 +7,7 @@ import {
   expectError,
   type ContractBackend,
 } from "./team-client-contract";
+import { describeTeamAccountContract } from "./team-account-contract";
 import { describeTeamContentContract } from "./team-content-contract";
 
 // Responses are read loosely on purpose.
@@ -112,6 +113,7 @@ async function startLocal(): Promise<ContractBackend> {
 
 describeTeamClientContract("the local server", { start: startLocal });
 describeTeamContentContract("the local server", { start: startLocal });
+describeTeamAccountContract("the local server", { start: startLocal });
 
 describe("how the local client turns a failure into an error", () => {
   const withFetch = (answer: () => Promise<Response>) =>

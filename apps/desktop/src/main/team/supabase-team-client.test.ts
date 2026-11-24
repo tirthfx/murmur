@@ -667,6 +667,83 @@ describe("the Supabase team client", () => {
     });
   });
 
+  describe("changing the password", () => {
+    /** An access token whose payload names the person, as Supabase Auth's do. */
+    const named = (email: string) => {
+      const part = (value: unknown) => Buffer.from(JSON.stringify(value)).toString("base64url");
+      return encodeSupabaseToken({
+        access: `${part({ alg: "HS256" })}.${part({ email })}.sig`,
+        refresh: null,
+      });
+    };
+    const proof = (status: number): Route =>
+      authRoute("/auth/v1/token?grant_type=password", {
+        status,
+        json: status === 200 ? sessionBody("x") : { error_code: "invalid_credentials" },
+      });
+
+    it("checks the current password by signing in with it, then sets the new one as the person", async () => {
+      const { client, calls } = setup(
+        [proof(200), authRoute("/auth/v1/user", { status: 200, json: { id: "u1" } })],
+        { token: named("ada@example.com") },
+      );
+      expectOk(
+        await client.changePassword({ current: "the old password", next: "a brand new password" }),
+      );
+      expect(calls[0]?.path).toBe("/auth/v1/token?grant_type=password");
+      expect(calls[0]?.body).toEqual({ email: "ada@example.com", password: "the old password" });
+      expect(calls[1]).toMatchObject({ method: "PUT", path: "/auth/v1/user" });
+      expect(calls[1]?.body).toEqual({ password: "a brand new password" });
+      expect(calls[1]?.headers["authorization"]).toMatch(/^Bearer /);
+    });
+
+    it("says invalid for a wrong current password, and sets nothing", async () => {
+      const { client, calls } = setup([proof(400)], { token: named("ada@example.com") });
+      const error = expectError(
+        await client.changePassword({ current: "wrong wrong wrong", next: "a brand new password" }),
+        "invalid",
+      );
+      expect(error.message).toBe("The current password is not right.");
+      expect(calls.some((c) => c.method === "PUT")).toBe(false);
+    });
+
+    it("refuses a short new password before anything is sent, and the same one in words", async () => {
+      const { client, calls } = setup([], { token: named("ada@example.com") });
+      expectError(await client.changePassword({ current: "x", next: "short" }), "invalid");
+      expect(calls).toEqual([]);
+      const same = setup(
+        [
+          proof(200),
+          authRoute("/auth/v1/user", {
+            status: 422,
+            json: { error_code: "same_password", msg: "same" },
+          }),
+        ],
+        { token: named("ada@example.com") },
+      );
+      const error = expectError(
+        await same.client.changePassword({ current: "the old password", next: "the old password" }),
+        "invalid",
+      );
+      expect(error.message).toMatch(/not the one you have now/);
+    });
+
+    it("says unauthorized with no session, or a token that does not name the person", async () => {
+      const none = setup([authRoute("/auth/v1/settings", { status: 200, json: {} })]);
+      expectError(
+        await none.client.changePassword({ current: "x", next: "a brand new password" }),
+        "unauthorized",
+      );
+      // It still asks the backend something first, so a backend that is down is reported as down.
+      expect(none.calls.map((c) => c.path)).toEqual(["/auth/v1/settings"]);
+      const anonymous = setup([], { token: signed() });
+      expectError(
+        await anonymous.client.changePassword({ current: "x", next: "a brand new password" }),
+        "unauthorized",
+      );
+    });
+  });
+
   it("sends the session only as the authorization of a signed-in call", async () => {
     const { client, calls } = setup([rpcRoute("my_teams", { status: 200, json: [] })], {
       token: signed("access-9"),

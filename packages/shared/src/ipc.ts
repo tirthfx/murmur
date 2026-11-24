@@ -38,6 +38,7 @@ import {
   teamConnectSchema,
   teamFolderCreateSchema,
   teamNoteReadSchema,
+  teamPasswordChangeSchema,
   teamProposeSchema,
   teamRedeemSchema,
   teamSetupSchema,
@@ -47,6 +48,7 @@ import {
   type TeamContentResult,
   type TeamFolderCreateInput,
   type TeamNoteReadInput,
+  type TeamPasswordChangeInput,
   type TeamProposeInput,
   type TeamShareMeetingInput,
   type TeamSkillAddInput,
@@ -541,6 +543,7 @@ export const IPC_CHANNELS = {
   teamOpenAdmin: "team:open-admin",
   teamPropose: "team:propose",
   teamPeople: "team:people",
+  teamChangePassword: "team:change-password",
   teamFolderCreate: "team:folder-create",
   teamNoteRead: "team:note-read",
   teamSkillAdd: "team:skill-add",
@@ -1207,6 +1210,10 @@ export const IPC_CONTRACT = {
     args: z.tuple([teamProposeSchema]),
     result: z.custom<TeamProposeResult>(),
   },
+  [IPC_CHANNELS.teamChangePassword]: {
+    args: z.tuple([teamPasswordChangeSchema]),
+    result: z.custom<TeamContentResult<null>>(),
+  },
   [IPC_CHANNELS.teamPeople]: {
     args: z.tuple([z.string().min(1).max(64)]),
     result: z.custom<TeamContentResult<TeamPerson[]>>(),
@@ -1742,6 +1749,8 @@ export interface MurmurApi {
   teamOpenAdmin(): Promise<{ ok: boolean; message?: string }>;
   /** TM-06, TM-07: proposes a dictionary entry or snippet to the person's team. */
   teamPropose(input: TeamProposeInput): Promise<TeamProposeResult>;
+  /** Changes the signed-in person's own password on the team backend. */
+  teamChangePassword(input: TeamPasswordChangeInput): Promise<TeamContentResult<null>>;
   /** NT-17: the people in a team, to choose who is in a shared folder. */
   teamPeople(teamId: string): Promise<TeamContentResult<TeamPerson[]>>;
   /** NT-17: makes a shared folder for named people. */

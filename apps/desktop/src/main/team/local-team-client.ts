@@ -3,11 +3,13 @@ import {
   TEAM_MESSAGES,
   effectivePolicySchema,
   teamClientErrorFor,
+  TEAM_ACCOUNT_VERSION,
   TEAM_CONTENT_VERSION,
   type SharedFolder,
   type SharedNote,
   type SharedSkill,
   type SharedSkillVersion,
+  type TeamAccountClient,
   type TeamClient,
   type TeamContentAnswer,
   type TeamContentClient,
@@ -63,7 +65,9 @@ const fail = (
 
 const ok = <T>(data: T): TeamClientResult<T> => ({ ok: true, data });
 
-export function createLocalTeamClient(deps: LocalTeamClientDeps): TeamClient & TeamContentClient {
+export function createLocalTeamClient(
+  deps: LocalTeamClientDeps,
+): TeamClient & TeamContentClient & TeamAccountClient {
   async function request(
     method: string,
     path: string,
@@ -424,5 +428,17 @@ export function createLocalTeamClient(deps: LocalTeamClientDeps): TeamClient & T
       }),
   };
 
-  return { ...base, ...content };
+  /** The person's own account (`teamAccount.v1`). */
+  const account: TeamAccountClient = {
+    accountVersion: TEAM_ACCOUNT_VERSION,
+    changePassword: (input) =>
+      run(async () => {
+        const answer = await request("POST", "v1/me/password", {
+          body: { currentPassword: input.current, newPassword: input.next },
+        });
+        return done(answer, "The password was not changed.");
+      }),
+  };
+
+  return { ...base, ...content, ...account };
 }

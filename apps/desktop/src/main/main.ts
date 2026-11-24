@@ -3869,6 +3869,7 @@ function registerIpc(): void {
     teamDisconnect: () => teamService.disconnect(),
     teamNoticesSeen: () => teamService.noticesSeen(),
     teamPropose: (input) => teamService.propose(input),
+    teamChangePassword: (input) => teamService.changePassword(input),
     teamPeople: (teamId) => teamService.people(teamId),
     teamFolderCreate: (input) => teamService.createFolder(input),
     teamNoteRead: (input) => teamService.readNote(input),

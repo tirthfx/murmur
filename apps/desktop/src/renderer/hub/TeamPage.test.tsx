@@ -187,6 +187,34 @@ describe("Team page", () => {
     expect(screen.queryByText(/waiting to be sent/)).toBeNull();
   });
 
+  it("changes the password and says so, or says why not", async () => {
+    const { api } = mount(SIGNED_IN, {
+      teamChangePassword: vi
+        .fn()
+        .mockResolvedValueOnce({ ok: false, message: "The current password is not right." })
+        .mockResolvedValueOnce({ ok: true, value: null }),
+    });
+    const change = await screen.findByRole("button", { name: "Change the password" });
+    expect(
+      (change as HTMLButtonElement).disabled || change.getAttribute("aria-disabled") === "true",
+    ).toBe(true);
+    fireEvent.change(screen.getByLabelText("Current password"), {
+      target: { value: "old password" },
+    });
+    fireEvent.change(screen.getByLabelText(/New password/), {
+      target: { value: "a new long password" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Change the password" }));
+    expect(await screen.findByText("The current password is not right.")).toBeTruthy();
+    expect(api.teamChangePassword).toHaveBeenCalledWith({
+      current: "old password",
+      next: "a new long password",
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Change the password" }));
+    expect(await screen.findByText("Your password was changed.")).toBeTruthy();
+    expect((screen.getByLabelText("Current password") as HTMLInputElement).value).toBe("");
+  });
+
   it("offers the admin console to admins only", async () => {
     mount({ ...SIGNED_IN, teams: [{ id: "t1", name: "Acme", myRole: "member" }] });
     await screen.findByText(/Signed in as Ada/);

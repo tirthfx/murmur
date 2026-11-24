@@ -134,3 +134,12 @@ A proposal to the shared dictionary or snippets (**Share with the team**) used t
 - **Sent in order at the next sync,** oldest first. One the server already has (a duplicate) counts as sent, so a repeat after a crash is harmless. One the server refuses is dropped and the person is told why in the proposals turned down; it does not block the ones behind it. If the server is out of reach again, the rest wait.
 - **It is one person's:** the outbox is cleared at sign-out and when the server, backend or key changes, so a waiting proposal never goes out under someone else.
 - **What this is and is not:** the only change a person makes to team data from the app is a proposal (the shared entries are read-only otherwise), so the outbox is for proposals. Conflicts between two people's edits of one entry (SW-06) cannot arise from the app today; the server's versions and its review flow already decide those.
+
+### Changing your password (`teamAccount.v1`)
+
+A third interface next to the frozen `teamClient.v1`, `TeamAccountClient` (`packages/shared/src/team-account.ts`): `changePassword({ current, next })`. Both clients implement it, and the Team page has "Change your password" while signed in.
+
+- **A wrong current password and an unacceptable new one are `invalid`, in the backend's words;** `unauthorized` is only for a session that has ended. The service does not treat a wrong current password as a lost session.
+- **Local server:** `POST /v1/me/password` (12 characters, not one of the last five, the person's other sessions end).
+- **Supabase:** the current password is checked by signing in with it (the email is read from the access token), then the new one is set with the person's own session (`PUT /auth/v1/user`). Murmur's 12-character minimum is checked before anything is sent. This is how an account made by the migration tool changes its temporary password.
+- **The contract** (`team-account-contract.ts`) runs on the local server in CI and on a Supabase project when one is configured: the new password signs in and the old one does not, a wrong current, a short and an unchanged password are `invalid`, no session is `unauthorized`, and a backend that is down or refused is said so first.

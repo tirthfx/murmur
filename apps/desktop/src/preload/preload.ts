@@ -214,6 +214,7 @@ const api: MurmurApi = {
   teamNoticesSeen: () => ipcRenderer.invoke(IPC_CHANNELS.teamNoticesSeen),
   teamOpenAdmin: () => ipcRenderer.invoke(IPC_CHANNELS.teamOpenAdmin),
   teamPropose: (input) => ipcRenderer.invoke(IPC_CHANNELS.teamPropose, input),
+  teamChangePassword: (input) => ipcRenderer.invoke(IPC_CHANNELS.teamChangePassword, input),
   teamPeople: (teamId) => ipcRenderer.invoke(IPC_CHANNELS.teamPeople, teamId),
   teamFolderCreate: (input) => ipcRenderer.invoke(IPC_CHANNELS.teamFolderCreate, input),
   teamNoteRead: (input) => ipcRenderer.invoke(IPC_CHANNELS.teamNoteRead, input),
