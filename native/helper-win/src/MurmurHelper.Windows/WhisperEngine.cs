@@ -35,6 +35,8 @@ public sealed class WhisperEngine : ISpeechEngine
     public static string NativeSearchReport() =>
         $"base={AppContext.BaseDirectory}; found={LocateNativeLibrary() ?? "none"}";
 
+    public string ComputeUnits => "cpu";
+
     public void Load(string model, string modelDir)
     {
         Unload();
