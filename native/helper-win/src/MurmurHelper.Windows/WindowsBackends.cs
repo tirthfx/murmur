@@ -24,6 +24,7 @@ public static class WindowsBackends
             FrontApp = front,
             Detection = detection,
             Output = new WindowsOutputMute(),
+            Speech = new WhisperEngine(),
         };
         return (backends, new Disposables(keyboard, frontTimer, detectTimer));
     }

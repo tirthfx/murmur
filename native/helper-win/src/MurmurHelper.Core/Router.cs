@@ -16,6 +16,7 @@ public sealed class Router
     private readonly MicSession? _mic;
     private readonly MeetingCapture? _meeting;
     private readonly InsertionController? _insertion;
+    private readonly SpeechController? _speech;
     private bool _handshake;
 
     public Router(Backends backends, MicSession? mic, MeetingCapture? meeting)
@@ -24,6 +25,7 @@ public sealed class Router
         _mic = mic;
         _meeting = meeting;
         _insertion = backends.Insertion is null ? null : new InsertionController(backends.Insertion);
+        _speech = backends.Speech is null ? null : new SpeechController(backends.Speech);
     }
 
     public bool ShouldExit { get; private set; }
@@ -40,6 +42,7 @@ public sealed class Router
         if (_meeting is not null) list.Add("meeting.capture");
         if (_backends.Detection is not null) list.Add("detect.watch");
         if (_backends.SecureStore is not null) list.Add("keychain");
+        if (_speech is not null) { list.Add("transcribe.file"); list.Add("transcribe.prompt"); list.Add("transcribe.translate"); }
         return list;
     }
 
@@ -55,8 +58,14 @@ public sealed class Router
     public static Envelope OversizedLineError() =>
         HelperError(ErrorCode.InvalidPayload, $"Line exceeds {ProtocolConstants.MaxLineBytes} bytes and was dropped");
 
-    /// <summary>Handles one line from stdin. Never throws on bad input.</summary>
-    public IReadOnlyList<Envelope> Handle(string line)
+    /// <summary>Requests that can take long. With a <c>later</c> callback they run on their own task, so pings keep being answered.</summary>
+    private static bool IsSlow(string type) => type is "transcribe.load" or "transcribe.file";
+
+    /// <summary>
+    /// Handles one line from stdin. Never throws on bad input. A slow request (speech) answers
+    /// through <paramref name="later"/> when one is given; without it the answer is returned.
+    /// </summary>
+    public IReadOnlyList<Envelope> Handle(string line, Action<Envelope>? later = null)
     {
         switch (EnvelopeCodec.Decode(line))
         {
@@ -67,6 +76,12 @@ public sealed class Router
                     ? HelperError(ErrorCode.InvalidPayload, invalid.Reason)
                     : Failure(invalid.Id, invalid.Type ?? "", ErrorCode.InvalidPayload, invalid.Reason) };
             case Decoded.Ok ok:
+                if (later is not null && _handshake && ok.Envelope.Id is not null && IsSlow(ok.Envelope.Type))
+                {
+                    var request = ok.Envelope;
+                    Task.Run(() => later(Route(request)));
+                    return Array.Empty<Envelope>();
+                }
                 return new[] { Route(ok.Envelope) };
             default:
                 return Array.Empty<Envelope>();
@@ -178,6 +193,11 @@ public sealed class Router
                 Need(_backends.Detection).Subscribe(enabled, MeetingMatcher.ParseAll(p["matchers"] as JsonArray));
                 return new JsonObject { ["watching"] = enabled };
             }
+            case "transcribe.load": return Need(_speech).Load(p);
+            case "transcribe.unload":
+                Need(_speech).Unload();
+                return new JsonObject();
+            case "transcribe.file": return Need(_speech).File(p);
             case "capture.start": return Need(_meeting).Start(p);
             case "capture.stop": return Need(_meeting).Stop(p);
             case "keychain.get":
@@ -208,6 +228,7 @@ public sealed class Router
         _backends.Hotkeys?.Stop();
         _mic?.Shutdown();
         _meeting?.Shutdown();
+        _speech?.Shutdown();
         _backends.FrontApp?.Watch(false);
         _backends.Detection?.Subscribe(false, Array.Empty<MeetingMatcher>());
         _backends.OnShutdown?.Invoke();

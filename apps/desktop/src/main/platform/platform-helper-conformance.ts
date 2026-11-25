@@ -29,6 +29,8 @@ export interface HelperWorld {
   holdBinding: HotkeyBinding;
   /** A folder the helper may write meeting chunks into. */
   captureFolder: string;
+  /** A folder to name as the speech model's. A stand-in engine does not read it; a real one needs a model there. */
+  speechModelDir: string;
   /** Sets a permission as the OS reports it. */
   setPermission(kind: PermissionKind, status: "granted" | "denied"): Promise<void>;
   /** Presses or releases the keys of a binding as a person would. */
@@ -61,6 +63,7 @@ export const CONFORMANCE_SCENARIOS = [
   "meeting detection",
   "microphone session",
   "meeting capture",
+  "transcription",
 ] as const;
 export type ConformanceScenario = (typeof CONFORMANCE_SCENARIOS)[number];
 
@@ -250,6 +253,49 @@ export function describePlatformHelperConformance(name: string, options: Conform
         levelIntervalMs: 100,
       });
       await expect(helper.cancelAudio("dictation-3")).resolves.toEqual({ discarded: true });
+    });
+
+    scenario("transcription", async ({ helper, setPermission, speechModelDir }) => {
+      await helper.start();
+      await setPermission("microphone", "granted");
+      await expect(
+        helper.transcribeFile({ path: `${speechModelDir}/none.wav`, languages: [] }),
+      ).rejects.toMatchObject({ code: "MODEL_NOT_LOADED" });
+      const loaded = await helper.loadSpeechModel({
+        model: "conformance",
+        modelDir: speechModelDir,
+        tokenizerDir: speechModelDir,
+      });
+      expect(loaded.loadedModel).toBe("conformance");
+      expect(loaded.loadMs).toBeGreaterThanOrEqual(0);
+      expect(loaded.computeUnits.length).toBeGreaterThan(0);
+
+      await helper.startAudio({ sessionId: "speech-1", emitLevels: false, levelIntervalMs: 100 });
+      const recorded = await helper.stopAudio("speech-1");
+      expect(recorded.audioFile).not.toBeNull();
+      const transcript = await helper.transcribeFile({
+        path: recorded.audioFile!.path,
+        languages: [],
+      });
+      expect(typeof transcript.text).toBe("string");
+      expect(typeof transcript.language).toBe("string");
+      expect(Array.isArray(transcript.segments)).toBe(true);
+      expect(transcript.audioMs).toBeGreaterThanOrEqual(0);
+      for (const segment of transcript.segments) {
+        expect(segment.endMs).toBeGreaterThanOrEqual(segment.startMs);
+        expect(segment.confidence).toBeGreaterThanOrEqual(0);
+        expect(segment.confidence).toBeLessThanOrEqual(1);
+      }
+
+      // A ping is answered while a request is running, and a file that is not there is refused.
+      await expect(
+        helper.transcribeFile({ path: `${speechModelDir}/missing.wav`, languages: [] }),
+      ).rejects.toMatchObject({ code: expect.stringMatching(/NOT_FOUND|TRANSCRIPTION_FAILED/) });
+
+      await helper.unloadSpeechModel();
+      await expect(
+        helper.transcribeFile({ path: recorded.audioFile!.path, languages: [] }),
+      ).rejects.toMatchObject({ code: "MODEL_NOT_LOADED" });
     });
 
     scenario("meeting capture", async ({ helper, setPermission, captureFolder }) => {

@@ -64,7 +64,7 @@ public sealed class Host
                 else if (line.Length > 0)
                 {
                     var text = Encoding.UTF8.GetString(line.GetBuffer(), 0, (int)line.Length).TrimEnd('\r');
-                    foreach (var reply in router.Handle(text)) Send(reply);
+                    foreach (var reply in router.Handle(text, Send)) Send(reply);
                 }
                 line.SetLength(0);
                 if (router.ShouldExit) return;

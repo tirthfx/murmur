@@ -31,6 +31,7 @@ class ScriptedMacHelper extends FakeHelperProcess {
   secrets = new Map<string, string>();
   audioSession: string | null = null;
   meeting: string | null = null;
+  modelLoaded = false;
   private readonly startedAt = Date.now();
 
   override write(data: string): void {
@@ -123,6 +124,28 @@ class ScriptedMacHelper extends FakeHelperProcess {
       case "audio.cancel":
         this.audioSession = null;
         return this.ok(request, { discarded: true });
+      case "transcribe.load":
+        this.modelLoaded = true;
+        return this.ok(request, {
+          loadedModel: String(payload.model),
+          loadMs: 5,
+          computeUnits: "test",
+        });
+      case "transcribe.unload":
+        this.modelLoaded = false;
+        return this.ok(request);
+      case "transcribe.file":
+        if (!this.modelLoaded) return this.respondError(request, "MODEL_NOT_LOADED", "No model");
+        if (String(payload.path).endsWith("missing.wav")) {
+          return this.respondError(request, "NOT_FOUND", "No such file");
+        }
+        return this.ok(request, {
+          text: "a scripted transcript",
+          language: "en",
+          segments: [{ startMs: 0, endMs: 1000, text: "a scripted transcript", confidence: 0.9 }],
+          decodeMs: 10,
+          audioMs: 1000,
+        });
       case "capture.start":
         this.meeting = String(payload.meetingId);
         return this.ok(request, {
@@ -201,6 +224,7 @@ describePlatformHelperConformance("Mac helper, scripted", {
       helper,
       holdBinding: HOLD,
       captureFolder: "/tmp/murmur-conformance",
+      speechModelDir: "/tmp/murmur-conformance-model",
       async setPermission(kind, status) {
         script.permissions[kind] = status;
       },

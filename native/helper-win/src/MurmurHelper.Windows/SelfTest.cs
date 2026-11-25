@@ -21,6 +21,7 @@ public static class SelfTest
             {
                 failures++;
                 output.WriteLine($"FAIL {name}: {error.GetType().Name}: {error.Message}");
+                output.WriteLine(error.ToString());
             }
         }
 
@@ -78,7 +79,44 @@ public static class SelfTest
 
         Check("output mute reads", () => $"muted={new WindowsOutputMute().Muted?.ToString() ?? "no switch"}");
 
+        // The speech check needs a model folder, so it runs only when one is named (CI downloads a small one).
+        var speechModel = Environment.GetEnvironmentVariable("MURMUR_SELFTEST_SPEECH_MODEL");
+        if (!string.IsNullOrEmpty(speechModel))
+        {
+            Check("speech: transcribe a known recording", () => SpeechCheck(speechModel, output));
+        }
+        else
+        {
+            output.WriteLine("skip speech: set MURMUR_SELFTEST_SPEECH_MODEL to a folder holding a ggml model");
+        }
+
         output.WriteLine(failures == 0 ? "self-test passed" : $"self-test failed ({failures})");
         return failures == 0 ? 0 : 1;
+    }
+
+    /// <summary>
+    /// Transcribes <c>jfk.wav</c>, a public-domain recording of one sentence that the fetch script puts
+    /// beside the test model, with the same controller the helper uses.
+    /// </summary>
+    private static string SpeechCheck(string modelDir, TextWriter output)
+    {
+        var path = Path.Combine(modelDir, "jfk.wav");
+        if (!File.Exists(path)) throw new FileNotFoundException($"the test recording is missing: {path}");
+        output.WriteLine("     " + WhisperEngine.NativeSearchReport());
+        var controller = new SpeechController(new WhisperEngine());
+        var loaded = controller.Load(new System.Text.Json.Nodes.JsonObject
+        {
+            ["model"] = "selftest", ["modelDir"] = modelDir, ["tokenizerDir"] = modelDir,
+        });
+        var done = controller.File(new System.Text.Json.Nodes.JsonObject
+        {
+            ["path"] = path,
+            ["languages"] = new System.Text.Json.Nodes.JsonArray("en"),
+        });
+        controller.Shutdown();
+        var text = done["text"]!.GetValue<string>().ToLowerInvariant();
+        if (!text.Contains("ask not") || !text.Contains("country"))
+            throw new InvalidOperationException($"unexpected transcript: \"{text}\"");
+        return $"loaded in {loaded["loadMs"]} ms, decoded in {done["decodeMs"]} ms, {done["segments"]!.AsArray().Count} segment(s)";
     }
 }

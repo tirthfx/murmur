@@ -117,7 +117,6 @@ import {
   type InstructPanelState,
   GENERATION_LIMITS,
   DEFAULT_SOUNDS,
-  DEFAULT_SPEECH_MODEL,
   IPC_CHANNELS,
   IPC_EVENTS,
   blockerMessage,
@@ -321,6 +320,7 @@ import {
   defaultScratchpadShortcut,
   imageToPngConverter,
   hostPlatform,
+  speechModelFor,
   keyPlatform,
   matcherOs,
   permissionSettingsLink,
@@ -924,9 +924,11 @@ const refreshBindings = () => hotkeys.setBindings(bindingsNow());
 settingsStore.onChange(refreshBindings);
 permissions.onChecked((statuses) => hotkeys.handlePermissions(statuses));
 
+/** The speech model for this OS (the Mac's CoreML build, or Windows' whisper.cpp file). */
+const SPEECH_MODEL = speechModelFor(hostPlatform());
 const speech = createSpeechService({
   helper,
-  model: DEFAULT_SPEECH_MODEL,
+  model: SPEECH_MODEL,
   root: speechModelRoot(profile.modelsAppData),
   logger: createConsoleLogger("[speech]"),
   languages: () => languagesFor(settingsStore.get()),
@@ -934,11 +936,11 @@ const speech = createSpeechService({
 
 // First-run setup: the model download behind the setup screen, and what blocks dictation.
 const modelDownload = createModelDownload({
-  model: DEFAULT_SPEECH_MODEL,
+  model: SPEECH_MODEL,
   download: (onProgress) =>
     Promise.resolve().then(() => {
       networkGuard.check("speech model download");
-      return downloadModel(speechModelRoot(profile.modelsAppData), DEFAULT_SPEECH_MODEL, {
+      return downloadModel(speechModelRoot(profile.modelsAppData), SPEECH_MODEL, {
         onProgress,
       });
     }),
