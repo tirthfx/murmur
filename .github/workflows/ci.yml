@@ -167,8 +167,10 @@ jobs:
           console.log("llama loaded, gpu=" + runtime.gpu);
           '@
           $env:ELECTRON_RUN_AS_NODE = '1'
-          & $app $check $llama
-          if ($LASTEXITCODE -ne 0) { throw 'the packaged cleanup runtime did not load' }
+          # The app is a GUI program, so reading its output is what makes this wait for it.
+          $loaded = & $app $check $llama 2>&1 | Out-String
+          Write-Host $loaded
+          if ($loaded -notmatch 'llama loaded') { throw 'the packaged cleanup runtime did not load' }
           # The MCP command: no token, then a token with nothing listening.
           $cmd = Join-Path $dir.FullName 'resources/mcp/murmur-mcp.cmd'
           if (-not (Test-Path $cmd)) { throw 'the MCP command is not packaged' }
