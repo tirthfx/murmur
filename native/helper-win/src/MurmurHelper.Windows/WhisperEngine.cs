@@ -12,10 +12,11 @@ public sealed class WhisperEngine : ISpeechEngine
     private WhisperFactory? _factory;
 
     /// <summary>
-    /// Whisper.net looks for its native library under <c>runtimes/win-x64</c> next to the program. A
-    /// single-file helper carries the libraries inside and the host unpacks them, keeping that
-    /// <c>runtimes</c> layout, into a folder it lists in NATIVE_DLL_SEARCH_DIRECTORIES. Point
-    /// Whisper.net at that copy when the usual place is empty.
+    /// Whisper.net looks for its native libraries in <c>runtimes/win-x64</c> under the folder of
+    /// <c>RuntimeOptions.LibraryPath</c>, or else next to the program. A single-file helper carries
+    /// the libraries inside and the host unpacks them, keeping that <c>runtimes</c> layout, into a
+    /// folder it lists in NATIVE_DLL_SEARCH_DIRECTORIES. This returns a path in that folder (the
+    /// loader only uses its directory), or null when the usual place already has them.
     /// </summary>
     private static string? LocateNativeLibrary()
     {
@@ -23,10 +24,7 @@ public sealed class WhisperEngine : ISpeechEngine
         var listed = AppContext.GetData("NATIVE_DLL_SEARCH_DIRECTORIES") as string ?? "";
         foreach (var dir in listed.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
         {
-            foreach (var candidate in new[] { Path.Combine(dir, "runtimes", "win-x64", "whisper.dll"), Path.Combine(dir, "whisper.dll") })
-            {
-                if (File.Exists(candidate)) return candidate;
-            }
+            if (File.Exists(Path.Combine(dir, "runtimes", "win-x64", "whisper.dll"))) return Path.Combine(dir, "whisper.dll");
         }
         return null;
     }
