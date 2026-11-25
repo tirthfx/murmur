@@ -13,8 +13,9 @@ public sealed class WhisperEngine : ISpeechEngine
 
     /// <summary>
     /// Whisper.net looks for its native library under <c>runtimes/win-x64</c> next to the program. A
-    /// single-file helper carries the library inside and the host unpacks it to a folder it lists in
-    /// NATIVE_DLL_SEARCH_DIRECTORIES, so point Whisper.net at that copy when the usual place is empty.
+    /// single-file helper carries the libraries inside and the host unpacks them, keeping that
+    /// <c>runtimes</c> layout, into a folder it lists in NATIVE_DLL_SEARCH_DIRECTORIES. Point
+    /// Whisper.net at that copy when the usual place is empty.
     /// </summary>
     private static string? LocateNativeLibrary()
     {
@@ -22,43 +23,17 @@ public sealed class WhisperEngine : ISpeechEngine
         var listed = AppContext.GetData("NATIVE_DLL_SEARCH_DIRECTORIES") as string ?? "";
         foreach (var dir in listed.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
         {
-            var candidate = Path.Combine(dir, "whisper.dll");
-            if (File.Exists(candidate)) return candidate;
-        }
-        // The host unpacks a single-file program's native libraries to <base>/.net/<name>/<hash>.
-        var extractBase = Environment.GetEnvironmentVariable("DOTNET_BUNDLE_EXTRACT_BASE_DIR");
-        if (string.IsNullOrEmpty(extractBase)) extractBase = Path.GetTempPath();
-        var appFolder = Path.Combine(extractBase, ".net", Path.GetFileNameWithoutExtension(Environment.ProcessPath ?? "murmur-helper"));
-        if (Directory.Exists(appFolder))
-        {
-            var found = new DirectoryInfo(appFolder).EnumerateDirectories()
-                .Select(d => Path.Combine(d.FullName, "whisper.dll"))
-                .Where(File.Exists)
-                .OrderByDescending(File.GetLastWriteTimeUtc)
-                .FirstOrDefault();
-            if (found is not null) return found;
+            foreach (var candidate in new[] { Path.Combine(dir, "runtimes", "win-x64", "whisper.dll"), Path.Combine(dir, "whisper.dll") })
+            {
+                if (File.Exists(candidate)) return candidate;
+            }
         }
         return null;
     }
 
     /// <summary>Where the native library was looked for, for a failure message.</summary>
     public static string NativeSearchReport() =>
-        $"base={AppContext.BaseDirectory}; native dirs={AppContext.GetData("NATIVE_DLL_SEARCH_DIRECTORIES")}; " +
-        $"temp={Path.Combine(Path.GetTempPath(), ".net")}; found={LocateNativeLibrary() ?? "none"}; files={Listing()}";
-
-    private static string Listing()
-    {
-        var parts = new List<string>();
-        foreach (var dir in (AppContext.GetData("NATIVE_DLL_SEARCH_DIRECTORIES") as string ?? "").Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
-        {
-            if (dir.Contains("dotnet", StringComparison.OrdinalIgnoreCase)) continue;
-            try { parts.Add(dir + " => " + string.Join(",", Directory.EnumerateFileSystemEntries(dir).Select(Path.GetFileName))); }
-            catch (Exception error) { parts.Add(dir + " => " + error.GetType().Name); }
-        }
-        return string.Join(" | ", parts);
-    }
-
-    public string ComputeUnits => "cpu";
+        $"base={AppContext.BaseDirectory}; found={LocateNativeLibrary() ?? "none"}";
 
     public void Load(string model, string modelDir)
     {
