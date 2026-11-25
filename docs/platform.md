@@ -119,8 +119,9 @@ its own task, so pings are answered while it works.
 - **Languages.** One language forces it; none detects it; several detect it, and if the detected
   one was not chosen the file is decoded again in the first choice.
 - **Check.** `--self-test` with `MURMUR_SELFTEST_SPEECH_MODEL` set to a folder holding a ggml
-  model has Windows speak a sentence (SAPI), then transcribes it. CI fetches the small English
-  model (`native/helper-win/scripts/fetch-test-model.ps1`, checksummed) and runs it in
+  model transcribes `jfk.wav` (a public-domain recording kept beside the model) and checks the words.
+  CI fetches the small English model and that recording
+  (`native/helper-win/scripts/fetch-test-model.ps1`, checksummed) and runs it in
   `helper-win-native` and again on the installed helper in `package-win`.
 - **Not done:** live transcription (`transcribe.live`), GPU runtimes, and a measured speed and
   accuracy check of the large model on a real machine.

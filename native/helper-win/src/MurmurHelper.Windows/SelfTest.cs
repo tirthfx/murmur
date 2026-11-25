@@ -83,7 +83,7 @@ public static class SelfTest
         var speechModel = Environment.GetEnvironmentVariable("MURMUR_SELFTEST_SPEECH_MODEL");
         if (!string.IsNullOrEmpty(speechModel))
         {
-            Check("speech: synthesise a sentence and transcribe it", () => SpeechCheck(speechModel));
+            Check("speech: transcribe a known recording", () => SpeechCheck(speechModel));
         }
         else
         {
@@ -94,38 +94,28 @@ public static class SelfTest
         return failures == 0 ? 0 : 1;
     }
 
-    /// <summary>Has Windows speak a sentence into a WAV file, then runs the same controller the helper uses on it.</summary>
+    /// <summary>
+    /// Transcribes <c>jfk.wav</c>, a public-domain recording of one sentence that the fetch script puts
+    /// beside the test model, with the same controller the helper uses.
+    /// </summary>
     private static string SpeechCheck(string modelDir)
     {
-        var path = Path.Combine(Path.GetTempPath(), "murmur-selftest-" + Guid.NewGuid().ToString("N")[..8] + ".wav");
-        try
+        var path = Path.Combine(modelDir, "jfk.wav");
+        if (!File.Exists(path)) throw new FileNotFoundException($"the test recording is missing: {path}");
+        var controller = new SpeechController(new WhisperEngine());
+        var loaded = controller.Load(new System.Text.Json.Nodes.JsonObject
         {
-            using (var voice = new System.Speech.Synthesis.SpeechSynthesizer())
-            {
-                voice.SetOutputToWaveFile(path, new System.Speech.AudioFormat.SpeechAudioFormatInfo(
-                    16000, System.Speech.AudioFormat.AudioBitsPerSample.Sixteen, System.Speech.AudioFormat.AudioChannel.Mono));
-                voice.Speak("Hello, this is a test of the speech engine.");
-            }
-            var engine = new WhisperEngine();
-            var controller = new SpeechController(engine);
-            var loaded = controller.Load(new System.Text.Json.Nodes.JsonObject
-            {
-                ["model"] = "selftest", ["modelDir"] = modelDir, ["tokenizerDir"] = modelDir,
-            });
-            var done = controller.File(new System.Text.Json.Nodes.JsonObject
-            {
-                ["path"] = path,
-                ["languages"] = new System.Text.Json.Nodes.JsonArray("en"),
-            });
-            controller.Shutdown();
-            var text = done["text"]!.GetValue<string>().ToLowerInvariant();
-            if (!text.Contains("hello") || !text.Contains("test"))
-                throw new InvalidOperationException($"unexpected transcript: \"{text}\"");
-            return $"loaded in {loaded["loadMs"]} ms, decoded in {done["decodeMs"]} ms, {done["segments"]!.AsArray().Count} segment(s)";
-        }
-        finally
+            ["model"] = "selftest", ["modelDir"] = modelDir, ["tokenizerDir"] = modelDir,
+        });
+        var done = controller.File(new System.Text.Json.Nodes.JsonObject
         {
-            try { File.Delete(path); } catch { /* temp file */ }
-        }
+            ["path"] = path,
+            ["languages"] = new System.Text.Json.Nodes.JsonArray("en"),
+        });
+        controller.Shutdown();
+        var text = done["text"]!.GetValue<string>().ToLowerInvariant();
+        if (!text.Contains("ask not") || !text.Contains("country"))
+            throw new InvalidOperationException($"unexpected transcript: \"{text}\"");
+        return $"loaded in {loaded["loadMs"]} ms, decoded in {done["decodeMs"]} ms, {done["segments"]!.AsArray().Count} segment(s)";
     }
 }

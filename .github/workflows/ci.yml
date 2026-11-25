@@ -73,7 +73,7 @@ jobs:
   helper-win-native:
     # The same helper on a real Windows machine: its tests, a native build, and `--self-test`,
     # which runs the Win32 backends (Credential Manager, windows, clipboard, hook, audio list) and
-    # has Windows speak a sentence that the speech engine transcribes.
+    # transcribes a known recording with the small speech model.
     runs-on: windows-latest
     steps:
       - name: Checkout
