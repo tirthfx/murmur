@@ -40,6 +40,7 @@ public sealed class Router
         if (_backends.Output is not null) list.Add("media.mute");
         if (_backends.FrontApp is not null) list.Add("focus.watch");
         if (_meeting is not null) list.Add("meeting.capture");
+        if (_meeting is not null && _speech is not null) list.Add("transcribe.live");
         if (_backends.Detection is not null) list.Add("detect.watch");
         if (_backends.SecureStore is not null) list.Add("keychain");
         if (_speech is not null) { list.Add("transcribe.file"); list.Add("transcribe.prompt"); list.Add("transcribe.translate"); }
@@ -59,7 +60,7 @@ public sealed class Router
         HelperError(ErrorCode.InvalidPayload, $"Line exceeds {ProtocolConstants.MaxLineBytes} bytes and was dropped");
 
     /// <summary>Requests that can take long. With a <c>later</c> callback they run on their own task, so pings keep being answered.</summary>
-    private static bool IsSlow(string type) => type is "transcribe.load" or "transcribe.file";
+    private static bool IsSlow(string type) => type is "transcribe.load" or "transcribe.file" or "transcribe.live";
 
     /// <summary>
     /// Handles one line from stdin. Never throws on bad input. A slow request (speech) answers
@@ -198,6 +199,7 @@ public sealed class Router
                 Need(_speech).Unload();
                 return new JsonObject();
             case "transcribe.file": return Need(_speech).File(p);
+            case "transcribe.live": return Live(p);
             case "capture.start": return Need(_meeting).Start(p);
             case "capture.stop": return Need(_meeting).Stop(p);
             case "keychain.get":
@@ -215,6 +217,36 @@ public sealed class Router
             default:
                 throw new HelperException(ErrorCode.UnsupportedRequest, "Unknown request type");
         }
+    }
+
+    /// <summary>Text for the chunk being recorded on a channel (NT-06). Under a second of audio holds nothing worth showing.</summary>
+    private JsonObject Live(JsonObject p)
+    {
+        var speech = Need(_speech);
+        var meeting = Need(_meeting);
+        var meetingId = Payload.Str(p, "meetingId");
+        var channel = Payload.Str(p, "channel");
+        if (channel is not ("mic" or "system"))
+            throw new HelperException(ErrorCode.InvalidPayload, "meetingId and channel are required");
+        var live = meeting.LiveAudio(meetingId, channel)
+            ?? throw new HelperException(ErrorCode.NotFound, "This channel is not being recorded");
+        JsonObject result;
+        if (live.Samples.Length < WavWriter.SampleRate)
+        {
+            result = new JsonObject
+            {
+                ["text"] = "", ["language"] = "", ["segments"] = new JsonArray(), ["decodeMs"] = 0,
+                ["audioMs"] = (int)(live.Samples.Length * 1000L / WavWriter.SampleRate),
+            };
+        }
+        else
+        {
+            result = speech.Samples(live.Samples, p);
+        }
+        result["channel"] = channel;
+        result["seq"] = live.Seq;
+        result["startMs"] = live.StartMs;
+        return result;
     }
 
     private ISecureStore Store() => Need(_backends.SecureStore);

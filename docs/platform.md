@@ -66,7 +66,7 @@ Windows 11.
 | Remote desktop | Windows-only test target, after the helper exists.                                                               |
 | Secure storage | Needs the Windows helper (Credential Manager); same key shape as the Keychain calls.                             |
 | Window titles  | Handled in data: the `windows` matchers above.                                                                   |
-| Speech runtime | Done: whisper.cpp behind `ISpeechEngine` (above). Live text and GPU are open.                                    |
+| Speech runtime | Done: whisper.cpp behind `ISpeechEngine`, with live text (above). GPU is open.                                   |
 | Paths          | Handled in the protocol (above); app data folders come from Electron.                                            |
 | Auto-start     | Handled by Electron's login item setting.                                                                        |
 | Packaging      | Installer, cleanup runtime and MCP command done and checked in CI. Signing and the update feed are open.         |
@@ -123,8 +123,12 @@ its own task, so pings are answered while it works.
   CI fetches the small English model and that recording
   (`native/helper-win/scripts/fetch-test-model.ps1`, checksummed) and runs it in
   `helper-win-native` and again on the installed helper in `package-win`.
-- **Not done:** live transcription (`transcribe.live`), GPU runtimes, and a measured speed and
-  accuracy check of the large model on a real machine.
+- **Live text.** `transcribe.live` decodes the chunk still being written on a meeting channel (kept in
+  memory beside the chunk file, up to the chunk length) and answers with the chunk's number and its
+  place on the timeline. Under a second of audio gives no text yet, a channel that is not recorded is
+  `NOT_FOUND`, and a request while another speech request runs is `BUSY`, as on the Mac.
+- **Not done:** GPU runtimes, and a measured speed and accuracy check of the large model, and of how
+  often live decoding keeps up on a real machine.
 
 ### Mouse buttons and the clipboard
 
@@ -142,7 +146,7 @@ its own task, so pings are answered while it works.
 ### What it does not do yet
 
 - **Not announced, so refused:** selection read, focus context, accessibility inspect, edit
-  watching, typing counts, media pause, process list, installed apps list, live transcription.
+  watching, typing counts, media pause, process list, installed apps list.
 - **Elevated programs** do not receive input from a program that is not elevated, so insertion and
   hotkeys do not reach them.
 

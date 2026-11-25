@@ -64,6 +64,7 @@ export const CONFORMANCE_SCENARIOS = [
   "microphone session",
   "meeting capture",
   "transcription",
+  "live transcription",
 ] as const;
 export type ConformanceScenario = (typeof CONFORMANCE_SCENARIOS)[number];
 
@@ -297,6 +298,35 @@ export function describePlatformHelperConformance(name: string, options: Conform
         helper.transcribeFile({ path: recorded.audioFile!.path, languages: [] }),
       ).rejects.toMatchObject({ code: "MODEL_NOT_LOADED" });
     });
+
+    scenario(
+      "live transcription",
+      async ({ helper, setPermission, speechModelDir, captureFolder }) => {
+        await helper.start();
+        await setPermission("microphone", "granted");
+        await helper.loadSpeechModel({
+          model: "conformance",
+          modelDir: speechModelDir,
+          tokenizerDir: speechModelDir,
+        });
+        await helper.startMeetingCapture({
+          meetingId: "meeting-live",
+          folder: captureFolder,
+          channels: ["mic"],
+          chunkSeconds: 30,
+        });
+        const live = await helper.transcribeLive({ meetingId: "meeting-live", channel: "mic" });
+        expect(live.channel).toBe("mic");
+        expect(live.seq).toBeGreaterThan(0);
+        expect(live.startMs).toBeGreaterThanOrEqual(0);
+        expect(typeof live.text).toBe("string");
+        expect(Array.isArray(live.segments)).toBe(true);
+        await expect(
+          helper.transcribeLive({ meetingId: "not-recorded", channel: "mic" }),
+        ).rejects.toMatchObject({ code: "NOT_FOUND" });
+        await helper.stopMeetingCapture("meeting-live");
+      },
+    );
 
     scenario("meeting capture", async ({ helper, setPermission, captureFolder }) => {
       await helper.start();

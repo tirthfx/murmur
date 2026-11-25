@@ -152,15 +152,23 @@ public sealed class SpeechController
     public JsonObject File(JsonObject p)
     {
         var path = Payload.Str(p, "path");
-        var languages = Payload.Strings(p, "languages").Select(Primary).Where(code => code.Length > 0).Distinct().ToList();
+        return Run(() => WavReader.ReadMono16k(path), p, Payload.TryBool(p, "keepTiming") ?? false);
+    }
+
+    /// <summary>Text for samples already in memory (the chunk being recorded). No trimming, so times match the chunk.</summary>
+    public JsonObject Samples(float[] samples, JsonObject p) => Run(() => samples, p, keepTiming: true);
+
+    private JsonObject Run(Func<float[]> load, JsonObject p, bool keepTiming)
+    {
+        var languages = (p["languages"] is JsonArray ? Payload.Strings(p, "languages") : Array.Empty<string>())
+            .Select(Primary).Where(code => code.Length > 0).Distinct().ToList();
         var prompt = Payload.TryStr(p, "prompt");
-        var keepTiming = Payload.TryBool(p, "keepTiming") ?? false;
         var translate = Payload.TryBool(p, "translate") ?? false;
         Enter();
         try
         {
             if (!_loaded) throw new HelperException("MODEL_NOT_LOADED", "No speech model is loaded.");
-            var samples = WavReader.ReadMono16k(path);
+            var samples = load();
             var audioMs = (int)(samples.Length * 1000L / WavWriter.SampleRate);
             var clock = Stopwatch.StartNew();
             var heard = Trim(samples, keepTiming, out var offsetMs);
