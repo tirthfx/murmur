@@ -44,7 +44,19 @@ public sealed class WhisperEngine : ISpeechEngine
     /// <summary>Where the native library was looked for, for a failure message.</summary>
     public static string NativeSearchReport() =>
         $"base={AppContext.BaseDirectory}; native dirs={AppContext.GetData("NATIVE_DLL_SEARCH_DIRECTORIES")}; " +
-        $"temp={Path.Combine(Path.GetTempPath(), ".net")}; found={LocateNativeLibrary() ?? "none"}";
+        $"temp={Path.Combine(Path.GetTempPath(), ".net")}; found={LocateNativeLibrary() ?? "none"}; files={Listing()}";
+
+    private static string Listing()
+    {
+        var parts = new List<string>();
+        foreach (var dir in (AppContext.GetData("NATIVE_DLL_SEARCH_DIRECTORIES") as string ?? "").Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (dir.Contains("dotnet", StringComparison.OrdinalIgnoreCase)) continue;
+            try { parts.Add(dir + " => " + string.Join(",", Directory.EnumerateFileSystemEntries(dir).Select(Path.GetFileName))); }
+            catch (Exception error) { parts.Add(dir + " => " + error.GetType().Name); }
+        }
+        return string.Join(" | ", parts);
+    }
 
     public string ComputeUnits => "cpu";
 
