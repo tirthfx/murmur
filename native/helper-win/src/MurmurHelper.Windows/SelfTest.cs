@@ -21,6 +21,7 @@ public static class SelfTest
             {
                 failures++;
                 output.WriteLine($"FAIL {name}: {error.GetType().Name}: {error.Message}");
+                output.WriteLine(error.ToString());
             }
         }
 
