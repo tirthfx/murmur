@@ -111,7 +111,7 @@ describe("the murmur-mcp command, Node version", () => {
 describe("the MCP address for each OS", () => {
   it("is a socket file on a Mac and a named pipe on Windows", () => {
     expect(mcpSocketAddress("darwin", "/Users/me/Library/Application Support", "me")).toBe(
-      "/Users/me/Library/Application Support/Murmur/mcp.sock",
+      path.join("/Users/me/Library/Application Support", "Murmur", "mcp.sock"),
     );
     const pipe = mcpSocketAddress("win32", "C:\\Users\\me\\AppData\\Roaming", "Me Name");
     expect(pipe).toBe("\\\\.\\pipe\\murmur-mcp-Me_Name");
