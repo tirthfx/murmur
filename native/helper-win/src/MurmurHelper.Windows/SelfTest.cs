@@ -63,9 +63,40 @@ public static class SelfTest
             return null;
         });
 
-        Check("keyboard hook starts and stops", () =>
+        Check("clipboard keeps every copyable format", () =>
         {
-            using var hook = new WindowsKeyboardHook((_, _) => { });
+            // Text, HTML, a bitmap (CF_DIB) and a format an app registered, saved, replaced, put back.
+            var custom = Native.RegisterClipboardFormat("MurmurSelfTestFormat");
+            var dib = new byte[44];
+            BitConverter.GetBytes(40).CopyTo(dib, 0); // biSize
+            BitConverter.GetBytes(1).CopyTo(dib, 4); // width
+            BitConverter.GetBytes(1).CopyTo(dib, 8); // height
+            BitConverter.GetBytes((short)1).CopyTo(dib, 12); // planes
+            BitConverter.GetBytes((short)24).CopyTo(dib, 14); // bits per pixel
+            var blob = new byte[] { 1, 2, 3, 250, 0, 7 };
+            WindowsClipboard.WriteText("original text", "<b>original</b>");
+            if (!WindowsClipboard.Open()) throw new InvalidOperationException("the clipboard did not open");
+            try
+            {
+                WindowsClipboard.Put(ClipboardPolicy.CfDib, dib);
+                WindowsClipboard.Put(custom, blob);
+            }
+            finally { Native.CloseClipboard(); }
+            var saved = WindowsClipboard.Snapshot() ?? throw new InvalidOperationException("no snapshot");
+            WindowsClipboard.WriteText("replacement", null);
+            if (!WindowsClipboard.Restore(saved)) throw new InvalidOperationException("restore failed");
+            var back = WindowsClipboard.Snapshot() ?? throw new InvalidOperationException("no snapshot after restore");
+            if (back.Text != "original text") throw new InvalidOperationException($"text came back as \"{back.Text}\"");
+            byte[]? Of(uint format) => back.Items.Where(i => i.Format == format).Select(i => i.Data).FirstOrDefault();
+            if (Of(custom) is not { } customBack || !customBack.AsSpan(0, blob.Length).SequenceEqual(blob)) throw new InvalidOperationException("the registered format did not come back");
+            if (Of(ClipboardPolicy.CfDib) is null) throw new InvalidOperationException("the bitmap did not come back");
+            if (Of(WindowsClipboard.HtmlFormat) is null) throw new InvalidOperationException("the HTML did not come back");
+            return $"{back.Items.Count} formats, complete={saved.Complete}";
+        });
+
+        Check("keyboard and mouse hooks start and stop", () =>
+        {
+            using var hook = new WindowsInputHook((_, _) => { }, (_, _) => { });
             hook.Listen(true);
             hook.Listen(false);
             return null;

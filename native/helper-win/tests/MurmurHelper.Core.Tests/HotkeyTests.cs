@@ -89,7 +89,7 @@ public class HotkeyTests
             Bind("ok", F11),
             Bind("ok", KeyA),
             Bind("fn", KeyA, mods: new[] { "fn" }),
-            new HotkeyBinding("mouse", "dictate.hold", "mouse", 4, Array.Empty<string>(), "hold", null, false),
+            new HotkeyBinding("mouse", "dictate.hold", "mouse", 9, Array.Empty<string>(), "hold", null, false),
             Bind("high", 200),
             Bind("rw", KeyB, action: "rewrite"),
             Bind("ex", KeyB, "press", exclusive: true),
@@ -120,5 +120,92 @@ public class HotkeyTests
         Assert.Equal(122, binding.KeyCode);
         Assert.Equal(new[] { "shift" }, binding.Modifiers);
         Assert.True(binding.Exclusive);
+    }
+
+    private static HotkeyBinding Mouse(string id, int button, string mode = "hold", bool exclusive = false) =>
+        new(id, "dictate.hold", "mouse", button, Array.Empty<string>(), mode, null, exclusive);
+
+    [Fact]
+    public void AMouseHoldBindingSaysDownThenUpAndIgnoresRepeats()
+    {
+        var (engine, events, _) = Make();
+        engine.Configure(new[] { Mouse("m", HotkeyEngine.MouseBack) });
+        engine.OnMouse(HotkeyEngine.MouseBack, true);
+        engine.OnMouse(HotkeyEngine.MouseBack, true);
+        engine.OnMouse(HotkeyEngine.MouseBack, false);
+        engine.OnMouse(HotkeyEngine.MouseBack, false);
+        Assert.Equal(new[] { ("m", "down"), ("m", "up") }, events);
+    }
+
+    [Fact]
+    public void AMousePressBindingFiresOnTheButtonGoingDownOnly()
+    {
+        var (engine, events, _) = Make();
+        engine.Configure(new[] { Mouse("m", HotkeyEngine.MouseMiddle, "press") });
+        engine.OnMouse(HotkeyEngine.MouseMiddle, true);
+        engine.OnMouse(HotkeyEngine.MouseMiddle, false);
+        Assert.Equal(new[] { ("m", "press") }, events);
+    }
+
+    [Fact]
+    public void OnlyTheBoundButtonCounts()
+    {
+        var (engine, events, _) = Make();
+        engine.Configure(new[] { Mouse("m", HotkeyEngine.MouseBack) });
+        engine.OnMouse(HotkeyEngine.MouseForward, true);
+        engine.OnMouse(HotkeyEngine.MouseForward, false);
+        Assert.Empty(events);
+    }
+
+    [Fact]
+    public void AMouseButtonAndAKeyWithTheSameNumberAreNotMixedUp()
+    {
+        var (engine, events, _) = Make();
+        // Virtual key 3 is Cancel and button 3 is Back: neither may trigger the other's binding.
+        engine.Configure(new[] { Mouse("m", HotkeyEngine.MouseBack), Bind("k", 3, "press") });
+        engine.OnKey(3, true); engine.OnKey(3, false);
+        Assert.Equal(new[] { ("k", "press") }, events);
+        events.Clear();
+        engine.OnMouse(HotkeyEngine.MouseBack, true); engine.OnMouse(HotkeyEngine.MouseBack, false);
+        Assert.Equal(new[] { ("m", "down"), ("m", "up") }, events);
+    }
+
+    [Fact]
+    public void AKeyDoesNotInterruptAMouseHold()
+    {
+        var (engine, events, _) = Make();
+        engine.Configure(new[] { Mouse("m", HotkeyEngine.MouseMiddle) });
+        engine.OnMouse(HotkeyEngine.MouseMiddle, true);
+        engine.OnKey(KeyA, true); engine.OnKey(KeyA, false);
+        engine.OnMouse(HotkeyEngine.MouseMiddle, false);
+        Assert.Equal(new[] { ("m", "down"), ("m", "up") }, events);
+    }
+
+    [Fact]
+    public void MouseButtonsWindowsDoesNotReportAndExclusiveMouseBindingsAreRejected()
+    {
+        var (engine, _, _) = Make();
+        var result = engine.Configure(new[] { Mouse("ok", HotkeyEngine.MouseForward), Mouse("many", 9), Mouse("left", 0), Mouse("ex", HotkeyEngine.MouseMiddle, exclusive: true) });
+        Assert.Equal(new[] { "ok" }, result.Registered);
+        Assert.Equal(new[] { "UNSUPPORTED_TRIGGER", "UNSUPPORTED_TRIGGER", "INVALID_BINDING" }, result.Rejected.Select(r => r.Code));
+    }
+
+    [Fact]
+    public void ReconfiguringLetsGoOfAHeldMouseButton()
+    {
+        var (engine, events, _) = Make();
+        engine.Configure(new[] { Mouse("m", HotkeyEngine.MouseBack) });
+        engine.OnMouse(HotkeyEngine.MouseBack, true);
+        engine.Configure(new[] { Mouse("m", HotkeyEngine.MouseBack) });
+        engine.OnMouse(HotkeyEngine.MouseBack, true); // down again after the reset
+        Assert.Equal(new[] { ("m", "down"), ("m", "down") }, events);
+    }
+
+    [Fact]
+    public void XButtonNumbersFollowTheProtocol()
+    {
+        Assert.Equal(HotkeyEngine.MouseBack, HotkeyEngine.XButton(1u << 16));
+        Assert.Equal(HotkeyEngine.MouseForward, HotkeyEngine.XButton(2u << 16));
+        Assert.Equal(0, HotkeyEngine.XButton(3u << 16));
     }
 }

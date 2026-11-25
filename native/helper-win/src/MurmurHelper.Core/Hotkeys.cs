@@ -42,6 +42,9 @@ public sealed class HotkeyEngine : IHotkeyService
     public const int Shift = 0x10, Control = 0x11, Alt = 0x12, Windows = 0x5B;
     public const int MaxBindings = 64;
 
+    /// <summary>Mouse buttons in the protocol's numbering (middle, then the two side buttons) that Windows reports.</summary>
+    public const int MouseMiddle = 2, MouseBack = 3, MouseForward = 4;
+
     private static readonly Dictionary<string, int> ModifierKeys = new()
     {
         ["shift"] = Shift, ["control"] = Control, ["option"] = Alt, ["command"] = Windows,
@@ -57,6 +60,7 @@ public sealed class HotkeyEngine : IHotkeyService
     private readonly HashSet<int> _down = new();
     private readonly HashSet<int> _modifiersDown = new();
     private readonly HashSet<string> _held = new();
+    private readonly HashSet<int> _mouseDown = new();
 
     /// <param name="listening">Called with true when the first binding is set and false when none is left, so the OS hook runs only while needed.</param>
     public HotkeyEngine(EventSink sink, Func<long> now, Action<bool>? listening = null)
@@ -94,6 +98,7 @@ public sealed class HotkeyEngine : IHotkeyService
         {
             _bindings = accepted;
             _held.Clear();
+            _mouseDown.Clear();
             nowListening = accepted.Count > 0;
         }
         _listening(nowListening);
@@ -107,8 +112,16 @@ public sealed class HotkeyEngine : IHotkeyService
         if (!Modes.Contains(binding.Mode)) return ("INVALID_MODE", "The mode is not hold, toggle or press.");
         if (binding.Action == "rewrite" && string.IsNullOrEmpty(binding.RewriteId))
             return ("INVALID_BINDING", "A rewrite binding needs a rewriteId.");
+        if (binding.TriggerType == "mouse")
+        {
+            if (binding.KeyCode is not (MouseMiddle or MouseBack or MouseForward))
+                return ("UNSUPPORTED_TRIGGER", "Windows reports the middle, back and forward mouse buttons only.");
+            if (binding.Exclusive)
+                return ("INVALID_BINDING", "A mouse binding cannot be exclusive.");
+            return null;
+        }
         if (binding.TriggerType != "key")
-            return ("UNSUPPORTED_TRIGGER", "Mouse buttons cannot be used as a key on Windows yet.");
+            return ("UNSUPPORTED_TRIGGER", "The trigger must be a key or a mouse button.");
         if (binding.KeyCode is < 0 or > 127)
             return ("UNSUPPORTED_KEY", "This key code cannot be used.");
         foreach (var modifier in binding.Modifiers)
@@ -129,6 +142,7 @@ public sealed class HotkeyEngine : IHotkeyService
             _held.Clear();
             _down.Clear();
             _modifiersDown.Clear();
+            _mouseDown.Clear();
         }
         _listening(false);
     }
@@ -146,7 +160,7 @@ public sealed class HotkeyEngine : IHotkeyService
                 if (IsModifier(vk)) _modifiersDown.Add(vk);
                 foreach (var binding in _bindings)
                 {
-                    if (binding.Exclusive && _held.Contains(binding.Id) && vk != binding.KeyCode
+                    if (binding.TriggerType == "key" && binding.Exclusive && _held.Contains(binding.Id) && vk != binding.KeyCode
                         && !binding.Modifiers.Any(m => ModifierKeys[m] == vk))
                     {
                         _held.Remove(binding.Id);
@@ -155,7 +169,7 @@ public sealed class HotkeyEngine : IHotkeyService
                 }
                 foreach (var binding in _bindings)
                 {
-                    if (binding.KeyCode != vk || !ModifiersMatch(binding, vk)) continue;
+                    if (binding.TriggerType != "key" || binding.KeyCode != vk || !ModifiersMatch(binding, vk)) continue;
                     if (binding.Mode == "hold")
                     {
                         if (_held.Add(binding.Id)) events.Add((binding, "down"));
@@ -172,12 +186,44 @@ public sealed class HotkeyEngine : IHotkeyService
                 _modifiersDown.Remove(vk);
                 foreach (var binding in _bindings)
                 {
-                    if (!_held.Contains(binding.Id)) continue;
+                    if (binding.TriggerType != "key" || !_held.Contains(binding.Id)) continue;
                     if (binding.KeyCode == vk || binding.Modifiers.Any(m => ModifierKeys[m] == vk))
                     {
                         _held.Remove(binding.Id);
                         events.Add((binding, "up"));
                     }
+                }
+            }
+        }
+        foreach (var (binding, state) in events) Emit(binding, state);
+    }
+
+    /// <summary>The side button named in the high word of a mouse hook's data (1 is back, 2 is forward), in the protocol's numbering, or 0.</summary>
+    public static int XButton(uint mouseData) => (int)(mouseData >> 16) switch
+    {
+        1 => MouseBack,
+        2 => MouseForward,
+        _ => 0,
+    };
+
+    /// <summary>Feeds one mouse button change (middle, back or forward) from the OS hook.</summary>
+    public void OnMouse(int button, bool down)
+    {
+        var events = new List<(HotkeyBinding Binding, string State)>();
+        lock (_gate)
+        {
+            if (down ? !_mouseDown.Add(button) : !_mouseDown.Remove(button)) return;
+            foreach (var binding in _bindings)
+            {
+                if (binding.TriggerType != "mouse" || binding.KeyCode != button) continue;
+                if (binding.Mode == "hold")
+                {
+                    if (down && _held.Add(binding.Id)) events.Add((binding, "down"));
+                    else if (!down && _held.Remove(binding.Id)) events.Add((binding, "up"));
+                }
+                else if (down)
+                {
+                    events.Add((binding, "press"));
                 }
             }
         }

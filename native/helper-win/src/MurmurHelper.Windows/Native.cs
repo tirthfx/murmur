@@ -6,6 +6,8 @@ namespace Murmur.Helper.Windows;
 internal static class Native
 {
     public const int WH_KEYBOARD_LL = 13;
+    public const int WH_MOUSE_LL = 14;
+    public const int WM_MBUTTONDOWN = 0x207, WM_MBUTTONUP = 0x208, WM_XBUTTONDOWN = 0x20B, WM_XBUTTONUP = 0x20C;
     public const int WM_KEYDOWN = 0x0100, WM_KEYUP = 0x0101, WM_SYSKEYDOWN = 0x0104, WM_SYSKEYUP = 0x0105, WM_QUIT = 0x0012;
     public const uint INPUT_KEYBOARD = 1, KEYEVENTF_KEYUP = 0x0002, KEYEVENTF_UNICODE = 0x0004;
     public const ushort VK_CONTROL = 0x11, VK_RETURN = 0x0D, VK_V = 0x56;
@@ -14,6 +16,9 @@ internal static class Native
 
     public delegate IntPtr HookProc(int code, IntPtr wParam, IntPtr lParam);
     public delegate bool EnumWindowsProc(IntPtr hwnd, IntPtr lParam);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MsLlHookStruct { public int x, y; public uint mouseData, flags, time; public UIntPtr dwExtraInfo; }
 
     [StructLayout(LayoutKind.Sequential)]
     public struct KbdLlHookStruct { public uint vkCode, scanCode, flags, time; public UIntPtr dwExtraInfo; }

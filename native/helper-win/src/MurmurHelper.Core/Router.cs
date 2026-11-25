@@ -34,7 +34,7 @@ public sealed class Router
     public IReadOnlyList<string> Capabilities()
     {
         var list = new List<string> { "permissions.check" };
-        if (_backends.Hotkeys is not null) list.Add("hotkey.hold");
+        if (_backends.Hotkeys is not null) { list.Add("hotkey.hold"); list.Add("hotkey.mouse"); }
         if (_mic is not null) { list.Add("audio.capture"); list.Add("audio.silent-warning"); }
         if (_insertion is not null) { list.Add("insert.paste"); list.Add("insert.keystrokes"); list.Add("insert.press-enter"); }
         if (_backends.Output is not null) list.Add("media.mute");
