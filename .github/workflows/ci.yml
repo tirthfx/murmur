@@ -182,6 +182,8 @@ jobs:
           $out = & $cmd '\\.\pipe\murmur-mcp-ci-none' 2>&1 | Out-String
           if ($LASTEXITCODE -ne 1 -or $out -notmatch 'Murmur is not running') { throw "unexpected: $LASTEXITCODE $out" }
           Write-Host 'cleanup runtime loads and the MCP command answers'
+          # The last command above failed on purpose; do not let its code be the step's.
+          exit 0
 
       - name: The MCP command over a named pipe
         working-directory: apps/desktop
