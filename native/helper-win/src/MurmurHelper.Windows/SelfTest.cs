@@ -83,7 +83,7 @@ public static class SelfTest
         var speechModel = Environment.GetEnvironmentVariable("MURMUR_SELFTEST_SPEECH_MODEL");
         if (!string.IsNullOrEmpty(speechModel))
         {
-            Check("speech: transcribe a known recording", () => SpeechCheck(speechModel));
+            Check("speech: transcribe a known recording", () => SpeechCheck(speechModel, output));
         }
         else
         {
@@ -98,7 +98,7 @@ public static class SelfTest
     /// Transcribes <c>jfk.wav</c>, a public-domain recording of one sentence that the fetch script puts
     /// beside the test model, with the same controller the helper uses.
     /// </summary>
-    private static string SpeechCheck(string modelDir)
+    private static string SpeechCheck(string modelDir, TextWriter output)
     {
         var path = Path.Combine(modelDir, "jfk.wav");
         if (!File.Exists(path)) throw new FileNotFoundException($"the test recording is missing: {path}");
