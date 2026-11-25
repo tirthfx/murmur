@@ -49,7 +49,8 @@ public class RouterTests
         Assert.Contains("meeting.capture", caps);
         Assert.Contains("keychain", caps);
         Assert.Contains("transcribe.file", caps);
-        Assert.DoesNotContain("transcribe.live", caps);
+        Assert.Contains("transcribe.live", caps);
+        Assert.DoesNotContain("transcribe.whisperkit", caps);
     }
 
     [Fact]

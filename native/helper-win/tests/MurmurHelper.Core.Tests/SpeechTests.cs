@@ -333,3 +333,128 @@ public class WavReaderTests
     public void RefusesAFormatItCannotRead() =>
         Assert.Equal("INVALID_PAYLOAD", Assert.Throws<HelperException>(() => WavReader.Decode(Wav(1, 1, 16000, 24, new byte[30]))).Code);
 }
+
+public class LiveTranscriptionTests
+{
+    private sealed class Factory : IAudioSourceFactory
+    {
+        public readonly FakeWorld.Source Mic = new("Mic", tone: false);
+        public IReadOnlyList<AudioDeviceInfo> Devices() => Array.Empty<AudioDeviceInfo>();
+        public IAudioSource Microphone(string? deviceId) => Mic;
+        public IAudioSource? SystemOutput() => null;
+    }
+
+    /// <summary>A router with a meeting recording on the fake microphone, one 2 s chunk at a time.</summary>
+    private static (Router Router, Factory Factory, SpeechRig Rig) Start()
+    {
+        var rig = new SpeechRig();
+        var factory = new Factory();
+        var capture = new MeetingCapture(factory, rig.Rig.World.PermissionState, (t, p) => rig.Rig.Events.Add((t, p)), () => 1);
+        var backends = rig.Rig.World.Backends();
+        var router = new Router(backends, null, capture);
+        router.Handle(new Envelope("ack", "hello.ack", new JsonObject { ["accepted"] = true, ["protocolVersion"] = ProtocolConstants.ProtocolVersion, ["appVersion"] = "1" }).Encode());
+        Send(router, "transcribe.load", new JsonObject { ["model"] = "m", ["modelDir"] = rig.Folder, ["tokenizerDir"] = rig.Folder });
+        Send(router, "capture.start", new JsonObject
+        {
+            ["meetingId"] = "live-1", ["folder"] = Path.Combine(rig.Folder, "live"),
+            ["channels"] = new JsonArray("mic"), ["chunkSeconds"] = 2,
+        });
+        return (router, factory, rig);
+    }
+
+    private static Envelope Send(Router router, string type, JsonObject payload) =>
+        router.Handle(new Envelope("m-" + type, type, payload).Encode()).Single();
+
+    private static JsonObject Live(Router router, string channel = "mic", string meeting = "live-1") =>
+        Rig.Ok(Send(router, "transcribe.live", new JsonObject { ["meetingId"] = meeting, ["channel"] = channel }));
+
+    private static float[] Tone(int samples)
+    {
+        var tone = new float[samples];
+        for (var i = 0; i < samples; i++) tone[i] = 0.3f * MathF.Sin(i * 0.2f);
+        return tone;
+    }
+
+    [Fact]
+    public void TheHelperAnnouncesLiveTextWhenItCanRecordAndTranscribe()
+    {
+        var (router, _, rig) = Start();
+        using (rig) Assert.Contains("transcribe.live", router.Capabilities());
+    }
+
+    [Fact]
+    public void UnderASecondOfAudioGivesNoTextYet()
+    {
+        var (router, factory, rig) = Start();
+        using (rig)
+        {
+            factory.Mic.Push(Tone(8000));
+            var result = Live(router);
+            Assert.Equal("", result["text"]!.GetValue<string>());
+            Assert.Empty(result["segments"]!.AsArray());
+            Assert.Equal(500, result["audioMs"]!.GetValue<int>());
+            Assert.Equal(1, result["seq"]!.GetValue<int>());
+            Assert.Equal("mic", result["channel"]!.GetValue<string>());
+            Assert.Equal(0, rig.Engine.Calls);
+        }
+    }
+
+    [Fact]
+    public void TextForTheChunkSoFarCarriesItsNumberAndPlaceOnTheTimeline()
+    {
+        var (router, factory, rig) = Start();
+        using (rig)
+        {
+            factory.Mic.Push(Tone(16000 * 3)); // chunk 1 closed at 2 s, chunk 2 holds 1 s
+            var result = Live(router);
+            Assert.Equal(FakeSpeechEngine.Sentence, result["text"]!.GetValue<string>());
+            Assert.Equal(2, result["seq"]!.GetValue<int>());
+            Assert.Equal(2000L, result["startMs"]!.GetValue<long>());
+            Assert.Equal(1000, result["audioMs"]!.GetValue<int>());
+            Assert.Equal(16000, rig.Engine.LastSampleCount); // only the open chunk, untrimmed
+        }
+    }
+
+    [Fact]
+    public void BetweenChunksThereIsNothingAndTheNextChunkIsNamed()
+    {
+        var (router, factory, rig) = Start();
+        using (rig)
+        {
+            factory.Mic.Push(Tone(16000 * 2)); // exactly one chunk, closed
+            var result = Live(router);
+            Assert.Equal(0, result["audioMs"]!.GetValue<int>());
+            Assert.Equal(2, result["seq"]!.GetValue<int>());
+            Assert.Equal(2000L, result["startMs"]!.GetValue<long>());
+        }
+    }
+
+    [Fact]
+    public void AChannelOrMeetingThatIsNotRecordedIsNotFound()
+    {
+        var (router, _, rig) = Start();
+        using (rig)
+        {
+            Assert.Equal("NOT_FOUND", Rig.Error(Send(router, "transcribe.live", new JsonObject { ["meetingId"] = "live-1", ["channel"] = "system" })));
+            Assert.Equal("NOT_FOUND", Rig.Error(Send(router, "transcribe.live", new JsonObject { ["meetingId"] = "other", ["channel"] = "mic" })));
+            Assert.Equal("INVALID_PAYLOAD", Rig.Error(Send(router, "transcribe.live", new JsonObject { ["meetingId"] = "live-1", ["channel"] = "both" })));
+        }
+    }
+
+    [Fact]
+    public void LanguagesAndTranslateReachTheEngine()
+    {
+        var (router, factory, rig) = Start();
+        using (rig)
+        {
+            factory.Mic.Push(Tone(16000 * 3));
+            Rig.Ok(Send(router, "transcribe.live", new JsonObject
+            {
+                ["meetingId"] = "live-1", ["channel"] = "mic",
+                ["languages"] = new JsonArray("de"), ["translate"] = true,
+            }));
+            Assert.Equal("de", rig.Engine.LastLanguage);
+            Assert.True(rig.Engine.LastTranslate);
+        }
+    }
+}

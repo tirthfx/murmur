@@ -146,6 +146,20 @@ class ScriptedMacHelper extends FakeHelperProcess {
           decodeMs: 10,
           audioMs: 1000,
         });
+      case "transcribe.live":
+        if (this.meeting !== String(payload.meetingId)) {
+          return this.respondError(request, "NOT_FOUND", "This channel is not being recorded");
+        }
+        return this.ok(request, {
+          text: "",
+          language: "",
+          segments: [],
+          decodeMs: 0,
+          audioMs: 500,
+          channel: String(payload.channel),
+          seq: 1,
+          startMs: 0,
+        });
       case "capture.start":
         this.meeting = String(payload.meetingId);
         return this.ok(request, {

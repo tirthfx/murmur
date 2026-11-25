@@ -36,6 +36,8 @@ public sealed class MeetingCapture
         public long TotalSamples;
         public long ChunkStartSamples;
         public int Chunks;
+        /// <summary>The samples of the chunk being written, kept for live text.</summary>
+        public readonly List<float> Current = new();
         public readonly object Gate = new();
     }
 
@@ -125,6 +127,7 @@ public sealed class MeetingCapture
                 var room = channel.ChunkSamples - (int)(channel.TotalSamples - channel.ChunkStartSamples);
                 var take = Math.Min(room, samples.Length - offset);
                 channel.Writer!.Write(samples.AsSpan(offset, take));
+                channel.Current.AddRange(samples.AsSpan(offset, take).ToArray());
                 channel.TotalSamples += take;
                 offset += take;
                 if (channel.TotalSamples - channel.ChunkStartSamples >= channel.ChunkSamples) closed.Add(CloseChunk(meeting, channel));
@@ -150,6 +153,7 @@ public sealed class MeetingCapture
         channel.ChunkStartSamples = channel.TotalSamples;
         channel.PartialPath = ChunkPath(meeting, channel, partial: true);
         channel.Writer = new WavWriter(channel.PartialPath);
+        channel.Current.Clear();
     }
 
     private static JsonObject CloseChunk(Meeting meeting, Channel channel)
@@ -158,6 +162,7 @@ public sealed class MeetingCapture
         var samples = writer.Samples;
         writer.Dispose();
         channel.Writer = null;
+        channel.Current.Clear();
         var final = ChunkPath(meeting, channel, partial: false);
         File.Move(channel.PartialPath!, final, overwrite: true);
         channel.Chunks++;
@@ -172,6 +177,25 @@ public sealed class MeetingCapture
             ["startMs"] = channel.ChunkStartSamples * 1000 / WavWriter.SampleRate,
             ["durationMs"] = samples * 1000 / WavWriter.SampleRate,
         };
+    }
+
+    /// <summary>
+    /// The chunk still being written on a channel: its number, where it starts on the timeline and
+    /// the samples so far (a copy). Null when no such meeting or channel is being recorded.
+    /// </summary>
+    public (int Seq, long StartMs, float[] Samples)? LiveAudio(string meetingId, string channelName)
+    {
+        Meeting? meeting;
+        lock (_gate) meeting = _meeting;
+        if (meeting is null || meeting.Id != meetingId) return null;
+        var channel = meeting.Channels.FirstOrDefault(c => c.Name == channelName);
+        if (channel is null) return null;
+        lock (channel.Gate)
+        {
+            if (channel.Writer is null)
+                return (channel.Seq + 1, channel.TotalSamples * 1000 / WavWriter.SampleRate, Array.Empty<float>());
+            return (channel.Seq, channel.ChunkStartSamples * 1000 / WavWriter.SampleRate, channel.Current.ToArray());
+        }
     }
 
     public JsonObject Stop(JsonObject p)
