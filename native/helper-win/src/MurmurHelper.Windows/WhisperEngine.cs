@@ -1,4 +1,5 @@
 using Whisper.net;
+using Whisper.net.LibraryLoader;
 
 namespace Murmur.Helper.Windows;
 
@@ -10,6 +11,23 @@ public sealed class WhisperEngine : ISpeechEngine
 {
     private WhisperFactory? _factory;
 
+    /// <summary>
+    /// Whisper.net looks for its native library under <c>runtimes/win-x64</c> next to the program. A
+    /// single-file helper carries the library inside and the host unpacks it to a folder it lists in
+    /// NATIVE_DLL_SEARCH_DIRECTORIES, so point Whisper.net at that copy when the usual place is empty.
+    /// </summary>
+    private static string? LocateNativeLibrary()
+    {
+        if (File.Exists(Path.Combine(AppContext.BaseDirectory, "runtimes", "win-x64", "whisper.dll"))) return null;
+        var listed = AppContext.GetData("NATIVE_DLL_SEARCH_DIRECTORIES") as string ?? "";
+        foreach (var dir in listed.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
+        {
+            var candidate = Path.Combine(dir, "whisper.dll");
+            if (File.Exists(candidate)) return candidate;
+        }
+        return null;
+    }
+
     public string ComputeUnits => "cpu";
 
     public void Load(string model, string modelDir)
@@ -19,6 +37,8 @@ public sealed class WhisperEngine : ISpeechEngine
             throw new FileNotFoundException($"The model folder does not exist: {modelDir}");
         var file = Directory.EnumerateFiles(modelDir, "*.bin", SearchOption.TopDirectoryOnly).OrderBy(f => f, StringComparer.Ordinal).FirstOrDefault()
             ?? throw new FileNotFoundException($"No ggml model file (.bin) in {modelDir}");
+        var native = LocateNativeLibrary();
+        if (native is not null) RuntimeOptions.LibraryPath = native;
         _factory = WhisperFactory.FromPath(file);
     }
 
