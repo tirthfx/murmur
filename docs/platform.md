@@ -126,12 +126,21 @@ its own task, so pings are answered while it works.
 - **Not done:** live transcription (`transcribe.live`), GPU runtimes, and a measured speed and
   accuracy check of the large model on a real machine.
 
+### Mouse buttons and the clipboard
+
+- **Mouse bindings.** A binding on the middle, back or forward button (protocol buttons 2, 3 and 4)
+  works through a low-level mouse hook that shares its thread with the keyboard hook; hold, toggle
+  and press modes behave as for a key. Other buttons are rejected with `UNSUPPORTED_TRIGGER`, and a
+  mouse binding cannot be exclusive. The helper announces `hotkey.mouse`.
+- **Clipboard restore.** A paste saves every format whose data is global memory (text, HTML, file
+  lists, bitmaps as DIB, formats apps registered) and puts them back byte for byte. A format that is
+  a GDI handle or private to an app cannot be copied (`ClipboardPolicy`); a bitmap or palette comes
+  back from a saved DIB. When such a format was there, the rest is restored and the result says the
+  clipboard was not fully restored. Over 64 MB the clipboard is not saved. `--self-test` saves and
+  restores text, HTML, a DIB and a registered format on a Windows runner.
+
 ### What it does not do yet
 
-- **Mouse bindings.** A binding on a mouse button is rejected (`UNSUPPORTED_TRIGGER`); the key codes
-  are virtual-key codes limited to 0 to 127 by the protocol, and the fn key does not exist.
-- **Clipboard restore** is for text only. If the clipboard held an image or files, the paste goes
-  ahead and the result says it was not restored.
 - **Not announced, so refused:** selection read, focus context, accessibility inspect, edit
   watching, typing counts, media pause, process list, installed apps list, live transcription.
 - **Elevated programs** do not receive input from a program that is not elevated, so insertion and

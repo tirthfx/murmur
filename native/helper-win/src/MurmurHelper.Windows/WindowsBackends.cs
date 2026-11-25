@@ -6,7 +6,7 @@ public static class WindowsBackends
     public static (Backends Backends, IDisposable Cleanup) Create(EventSink sink, Func<long> now)
     {
         HotkeyEngine? engine = null;
-        var keyboard = new WindowsKeyboardHook((vk, down) => engine?.OnKey(vk, down));
+        var keyboard = new WindowsInputHook((vk, down) => engine?.OnKey(vk, down), (button, down) => engine?.OnMouse(button, down));
         engine = new HotkeyEngine(sink, now, keyboard.Listen);
 
         var front = new FrontAppWatch(Windows.Front, sink);

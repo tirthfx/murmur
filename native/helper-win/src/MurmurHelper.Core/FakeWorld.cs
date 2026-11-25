@@ -140,6 +140,9 @@ public sealed class FakeWorld
             case "setPermission":
                 PermissionState.Values[Payload.Str(p, "kind")] = Payload.Str(p, "status");
                 return new JsonObject();
+            case "mouse":
+                _hotkeys.OnMouse(Payload.Int(p, "button"), Payload.Bool(p, "down"));
+                return new JsonObject();
             case "key":
             {
                 var down = Payload.Bool(p, "down");
