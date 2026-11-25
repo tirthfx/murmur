@@ -2,9 +2,14 @@ import path from "node:path";
 import type { McpClientKind, McpDiffLine } from "@murmur/shared";
 
 /** The config file of each app Murmur can set up, under the owner's home folder. */
-export function clientConfigPath(kind: Exclude<McpClientKind, "other">, home: string): string {
+export function clientConfigPath(
+  kind: Exclude<McpClientKind, "other">,
+  home: string,
+  /** Where Claude desktop keeps its settings under the home folder, which depends on the OS. */
+  claudeFolder: readonly string[],
+): string {
   return kind === "claude-desktop"
-    ? path.join(home, "Library", "Application Support", "Claude", "claude_desktop_config.json")
+    ? path.join(home, ...claudeFolder, "claude_desktop_config.json")
     : path.join(home, ".cursor", "mcp.json");
 }
 

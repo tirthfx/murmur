@@ -17,6 +17,9 @@ export interface McpClientIdentity {
 /** The longest a socket path may be on macOS, bytes, with room for the terminator. */
 export const SOCKET_PATH_MAX = 100;
 
+/** A Windows named pipe: it is not a file, so it is not made, checked or removed like one. */
+export const isPipeAddress = (address: string): boolean => address.startsWith("\\\\.\\pipe\\");
+
 /** The first message on a connection: `{"jsonrpc":"2.0","method":"murmur/authorize","params":{"token":"..."}}`. */
 export const AUTHORIZE_METHOD = "murmur/authorize";
 
@@ -44,11 +47,12 @@ export function startSocketTransport(options: {
   isActive(clientId: string): boolean;
 }): Promise<RunningTransport & { disconnect(clientId: string): void }> {
   const { path, server } = options;
-  if (Buffer.byteLength(path) > SOCKET_PATH_MAX)
+  const pipe = isPipeAddress(path);
+  if (!pipe && Buffer.byteLength(path) > SOCKET_PATH_MAX)
     return Promise.reject(
       new Error("The data folder's path is too long for a local socket. Use a shorter one."),
     );
-  if (existsSync(path)) rmSync(path, { force: true });
+  if (!pipe && existsSync(path)) rmSync(path, { force: true });
 
   const sockets = new Map<net.Socket, string | null>();
   const listener = net.createServer({ allowHalfOpen: true }, (socket) => {
@@ -129,14 +133,17 @@ export function startSocketTransport(options: {
     listener.once("error", (error: NodeJS.ErrnoException) =>
       reject(new Error(`Murmur could not open the local socket (${error.code ?? "error"}).`)),
     );
-    // Created with mode 0600 from the start, and set again once it exists.
-    const previous = process.umask(0o177);
+    // Created with mode 0600 from the start, and set again once it exists. A pipe has no mode: its
+    // default access lets only this user (and administrators) open it for reading and writing.
+    const previous = pipe ? 0 : process.umask(0o177);
     try {
       listener.listen(path, () => {
-        try {
-          chmodSync(path, 0o600);
-        } catch {
-          /* the umask already did it */
+        if (!pipe) {
+          try {
+            chmodSync(path, 0o600);
+          } catch {
+            /* the umask already did it */
+          }
         }
         resolve({
           disconnect(clientId) {
@@ -146,14 +153,14 @@ export function startSocketTransport(options: {
             new Promise<void>((done) => {
               for (const socket of sockets.keys()) socket.destroy();
               listener.close(() => {
-                rmSync(path, { force: true });
+                if (!pipe) rmSync(path, { force: true });
                 done();
               });
             }),
         });
       });
     } finally {
-      process.umask(previous);
+      if (!pipe) process.umask(previous);
     }
   });
 }

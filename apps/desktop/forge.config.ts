@@ -8,12 +8,17 @@ import {
   LLM_MODULES_DIR,
   copyRuntimePackages,
   includeLlamaOptional,
+  includeLlamaOptionalWindows,
   runtimeClosure,
   skipLlamaFile,
 } from "./packaging/runtime-modules.ts";
 
 /** The command MCP clients launch; it relays stdio to the app's local socket (CN-11). */
 const mcpShim = path.resolve("packaging/murmur-mcp");
+/** On Windows the command is a launcher and a Node script, both run by the app's own Node. */
+const mcpWindowsFiles = ["murmur-mcp.cmd", "murmur-mcp.cjs"].map((name) =>
+  path.resolve("packaging", name),
+);
 
 /** Where `npm run publish:helper:win` puts the Windows helper: one file, so one hash covers it. */
 const windowsHelperFolder = path.resolve("../../native/helper-win/publish");
@@ -52,8 +57,21 @@ const config: ForgeConfig = {
     // has not been built, the package is still made and the app shows the helper as unavailable.
     postPackage: async (_config, { outputPaths, platform }) => {
       if (platform === "win32") {
-        // The Windows helper goes to resources/helper/murmur-helper.exe, with its hash beside it;
-        // the app refuses to start a helper that does not match (SW-13).
+        // The cleanup model's runtime and the MCP command go under resources, outside the asar
+        // archive, as on the Mac. The helper follows, with its hash beside it (SW-13).
+        const llm = runtimeClosure("node-llama-cpp", process.cwd(), {
+          includeOptional: includeLlamaOptionalWindows,
+        });
+        for (const outputPath of outputPaths) {
+          const resources = path.join(outputPath, "resources");
+          copyRuntimePackages(llm, path.join(resources, LLM_MODULES_DIR), skipLlamaFile);
+          console.log(`[package] included ${llm.length} packages for the cleanup model`);
+          const mcp = path.join(resources, "mcp");
+          mkdirSync(mcp, { recursive: true });
+          for (const file of mcpWindowsFiles) cpSync(file, path.join(mcp, path.basename(file)));
+          console.log(`[package] included the MCP command at ${mcp}`);
+        }
+        // The Windows helper goes to resources/helper/murmur-helper.exe.
         const exe = path.join(windowsHelperFolder, "murmur-helper.exe");
         if (!existsSync(exe)) {
           console.warn(

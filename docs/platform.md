@@ -69,7 +69,7 @@ Windows 11.
 | Speech runtime | Done: whisper.cpp behind `ISpeechEngine` (above). Live text and GPU are open.                                    |
 | Paths          | Handled in the protocol (above); app data folders come from Electron.                                            |
 | Auto-start     | Handled by Electron's login item setting.                                                                        |
-| Packaging      | Open: installer, signing and update feed need a Windows build machine and a certificate.                         |
+| Packaging      | Installer, cleanup runtime and MCP command done and checked in CI. Signing and the update feed are open.         |
 
 ## The Windows helper (`native/helper-win`)
 
@@ -147,9 +147,18 @@ its own task, so pings are answered while it works.
   which is for testing the installer only and is never distributed.
 - CI (`package-win`, a Windows runner) makes the installer, installs it silently, and checks the
   installed helper's hash and `--self-test`.
+- **Cleanup model runtime.** The Windows package carries `node-llama-cpp` and the CPU build
+  `@node-llama-cpp/win-x64` in `resources/llm-modules`, outside the asar archive, as on the Mac. The
+  GPU builds are not shipped. CI loads it with the app's own Node (`getLlama` with `build: "never"`).
+- **MCP command.** `resources/mcp/murmur-mcp.cmd` runs `murmur-mcp.cjs` with the app's own Node
+  (Electron run as Node), or with `node` when it is not inside an installed app. The local MCP
+  server listens on a named pipe, `\\.\pipe\murmur-mcp-<user>`, not a socket file; the script and
+  the pipe are tested on Windows in CI. The config Murmur writes names the command in the app's
+  current folder, so after an update the owner writes it again (Squirrel keeps a folder per version).
+  Claude desktop's config is under `AppData\Roaming\Claude`.
 - Not done: signing needs a certificate (the owner's choice and cost); an update feed needs
   somewhere to be hosted, and the update test (install a second version, keep user data) needs that
-  feed; the cleanup model's runtime and the MCP command are packaged on a Mac only so far.
+  feed.
 
 ## Still needs a Windows 11 machine
 

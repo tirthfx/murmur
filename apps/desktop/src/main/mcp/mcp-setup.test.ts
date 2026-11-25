@@ -33,7 +33,8 @@ class FakeFiles implements ConfigFiles {
 }
 
 const HOME = "/Users/me";
-const CLAUDE_FILE = clientConfigPath("claude-desktop", HOME);
+const CLAUDE_FOLDER = ["Library", "Application Support", "Claude"];
+const CLAUDE_FILE = clientConfigPath("claude-desktop", HOME, CLAUDE_FOLDER);
 
 async function setup() {
   const db = openDatabase(":memory:");
@@ -51,6 +52,7 @@ async function setup() {
     clients,
     files,
     home: HOME,
+    claudeFolder: CLAUDE_FOLDER,
     command: () => "/Applications/Murmur.app/Contents/Resources/mcp/murmur-mcp",
     socketPath: "/Users/me/Library/Application Support/Murmur/mcp.sock",
     newId: () => `p${++n}`,
@@ -155,7 +157,7 @@ describe("writing a client's config only after the owner approves the diff (CN-1
     const second = await setup();
     const p = await second.setup.preview(second.cursor.id);
     if (!p.ok) throw new Error(p.message);
-    second.files.files.set(clientConfigPath("cursor", HOME), "{}");
+    second.files.files.set(clientConfigPath("cursor", HOME, CLAUDE_FOLDER), "{}");
     expect(await second.setup.apply(p.preview.previewId)).toMatchObject({ ok: false });
   });
 

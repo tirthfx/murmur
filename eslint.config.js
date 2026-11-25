@@ -29,6 +29,15 @@ export default tseslint.config(
     },
   },
   {
+    // The `murmur-mcp` command is a plain CommonJS script that clients start.
+    files: ["apps/desktop/packaging/**/*.cjs"],
+    languageOptions: {
+      sourceType: "commonjs",
+      globals: { process: "readonly", require: "readonly" },
+    },
+    rules: { "@typescript-eslint/no-require-imports": "off" },
+  },
+  {
     // SW-08: only `services/` and the team client folder may name a team backend's SDK, and only
     // the team client folder (and its tests) may load the local server's code.
     files: ["apps/**/*.{ts,tsx}", "packages/**/*.{ts,tsx}"],
