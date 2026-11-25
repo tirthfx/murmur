@@ -66,7 +66,7 @@ Windows 11.
 | Remote desktop | Windows-only test target, after the helper exists.                                                               |
 | Secure storage | Needs the Windows helper (Credential Manager); same key shape as the Keychain calls.                             |
 | Window titles  | Handled in data: the `windows` matchers above.                                                                   |
-| Speech runtime | Open: Windows needs another backend behind the same interface.                                                   |
+| Speech runtime | Done: whisper.cpp behind `ISpeechEngine` (above). Live text and GPU are open.                                    |
 | Paths          | Handled in the protocol (above); app data folders come from Electron.                                            |
 | Auto-start     | Handled by Electron's login item setting.                                                                        |
 | Packaging      | Open: installer, signing and update feed need a Windows build machine and a certificate.                         |
@@ -100,11 +100,33 @@ A .NET 9 program (C#) that speaks the same protocol as the Mac helper over stdin
 | The Win32 backends run on Windows (`--self-test`)                                           | CI (`helper-win-native`, a Windows runner)     |
 | The conformance suite against the real Windows backends with fixture audio and a text field | Not yet: it needs a Windows 11 desktop session |
 
+### Speech on Windows
+
+`transcribe.load`, `transcribe.unload` and `transcribe.file` are done by whisper.cpp through
+Whisper.net (MIT), on the CPU. `SpeechController` in Core holds the rules (one request at a time,
+`MODEL_NOT_LOADED`, silence trimmed unless `keepTiming`, no text for a file with no sound, the
+choice among several languages, the 20-seconds-per-30 limit); `WhisperEngine` in the Windows
+project only turns samples into text behind `ISpeechEngine`. A request that can take long runs on
+its own task, so pings are answered while it works.
+
+- **Model.** `WINDOWS_SPEECH_MODEL` (`packages/shared/src/speech-models-windows.ts`) is Whisper
+  large-v3 turbo, 5-bit, as one ggml file (about 574 MB) at a pinned Hugging Face revision with its
+  size and SHA-256. The app picks the model for the OS with `speechModelFor` and downloads and
+  checks it with the same code as the Mac model. The tokenizer folder in `transcribe.load` is
+  ignored.
+- **Input.** WAV files only (16-bit PCM or 32-bit float, any rate or channel count). The
+  helper's own recordings and meeting chunks are WAV. `.m4a` is refused.
+- **Languages.** One language forces it; none detects it; several detect it, and if the detected
+  one was not chosen the file is decoded again in the first choice.
+- **Check.** `--self-test` with `MURMUR_SELFTEST_SPEECH_MODEL` set to a folder holding a ggml
+  model has Windows speak a sentence (SAPI), then transcribes it. CI fetches the small English
+  model (`native/helper-win/scripts/fetch-test-model.ps1`, checksummed) and runs it in
+  `helper-win-native` and again on the installed helper in `package-win`.
+- **Not done:** live transcription (`transcribe.live`), GPU runtimes, and a measured speed and
+  accuracy check of the large model on a real machine.
+
 ### What it does not do yet
 
-- **Speech.** There is no speech engine on Windows, so `transcribe.*` is refused as unsupported and
-  the helper does not announce those capabilities. A Windows backend (whisper.cpp or ONNX Runtime)
-  goes behind the same requests.
 - **Mouse bindings.** A binding on a mouse button is rejected (`UNSUPPORTED_TRIGGER`); the key codes
   are virtual-key codes limited to 0 to 127 by the protocol, and the fn key does not exist.
 - **Clipboard restore** is for text only. If the clipboard held an image or files, the paste goes
@@ -132,4 +154,4 @@ A .NET 9 program (C#) that speaks the same protocol as the Mac helper over stdin
 
 Seeing the Win32 backends work with a person at the keyboard (hotkeys in a real app, paste into
 Notepad, Teams and Zoom call detection, loopback audio), signing and the update feed (SW-13), and
-the speech backend.
+a speed and accuracy check of the large speech model.

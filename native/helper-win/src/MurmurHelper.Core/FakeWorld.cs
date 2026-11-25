@@ -115,6 +115,9 @@ public sealed class FakeWorld
         _detection = new MeetingDetection(() => Windows.ToList(), sink);
     }
 
+    /// <summary>A speech engine that needs no model: it answers a fixed sentence and records what it was asked.</summary>
+    public FakeSpeechEngine Speech { get; } = new();
+
     public Backends Backends() => new()
     {
         Permissions = PermissionState,
@@ -125,6 +128,7 @@ public sealed class FakeWorld
         FrontApp = _front,
         Detection = _detection,
         Output = OutputState,
+        Speech = Speech,
         TestWorld = Act,
     };
 
@@ -177,5 +181,44 @@ public sealed class FakeWorld
             default:
                 throw new HelperException(ErrorCode.InvalidPayload, "unknown test op");
         }
+    }
+}
+
+/// <summary>Stands in for a speech model on the fake OS and in tests.</summary>
+public sealed class FakeSpeechEngine : ISpeechEngine
+{
+    public const string Sentence = "this is a fake transcript";
+    public string ComputeUnits => "fake";
+    public string? LoadedFrom { get; private set; }
+    public string? LastLanguage { get; private set; }
+    public string? LastPrompt { get; private set; }
+    public bool LastTranslate { get; private set; }
+    public int LastSampleCount { get; private set; }
+    public int Calls { get; private set; }
+    /// <summary>The language the fake "detects" when it is not told one.</summary>
+    public string Detects { get; set; } = "en";
+    public string? FailLoadWith { get; set; }
+    public Action<CancellationToken>? OnTranscribe { get; set; }
+
+    public void Load(string model, string modelDir)
+    {
+        if (FailLoadWith is not null) throw new InvalidOperationException(FailLoadWith);
+        LoadedFrom = modelDir;
+    }
+
+    public void Unload() => LoadedFrom = null;
+
+    public SpeechResult Transcribe(float[] samples, string? language, string? prompt, bool translate, CancellationToken cancel)
+    {
+        Calls++;
+        LastLanguage = language;
+        LastPrompt = prompt;
+        LastTranslate = translate;
+        LastSampleCount = samples.Length;
+        OnTranscribe?.Invoke(cancel);
+        cancel.ThrowIfCancellationRequested();
+        var ms = (int)(samples.Length * 1000L / WavWriter.SampleRate);
+        return new SpeechResult(" " + Sentence + " ", language ?? Detects,
+            new[] { new SpeechSegment(0, ms, Sentence, 0.9) });
     }
 }

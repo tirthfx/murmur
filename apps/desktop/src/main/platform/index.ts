@@ -1,9 +1,12 @@
-import type {
-  HotkeyBinding,
-  HotkeyTrigger,
-  MatcherOs,
-  PermissionKind,
-  PlatformHelper,
+import {
+  DEFAULT_SPEECH_MODEL,
+  WINDOWS_SPEECH_MODEL,
+  type HotkeyBinding,
+  type HotkeyTrigger,
+  type MatcherOs,
+  type PermissionKind,
+  type PlatformHelper,
+  type SpeechModel,
 } from "@murmur/shared";
 import { convertMacImageToPng } from "./mac-image";
 import { createConsoleLogger, spawnHelperProcess, systemClock } from "../helper/node-runtime";
@@ -149,4 +152,9 @@ export function matcherOs(platform: NodeJS.Platform): MatcherOs | null {
   if (platform === "darwin") return "mac";
   if (platform === "win32") return "windows";
   return null;
+}
+
+/** The speech model this OS's helper loads: each OS runs the Whisper build that suits it. */
+export function speechModelFor(platform: NodeJS.Platform): SpeechModel {
+  return platform === "win32" ? WINDOWS_SPEECH_MODEL : DEFAULT_SPEECH_MODEL;
 }

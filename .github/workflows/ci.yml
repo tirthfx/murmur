@@ -72,7 +72,8 @@ jobs:
 
   helper-win-native:
     # The same helper on a real Windows machine: its tests, a native build, and `--self-test`,
-    # which runs the Win32 backends (Credential Manager, windows, clipboard, hook, audio list).
+    # which runs the Win32 backends (Credential Manager, windows, clipboard, hook, audio list) and
+    # has Windows speak a sentence that the speech engine transcribes.
     runs-on: windows-latest
     steps:
       - name: Checkout
@@ -88,6 +89,12 @@ jobs:
 
       - name: Build the helper
         run: dotnet build native/helper-win/src/MurmurHelper -c Release
+
+      - name: Fetch the small test speech model
+        shell: pwsh
+        run: |
+          $folder = ./native/helper-win/scripts/fetch-test-model.ps1
+          "MURMUR_SELFTEST_SPEECH_MODEL=$folder" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Self-test on Windows
         run: native/helper-win/src/MurmurHelper/bin/Release/net9.0-windows/murmur-helper.exe --self-test
@@ -114,6 +121,12 @@ jobs:
 
       - name: Install
         run: npm ci
+
+      - name: Fetch the small test speech model
+        shell: pwsh
+        run: |
+          $folder = ./native/helper-win/scripts/fetch-test-model.ps1
+          "MURMUR_SELFTEST_SPEECH_MODEL=$folder" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Publish the helper
         run: npm run publish:helper:win

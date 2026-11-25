@@ -6,6 +6,9 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />
+    <PackageReference Include="System.Speech" Version="9.0.0" />
+    <PackageReference Include="Whisper.net" Version="1.9.1" />
+    <PackageReference Include="Whisper.net.Runtime" Version="1.9.1" />
     <ProjectReference Include="../MurmurHelper.Core/MurmurHelper.Core.csproj" />
   </ItemGroup>
 </Project>

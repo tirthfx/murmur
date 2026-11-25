@@ -48,7 +48,8 @@ public class RouterTests
         var caps = hello.Payload["capabilities"]!.AsArray().Select(c => c!.GetValue<string>()).ToList();
         Assert.Contains("meeting.capture", caps);
         Assert.Contains("keychain", caps);
-        Assert.DoesNotContain("transcribe.file", caps);
+        Assert.Contains("transcribe.file", caps);
+        Assert.DoesNotContain("transcribe.live", caps);
     }
 
     [Fact]
@@ -73,7 +74,7 @@ public class RouterTests
     public void AnUnknownRequestIsUnsupportedAndAnUnreadableOneIsInvalid()
     {
         using var rig = new Rig();
-        Assert.Equal(ErrorCode.UnsupportedRequest, Rig.Error(rig.Send("transcribe.file", new JsonObject())));
+        Assert.Equal(ErrorCode.UnsupportedRequest, Rig.Error(rig.Send("selection.read", new JsonObject())));
         Assert.Equal(ErrorCode.InvalidPayload, Rig.Error(rig.Send("keychain.get", new JsonObject { ["service"] = 5 })));
         var bad = rig.Router.Handle("nonsense").Single();
         Assert.Equal("helper.error", bad.Type);

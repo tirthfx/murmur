@@ -127,6 +127,7 @@ if (!binary && !required) {
         helper,
         holdBinding: HOLD,
         captureFolder: folder,
+        speechModelDir: folder,
         async setPermission(kind, status) {
           await act({ op: "setPermission", kind, status });
         },
