@@ -9,10 +9,10 @@ const entry = serverEntry({
 
 describe("client config files (CN-11)", () => {
   it("knows where Claude desktop and Cursor keep theirs", () => {
-    expect(clientConfigPath("claude-desktop", "/Users/me")).toBe(
-      "/Users/me/Library/Application Support/Claude/claude_desktop_config.json",
-    );
-    expect(clientConfigPath("cursor", "/Users/me")).toBe("/Users/me/.cursor/mcp.json");
+    expect(
+      clientConfigPath("claude-desktop", "/Users/me", ["Library", "Application Support", "Claude"]),
+    ).toBe("/Users/me/Library/Application Support/Claude/claude_desktop_config.json");
+    expect(clientConfigPath("cursor", "/Users/me", [])).toBe("/Users/me/.cursor/mcp.json");
   });
 
   it("makes an entry with the command, the socket and the token", () => {

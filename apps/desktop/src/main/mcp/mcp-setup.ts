@@ -34,6 +34,8 @@ export function createMcpSetup(deps: {
   clients: McpClients;
   files: ConfigFiles;
   home: string;
+  /** Where Claude desktop keeps its settings under `home` (it differs by OS). */
+  claudeFolder: readonly string[];
   /** The `murmur-mcp` command's path. */
   command(): string;
   socketPath: string;
@@ -65,7 +67,7 @@ export function createMcpSetup(deps: {
           ok: false,
           message: "The app's token is not in the Keychain. Make a new token first.",
         };
-      const file = clientConfigPath(client.kind, deps.home);
+      const file = clientConfigPath(client.kind, deps.home, deps.claudeFolder);
       let seen: string | null;
       try {
         seen = deps.files.read(file);

@@ -8,6 +8,7 @@ import {
   type PlatformHelper,
   type SpeechModel,
 } from "@murmur/shared";
+import path from "node:path";
 import { convertMacImageToPng } from "./mac-image";
 import { createConsoleLogger, spawnHelperProcess, systemClock } from "../helper/node-runtime";
 import { HelperSupervisor } from "../helper/supervisor";
@@ -157,4 +158,27 @@ export function matcherOs(platform: NodeJS.Platform): MatcherOs | null {
 /** The speech model this OS's helper loads: each OS runs the Whisper build that suits it. */
 export function speechModelFor(platform: NodeJS.Platform): SpeechModel {
   return platform === "win32" ? WINDOWS_SPEECH_MODEL : DEFAULT_SPEECH_MODEL;
+}
+
+/**
+ * The address the local MCP server listens on: a socket file in the data folder on a Mac, a named
+ * pipe on Windows (a pipe is per machine, so the name carries the user).
+ */
+export function mcpSocketAddress(platform: NodeJS.Platform, appData: string, user: string): string {
+  if (platform === "win32") {
+    return `\\\\.\\pipe\\murmur-mcp-${user.replace(/[^A-Za-z0-9_.-]/g, "_")}`;
+  }
+  return path.join(appData, "Murmur", "mcp.sock");
+}
+
+/** The `murmur-mcp` command's file name in the app's `mcp` folder. */
+export function mcpCommandFileName(platform: NodeJS.Platform): string {
+  return platform === "win32" ? "murmur-mcp.cmd" : "murmur-mcp";
+}
+
+/** Where Claude desktop keeps its settings, as folders under the home folder. */
+export function claudeDesktopFolder(platform: NodeJS.Platform): readonly string[] {
+  if (platform === "darwin") return ["Library", "Application Support", "Claude"];
+  if (platform === "win32") return ["AppData", "Roaming", "Claude"];
+  return [".config", "Claude"];
 }

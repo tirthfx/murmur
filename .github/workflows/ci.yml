@@ -148,6 +148,43 @@ jobs:
           & $helper --self-test
           if ($LASTEXITCODE -ne 0) { throw 'the packaged helper failed its self-test' }
 
+      - name: Check the packaged cleanup runtime and MCP command
+        shell: pwsh
+        run: |
+          $dir = Get-ChildItem apps/desktop/out -Directory | Where-Object { $_.Name -like 'Murmur-win32-*' } | Select-Object -First 1
+          $app = Join-Path $dir.FullName 'Murmur.exe'
+          $llama = Join-Path $dir.FullName 'resources/llm-modules/node_modules/node-llama-cpp/dist/index.js'
+          if (-not (Test-Path $llama)) { throw "the cleanup runtime is not packaged: $llama" }
+          $binary = Get-ChildItem (Join-Path $dir.FullName 'resources/llm-modules/node_modules/@node-llama-cpp/win-x64') -Recurse -Filter '*.node' | Select-Object -First 1
+          if (-not $binary) { throw 'the Windows llama binary is not packaged' }
+          if (Test-Path (Join-Path $dir.FullName 'resources/llm-modules/node_modules/@node-llama-cpp/win-x64-cuda')) { throw 'a GPU build was packaged' }
+          # Load the runtime with the app's own Node, the way the utility process does.
+          $check = Join-Path $env:RUNNER_TEMP 'load-llama.mjs'
+          Set-Content -Path $check -Value @'
+          import { pathToFileURL } from "node:url";
+          const llama = await import(pathToFileURL(process.argv[2]).href);
+          const runtime = await llama.getLlama({ build: "never", gpu: false, logLevel: "error" });
+          console.log("llama loaded, gpu=" + runtime.gpu);
+          '@
+          $env:ELECTRON_RUN_AS_NODE = '1'
+          & $app $check $llama
+          if ($LASTEXITCODE -ne 0) { throw 'the packaged cleanup runtime did not load' }
+          # The MCP command: no token, then a token with nothing listening.
+          $cmd = Join-Path $dir.FullName 'resources/mcp/murmur-mcp.cmd'
+          if (-not (Test-Path $cmd)) { throw 'the MCP command is not packaged' }
+          Remove-Item Env:ELECTRON_RUN_AS_NODE -ErrorAction SilentlyContinue
+          Remove-Item Env:MURMUR_MCP_TOKEN -ErrorAction SilentlyContinue
+          $out = & $cmd '\\.\pipe\murmur-mcp-ci-none' 2>&1 | Out-String
+          if ($LASTEXITCODE -ne 1 -or $out -notmatch 'MURMUR_MCP_TOKEN is not set') { throw "unexpected: $LASTEXITCODE $out" }
+          $env:MURMUR_MCP_TOKEN = 'tok'
+          $out = & $cmd '\\.\pipe\murmur-mcp-ci-none' 2>&1 | Out-String
+          if ($LASTEXITCODE -ne 1 -or $out -notmatch 'Murmur is not running') { throw "unexpected: $LASTEXITCODE $out" }
+          Write-Host 'cleanup runtime loads and the MCP command answers'
+
+      - name: The MCP command over a named pipe
+        working-directory: apps/desktop
+        run: npx vitest run src/main/mcp/shim-js.test.ts
+
       - name: Install it and check the installed helper
         shell: pwsh
         run: |

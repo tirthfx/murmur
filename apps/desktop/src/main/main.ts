@@ -319,7 +319,10 @@ import {
   defaultRewriteShortcut,
   defaultScratchpadShortcut,
   imageToPngConverter,
+  claudeDesktopFolder,
   hostPlatform,
+  mcpCommandFileName,
+  mcpSocketAddress,
   speechModelFor,
   keyPlatform,
   matcherOs,
@@ -2316,11 +2319,11 @@ const askRunner =
         logger: createConsoleLogger("[ask]"),
       })
     : null;
-const mcpSocketPath = path.join(profile.appData, "Murmur", "mcp.sock");
+const mcpSocketPath = mcpSocketAddress(hostPlatform(), profile.appData, os.userInfo().username);
 const mcpCommandPath = () =>
   app.isPackaged
-    ? path.join(process.resourcesPath, "mcp", "murmur-mcp")
-    : path.join(app.getAppPath(), "packaging", "murmur-mcp");
+    ? path.join(process.resourcesPath, "mcp", mcpCommandFileName(hostPlatform()))
+    : path.join(app.getAppPath(), "packaging", mcpCommandFileName(hostPlatform()));
 // CN-11: the local MCP server. Off until turned on; AI clients read meeting notes, summaries,
 // transcripts and tasks through it, and nothing else.
 const mcpService =
@@ -2362,6 +2365,7 @@ const mcpSetup = mcpService
   ? createMcpSetup({
       clients: mcpService.clients,
       home: app.getPath("home"),
+      claudeFolder: claudeDesktopFolder(hostPlatform()),
       command: mcpCommandPath,
       socketPath: mcpSocketPath,
       newId: randomUUID,
