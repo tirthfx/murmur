@@ -102,6 +102,7 @@ public static class SelfTest
     {
         var path = Path.Combine(modelDir, "jfk.wav");
         if (!File.Exists(path)) throw new FileNotFoundException($"the test recording is missing: {path}");
+        output.WriteLine("     " + WhisperEngine.NativeSearchReport());
         var controller = new SpeechController(new WhisperEngine());
         var loaded = controller.Load(new System.Text.Json.Nodes.JsonObject
         {

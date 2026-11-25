@@ -25,8 +25,26 @@ public sealed class WhisperEngine : ISpeechEngine
             var candidate = Path.Combine(dir, "whisper.dll");
             if (File.Exists(candidate)) return candidate;
         }
+        // The host unpacks a single-file program's native libraries to <base>/.net/<name>/<hash>.
+        var extractBase = Environment.GetEnvironmentVariable("DOTNET_BUNDLE_EXTRACT_BASE_DIR");
+        if (string.IsNullOrEmpty(extractBase)) extractBase = Path.GetTempPath();
+        var appFolder = Path.Combine(extractBase, ".net", Path.GetFileNameWithoutExtension(Environment.ProcessPath ?? "murmur-helper"));
+        if (Directory.Exists(appFolder))
+        {
+            var found = new DirectoryInfo(appFolder).EnumerateDirectories()
+                .Select(d => Path.Combine(d.FullName, "whisper.dll"))
+                .Where(File.Exists)
+                .OrderByDescending(File.GetLastWriteTimeUtc)
+                .FirstOrDefault();
+            if (found is not null) return found;
+        }
         return null;
     }
+
+    /// <summary>Where the native library was looked for, for a failure message.</summary>
+    public static string NativeSearchReport() =>
+        $"base={AppContext.BaseDirectory}; native dirs={AppContext.GetData("NATIVE_DLL_SEARCH_DIRECTORIES")}; " +
+        $"temp={Path.Combine(Path.GetTempPath(), ".net")}; found={LocateNativeLibrary() ?? "none"}";
 
     public string ComputeUnits => "cpu";
 
