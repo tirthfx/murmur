@@ -334,6 +334,7 @@ export interface IpcDeps {
   entryUrl: string;
   getAppInfo: () => AppInfo;
   openGuide: () => Promise<boolean>;
+  helperRetry: () => boolean;
   reportProblem: () => Promise<TestingToolResult>;
   testingTool: (tool: TestingTool) => Promise<TestingToolResult>;
   axInspect: (showValues: boolean) => Promise<AxInspectResult | null>;
@@ -480,6 +481,8 @@ export function createIpcHandler(deps: IpcDeps) {
     switch (channel) {
       case IPC_CHANNELS.getAppInfo:
         return deps.getAppInfo();
+      case IPC_CHANNELS.helperRetry:
+        return deps.helperRetry();
       case IPC_CHANNELS.openGuide:
         return deps.openGuide();
       case IPC_CHANNELS.reportProblem:

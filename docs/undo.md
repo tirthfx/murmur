@@ -44,3 +44,7 @@ Not built yet: the Bar's last-result Undo button (RW-10), which waits for a Bar 
    is back exactly as it was.
 3. Repeat step 2 but type a letter after the change before "undo that": Murmur refuses and the
    text stays.
+
+## From the Bar
+
+After a command changes text, the Bar offers Undo for eight seconds (RW-10). It uses the same checks as "undo that", bringing the app back first.

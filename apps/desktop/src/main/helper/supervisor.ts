@@ -179,6 +179,17 @@ export class HelperSupervisor implements PlatformHelper {
     return this.startPromise;
   }
 
+  /** Starts the helper again after it was given up on. False when there is nothing to retry. */
+  retry(): boolean {
+    const { binary } = this.options;
+    if (this.stopping || this.connection || binary.path === null) return false;
+    if (this.status.state !== "error" && this.status.state !== "unavailable") return false;
+    this.givenUp = false;
+    this.restartTimes = [];
+    this.launch(binary.path);
+    return true;
+  }
+
   async shutdown(reason: string): Promise<void> {
     if (this.stopping) return;
     this.stopping = true;

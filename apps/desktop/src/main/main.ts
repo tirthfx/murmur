@@ -132,6 +132,7 @@ import {
   DEFAULT_BAR,
   DEFAULT_INSERTION,
   SOUND_VOLUME_DEFAULT,
+  UNDO_MESSAGES,
 } from "@murmur/shared";
 import {
   createNavigationGuard,
@@ -144,6 +145,7 @@ import { createBarController } from "./bar/bar-controller";
 import type { BarEvent } from "./bar/bar-machine";
 import { barEventFor } from "./bar/bar-events";
 import { createBarIpcHandler } from "./bar/bar-ipc";
+import { WARNING_MS as BAR_WARNING_MS } from "./bar/bar-machine";
 import { barMenu, type BarMenuAction } from "./bar/bar-menu";
 import { createNextSession } from "./bar/next-session";
 import { BarWindow, barPositionFile } from "./bar/bar-window";
@@ -493,6 +495,9 @@ const commandRuns = database ? createCommandRunStore(database) : null;
 /** The last dictation that went in, for a command said with nothing selected (RW-08). */
 let lastDictation: LastDictation | null = null;
 /** A Command Mode question on the Bar ("Delete the selected text?"), waiting for its answer. */
+/** How long the Bar offers to undo a command. */
+const UNDO_OFFER_MS = 8000;
+const UNDO_QUESTION = "Text changed";
 let commandQuestion: { answer: (yes: boolean) => void; timer: NodeJS.Timeout } | null = null;
 /** How long a Command Mode question waits before it counts as No. */
 const COMMAND_ASK_MS = 60_000;
@@ -525,6 +530,15 @@ let profilePromptShown = false;
 let offeredFact: { text: string; until: number } | null = null;
 /** The Bar's question was answered: "Save to Memory?" or the weekly profile prompt. */
 function answerBar(choice: BarAnswer): void {
+  // RW-10: Undo, offered after a command changed text. Only that question answers to this.
+  if (bar.getView().state === "ask" && bar.getView().message === UNDO_QUESTION) {
+    bar.dispatch({ type: "answered" });
+    if (choice !== "yes") return;
+    void undo
+      .undoLast("command", { refocus: true })
+      .then((result) => bar.dispatch({ type: "warn", message: UNDO_MESSAGES[result] }));
+    return;
+  }
   // The Record, Not now and Never buttons of a detected call (NT-01).
   if (
     bar.getView().actions &&
@@ -1574,7 +1588,7 @@ const rewriteController = createRewriteController({
   context: (appId, text) => rewriteContext(appId, text),
   // Web editors (Google Docs and the like) report the wrong selection through Accessibility.
   clipboardFirstInApps: () => [...BROWSERS],
-  insertRules: () => insertionRules(),
+  insertRules: () => insertionRules(settingsStore.get().insertion),
   logger: createConsoleLogger("[rewrite]"),
 });
 /** Style notes, matching Memory facts and (in Email apps) writing samples for a Rewrite. */
@@ -1612,7 +1626,7 @@ const instructThreads = database ? createInstructThreadStore(database) : null;
 const undo = createUndoService({
   helper,
   mayReadField: () => settingsStore.get().contextAwareness,
-  insertRules: () => insertionRules(),
+  insertRules: () => insertionRules(settingsStore.get().insertion),
   activateApp,
   logger: createConsoleLogger("[undo]"),
 });
@@ -1633,12 +1647,27 @@ const instructController = createInstructController({
     return { instruct: settings.instruct, contextAwareness: settings.contextAwareness };
   },
   clipboardFirstInApps: () => [...BROWSERS],
-  insertRules: () => insertionRules(),
+  insertRules: () => insertionRules(settingsStore.get().insertion),
   logger: createConsoleLogger("[instruct]"),
 });
 // Command Mode (RW-08, RW-09): rules first, then the model may pick a command id.
 const commandLogger = createConsoleLogger("[command]");
 const commandRunner = createCommandRunner({
+  offerUndo: () => {
+    // After the command's own message has had its moment (RW-10).
+    setTimeout(() => {
+      bar.dispatch({
+        type: "ask",
+        message: UNDO_QUESTION,
+        detail: "Undo puts the previous text back.",
+        actions: [
+          { answer: "yes", label: "Undo", primary: true },
+          { answer: "no", label: "Keep" },
+        ],
+        timeoutMs: UNDO_OFFER_MS,
+      });
+    }, BAR_WARNING_MS).unref();
+  },
   helper,
   chooseWithModel: async (phrase) => {
     if (!(await cleanupModelReady())) return null;
@@ -1660,7 +1689,7 @@ const commandRunner = createCommandRunner({
   runs: commandRuns,
   undo,
   clipboardFirstInApps: () => [...BROWSERS],
-  insertRules: () => insertionRules(),
+  insertRules: () => insertionRules(settingsStore.get().insertion),
   logger: commandLogger,
 });
 // Source text of old runs is cut to 200 characters after 7 days.
@@ -3615,6 +3644,7 @@ app.on("web-contents-created", (_event, contents) => {
 function registerIpc(): void {
   const handle = createIpcHandler({
     entryUrl: hubEntryUrl,
+    helperRetry: () => helper.retry(),
     openGuide: async () => {
       // HB-08: written beside the data, so any text viewer can open it.
       const file = path.join(profile.appData, "Murmur", "Murmur guide.md");

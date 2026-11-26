@@ -37,6 +37,7 @@ function setup() {
     entryUrl,
     hubSetPage: vi.fn(),
     openGuide: vi.fn(),
+    helperRetry: vi.fn(),
     reportProblem: vi.fn(() => Promise.resolve({ ok: true, message: "" })),
     testingTool: vi.fn(() => Promise.resolve({ ok: true, message: "" })),
     axInspect: vi.fn(() => Promise.resolve(null)),

@@ -42,6 +42,8 @@ export interface CommandRunnerDeps {
   runs: Pick<CommandRunStore, "record"> | null;
   /** Murmur's own undo (RW-10): edits are recorded; "undo that" uses it first. */
   undo?: Pick<UndoService, "record" | "has" | "undoLast">;
+  /** Called after an edit that can be undone, so the Bar can offer it (RW-10). */
+  offerUndo?: () => void;
   clipboardFirstInApps: () => string[];
   insertRules: () => Pick<InsertTextInput, "typeInApps" | "trimTrailingNewlinesInApps">;
   logger: Logger;
@@ -210,7 +212,9 @@ export function createCommandRunner(deps: CommandRunnerDeps): CommandRunner {
 
   /** An edit Murmur made, for undo. Never throws. */
   async function remember(appBundleId: string | null, before: string, after: string) {
-    await deps.undo?.record("command", { appBundleId, before, after }).catch(() => {});
+    if (!deps.undo) return;
+    await deps.undo.record("command", { appBundleId, before, after }).catch(() => {});
+    deps.offerUndo?.();
   }
 
   /** Commands that need no text: key presses, new line and new paragraph. */

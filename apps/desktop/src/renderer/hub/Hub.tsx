@@ -1,3 +1,4 @@
+import { HelperBanner } from "./HelperBanner";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppShell } from "@astryxdesign/core/AppShell";
 import { EmptyState } from "@astryxdesign/core/EmptyState";
@@ -228,6 +229,7 @@ function HubPages({ onRunSetup }: { onRunSetup: () => void }) {
       <div className="hub-drag-region" aria-hidden="true" />
       <AppShell sideNav={sideNav} contentPadding={0}>
         <div className="hub-page">
+          <HelperBanner />
           <Heading level={1}>{teamLocked ? "Locked" : page.title}</Heading>
           {teamLocked ? (
             <TeamLock />
