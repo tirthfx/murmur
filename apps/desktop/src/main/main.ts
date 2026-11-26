@@ -321,6 +321,8 @@ import {
   defaultFocusShortcut,
   defaultRewriteShortcut,
   defaultScratchpadShortcut,
+  defaultCopyLastShortcut,
+  defaultPasteLastShortcut,
   fileManagerAppId,
   imageToPngConverter,
   claudeDesktopFolder,
@@ -349,6 +351,7 @@ import { createModelDownload } from "./setup/model-download";
 import { dictationBlockers, hasPermissionBlocker } from "./setup/readiness";
 import { cleanupModelRoot, speechModelRoot } from "./speech/paths";
 import { insertionRules } from "./insertion/app-rules";
+import { createLastTranscript } from "./insertion/last-transcript";
 import { createTypingReminder } from "./reminder/typing-reminder";
 import { createMicCheck } from "./mic-check/mic-check";
 import { toLatinHindi } from "./speech/latin-hindi";
@@ -808,6 +811,8 @@ const settingsStore = createSettingsStore(database, {
   scratchpadShortcut: defaultScratchpadShortcut(hostPlatform()),
   // NT-03: unset until the owner picks one; the check refuses clashes with dictation keys.
   meetingShortcut: null,
+  copyLastShortcut: defaultCopyLastShortcut(hostPlatform()),
+  pasteLastShortcut: defaultPasteLastShortcut(hostPlatform()),
   scratchpad: { enabled: true, newTab: true },
   theme: "system",
   language: "en",
@@ -1311,6 +1316,7 @@ const recorder = createRecorder({
       console.warn(`[insights] could not count a dictation: ${String(error)}`);
     }
     checkMilestones(true);
+    lastTranscript.remember(dictation.finalText ?? "", id !== null);
     if (dictation.insertStatus === "failed") notifier.dictationFailed();
     if (dictation.insertStatus === "inserted" && dictation.finalText) {
       lastDictation = {
@@ -1827,6 +1833,11 @@ hotkeys.onEvent((event) => {
   }
   if (event.action === "scratchpad.open") {
     if (event.state !== "up" && settingsStore.get().scratchpad.enabled) openScratchpad();
+    return;
+  }
+  if (event.action === "copy.last" || event.action === "paste.last") {
+    if (event.state === "up") return;
+    void (event.action === "copy.last" ? lastTranscript.copy() : lastTranscript.paste());
     return;
   }
   if (event.action === "focus.toggle") {
@@ -3010,7 +3021,7 @@ function createTray(): void {
     settings: () => settingsStore.get(),
     updateSettings: (patch) => settingsStore.update(patch),
     listDevices: () => helper.listAudioDevices(),
-    lastTranscript: () => history?.lastText() ?? null,
+    lastTranscript: () => lastTranscript.read(),
     toggleDictation: () => recorder.toggle(),
     canRetry: () => recorder.canRetry(),
     retryLast: () => void recorder.retryLast(),
@@ -3278,6 +3289,24 @@ function fullSmokeChecks(
   smokeChecks = checks;
   return checks;
 }
+
+// DC-39: the last transcript, copied or pasted again by its shortcuts.
+const lastTranscript = createLastTranscript({
+  stored: () => history?.lastText() ?? null,
+  focus: () => helper.focusContext({ maxBefore: 0, maxAfter: 0 }),
+  insert: (text) =>
+    helper.insertText({
+      text,
+      method: settingsStore.get().devMode.forceTyped ? "keystrokes" : "auto",
+      restoreClipboard: true,
+      restoreDelayMs: 350,
+      ...insertionRules(),
+    }),
+  copy: (text) => helper.copyText(text),
+  busy: () => recorder.isBusy(),
+  notify: (kind, message) => bar.dispatch({ type: kind, message }),
+  logger: createConsoleLogger("[paste-last]"),
+});
 
 // Typing reminder (DC-08): the helper counts words only while it is on and not snoozed.
 const typingReminder = createTypingReminder({
@@ -3554,6 +3583,7 @@ function registerIpc(): void {
     dataCounts: () => dataDeleter?.counts() ?? { categories: [], failedFiles: 0 },
     dataDelete: (category) => {
       const result = dataDeleter?.delete(category) ?? { rows: 0, files: 0, failedFiles: 0 };
+      lastTranscript.forget();
       console.log(`[data] deleted ${category}: ${result.rows} rows, ${result.files} files`);
       return result;
     },

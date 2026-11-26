@@ -38,6 +38,8 @@ const defaults: Settings = {
   insights: { typingWpm: 40 },
   profile: { displayName: "", showOnHome: true },
   scratchpadShortcut: null,
+  copyLastShortcut: null,
+  pasteLastShortcut: null,
   meetingShortcut: null,
   scratchpad: { enabled: true, newTab: true },
   theme: "system",
@@ -122,6 +124,8 @@ describe("settings service", () => {
       focus: "Off",
       scratchpad: "Off",
       meeting: "Off",
+      copyLast: "Off",
+      pasteLast: "Off",
     });
     expect(view.devices?.[0]?.name).toBe("Desk Mic");
   });
@@ -366,5 +370,24 @@ describe("Meeting recording shortcut (NT-03)", () => {
     expect(lone.ok).toBe(false);
     const off = await service.setShortcut("meeting", null);
     expect(off.ok && off.view.shortcutLabels.meeting).toBe("Off");
+  });
+});
+
+describe("copy and paste last transcript bindings (DC-39)", () => {
+  const trigger = (keyCode: number) => ({
+    type: "key" as const,
+    keyCode,
+    modifiers: ["control" as const, "option" as const],
+  });
+
+  it("binds both as presses, and neither when turned off", () => {
+    const on = { ...defaults, copyLastShortcut: trigger(8), pasteLastShortcut: trigger(9) };
+    expect(bindingsFor(on)).toEqual(
+      expect.arrayContaining([
+        { id: "copy-last", action: "copy.last", trigger: trigger(8), mode: "press" },
+        { id: "paste-last", action: "paste.last", trigger: trigger(9), mode: "press" },
+      ]),
+    );
+    expect(bindingsFor(defaults).map((binding) => binding.id)).not.toContain("paste-last");
   });
 });

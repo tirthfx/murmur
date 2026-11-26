@@ -3,6 +3,8 @@ import { hotkeyBindingSchema, hotkeyTriggerSchema, type CapturedKey } from "@mur
 import { checkShortcut, checkTrigger } from "../settings/shortcuts";
 import {
   defaultCommandShortcut,
+  defaultCopyLastShortcut,
+  defaultPasteLastShortcut,
   defaultFocusShortcut,
   defaultHotkeyBindings,
   defaultInstructShortcut,
@@ -34,6 +36,8 @@ describe("Windows shortcuts", () => {
       defaultInstructShortcut("win32"),
       defaultFocusShortcut("win32"),
       defaultScratchpadShortcut("win32"),
+      defaultCopyLastShortcut("win32"),
+      defaultPasteLastShortcut("win32"),
     ].map((trigger) => hotkeyTriggerSchema.parse(trigger));
     expect(new Set(defaults.map((t) => keys.label(t))).size).toBe(defaults.length);
     expect(keys.label(defaults[0]!)).toBe("Ctrl+Alt+R");

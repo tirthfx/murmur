@@ -9,6 +9,9 @@ How Murmur notices the dictation key while another app is in front.
 | Hold Right Option       | Dictate while held, stop on release              |
 | Double-tap Right Option | Hands-free: recording continues after you let go |
 
+| Control+Option+C | Copy the last transcript |
+| Control+Option+V | Paste the last transcript |
+
 Left Option is a different key and does nothing. There is no default chord; a hands-free shortcut can be set in Settings (see [settings.md](settings.md)).
 
 ## Windows
@@ -19,8 +22,14 @@ Left Option is a different key and does nothing. There is no default chord; a ha
 | Double-tap Right Ctrl | Hands-free: recording continues after you let go |
 | Ctrl+Alt+R / C / I    | Rewrite panel, Command Mode, Instruct Mode       |
 | Ctrl+Alt+F / S        | Focus Mode, Scratchpad                           |
+| Ctrl+Alt+V            | Paste the last transcript                        |
+| Ctrl+Alt+Shift+C      | Copy the last transcript                         |
 
 Right Alt is not used because it is Alt Gr on many layouts. A binding on one side's modifier (Right Ctrl) ignores the other side; as the modifier of a shortcut either side counts. Windows' own shortcuts (Win+L, Alt+Tab and the like) are refused in Settings. Bindings: `apps/desktop/src/main/platform/windows-hotkeys.ts`; key names and reserved shortcuts: `windows-keymap.ts`. The low-level hook only listens, and an elevated program does not receive from it.
+
+## Copy and paste the last transcript
+
+"Last" is the newest dictation with text. Paste inserts it the way a dictation is inserted (clipboard put back, the per-app rules). When nothing has the focus, or the paste fails, the text is left on the clipboard and the Bar says so. Nothing is pasted while a dictation runs. With history storage off the text is held in memory until Murmur quits or data is deleted. Both shortcuts can be changed or turned off in Settings, Shortcuts. Code: `apps/desktop/src/main/insertion/last-transcript.ts`.
 
 ## Hands-free and cancel
 

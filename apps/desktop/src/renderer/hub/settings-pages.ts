@@ -150,6 +150,18 @@ export const SETTINGS_INDEX: readonly SettingEntry[] = [
     label: "Meeting recording shortcut",
     words: "notetaker record meeting key",
   },
+  {
+    id: "copy-last-shortcut",
+    page: "shortcuts",
+    label: "Copy last transcript shortcut",
+    words: "clipboard key",
+  },
+  {
+    id: "paste-last-shortcut",
+    page: "shortcuts",
+    label: "Paste last transcript shortcut",
+    words: "insert again key",
+  },
   { id: "mouse-hold", page: "shortcuts", label: "Push to talk (mouse)", words: "button" },
   { id: "mouse-hands-free", page: "shortcuts", label: "Hands-free (mouse)", words: "button" },
   { id: "languages", page: "languages", label: "Dictation languages", words: "language" },

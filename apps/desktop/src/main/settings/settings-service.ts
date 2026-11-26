@@ -125,6 +125,23 @@ export function bindingsFor(
       mode: "press",
     });
   }
+  // DC-39. After the others, so a shortcut the person gave something else keeps working.
+  if (settings.copyLastShortcut) {
+    bindings.push({
+      id: "copy-last",
+      action: "copy.last",
+      trigger: settings.copyLastShortcut,
+      mode: "press",
+    });
+  }
+  if (settings.pasteLastShortcut) {
+    bindings.push({
+      id: "paste-last",
+      action: "paste.last",
+      trigger: settings.pasteLastShortcut,
+      mode: "press",
+    });
+  }
   if (cancelKeyCode !== null) {
     bindings.push({
       id: "dictate-cancel",
@@ -183,6 +200,8 @@ export function createSettingsService(deps: SettingsServiceDeps): SettingsServic
           ? platform.label(settings.scratchpadShortcut)
           : "Off",
         meeting: settings.meetingShortcut ? platform.label(settings.meetingShortcut) : "Off",
+        copyLast: settings.copyLastShortcut ? platform.label(settings.copyLastShortcut) : "Off",
+        pasteLast: settings.pasteLastShortcut ? platform.label(settings.pasteLastShortcut) : "Off",
       },
       devices,
     };
@@ -213,6 +232,8 @@ export function createSettingsService(deps: SettingsServiceDeps): SettingsServic
           focus: settings.focusShortcut,
           scratchpad: settings.scratchpadShortcut,
           meeting: settings.meetingShortcut,
+          copyLast: settings.copyLastShortcut,
+          pasteLast: settings.pasteLastShortcut,
         },
         platform,
         deps.otherShortcuts?.() ?? [],

@@ -27,3 +27,10 @@ export const WINDOWS_DEFAULT_COMMAND_TRIGGER = controlAlt("C");
 export const WINDOWS_DEFAULT_INSTRUCT_TRIGGER = controlAlt("I");
 export const WINDOWS_DEFAULT_FOCUS_TRIGGER = controlAlt("F");
 export const WINDOWS_DEFAULT_SCRATCHPAD_TRIGGER = controlAlt("S");
+export const WINDOWS_DEFAULT_PASTE_LAST_TRIGGER = controlAlt("V");
+/** With Shift, because Ctrl+Alt+C is Command Mode here. */
+export const WINDOWS_DEFAULT_COPY_LAST_TRIGGER: HotkeyTrigger = {
+  type: "key",
+  keyCode: "C".charCodeAt(0),
+  modifiers: ["control", "option", "shift"],
+};
