@@ -28,6 +28,8 @@ import {
   type TeamState,
   type TeamSummary,
   type TeamView,
+  type LeaderboardPeriod,
+  type TeamLeaderboardAnswer,
 } from "@murmur/shared";
 import { createLocalTeamClient } from "./local-team-client";
 import { createSupabaseTeamClient } from "./supabase-team-client";
@@ -170,6 +172,8 @@ export function createTeamService(deps: TeamDeps) {
     sendUsage: (teamId, batchId, events) => pick().sendUsage(teamId, batchId, events),
     reportRetention: (teamId, counts) => pick().reportRetention(teamId, counts),
     propose: (teamId, input) => pick().propose(teamId, input),
+    leaderboard: (teamId, options) => pick().leaderboard(teamId, options),
+    showOnLeaderboard: (teamId, visible) => pick().showOnLeaderboard(teamId, visible),
   };
   let state: TeamState = "off";
   let serverSetUp: boolean | null = null;
@@ -776,6 +780,33 @@ export function createTeamService(deps: TeamDeps) {
       noteId: string;
     }): Promise<TeamContentResult<SharedNote>> =>
       shared(input.teamId, (c) => c.readNote(input.teamId, input.folderId, input.noteId)),
+
+    /** The team's leaderboard (TM-26), or why it cannot be shown. */
+    async leaderboard(period: LeaderboardPeriod): Promise<TeamLeaderboardAnswer> {
+      const team = teams[0];
+      if (state !== "signed_in" || !team) {
+        return { ok: false, message: "Sign in to a team to see its leaderboard." };
+      }
+      try {
+        const answer = await authed(client.leaderboard(team.id, { period }));
+        return answer.ok
+          ? { ok: true, teamName: team.name, board: answer.data }
+          : { ok: false, message: answer.error.message };
+      } catch (error) {
+        if (error instanceof Unreachable) return { ok: false, message: TEAM_MESSAGES.unreachable };
+        throw error;
+      }
+    },
+    async showOnLeaderboard(visible: boolean): Promise<boolean> {
+      const team = teams[0];
+      if (state !== "signed_in" || !team) return false;
+      try {
+        return (await authed(client.showOnLeaderboard(team.id, visible))).ok;
+      } catch (error) {
+        if (error instanceof Unreachable) return false;
+        throw error;
+      }
+    },
 
     /** Proposes an entry to the person's team; the server says if it is live or waits for review. */
     async propose(input: TeamProposeInput): Promise<TeamProposeResult> {

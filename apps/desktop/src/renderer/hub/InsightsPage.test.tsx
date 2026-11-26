@@ -86,11 +86,11 @@ describe("Insights page", () => {
     expect(await screen.findByText(/Voice Profile is off/)).toBeTruthy();
   });
 
-  it("explains that there is no leaderboard", async () => {
+  it("says why there is no leaderboard without a team", async () => {
     const user = userEvent.setup();
     render(<InsightsPage />);
     await user.click(screen.getByRole("button", { name: "Leaderboard" }));
-    expect(screen.getByText("Leaderboards need a team, which Murmur does not have.")).toBeTruthy();
+    expect(await screen.findByText("Sign in to a team to see its leaderboard.")).toBeTruthy();
     expect(screen.queryByRole("table")).toBeNull();
   });
 

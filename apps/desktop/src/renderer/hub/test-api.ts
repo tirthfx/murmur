@@ -274,6 +274,11 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
     hubSetPage: vi.fn().mockResolvedValue(undefined),
     insightsView: vi.fn().mockResolvedValue(SAMPLE_INSIGHTS),
     helperRetry: vi.fn(async () => true),
+    teamLeaderboard: vi.fn(async () => ({
+      ok: false as const,
+      message: "Sign in to a team to see its leaderboard.",
+    })),
+    teamLeaderboardShow: vi.fn(async () => true),
     openGuide: vi.fn(async () => true),
     reportProblem: vi.fn().mockResolvedValue({ ok: true, message: "Saved to /tmp/x." }),
     testingTool: vi.fn().mockResolvedValue({ ok: true, message: "Done." }),

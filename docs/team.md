@@ -143,3 +143,7 @@ A third interface next to the frozen `teamClient.v1`, `TeamAccountClient` (`pack
 - **Local server:** `POST /v1/me/password` (12 characters, not one of the last five, the person's other sessions end).
 - **Supabase:** the current password is checked by signing in with it (the email is read from the access token), then the new one is set with the person's own session (`PUT /auth/v1/user`). Murmur's 12-character minimum is checked before anything is sent. This is how an account made by the migration tool changes its temporary password.
 - **The contract** (`team-account-contract.ts`) runs on the local server in CI and on a Supabase project when one is configured: the new password signs in and the old one does not, a wrong current, a short and an unchanged password are `invalid`, no session is `unauthorized`, and a backend that is down or refused is said so first.
+
+## Leaderboard
+
+Insights, Leaderboard shows the team's ranks for the last seven days or all time, with a switch for whether you are listed (TM-26). It needs the local team server; the Supabase backend has no leaderboard yet and says so.

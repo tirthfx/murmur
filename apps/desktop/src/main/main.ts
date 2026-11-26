@@ -3674,6 +3674,10 @@ function registerIpc(): void {
   const handle = createIpcHandler({
     entryUrl: hubEntryUrl,
     helperRetry: () => helper.retry(),
+    teamLeaderboard: async (period) =>
+      teamService?.leaderboard(period) ?? { ok: false, message: "Team mode is not set up." },
+    teamLeaderboardShow: async (visible) =>
+      (await teamService?.showOnLeaderboard(visible)) ?? false,
     openGuide: async () => {
       // HB-08: written beside the data, so any text viewer can open it.
       const file = path.join(profile.appData, "Murmur", "Murmur guide.md");
