@@ -360,6 +360,7 @@ export interface IpcDeps {
   noteImageData: (id: string) => string | null;
   homeView: () => HomeView;
   historyRetry: (id: string) => Promise<HistoryRetryResult>;
+  historyCopyAudioPath: (id: string) => boolean;
   dictationState: () => DictationState;
   milestonesList: () => Milestone[];
   milestonesSeen: () => void;
@@ -538,6 +539,8 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.scratchpadOpen(request.args[0] as string | null);
       case IPC_CHANNELS.homeView:
         return deps.homeView();
+      case IPC_CHANNELS.historyCopyAudioPath:
+        return deps.historyCopyAudioPath(request.args[0] as string);
       case IPC_CHANNELS.historyRetry:
         return deps.historyRetry(request.args[0] as string);
       case IPC_CHANNELS.dictationState:

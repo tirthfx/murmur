@@ -44,6 +44,8 @@ export function languageLabel(code: string): string {
 /** A wake phrase is two to forty characters. */
 export const COMMAND_WAKE_PHRASE_LIMITS = { min: 2, max: 40 } as const;
 
+export const INSERTION_METHODS = ["auto", "paste", "type"] as const;
+
 /** DC-21: the default length cap on one recording, and its range, in minutes. */
 export const SESSION_LIMIT_DEFAULT = 20;
 export const SESSION_LIMIT_MIN = 5;
@@ -183,6 +185,18 @@ export const settingsSchema = z.strictObject({
     allSpaces: z.boolean(),
     aboveFullScreen: z.boolean(),
   }),
+  /** How text goes in (DC-31, DC-32, DC-34). */
+  insertion: z.strictObject({
+    method: z.enum(INSERTION_METHODS),
+    /** Paste into remote desktops, for sessions that share the clipboard. Typed when off. */
+    pasteInRemoteDesktops: z.boolean(),
+    /** More apps to type into, by their id. */
+    typeInApps: z.array(z.string().trim().min(1).max(255)).max(50),
+  }),
+  /** How loud the feedback sounds are, in percent (DC-40). */
+  soundVolume: z.number().int().min(0).max(100),
+  /** Warn when the microphone stays silent (DC-11). */
+  silentWarning: z.boolean(),
   /** Saying "press enter" at the end of a dictation presses Return (DC-36). */
   pressEnterCommand: z.boolean(),
   /** The local plan tier (RW-22, TM-25): unlocks features for testing; nothing is charged. */
@@ -252,6 +266,9 @@ export const settingsPatchSchema = settingsSchema
     muteWhileDictating: true,
     setupComplete: true,
     pressEnterCommand: true,
+    insertion: true,
+    soundVolume: true,
+    silentWarning: true,
     bar: true,
     smartFormatting: true,
     sessionLimitMinutes: true,
@@ -310,6 +327,9 @@ export const SETTING_KEYS: Record<keyof Settings, string> = {
   muteWhileDictating: "media.mute_while_dictating",
   setupComplete: "onboarding.complete",
   pressEnterCommand: "press_enter.enabled",
+  insertion: "insert.settings",
+  soundVolume: "sounds.volume",
+  silentWarning: "audio.silent_warning",
   bar: "ui.bar",
   smartFormatting: "format.smart",
   sessionLimitMinutes: "audio.session_limit_minutes",
@@ -346,6 +366,14 @@ export const SETTING_KEYS: Record<keyof Settings, string> = {
   mcp: "mcp.settings",
   extensions: "extensions.settings",
 };
+
+/** DC-31, DC-34 and DC-40 defaults. */
+export const DEFAULT_INSERTION: Settings["insertion"] = {
+  method: "auto",
+  pasteInRemoteDesktops: false,
+  typeInApps: [],
+};
+export const SOUND_VOLUME_DEFAULT = 50;
 
 /** HB-17 defaults for the Bar. */
 export const DEFAULT_BAR: Settings["bar"] = {

@@ -19,6 +19,10 @@ Empty text does nothing. One insertion runs at a time.
 
 Just before inserting, the focused element is read again. When the app says nothing has the focus, the text is still pasted (some apps report this wrongly), it also stays on the clipboard, and the Bar says so (`insertion/focus.ts`).
 
+## Method
+
+Settings, System: Automatic (paste, typed where pasting does not reach), Paste only or Type only. Remote desktops are typed into unless "Paste into remote desktops" is on; more apps to type into can be listed by id.
+
 ## Rich text
 
 `insert.text` takes an optional `html` (rich snippets, see `snippets.md`). The helper writes it

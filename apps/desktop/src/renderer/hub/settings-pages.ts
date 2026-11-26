@@ -55,6 +55,13 @@ export const SETTINGS_INDEX: readonly SettingEntry[] = [
     label: "Smart Formatting",
     words: "numbers dates times money email links",
   },
+  {
+    id: "insertion",
+    page: "system",
+    label: "Insertion method",
+    words: "paste type remote desktop",
+  },
+  { id: "silent-warning", page: "microphone", label: "Silent microphone warning", words: "mute" },
   { id: "context", page: "system", label: "Use the text around the cursor", words: "context" },
   { id: "typing-reminder", page: "system", label: "Suggest dictating after a lot of typing" },
   { id: "sounds", page: "system", label: "Sounds", words: "tones audio" },

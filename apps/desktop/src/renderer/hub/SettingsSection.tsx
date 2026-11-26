@@ -1,3 +1,4 @@
+import { TextArea } from "@astryxdesign/core/TextArea";
 import { RetentionPolicyNote } from "./PolicyNotice";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Banner } from "@astryxdesign/core/Banner";
@@ -107,6 +108,45 @@ function ResetShortcuts({ onSaved }: { onSaved: (view: SettingsView) => void }) 
     >
       Reset all shortcuts
     </Button>
+  );
+}
+
+const INSERTION_OPTIONS = [
+  { value: "auto", label: "Automatic" },
+  { value: "paste", label: "Paste only" },
+  { value: "type", label: "Type only" },
+];
+
+const VOLUME_OPTIONS = [10, 25, 50, 75, 100].map((percent) => ({
+  value: String(percent),
+  label: `${percent}%`,
+}));
+
+/** DC-34: apps to type into besides the built-in remote desktops, one id per line. */
+function TypedAppsField({
+  apps,
+  onChange,
+}: {
+  apps: string[];
+  onChange: (apps: string[]) => void;
+}) {
+  const [text, setText] = useState(apps.join("\n"));
+  return (
+    <TextArea
+      label="Also type into these apps"
+      description="One app id per line, such as com.example.viewer or viewer.exe."
+      value={text}
+      onChange={(value) => {
+        setText(value);
+        onChange(
+          value
+            .split("\n")
+            .map((line) => line.trim())
+            .filter((line) => line !== "" && line.length <= 255)
+            .slice(0, 50),
+        );
+      }}
+    />
   );
 }
 
@@ -371,6 +411,38 @@ export function SettingsSection({
             onChange={(smartFormatting) => update({ smartFormatting })}
           />
         </Row>
+        <Row id="insertion">
+          <VStack gap={2}>
+            <Selector
+              label="Insertion method"
+              description="Automatic pastes, and types where pasting does not reach. Typing is slower and leaves the clipboard alone."
+              options={INSERTION_OPTIONS}
+              value={settings.insertion.method}
+              onChange={(method) =>
+                update({
+                  insertion: {
+                    ...settings.insertion,
+                    method: method as SettingsView["settings"]["insertion"]["method"],
+                  },
+                })
+              }
+            />
+            <Switch
+              label="Paste into remote desktops"
+              description="Remote desktop apps are typed into. Turn this on if your remote session shares the clipboard."
+              value={settings.insertion.pasteInRemoteDesktops}
+              onChange={(pasteInRemoteDesktops) =>
+                update({ insertion: { ...settings.insertion, pasteInRemoteDesktops } })
+              }
+            />
+            <TypedAppsField
+              apps={settings.insertion.typeInApps}
+              onChange={(typeInApps) =>
+                update({ insertion: { ...settings.insertion, typeInApps } })
+              }
+            />
+          </VStack>
+        </Row>
         <Row id="context">
           <Switch
             label="Use the text around the cursor"
@@ -390,6 +462,12 @@ export function SettingsSection({
         <Row id="sounds">
           <VStack gap={2}>
             <Heading level={3}>Sounds</Heading>
+            <Selector
+              label="Volume"
+              options={VOLUME_OPTIONS}
+              value={String(settings.soundVolume)}
+              onChange={(volume) => update({ soundVolume: Number(volume) })}
+            />
             {SOUND_NAMES.map((name) => (
               <Switch
                 key={name}
@@ -1319,6 +1397,14 @@ export function SettingsSection({
             options={microphoneOptions}
             value={settings.inputDevice}
             onChange={(inputDevice) => update({ inputDevice })}
+          />
+        </Row>
+        <Row id="silent-warning">
+          <Switch
+            label="Warn when the microphone is silent"
+            description="The Bar says so when nothing is heard in the first seconds."
+            value={settings.silentWarning}
+            onChange={(silentWarning) => update({ silentWarning })}
           />
         </Row>
         <Row id="whisper">

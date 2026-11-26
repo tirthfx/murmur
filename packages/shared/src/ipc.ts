@@ -396,6 +396,7 @@ export const IPC_CHANNELS = {
   notePinMove: "notes:pin-move",
   scratchpadOpen: "scratchpad:open",
   historyRetry: "history:retry",
+  historyCopyAudioPath: "history:copy-audio-path",
   dictationState: "dictation:state",
   milestonesSeen: "milestones:seen",
   progressCardSave: "progress-card:save",
@@ -969,6 +970,10 @@ export const IPC_CONTRACT = {
   },
   // HB-02, HB-03.
   [IPC_CHANNELS.homeView]: { args: z.tuple([]), result: homeViewSchema },
+  [IPC_CHANNELS.historyCopyAudioPath]: {
+    args: z.tuple([z.string().min(1).max(64)]),
+    result: z.boolean(),
+  },
   [IPC_CHANNELS.historyRetry]: {
     args: z.tuple([z.string().min(1).max(64)]),
     result: historyRetryResultSchema,
@@ -1590,6 +1595,8 @@ export interface MurmurApi {
   homeView(): Promise<HomeView>;
   /** Transcribes a failed dictation's recording again and updates its row (HB-03). */
   historyRetry(id: string): Promise<HistoryRetryResult>;
+  /** Puts a failed dictation's recording location on the clipboard; false when it has none. */
+  historyCopyAudioPath(id: string): Promise<boolean>;
   /** The dictation state now, as the Bar shows it. */
   dictationState(): Promise<DictationState>;
   /** The dictation state as it changes. Returns an unsubscribe. */

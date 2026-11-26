@@ -193,6 +193,7 @@ function setup() {
     noteImageAdd: vi.fn(() => Promise.resolve({ ok: false as const, message: "no" })),
     noteImageData: vi.fn(() => null),
     homeView: vi.fn(),
+    historyCopyAudioPath: vi.fn(),
     historyRetry: vi.fn(() => Promise.resolve({ ok: false as const, message: "no" })),
     dictationState: vi.fn(() => "idle" as const),
     milestonesList: vi.fn(() => []),

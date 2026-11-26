@@ -130,6 +130,8 @@ import {
   SESSION_LIMIT_DEFAULT,
   type Settings,
   DEFAULT_BAR,
+  DEFAULT_INSERTION,
+  SOUND_VOLUME_DEFAULT,
 } from "@murmur/shared";
 import {
   createNavigationGuard,
@@ -356,7 +358,7 @@ import { checkModel, downloadModel, modelLocation } from "./speech/model-store";
 import { createModelDownload } from "./setup/model-download";
 import { dictationBlockers, hasPermissionBlocker } from "./setup/readiness";
 import { cleanupModelRoot, speechModelRoot } from "./speech/paths";
-import { insertionRules } from "./insertion/app-rules";
+import { insertionRules, insertionMethod } from "./insertion/app-rules";
 import { createLastTranscript } from "./insertion/last-transcript";
 import { createTypingReminder } from "./reminder/typing-reminder";
 import { createMicCheck } from "./mic-check/mic-check";
@@ -845,6 +847,9 @@ const settingsDefaults: Settings = {
   sessionLimitMinutes: SESSION_LIMIT_DEFAULT,
   smartFormatting: true,
   bar: DEFAULT_BAR,
+  insertion: DEFAULT_INSERTION,
+  soundVolume: SOUND_VOLUME_DEFAULT,
+  silentWarning: true,
   openHubOnLaunch: true,
   insights: { typingWpm: INSIGHTS_LIMITS.typingWpm.default },
   profile: { displayName: "", showOnHome: true },
@@ -1118,7 +1123,7 @@ const effects = createSessionEffects({
   settings: () => settingsStore.get(),
   playSound: (name) => {
     smokeChecks?.handleSound(name);
-    barWindow.sound(name);
+    barWindow.sound(name, settingsStore.get().soundVolume / 100);
   },
   helper,
   marker: {
@@ -1272,15 +1277,19 @@ const recorder = createRecorder({
     return helper.insertText({
       text,
       // HB-57: the Testing page can force typed insertion.
-      method: settingsStore.get().devMode.forceTyped ? "keystrokes" : "auto",
+      method: insertionMethod(
+        settingsStore.get().insertion.method,
+        settingsStore.get().devMode.forceTyped,
+      ),
       restoreClipboard: !keepOnClipboard,
       restoreDelayMs: 350,
       pressEnter,
       ...(html ? { html } : {}),
-      ...insertionRules(),
+      ...insertionRules(settingsStore.get().insertion),
     });
   },
   pressEnterCommand: () => settingsStore.get().pressEnterCommand,
+  silentWarning: () => settingsStore.get().silentWarning,
   formatting: () => {
     const { cleanupLevel, smartFormatting } = nextSession.settings();
     return {
@@ -3362,10 +3371,13 @@ const lastTranscript = createLastTranscript({
   insert: (text, options) =>
     helper.insertText({
       text,
-      method: settingsStore.get().devMode.forceTyped ? "keystrokes" : "auto",
+      method: insertionMethod(
+        settingsStore.get().insertion.method,
+        settingsStore.get().devMode.forceTyped,
+      ),
       restoreClipboard: !options?.keepOnClipboard,
       restoreDelayMs: 350,
-      ...insertionRules(),
+      ...insertionRules(settingsStore.get().insertion),
     }),
   copy: (text) => helper.copyText(text),
   busy: () => recorder.isBusy(),
@@ -4463,6 +4475,12 @@ function registerIpc(): void {
       };
     },
     historyRetry: (id) => retryFromHub(id),
+    historyCopyAudioPath: (id) => {
+      // DC-38: where a failed dictation's recording is, for the person to find it.
+      const file = history?.retrySource(id)?.audioPath;
+      if (file) clipboard.writeText(file);
+      return file !== undefined;
+    },
     dictationState: () => hubDictationState,
     milestonesList: () => {
       checkMilestones(false);

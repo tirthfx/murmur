@@ -8,11 +8,9 @@ import success from "./sounds/success.wav";
 /** Murmur's own tones, made by `scripts/make-sounds.mjs`. */
 export const SOUND_URLS: Record<SoundName, string> = { start, lock, success, error, cancel };
 
-const VOLUME = 0.5;
-
-/** Plays a sound at half volume (DC-40 default). Failures are ignored: sounds are optional. */
-export function playSound(name: SoundName): void {
+/** Plays a sound (DC-40). Failures are ignored: sounds are optional. */
+export function playSound(name: SoundName, volume = 0.5): void {
   const audio = new Audio(SOUND_URLS[name]);
-  audio.volume = VOLUME;
+  audio.volume = Math.min(1, Math.max(0, volume));
   void audio.play().catch(() => {});
 }

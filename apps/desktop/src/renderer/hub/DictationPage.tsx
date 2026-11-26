@@ -115,6 +115,16 @@ function Row({
           {canRetry ? (
             <Button
               size="sm"
+              variant="ghost"
+              label="Copy the audio file location"
+              onClick={() => void window.murmur.historyCopyAudioPath(row.id)}
+            >
+              Copy file location
+            </Button>
+          ) : null}
+          {canRetry ? (
+            <Button
+              size="sm"
               variant="secondary"
               label="Transcribe this recording again"
               isDisabled={retrying}

@@ -53,6 +53,7 @@ const api: MurmurApi = {
   },
   homeView: () => ipcRenderer.invoke(IPC_CHANNELS.homeView),
   historyRetry: (id) => ipcRenderer.invoke(IPC_CHANNELS.historyRetry, id),
+  historyCopyAudioPath: (id) => ipcRenderer.invoke(IPC_CHANNELS.historyCopyAudioPath, id),
   dictationState: () => ipcRenderer.invoke(IPC_CHANNELS.dictationState),
   onDictationState: (handler) => {
     const listener = (_event: unknown, state: unknown) => {

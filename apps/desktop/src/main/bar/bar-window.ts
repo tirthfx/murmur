@@ -147,9 +147,11 @@ export class BarWindow implements BarPort {
     if (window && !window.isDestroyed()) window.webContents.send(BAR_PUSH_CHANNELS.level, rmsDb);
   }
 
-  sound(name: SoundName): void {
+  sound(name: SoundName, volume = 0.5): void {
     const window = this.window;
-    if (window && !window.isDestroyed()) window.webContents.send(BAR_PUSH_CHANNELS.sound, name);
+    if (window && !window.isDestroyed()) {
+      window.webContents.send(BAR_PUSH_CHANNELS.sound, { name, volume });
+    }
   }
 
   /** The window a menu opens over, or null while the Bar is not shown (DC-46). */
