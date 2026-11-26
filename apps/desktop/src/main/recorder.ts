@@ -26,6 +26,8 @@ import {
   withSignature,
 } from "@murmur/shared";
 import { splitMessages } from "./experimental/split-messages";
+import { formatLists } from "./cleanup/lists";
+import { smartFormat } from "./cleanup/smart-format";
 import { splitPressEnter } from "./insertion/press-enter";
 import { applyReplacements, keepSpellings, speechPromptWithTerms } from "./dictionary/apply";
 import type { DictionaryRules } from "./dictionary/dictionary-store";
@@ -183,6 +185,11 @@ export interface RecorderDeps {
   splitMessages?: () => boolean;
   /** The length cap on one recording in minutes (DC-21), read when it starts. None when missing. */
   sessionLimitMinutes?: () => number;
+  /**
+   * Spoken lists (DC-26) and Smart Formatting (DC-29), outside Developer apps. Neither when
+   * missing.
+   */
+  formatting?: () => { lists: boolean; smart: boolean };
   /** Whether "press enter" at the end of a dictation presses Return. Off when missing. */
   pressEnterCommand?: () => boolean;
   /** Clipboard fallback when inserting is not allowed. */
@@ -957,8 +964,16 @@ export function createRecorder(deps: RecorderDeps): Recorder {
     // In Developer apps a single line is kept as a command or identifier, last, so no rule
     // adds a capital or a full stop (PZ-26).
     const ownCapitals = new Set(terms);
+    // Developer apps have their own spoken syntax; code is never reshaped here.
+    const formatting = developer ? null : (deps.formatting?.() ?? null);
+    const english = ["", "en"].includes(transcript.language ?? "");
+    const shaped = (text: string) => {
+      const listed = formatting?.lists ? formatLists(text) : text;
+      return formatting?.smart && english ? smartFormat(listed) : listed;
+    };
     const styled = (text: string) => {
-      const ruled = style.flags ? applyStyleRules(text, style.flags, keep) : text;
+      const formatted = shaped(text);
+      const ruled = style.flags ? applyStyleRules(formatted, style.flags, keep) : formatted;
       return developer ? developerFormat(ruled, ownCapitals) : ruled;
     };
     // Split into messages (experimental, DC-37): each part goes in and is sent with Return.

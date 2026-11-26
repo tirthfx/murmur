@@ -2035,3 +2035,71 @@ describe("the recording length limit (DC-21)", () => {
     expect(types().filter((type) => type === "started")).toHaveLength(2);
   });
 });
+
+describe("lists and Smart Formatting (DC-26, DC-29)", () => {
+  async function dictate(formatting: { lists: boolean; smart: boolean }, bundleId: string) {
+    const clock = new FakeClock();
+    const insert = vi.fn(async () => ({
+      method: "paste_cmd_v" as const,
+      delivered: true,
+      clipboardRestored: true,
+    }));
+    const { recorder } = setup({
+      clock,
+      insert,
+      formatting: () => formatting,
+      styles: {
+        resolve: (app) => developerOrOther(app.bundleId),
+      },
+      readContext: async () => ({
+        appName: "App",
+        bundleId,
+        windowTitle: null,
+        role: "AXTextArea",
+        subrole: null,
+        editable: true,
+        secure: false,
+        textBefore: "",
+        textAfter: "",
+      }),
+      transcribe: async () => ({
+        text: "number one pay fifty dollars number two call mum",
+        language: "en",
+        audioMs: 1000,
+        decodeMs: 10,
+        segments: [],
+      }),
+    });
+    recorder.toggle();
+    await recorder.idle();
+    recorder.toggle();
+    await recorder.idle();
+    return (insert.mock.calls[0] as unknown as [string])[0];
+  }
+
+  function developerOrOther(bundleId: string | null) {
+    const category = bundleId === "dev" ? ("developer" as const) : ("other" as const);
+    return {
+      category,
+      source: "default" as const,
+      style: {
+        id: "s",
+        category: "other" as const,
+        preset: "formal" as const,
+        instructions: "",
+        updatedAt: 0,
+      },
+    };
+  }
+
+  it("writes the list with the money formatted", async () => {
+    await expect(dictate({ lists: true, smart: true }, "notes")).resolves.toBe(
+      "1. Pay $50\n2. Call mum",
+    );
+  });
+
+  it("does neither when both are off, nor in a developer app", async () => {
+    await expect(dictate({ lists: false, smart: false }, "notes")).resolves.not.toContain("\n");
+    await expect(dictate({ lists: true, smart: true }, "dev")).resolves.toContain("fifty dollars");
+  });
+});

@@ -314,6 +314,14 @@ export function SettingsSection({
             onChange={(minutes) => update({ sessionLimitMinutes: Number(minutes) })}
           />
         </Row>
+        <Row id="smart-formatting">
+          <Switch
+            label="Smart Formatting"
+            description="Writes spoken English numbers, times, dates, money, email addresses and links the usual way: “two thirty pm” becomes “2:30 PM”. Not in developer apps."
+            value={settings.smartFormatting}
+            onChange={(smartFormatting) => update({ smartFormatting })}
+          />
+        </Row>
         <Row id="context">
           <Switch
             label="Use the text around the cursor"

@@ -39,6 +39,7 @@ function setup() {
     sounds: DEFAULT_SOUNDS,
     muteWhileDictating: false,
     sessionLimitMinutes: 20,
+    smartFormatting: true,
     setupComplete: true,
     pressEnterCommand: true,
     openHubOnLaunch: true,

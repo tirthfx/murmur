@@ -169,6 +169,8 @@ export const settingsSchema = z.strictObject({
   contextAwareness: z.boolean(),
   /** How long one recording may run before it stops by itself (DC-21). */
   sessionLimitMinutes: z.number().int().min(SESSION_LIMIT_MIN).max(SESSION_LIMIT_MAX),
+  /** Numbers, times, money, addresses and links written the usual way (DC-29). */
+  smartFormatting: z.boolean(),
   /** Saying "press enter" at the end of a dictation presses Return (DC-36). */
   pressEnterCommand: z.boolean(),
   /** The local plan tier (RW-22, TM-25): unlocks features for testing; nothing is charged. */
@@ -236,6 +238,7 @@ export const settingsPatchSchema = settingsSchema
     muteWhileDictating: true,
     setupComplete: true,
     pressEnterCommand: true,
+    smartFormatting: true,
     sessionLimitMinutes: true,
     contextAwareness: true,
     mouseButtons: true,
@@ -292,6 +295,7 @@ export const SETTING_KEYS: Record<keyof Settings, string> = {
   muteWhileDictating: "media.mute_while_dictating",
   setupComplete: "onboarding.complete",
   pressEnterCommand: "press_enter.enabled",
+  smartFormatting: "format.smart",
   sessionLimitMinutes: "audio.session_limit_minutes",
   contextAwareness: "context.enabled",
   mouseButtons: "hotkey.mouse_buttons",
