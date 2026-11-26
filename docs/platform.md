@@ -57,19 +57,19 @@ Windows 11.
 
 ## Platform differences (SW-11)
 
-| Area           | State                                                                                                            |
-| -------------- | ---------------------------------------------------------------------------------------------------------------- |
-| Permissions    | Handled: statuses and settings links come from the adapter; a Windows helper reports `granted` or `unknown`.     |
-| System audio   | Needs the Windows helper (WASAPI loopback). Limitation to state in release notes: loopback records all playback. |
-| Hotkeys        | Needs the Windows helper. Limitation: an elevated app does not receive input from a non-elevated hook.           |
-| Insertion      | Needs the Windows helper (UI Automation and paste); terminals that need Ctrl+Shift+V are a helper test target.   |
-| Remote desktop | Windows-only test target, after the helper exists.                                                               |
-| Secure storage | Needs the Windows helper (Credential Manager); same key shape as the Keychain calls.                             |
-| Window titles  | Handled in data: the `windows` matchers above.                                                                   |
-| Speech runtime | Done: whisper.cpp behind `ISpeechEngine`, with live text (above). GPU is open.                                   |
-| Paths          | Handled in the protocol (above); app data folders come from Electron.                                            |
-| Auto-start     | Handled by Electron's login item setting.                                                                        |
-| Packaging      | Installer, cleanup runtime and MCP command done and checked in CI. Signing and the update feed are open.         |
+| Area           | State                                                                                                        |
+| -------------- | ------------------------------------------------------------------------------------------------------------ |
+| Permissions    | Handled: statuses and settings links come from the adapter; a Windows helper reports `granted` or `unknown`. |
+| System audio   | Done: WASAPI loopback. Limitation to state in release notes: loopback records all playback.                  |
+| Hotkeys        | Done: low-level hooks. Limitation: an elevated app does not receive input from a non-elevated hook.          |
+| Insertion      | Done: paste and typed input. Terminals that do not take Ctrl+V are typed into; not tried in real apps.       |
+| Remote desktop | Remote desktop clients are typed into; not tried on a real remote session.                                   |
+| Secure storage | Done: Credential Manager, with the same key shape as the Keychain calls.                                     |
+| Window titles  | Handled in data: the `windows` matchers above.                                                               |
+| Speech runtime | Done: whisper.cpp behind `ISpeechEngine`, with live text (above). GPU is open.                               |
+| Paths          | Handled in the protocol (above); app data folders come from Electron.                                        |
+| Auto-start     | Handled by Electron's login item setting.                                                                    |
+| Packaging      | Installer, cleanup runtime and MCP command done and checked in CI. Signing and the update feed are open.     |
 
 ## The Windows helper (`native/helper-win`)
 
@@ -184,6 +184,8 @@ its own task, so pings are answered while it works.
   helper's target.
 - **Microphones.** When inputs change the helper sends the new list; a recording whose device went
   away, or whose capture stopped, carries on into the same file on the chosen device or the default.
+
+### Limits
 
 - **Elevated programs** do not receive input from a program that is not elevated, so insertion and
   hotkeys do not reach them.
