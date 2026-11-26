@@ -1,5 +1,6 @@
 import {
   REWRITE_PANEL_BINDING_ID,
+  SHORTCUT_SLOTS,
   planAllows,
   type AudioDevice,
   type CapturedKey,
@@ -10,13 +11,23 @@ import {
   type ShortcutResult,
   type ShortcutSlot,
 } from "@murmur/shared";
-import type { SettingsStore } from "./settings-store";
-import { checkShortcut, type KeyPlatform, type UsedShortcut } from "./shortcuts";
+import { SLOT_FIELD, type SettingsStore } from "./settings-store";
+import {
+  checkShortcut,
+  sameTrigger,
+  SLOT_NAMES,
+  type KeyPlatform,
+  type UsedShortcut,
+} from "./shortcuts";
 
 export interface SettingsServiceDeps {
   store: SettingsStore;
   platform: KeyPlatform;
   listDevices: () => Promise<AudioDevice[]>;
+  /** What each shortcut returns to (DC-06). Without it there is nothing to reset to. */
+  defaults?: Settings;
+  /** Binding ids the helper refused at the last configuration. */
+  rejected?: () => string[];
   /** Other shortcuts Murmur binds (named Rewrite shortcuts), so a slot cannot take one. */
   otherShortcuts?: () => UsedShortcut[];
 }
@@ -25,7 +36,24 @@ export interface SettingsService {
   view(): Promise<SettingsView>;
   update(patch: SettingsPatch): Promise<SettingsView>;
   setShortcut(slot: ShortcutSlot, key: CapturedKey | null): Promise<ShortcutResult>;
+  /** Back to the default for one shortcut, or for all of them (DC-06). */
+  resetShortcuts(slot: ShortcutSlot | "all"): Promise<ShortcutResult>;
 }
+
+/** The helper's binding id for each shortcut. */
+const BINDING_SLOTS: Record<string, ShortcutSlot> = {
+  "dictate-hold": "hold",
+  "dictate-toggle": "handsFree",
+  "rewrite-panel": "rewrite",
+  "command-mode": "command",
+  "instruct-mode": "instruct",
+  "focus-toggle": "focus",
+  "scratchpad-open": "scratchpad",
+  "meeting-toggle": "meeting",
+  "copy-last": "copyLast",
+  "paste-last": "pasteLast",
+  "press-enter": "pressEnter",
+};
 
 /**
  * The hotkey bindings the settings ask for. Hands-free is a press binding when set, and the
@@ -149,6 +177,22 @@ export function bindingsFor(
       mode: "press",
     });
   }
+  if (settings.pressEnterShortcut) {
+    bindings.push({
+      id: "press-enter",
+      action: "press.enter",
+      trigger: settings.pressEnterShortcut,
+      mode: "press",
+    });
+  }
+  // DC-04: the extra mouse buttons that act on a press.
+  for (const [button, id, action] of [
+    [settings.mouseButtons.pressEnter, "press-enter-mouse", "press.enter"],
+    [settings.mouseButtons.copyLast, "copy-last-mouse", "copy.last"],
+  ] as const) {
+    if (button === null || button === undefined) continue;
+    bindings.push({ id, action, trigger: { type: "mouse", button }, mode: "press" });
+  }
   if (cancelKeyCode !== null) {
     bindings.push({
       id: "dictate-cancel",
@@ -209,7 +253,11 @@ export function createSettingsService(deps: SettingsServiceDeps): SettingsServic
         meeting: settings.meetingShortcut ? platform.label(settings.meetingShortcut) : "Off",
         copyLast: settings.copyLastShortcut ? platform.label(settings.copyLastShortcut) : "Off",
         pasteLast: settings.pasteLastShortcut ? platform.label(settings.pasteLastShortcut) : "Off",
+        pressEnter: settings.pressEnterShortcut
+          ? platform.label(settings.pressEnterShortcut)
+          : "Off",
       },
+      unavailable: (deps.rejected?.() ?? []).flatMap((id) => BINDING_SLOTS[id] ?? []),
       devices,
     };
   }
@@ -219,6 +267,27 @@ export function createSettingsService(deps: SettingsServiceDeps): SettingsServic
     async update(patch) {
       store.update(patch);
       return view();
+    },
+    async resetShortcuts(slot) {
+      const defaults = deps.defaults;
+      if (!defaults) return { ok: false, message: "There is nothing to reset to." };
+      const slots = slot === "all" ? SHORTCUT_SLOTS : [slot];
+      const current = store.get();
+      if (slot !== "all") {
+        const wanted = defaults[SLOT_FIELD[slot]];
+        const holder = SHORTCUT_SLOTS.find((other) => {
+          const trigger = current[SLOT_FIELD[other]];
+          return other !== slot && wanted && trigger && sameTrigger(trigger, wanted);
+        });
+        if (holder) {
+          return {
+            ok: false,
+            message: `The default is in use for ${SLOT_NAMES[holder]}. Change that one first.`,
+          };
+        }
+      }
+      for (const each of slots) store.setShortcut(each, defaults[SLOT_FIELD[each]]);
+      return { ok: true, view: await view() };
     },
     async setShortcut(slot, key) {
       if (key === null) {
@@ -241,6 +310,7 @@ export function createSettingsService(deps: SettingsServiceDeps): SettingsServic
           meeting: settings.meetingShortcut,
           copyLast: settings.copyLastShortcut,
           pasteLast: settings.pasteLastShortcut,
+          pressEnter: settings.pressEnterShortcut,
         },
         platform,
         deps.otherShortcuts?.() ?? [],

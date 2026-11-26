@@ -1,3 +1,4 @@
+import { TextArea } from "@astryxdesign/core/TextArea";
 import { RetentionPolicyNote } from "./PolicyNotice";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Banner } from "@astryxdesign/core/Banner";
@@ -34,6 +35,7 @@ import {
   type Skill,
   type SettingsPatch,
   type SettingsView,
+  type ShortcutSlot,
 } from "@murmur/shared";
 import { CommandModeSection } from "./CommandModeSection";
 import { FocusSection } from "./FocusSection";
@@ -62,6 +64,91 @@ const SESSION_LIMIT_OPTIONS = [5, 10, 15, 20, 25, 30].map((minutes) => ({
   value: String(minutes),
   label: `${minutes} minutes`,
 }));
+
+/** Binds a button to one action, taking it from any other. */
+function assignButton(
+  buttons: SettingsView["settings"]["mouseButtons"],
+  action: keyof SettingsView["settings"]["mouseButtons"],
+  button: number | null,
+): SettingsView["settings"]["mouseButtons"] {
+  const next = { ...buttons };
+  for (const key of Object.keys(next) as (keyof typeof next)[]) {
+    if (button !== null && next[key] === button) next[key] = null;
+  }
+  next[action] = button;
+  return next;
+}
+
+const SLOT_TITLES: Record<ShortcutSlot, string> = {
+  hold: "Push to talk",
+  handsFree: "Hands-free",
+  rewrite: "Rewrite",
+  command: "Command Mode",
+  instruct: "Instruct Mode",
+  focus: "Focus Mode",
+  scratchpad: "Scratchpad",
+  meeting: "Meeting recording",
+  copyLast: "Copy last transcript",
+  pasteLast: "Paste last transcript",
+  pressEnter: "Press Enter",
+};
+
+/** DC-06: every shortcut back to its default. */
+function ResetShortcuts({ onSaved }: { onSaved: (view: SettingsView) => void }) {
+  return (
+    <Button
+      size="sm"
+      variant="secondary"
+      label="Reset all shortcuts to their defaults"
+      onClick={() => {
+        void window.murmur.resetShortcuts("all").then((result) => {
+          if (result.ok) onSaved(result.view);
+        });
+      }}
+    >
+      Reset all shortcuts
+    </Button>
+  );
+}
+
+const INSERTION_OPTIONS = [
+  { value: "auto", label: "Automatic" },
+  { value: "paste", label: "Paste only" },
+  { value: "type", label: "Type only" },
+];
+
+const VOLUME_OPTIONS = [10, 25, 50, 75, 100].map((percent) => ({
+  value: String(percent),
+  label: `${percent}%`,
+}));
+
+/** DC-34: apps to type into besides the built-in remote desktops, one id per line. */
+function TypedAppsField({
+  apps,
+  onChange,
+}: {
+  apps: string[];
+  onChange: (apps: string[]) => void;
+}) {
+  const [text, setText] = useState(apps.join("\n"));
+  return (
+    <TextArea
+      label="Also type into these apps"
+      description="One app id per line, such as com.example.viewer or viewer.exe."
+      value={text}
+      onChange={(value) => {
+        setText(value);
+        onChange(
+          value
+            .split("\n")
+            .map((line) => line.trim())
+            .filter((line) => line !== "" && line.length <= 255)
+            .slice(0, 50),
+        );
+      }}
+    />
+  );
+}
 
 const SOUND_LABELS: Record<(typeof SOUND_NAMES)[number], string> = {
   start: "Start sound",
@@ -324,6 +411,38 @@ export function SettingsSection({
             onChange={(smartFormatting) => update({ smartFormatting })}
           />
         </Row>
+        <Row id="insertion">
+          <VStack gap={2}>
+            <Selector
+              label="Insertion method"
+              description="Automatic pastes, and types where pasting does not reach. Typing is slower and leaves the clipboard alone."
+              options={INSERTION_OPTIONS}
+              value={settings.insertion.method}
+              onChange={(method) =>
+                update({
+                  insertion: {
+                    ...settings.insertion,
+                    method: method as SettingsView["settings"]["insertion"]["method"],
+                  },
+                })
+              }
+            />
+            <Switch
+              label="Paste into remote desktops"
+              description="Remote desktop apps are typed into. Turn this on if your remote session shares the clipboard."
+              value={settings.insertion.pasteInRemoteDesktops}
+              onChange={(pasteInRemoteDesktops) =>
+                update({ insertion: { ...settings.insertion, pasteInRemoteDesktops } })
+              }
+            />
+            <TypedAppsField
+              apps={settings.insertion.typeInApps}
+              onChange={(typeInApps) =>
+                update({ insertion: { ...settings.insertion, typeInApps } })
+              }
+            />
+          </VStack>
+        </Row>
         <Row id="context">
           <Switch
             label="Use the text around the cursor"
@@ -343,6 +462,12 @@ export function SettingsSection({
         <Row id="sounds">
           <VStack gap={2}>
             <Heading level={3}>Sounds</Heading>
+            <Selector
+              label="Volume"
+              options={VOLUME_OPTIONS}
+              value={String(settings.soundVolume)}
+              onChange={(volume) => update({ soundVolume: Number(volume) })}
+            />
             {SOUND_NAMES.map((name) => (
               <Switch
                 key={name}
@@ -1160,16 +1285,57 @@ export function SettingsSection({
             onSaved={setView}
           />
         </Row>
+        <Row id="press-enter-shortcut">
+          <ShortcutField
+            slot="pressEnter"
+            title="Press Enter"
+            description="Presses Return in the app you are in."
+            label={view.shortcutLabels.pressEnter}
+            canClear={settings.pressEnterShortcut !== null}
+            clear={{ label: "Turn off the press Enter shortcut", text: "Turn off" }}
+            onSaved={setView}
+          />
+        </Row>
+        {view.unavailable.length > 0 ? (
+          <Banner
+            status="warning"
+            title={`Unavailable: ${view.unavailable.map((slot) => SLOT_TITLES[slot]).join(", ")}`}
+            description="The key listener refused these shortcuts, usually because two actions share one. Change them."
+          />
+        ) : null}
+        <Row id="reset-shortcuts">
+          <ResetShortcuts onSaved={setView} />
+        </Row>
+        <Row id="mouse-press-enter">
+          <MouseButtonField
+            title="Press Enter (mouse)"
+            description="Press an extra mouse button to press Return."
+            button={settings.mouseButtons.pressEnter}
+            onChange={(pressEnter) =>
+              update({
+                mouseButtons: assignButton(settings.mouseButtons, "pressEnter", pressEnter),
+              })
+            }
+          />
+        </Row>
+        <Row id="mouse-copy-last">
+          <MouseButtonField
+            title="Copy last transcript (mouse)"
+            description="Press an extra mouse button to copy the last thing you dictated."
+            button={settings.mouseButtons.copyLast}
+            onChange={(copyLast) =>
+              update({ mouseButtons: assignButton(settings.mouseButtons, "copyLast", copyLast) })
+            }
+          />
+        </Row>
         <Row id="mouse-hold">
           <MouseButtonField
             title="Push to talk (mouse)"
             description="Hold an extra mouse button to dictate. The button also keeps doing what it did before."
             button={settings.mouseButtons.hold}
-            onChange={(hold) => {
-              const handsFree =
-                settings.mouseButtons.handsFree === hold ? null : settings.mouseButtons.handsFree;
-              update({ mouseButtons: { hold, handsFree } });
-            }}
+            onChange={(hold) =>
+              update({ mouseButtons: assignButton(settings.mouseButtons, "hold", hold) })
+            }
           />
         </Row>
         <Row id="mouse-hands-free">
@@ -1177,11 +1343,9 @@ export function SettingsSection({
             title="Hands-free (mouse)"
             description="Press an extra mouse button to start, and again to stop."
             button={settings.mouseButtons.handsFree}
-            onChange={(handsFree) => {
-              const hold =
-                settings.mouseButtons.hold === handsFree ? null : settings.mouseButtons.hold;
-              update({ mouseButtons: { hold, handsFree } });
-            }}
+            onChange={(handsFree) =>
+              update({ mouseButtons: assignButton(settings.mouseButtons, "handsFree", handsFree) })
+            }
           />
         </Row>
         <Row id="scratchpad-shortcut">
@@ -1233,6 +1397,14 @@ export function SettingsSection({
             options={microphoneOptions}
             value={settings.inputDevice}
             onChange={(inputDevice) => update({ inputDevice })}
+          />
+        </Row>
+        <Row id="silent-warning">
+          <Switch
+            label="Warn when the microphone is silent"
+            description="The Bar says so when nothing is heard in the first seconds."
+            value={settings.silentWarning}
+            onChange={(silentWarning) => update({ silentWarning })}
           />
         </Row>
         <Row id="whisper">

@@ -130,6 +130,8 @@ import {
   SESSION_LIMIT_DEFAULT,
   type Settings,
   DEFAULT_BAR,
+  DEFAULT_INSERTION,
+  SOUND_VOLUME_DEFAULT,
 } from "@murmur/shared";
 import {
   createNavigationGuard,
@@ -356,7 +358,7 @@ import { checkModel, downloadModel, modelLocation } from "./speech/model-store";
 import { createModelDownload } from "./setup/model-download";
 import { dictationBlockers, hasPermissionBlocker } from "./setup/readiness";
 import { cleanupModelRoot, speechModelRoot } from "./speech/paths";
-import { insertionRules } from "./insertion/app-rules";
+import { insertionRules, insertionMethod } from "./insertion/app-rules";
 import { createLastTranscript } from "./insertion/last-transcript";
 import { createTypingReminder } from "./reminder/typing-reminder";
 import { createMicCheck } from "./mic-check/mic-check";
@@ -802,7 +804,7 @@ const dataDeleter =
     : null;
 
 const platformDefaults = defaultHotkeyBindings(hostPlatform());
-const settingsStore = createSettingsStore(database, {
+const settingsDefaults: Settings = {
   holdShortcut:
     platformDefaults[0]?.trigger.type === "key"
       ? platformDefaults[0].trigger
@@ -820,6 +822,7 @@ const settingsStore = createSettingsStore(database, {
   meetingShortcut: null,
   copyLastShortcut: defaultCopyLastShortcut(hostPlatform()),
   pasteLastShortcut: defaultPasteLastShortcut(hostPlatform()),
+  pressEnterShortcut: null,
   scratchpad: { enabled: true, newTab: true },
   theme: "system",
   language: "en",
@@ -844,11 +847,14 @@ const settingsStore = createSettingsStore(database, {
   sessionLimitMinutes: SESSION_LIMIT_DEFAULT,
   smartFormatting: true,
   bar: DEFAULT_BAR,
+  insertion: DEFAULT_INSERTION,
+  soundVolume: SOUND_VOLUME_DEFAULT,
+  silentWarning: true,
   openHubOnLaunch: true,
   insights: { typingWpm: INSIGHTS_LIMITS.typingWpm.default },
   profile: { displayName: "", showOnHome: true },
   contextAwareness: true,
-  mouseButtons: { hold: null, handsFree: null },
+  mouseButtons: { hold: null, handsFree: null, pressEnter: null, copyLast: null },
   typingReminder: { enabled: true, snoozedUntil: null },
   whisperMode: false,
   memory: { enabled: true, fromDictation: true },
@@ -872,7 +878,8 @@ const settingsStore = createSettingsStore(database, {
     askConnectorActions: false,
     slackTagging: false,
   },
-});
+};
+const settingsStore = createSettingsStore(database, settingsDefaults);
 const keys = keyPlatform(hostPlatform());
 /** Plan gates (RW-22): read on every action, so a plan change applies at once. */
 const allows = (feature: PlanFeature) => planAllows(settingsStore.get().plan, feature);
@@ -928,6 +935,8 @@ const settingsService = createSettingsService({
   store: settingsStore,
   platform: keys,
   listDevices: () => helper.listAudioDevices(),
+  defaults: settingsDefaults,
+  rejected: () => hotkeys.rejected(),
   otherShortcuts: () => rewriteShortcutsInUse(rewrites?.list() ?? []),
 });
 const bindingsNow = () =>
@@ -1114,7 +1123,7 @@ const effects = createSessionEffects({
   settings: () => settingsStore.get(),
   playSound: (name) => {
     smokeChecks?.handleSound(name);
-    barWindow.sound(name);
+    barWindow.sound(name, settingsStore.get().soundVolume / 100);
   },
   helper,
   marker: {
@@ -1268,15 +1277,19 @@ const recorder = createRecorder({
     return helper.insertText({
       text,
       // HB-57: the Testing page can force typed insertion.
-      method: settingsStore.get().devMode.forceTyped ? "keystrokes" : "auto",
+      method: insertionMethod(
+        settingsStore.get().insertion.method,
+        settingsStore.get().devMode.forceTyped,
+      ),
       restoreClipboard: !keepOnClipboard,
       restoreDelayMs: 350,
       pressEnter,
       ...(html ? { html } : {}),
-      ...insertionRules(),
+      ...insertionRules(settingsStore.get().insertion),
     });
   },
   pressEnterCommand: () => settingsStore.get().pressEnterCommand,
+  silentWarning: () => settingsStore.get().silentWarning,
   formatting: () => {
     const { cleanupLevel, smartFormatting } = nextSession.settings();
     return {
@@ -1886,6 +1899,13 @@ hotkeys.onEvent((event) => {
   if (event.action === "copy.last" || event.action === "paste.last") {
     if (event.state === "up") return;
     void (event.action === "copy.last" ? lastTranscript.copy() : lastTranscript.paste());
+    return;
+  }
+  if (event.action === "press.enter") {
+    if (event.state !== "up")
+      void helper.pressKey({ key: "return", modifiers: [] }).catch((error: unknown) => {
+        console.warn(`[hotkeys] could not press Return: ${String(error)}`);
+      });
     return;
   }
   if (event.action === "focus.toggle") {
@@ -3351,10 +3371,13 @@ const lastTranscript = createLastTranscript({
   insert: (text, options) =>
     helper.insertText({
       text,
-      method: settingsStore.get().devMode.forceTyped ? "keystrokes" : "auto",
+      method: insertionMethod(
+        settingsStore.get().insertion.method,
+        settingsStore.get().devMode.forceTyped,
+      ),
       restoreClipboard: !options?.keepOnClipboard,
       restoreDelayMs: 350,
-      ...insertionRules(),
+      ...insertionRules(settingsStore.get().insertion),
     }),
   copy: (text) => helper.copyText(text),
   busy: () => recorder.isBusy(),
@@ -4452,6 +4475,12 @@ function registerIpc(): void {
       };
     },
     historyRetry: (id) => retryFromHub(id),
+    historyCopyAudioPath: (id) => {
+      // DC-38: where a failed dictation's recording is, for the person to find it.
+      const file = history?.retrySource(id)?.audioPath;
+      if (file) clipboard.writeText(file);
+      return file !== undefined;
+    },
     dictationState: () => hubDictationState,
     milestonesList: () => {
       checkMilestones(false);
@@ -4533,6 +4562,7 @@ function registerIpc(): void {
     getSettings: () => settingsService.view(),
     updateSettings: (patch) => settingsService.update(patch),
     setShortcut: (slot, key) => settingsService.setShortcut(slot, key),
+    resetShortcuts: (slot) => settingsService.resetShortcuts(slot),
     captureShortcut: (active) => hotkeys.setPaused(active),
     getSetupStatus: async () => ({ model: modelDownload.status(), blockers: blockersNow() }),
     micCheckStart: () => micCheck.start(),

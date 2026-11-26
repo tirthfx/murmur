@@ -160,12 +160,9 @@ export function ExperimentalSection({
           description="Learn how you write email from messages you have sent."
           value={false}
           isDisabled
-          disabledMessage="Needs a mail connector, which Murmur does not have yet."
+          disabledMessage="Murmur does not learn from sent mail yet."
           onChange={() => {}}
         />
-        <Text size="sm" color="secondary">
-          Learning from sent mail needs a mail connector, which Murmur does not have yet.
-        </Text>
         <Switch
           label="Bluetooth ring microphone"
           description="Start and stop dictation from a ring worn on a finger."

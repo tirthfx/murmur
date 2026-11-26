@@ -31,6 +31,10 @@ Right Alt is not used because it is Alt Gr on many layouts. A binding on one sid
 
 "Last" is the newest dictation with text. Paste inserts it the way a dictation is inserted (clipboard put back, the per-app rules). When nothing has the focus, or the paste fails, the text is left on the clipboard and the Bar says so. Nothing is pasted while a dictation runs. With history storage off the text is held in memory until Murmur quits or data is deleted. Both shortcuts can be changed or turned off in Settings, Shortcuts. Code: `apps/desktop/src/main/insertion/last-transcript.ts`.
 
+## Press Enter, reset and refused shortcuts
+
+A shortcut or an extra mouse button can press Return; a mouse button can also copy the last transcript. Settings, Shortcuts has "Reset all shortcuts". When the helper refuses a binding (two actions on one key), the page names it as unavailable.
+
 ## Hands-free and cancel
 
 - A press shorter than 300 ms is a tap. A second press within 400 ms of the first locks recording (the Bar shows Hands-free); let go and keep talking.

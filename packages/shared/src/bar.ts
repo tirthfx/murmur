@@ -105,8 +105,8 @@ export interface MurmurBarApi {
   onView(handler: (view: BarView) => void): () => void;
   /** Input level while listening, in dBFS. */
   onLevel(handler: (rmsDb: number) => void): () => void;
-  /** A feedback sound to play now. */
-  onSound(handler: (name: SoundName) => void): () => void;
+  /** A feedback sound to play now, with its volume from 0 to 1. */
+  onSound(handler: (sound: { name: SoundName; volume: number }) => void): () => void;
   dragStart(): void;
   /** Total movement since `dragStart`, in screen points. */
   drag(dx: number, dy: number): void;

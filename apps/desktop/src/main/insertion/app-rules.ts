@@ -48,9 +48,27 @@ export function isTerminalApp(bundleId: string | null | undefined): boolean {
 }
 
 /** The per-app part of an `insert.text` request. */
-export function insertionRules(): { typeInApps: string[]; trimTrailingNewlinesInApps: string[] } {
+export function insertionRules(
+  choice: { pasteInRemoteDesktops: boolean; typeInApps: readonly string[] } = {
+    pasteInRemoteDesktops: false,
+    typeInApps: [],
+  },
+): { typeInApps: string[]; trimTrailingNewlinesInApps: string[] } {
   return {
-    typeInApps: [...REMOTE_DESKTOP_APPS, ...TYPED_TERMINAL_APPS],
+    typeInApps: [
+      ...(choice.pasteInRemoteDesktops ? [] : REMOTE_DESKTOP_APPS),
+      ...TYPED_TERMINAL_APPS,
+      ...choice.typeInApps,
+    ],
     trimTrailingNewlinesInApps: [...TERMINAL_APPS],
   };
+}
+
+/** The helper's method for the chosen one (DC-32): typed when asked for or forced. */
+export function insertionMethod(
+  choice: "auto" | "paste" | "type",
+  forceTyped = false,
+): "auto" | "paste_cmd_v" | "keystrokes" {
+  if (forceTyped || choice === "type") return "keystrokes";
+  return choice === "paste" ? "paste_cmd_v" : "auto";
 }

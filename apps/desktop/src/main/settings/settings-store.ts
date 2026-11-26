@@ -16,7 +16,7 @@ export interface SettingsStore {
   onChange(handler: (settings: Settings, changed: (keyof Settings)[]) => void): Unsubscribe;
 }
 
-const SLOT_FIELD: Record<
+export const SLOT_FIELD: Record<
   ShortcutSlot,
   | "holdShortcut"
   | "handsFreeShortcut"
@@ -28,6 +28,7 @@ const SLOT_FIELD: Record<
   | "meetingShortcut"
   | "copyLastShortcut"
   | "pasteLastShortcut"
+  | "pressEnterShortcut"
 > = {
   hold: "holdShortcut",
   handsFree: "handsFreeShortcut",
@@ -39,6 +40,7 @@ const SLOT_FIELD: Record<
   meeting: "meetingShortcut",
   copyLast: "copyLastShortcut",
   pasteLast: "pasteLastShortcut",
+  pressEnter: "pressEnterShortcut",
 };
 
 /**

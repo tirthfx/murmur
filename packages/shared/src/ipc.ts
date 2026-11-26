@@ -396,6 +396,7 @@ export const IPC_CHANNELS = {
   notePinMove: "notes:pin-move",
   scratchpadOpen: "scratchpad:open",
   historyRetry: "history:retry",
+  historyCopyAudioPath: "history:copy-audio-path",
   dictationState: "dictation:state",
   milestonesSeen: "milestones:seen",
   progressCardSave: "progress-card:save",
@@ -413,6 +414,7 @@ export const IPC_CHANNELS = {
   getSettings: "settings:get",
   updateSettings: "settings:update",
   setShortcut: "settings:set-shortcut",
+  resetShortcuts: "settings:reset-shortcuts",
   captureShortcut: "settings:capture-shortcut",
   getSetupStatus: "setup:get-status",
   downloadSpeechModel: "setup:download-speech-model",
@@ -652,6 +654,10 @@ export const IPC_CONTRACT = {
   // A null key clears the slot (every slot but push to talk can be cleared).
   [IPC_CHANNELS.setShortcut]: {
     args: z.tuple([z.enum(SHORTCUT_SLOTS), capturedKeySchema.nullable()]),
+    result: shortcutResultSchema,
+  },
+  [IPC_CHANNELS.resetShortcuts]: {
+    args: z.tuple([z.enum([...SHORTCUT_SLOTS, "all"])]),
     result: shortcutResultSchema,
   },
   // Pauses the dictation key while the Hub records a new shortcut.
@@ -964,6 +970,10 @@ export const IPC_CONTRACT = {
   },
   // HB-02, HB-03.
   [IPC_CHANNELS.homeView]: { args: z.tuple([]), result: homeViewSchema },
+  [IPC_CHANNELS.historyCopyAudioPath]: {
+    args: z.tuple([z.string().min(1).max(64)]),
+    result: z.boolean(),
+  },
   [IPC_CHANNELS.historyRetry]: {
     args: z.tuple([z.string().min(1).max(64)]),
     result: historyRetryResultSchema,
@@ -1434,6 +1444,7 @@ export interface MurmurApi {
   updateSettings(patch: SettingsPatch): Promise<SettingsView>;
   /** Checks and saves a captured shortcut; the result names the conflict when refused. */
   setShortcut(slot: ShortcutSlot, key: CapturedKey | null): Promise<ShortcutResult>;
+  resetShortcuts(slot: ShortcutSlot | "all"): Promise<ShortcutResult>;
   /** True while the Hub listens for a new shortcut, so the old one does not start dictation. */
   captureShortcut(active: boolean): Promise<void>;
   /** The speech model's state and whatever still blocks dictation. */
@@ -1584,6 +1595,8 @@ export interface MurmurApi {
   homeView(): Promise<HomeView>;
   /** Transcribes a failed dictation's recording again and updates its row (HB-03). */
   historyRetry(id: string): Promise<HistoryRetryResult>;
+  /** Puts a failed dictation's recording location on the clipboard; false when it has none. */
+  historyCopyAudioPath(id: string): Promise<boolean>;
   /** The dictation state now, as the Bar shows it. */
   dictationState(): Promise<DictationState>;
   /** The dictation state as it changes. Returns an unsubscribe. */

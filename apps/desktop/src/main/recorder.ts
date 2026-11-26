@@ -196,6 +196,8 @@ export interface RecorderDeps {
    * missing.
    */
   formatting?: () => { lists: boolean; smart: boolean };
+  /** Whether to warn when the microphone stays silent (DC-11). On when missing. */
+  silentWarning?: () => boolean;
   /** Whether "press enter" at the end of a dictation presses Return. Off when missing. */
   pressEnterCommand?: () => boolean;
   /** Clipboard fallback when inserting is not allowed. */
@@ -1387,6 +1389,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 
   function handleSilent(silent: AudioSilent): void {
     if (!current || silent.sessionId !== current.id) return;
+    if (deps.silentWarning?.() === false) return;
     const name = silent.deviceName ?? current.deviceName ?? "the microphone";
     logger.warn(`No sound from ${name}. Check the input in System Settings.`);
     emit({ type: "silent-mic", deviceName: name });
