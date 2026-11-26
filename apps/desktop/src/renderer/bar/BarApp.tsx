@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type PointerEvent } from "react";
+import { useEffect, useRef, useState, type MouseEvent, type PointerEvent } from "react";
 import { BAR_STATES, type BarView, type MurmurBarApi } from "@murmur/shared";
 import { BarPill } from "./BarPill";
 import { playSound } from "./sounds";
@@ -38,7 +38,13 @@ export function BarApp({ api }: { api: MurmurBarApi }) {
 
   if (!view) return null;
 
+  const onContextMenu = (event: MouseEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    api.menu();
+  };
   const onPointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    // Only the main button drags and clicks; the other one opens the menu.
+    if (event.button !== 0) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     drag.current = { x: event.screenX, y: event.screenY, moved: false };
     api.dragStart();
@@ -65,6 +71,7 @@ export function BarApp({ api }: { api: MurmurBarApi }) {
       view={view}
       level={level}
       now={now}
+      onContextMenu={onContextMenu}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}

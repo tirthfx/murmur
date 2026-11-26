@@ -37,6 +37,10 @@ The `ask` state shows a question with a second line and Save and Dismiss buttons
 five minutes, never covers a recording, and a new dictation replaces it. The buttons stop the
 pointer from starting a drag.
 
+## Right-click menu
+
+A right click opens a system menu over the Bar (`bar/bar-menu.ts`): the microphone the next dictation will record from, its language and cleanup level, each with a submenu to change it, and the typing reminder's snooze. A change applies to the next dictation only (`bar/next-session.ts`); "Save as default" writes it to Settings. The menu closes on an outside click or Escape, as system menus do.
+
 ## Manual test
 
 1. `npm run dev`. The mic dot appears near the bottom centre of the screen.

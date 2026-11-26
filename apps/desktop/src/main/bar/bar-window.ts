@@ -128,6 +128,11 @@ export class BarWindow implements BarPort {
     if (window && !window.isDestroyed()) window.webContents.send(BAR_PUSH_CHANNELS.sound, name);
   }
 
+  /** The window a menu opens over, or null while the Bar is not shown (DC-46). */
+  menuWindow(): BrowserWindow | null {
+    return this.window && !this.window.isDestroyed() ? this.window : null;
+  }
+
   dragStart(): void {
     const position = this.window?.getPosition();
     this.dragOrigin = position ? [position[0]!, position[1]!] : null;

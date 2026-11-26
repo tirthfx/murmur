@@ -14,6 +14,7 @@ function setup() {
     drag: vi.fn(),
     dragEnd: vi.fn(),
     click: vi.fn(),
+    menu: vi.fn(),
     answer: vi.fn(),
   };
   return { deps, handle: createBarIpcHandler(deps) };
@@ -61,5 +62,19 @@ describe("bar IPC", () => {
     handle(BAR_IPC_CHANNELS.answer, barUrl, ["never"]);
     expect(deps.answer).toHaveBeenCalledWith("never");
     expect(() => handle(BAR_IPC_CHANNELS.answer, barUrl, ["maybe"])).toThrow();
+  });
+});
+
+describe("the Bar's right click (DC-46)", () => {
+  it("opens the menu for the Bar page only", () => {
+    const menu = vi.fn();
+    const handle = createBarIpcHandler({
+      entryUrl: "file:///bar.html",
+      menu,
+    } as unknown as Parameters<typeof createBarIpcHandler>[0]);
+    handle("bar:menu", "file:///bar.html", []);
+    expect(menu).toHaveBeenCalledOnce();
+    expect(() => handle("bar:menu", "file:///other.html", [])).toThrow("untrusted");
+    expect(() => handle("bar:menu", "file:///bar.html", [1])).toThrow("invalid");
   });
 });

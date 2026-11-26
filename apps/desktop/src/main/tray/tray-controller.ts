@@ -17,6 +17,7 @@ import {
   type TrayItem,
   type TrayState,
   type TrayStatus,
+  reminderStatus,
 } from "./tray-menu";
 
 /** How long the warning dot stays after a problem, unless a new dictation starts first. */
@@ -152,12 +153,7 @@ export function createTrayController(deps: TrayControllerDeps): TrayController {
       language: settings.language,
       hasLastTranscript: deps.lastTranscript() !== null,
       canRetry: deps.canRetry(),
-      typingReminder: !settings.typingReminder.enabled
-        ? "off"
-        : settings.typingReminder.snoozedUntil !== null &&
-            settings.typingReminder.snoozedUntil > deps.clock.now()
-          ? "snoozed"
-          : "on",
+      typingReminder: reminderStatus(settings.typingReminder, deps.clock.now()),
       focus:
         settings.experimental.focusMode && deps.focusState
           ? { state: deps.focusState(), duration: settings.focus.duration }
