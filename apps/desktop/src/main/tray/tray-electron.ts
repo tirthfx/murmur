@@ -2,7 +2,7 @@ import { Menu, nativeImage, Tray, type MenuItemConstructorOptions } from "electr
 import type { TrayHost, TrayView } from "./tray-controller";
 import { hostPlatform, trayIcon, trayShowsTitle } from "../platform";
 import { micPng } from "./tray-icon";
-import type { TrayAction, TrayItem, TrayStatus } from "./tray-menu";
+import type { MenuRow, TrayAction, TrayStatus } from "./tray-menu";
 
 // macOS shows this text next to the icon and understands ANSI colours in it.
 const DOT: Record<TrayStatus, string> = {
@@ -12,9 +12,10 @@ const DOT: Record<TrayStatus, string> = {
   meeting: "\u001b[31m●",
 };
 
-function template(
-  items: TrayItem[],
-  perform: (action: TrayAction) => void,
+/** The system menu for rows of any of Murmur's menus. */
+export function menuTemplate<Action>(
+  items: MenuRow<Action>[],
+  perform: (action: Action) => void,
 ): MenuItemConstructorOptions[] {
   return items.map((item): MenuItemConstructorOptions => {
     if (item.kind === "separator") return { type: "separator" };
@@ -23,8 +24,8 @@ function template(
       label: item.label,
       enabled: item.enabled ?? true,
       ...(item.checked === undefined ? {} : { type: "radio" as const, checked: item.checked }),
-      ...(item.submenu ? { submenu: template(item.submenu, perform) } : {}),
-      ...(action ? { click: () => perform(action) } : {}),
+      ...(item.submenu ? { submenu: menuTemplate(item.submenu, perform) } : {}),
+      ...(action !== undefined ? { click: () => perform(action) } : {}),
     };
   });
 }
@@ -53,7 +54,7 @@ export function createElectronTray(perform: (action: TrayAction) => void): Elect
   const tray = new Tray(micImage());
   return {
     render(view: TrayView) {
-      tray.setContextMenu(Menu.buildFromTemplate(template(view.items, perform)));
+      tray.setContextMenu(Menu.buildFromTemplate(menuTemplate(view.items, perform)));
       tray.setToolTip(view.tooltip);
       if (trayShowsTitle(hostPlatform())) {
         const text = view.elapsed ?? view.nextText;

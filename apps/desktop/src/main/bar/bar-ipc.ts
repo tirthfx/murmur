@@ -9,6 +9,8 @@ export interface BarIpcDeps {
   drag: (dx: number, dy: number) => void;
   dragEnd: () => void;
   click: () => void;
+  /** A right click: shows the Bar's menu. */
+  menu: () => void;
   /** The answer to the Bar's question. */
   answer: (choice: BarAnswer) => void;
 }
@@ -35,6 +37,8 @@ export function createBarIpcHandler(deps: BarIpcDeps) {
         return deps.dragEnd();
       case BAR_IPC_CHANNELS.click:
         return deps.click();
+      case BAR_IPC_CHANNELS.menu:
+        return deps.menu();
       case BAR_IPC_CHANNELS.answer:
         return deps.answer(parsed[0] as BarAnswer);
       default:

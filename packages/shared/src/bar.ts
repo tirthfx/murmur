@@ -67,6 +67,8 @@ export const BAR_IPC_CHANNELS = {
   click: "bar:click",
   /** The answer to an `ask`. */
   answer: "bar:answer",
+  /** A right click: show the Bar's menu (DC-46). */
+  menu: "bar:menu",
 } as const;
 
 /** Main to Bar page. */
@@ -85,6 +87,7 @@ export const BAR_IPC_CONTRACT = {
   [BAR_IPC_CHANNELS.dragEnd]: z.tuple([]),
   [BAR_IPC_CHANNELS.click]: z.tuple([]),
   [BAR_IPC_CHANNELS.answer]: z.tuple([z.enum(BAR_ANSWERS)]),
+  [BAR_IPC_CHANNELS.menu]: z.tuple([]),
 } as const;
 
 export type BarIpcChannel = keyof typeof BAR_IPC_CONTRACT;
@@ -109,6 +112,8 @@ export interface MurmurBarApi {
   drag(dx: number, dy: number): void;
   dragEnd(): void;
   click(): void;
+  /** A right click on the Bar (DC-46). */
+  menu(): void;
   /** The answer to the question the Bar shows. */
   answer(choice: BarAnswer): void;
 }

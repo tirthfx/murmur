@@ -1,4 +1,4 @@
-import type { PointerEvent } from "react";
+import type { MouseEvent, PointerEvent } from "react";
 import { focusTimeLeft, type BarAnswer, type BarView } from "@murmur/shared";
 import { announcement, describeView, elapsed, meterFill } from "./bar-text";
 import { Icon } from "./icons";
@@ -7,6 +7,7 @@ export interface BarPillProps {
   view: BarView;
   level: number | null;
   now: number;
+  onContextMenu?: (event: MouseEvent<HTMLDivElement>) => void;
   onPointerDown?: (event: PointerEvent<HTMLDivElement>) => void;
   onPointerMove?: (event: PointerEvent<HTMLDivElement>) => void;
   onPointerUp?: (event: PointerEvent<HTMLDivElement>) => void;

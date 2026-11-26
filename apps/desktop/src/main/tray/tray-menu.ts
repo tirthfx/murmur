@@ -73,17 +73,29 @@ export type TrayAction =
   | { type: "quit" };
 
 /** One menu row, independent of the toolkit that draws it. */
-export type TrayItem =
+export type TrayItem = MenuRow<TrayAction>;
+
+/** A row of any of Murmur's menus, with that menu's own actions. */
+export type MenuRow<Action> =
   | { kind: "separator" }
   | {
       kind: "item";
       label: string;
-      action?: TrayAction;
+      action?: Action;
       enabled?: boolean;
       /** Present on rows that are one choice of several. */
       checked?: boolean;
-      submenu?: TrayItem[];
+      submenu?: MenuRow<Action>[];
     };
+
+/** Where the typing reminder stands, for a menu. */
+export function reminderStatus(
+  reminder: { enabled: boolean; snoozedUntil: number | null },
+  now: number,
+): TrayState["typingReminder"] {
+  if (!reminder.enabled) return "off";
+  return reminder.snoozedUntil !== null && reminder.snoozedUntil > now ? "snoozed" : "on";
+}
 
 /** Focus Mode: turn it off, or start it for a chosen time (the last one is checked). */
 function focusItems(focus: NonNullable<TrayState["focus"]>, language?: string): TrayItem[] {
@@ -128,7 +140,7 @@ function microphoneItems(state: TrayState): TrayItem[] {
   return items;
 }
 
-function reminderItems(status: TrayState["typingReminder"], language?: string): TrayItem[] {
+export function reminderItems(status: TrayState["typingReminder"], language?: string): TrayItem[] {
   if (status === "off") {
     return [
       {

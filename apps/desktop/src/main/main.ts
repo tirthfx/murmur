@@ -26,6 +26,7 @@ import {
   nativeTheme,
   Notification,
   ipcMain,
+  Menu,
   powerMonitor,
   screen,
   session,
@@ -127,6 +128,7 @@ import {
   matchersForOs,
   shouldWarnAboutPlayback,
   SESSION_LIMIT_DEFAULT,
+  type Settings,
 } from "@murmur/shared";
 import {
   createNavigationGuard,
@@ -139,6 +141,8 @@ import { createBarController } from "./bar/bar-controller";
 import type { BarEvent } from "./bar/bar-machine";
 import { barEventFor } from "./bar/bar-events";
 import { createBarIpcHandler } from "./bar/bar-ipc";
+import { barMenu, type BarMenuAction } from "./bar/bar-menu";
+import { createNextSession } from "./bar/next-session";
 import { BarWindow, barPositionFile } from "./bar/bar-window";
 import {
   createHubStateStore,
@@ -360,7 +364,8 @@ import { profilePaths } from "./profile";
 import { createSmokeRun, SMOKE_PAGE, type SmokeRun } from "./smoke";
 import { createSmokeChecks, type SmokeChecks } from "./smoke-checks";
 import { createTrayController, type TrayController } from "./tray/tray-controller";
-import { createElectronTray } from "./tray/tray-electron";
+import { createElectronTray, menuTemplate } from "./tray/tray-electron";
+import { reminderStatus } from "./tray/tray-menu";
 
 const isDevelopment = !app.isPackaged;
 
@@ -913,6 +918,10 @@ function exportRefusal(feature: "exportToFile" | "skillSharing" = "exportToFile"
   if (refusal !== null) bar.dispatch({ type: "warn", message: refusal });
   return refusal;
 }
+const nextSession = createNextSession(
+  () => settingsStore.get(),
+  (change) => settingsStore.update(change),
+);
 const settingsService = createSettingsService({
   store: settingsStore,
   platform: keys,
@@ -946,7 +955,7 @@ const speech = createSpeechService({
   model: SPEECH_MODEL,
   root: speechModelRoot(profile.modelsAppData),
   logger: createConsoleLogger("[speech]"),
-  languages: () => languagesFor(settingsStore.get()),
+  languages: () => languagesFor(nextSession.settings()),
 });
 
 // First-run setup: the model download behind the setup screen, and what blocks dictation.
@@ -1010,6 +1019,16 @@ const barWindow = new BarWindow({
 let focusBadge: BarView["focus"] = null;
 /** A meeting being recorded, drawn on the Bar in every state (NT-04). */
 let meetingBadge: BarView["meeting"] = null;
+/** The recorder's last word on a dictation, after which its one-time choices are dropped. */
+const SESSION_OVER: ReadonlySet<RecorderEvent["type"]> = new Set([
+  "transcribed",
+  "transcription-failed",
+  "no-speech",
+  "cancelled",
+  "stop-failed",
+  "start-failed",
+  "command-heard",
+]);
 /** The dictation state the Hub shows (HB-03), following the Bar. */
 let hubDictationState: DictationState = "idle";
 /** The meeting a dictation is being made during, if one is (NT-19). */
@@ -1152,13 +1171,13 @@ const cleanup = createCleanupService({
   llm,
   modelReady: cleanupModelReady,
   logger: cleanupLogger,
-  level: () => settingsStore.get().cleanupLevel,
+  level: () => nextSession.settings().cleanupLevel,
 });
 // The microphone for a session. In Auto: a real microphone over a virtual one, and not the
 // built-in one while the lid is closed (roadmap M2 epic 7). Asked at each start.
 let lastAutoChoice: string | null = null;
-async function inputDevice(): Promise<string | null> {
-  const chosen = deviceFor(settingsStore.get());
+async function inputDevice(settings: Settings = settingsStore.get()): Promise<string | null> {
+  const chosen = deviceFor(settings);
   if (chosen !== null) return chosen;
   const inputs = await Promise.race([
     helper.audioInputs().catch(() => null),
@@ -1250,7 +1269,7 @@ const recorder = createRecorder({
   },
   pressEnterCommand: () => settingsStore.get().pressEnterCommand,
   formatting: () => {
-    const { cleanupLevel, smartFormatting } = settingsStore.get();
+    const { cleanupLevel, smartFormatting } = nextSession.settings();
     return {
       lists: cleanupLevel === "standard" || cleanupLevel === "full",
       smart: smartFormatting,
@@ -1260,6 +1279,8 @@ const recorder = createRecorder({
   copy: (text) => helper.copyText(text),
   onEvent: (event) => {
     bar.dispatch(barEventFor(event));
+    if (event.type === "started") nextSession.started();
+    else if (SESSION_OVER.has(event.type)) nextSession.finished();
     // A new recording ends the watch for corrections to the last one.
     if (event.type === "started") void helper.cancelEdits().catch(() => {});
     smokeChecks?.handleBarView(bar.getView());
@@ -1353,7 +1374,7 @@ const recorder = createRecorder({
     const flags = settingsStore.get().voiceProfile;
     return flags.enabled && flags.useInCleanup ? (voiceProfile?.summary(Date.now()) ?? null) : null;
   },
-  deviceId: () => inputDevice(),
+  deviceId: () => inputDevice(nextSession.settings()),
   whisperMode: () => settingsStore.get().whisperMode,
   ...(history
     ? {
@@ -1410,7 +1431,7 @@ const recorder = createRecorder({
         },
       }
     : {}),
-  rewriteText: (text) => (wantsLatinHindi(settingsStore.get()) ? toLatinHindi(text) : text),
+  rewriteText: (text) => (wantsLatinHindi(nextSession.settings()) ? toLatinHindi(text) : text),
   // Command Mode (RW-08, experimental). The runner below exists before any recording ends.
   command: {
     enabled: () => settingsStore.get().experimental.commandMode && allows("commandMode"),
@@ -4661,6 +4682,32 @@ function registerIpc(): void {
     ipcMain.handle(channel, (event, ...args: unknown[]) => handle(channel, event, args));
   }
 
+  /** DC-46: the Bar's right-click menu. */
+  async function openBarMenu(): Promise<void> {
+    const window = barWindow.menuWindow();
+    if (!window) return;
+    const settings = nextSession.settings();
+    const [devices, deviceId] = await Promise.all([
+      helper.listAudioDevices().catch(() => null),
+      inputDevice(settings),
+    ]);
+    if (window.isDestroyed()) return;
+    const rows = barMenu({
+      settings,
+      devices,
+      deviceId,
+      pending: nextSession.pending(),
+      typingReminder: reminderStatus(settings.typingReminder, Date.now()),
+    });
+    Menu.buildFromTemplate(
+      menuTemplate<BarMenuAction>(rows, (action) => {
+        if (action.type === "choose") nextSession.choose(action.change);
+        else if (action.type === "save") nextSession.save();
+        else typingReminder.snooze(action.choice);
+      }),
+    ).popup({ window });
+  }
+
   const handleBar = createBarIpcHandler({
     entryUrl: barEntryUrl,
     getView: () => bar.getView(),
@@ -4675,6 +4722,7 @@ function registerIpc(): void {
       else if (bar.getView().state === "idle" && meetingBadge) openHubPage("notetaker");
     },
     answer: (choice) => answerBar(choice),
+    menu: () => void openBarMenu(),
   });
   const handleRewritePanel = createRewritePanelIpcHandler({
     entryUrl: rewriteEntryUrl,
@@ -4715,6 +4763,7 @@ function registerIpc(): void {
     BAR_IPC_CHANNELS.dragEnd,
     BAR_IPC_CHANNELS.click,
     BAR_IPC_CHANNELS.answer,
+    BAR_IPC_CHANNELS.menu,
   ]) {
     ipcMain.on(channel, (event, ...args: unknown[]) => {
       try {
