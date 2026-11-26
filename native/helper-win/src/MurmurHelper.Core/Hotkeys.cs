@@ -61,6 +61,11 @@ public sealed class HotkeyEngine : IHotkeyService
     private readonly HashSet<int> _modifiersDown = new();
     private readonly HashSet<string> _held = new();
     private readonly HashSet<int> _mouseDown = new();
+    private TypingCounter? _typing;
+    private Timer? _typingTimer;
+
+    /// <summary>How often the typed-word count is reported while counting is on.</summary>
+    public const int TypingReportMs = 30_000;
 
     /// <param name="listening">Called with true when the first binding is set and false when none is left, so the OS hook runs only while needed.</param>
     public HotkeyEngine(EventSink sink, Func<long> now, Action<bool>? listening = null)
@@ -134,8 +139,33 @@ public sealed class HotkeyEngine : IHotkeyService
         return null;
     }
 
+    /// <summary>
+    /// <c>typing.watch</c>: turns word counting on or off. Counting sees keys only while a binding
+    /// keeps the listener running, as on the Mac. Off clears the count.
+    /// </summary>
+    public void WatchTyping(bool enabled, int periodMs = TypingReportMs)
+    {
+        Timer? old;
+        lock (_gate)
+        {
+            old = _typingTimer;
+            _typing = enabled ? new TypingCounter() : null;
+            _typingTimer = enabled ? new Timer(_ => ReportTyping(periodMs), null, periodMs, periodMs) : null;
+        }
+        old?.Dispose();
+    }
+
+    /// <summary>Sends the count since the last report, if any words were typed.</summary>
+    public void ReportTyping(int periodMs)
+    {
+        int words;
+        lock (_gate) words = _typing?.Take() ?? 0;
+        if (words > 0) _sink("typing.activity", new JsonObject { ["words"] = words, ["periodMs"] = periodMs });
+    }
+
     public void Stop()
     {
+        WatchTyping(false);
         lock (_gate)
         {
             _bindings = new List<HotkeyBinding>();
@@ -158,6 +188,7 @@ public sealed class HotkeyEngine : IHotkeyService
             {
                 if (!_down.Add(vk)) return; // key repeat
                 if (IsModifier(vk)) _modifiersDown.Add(vk);
+                _typing?.KeyDown(vk, _modifiersDown.Contains(Control), _modifiersDown.Contains(Alt), _modifiersDown.Contains(Windows));
                 foreach (var binding in _bindings)
                 {
                     if (binding.TriggerType == "key" && binding.Exclusive && _held.Contains(binding.Id) && vk != binding.KeyCode

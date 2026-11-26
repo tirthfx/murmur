@@ -11,6 +11,7 @@ import {
   type HotkeyEvent,
   type PermissionKind,
   type PlatformHelper,
+  type TypingActivity,
 } from "@murmur/shared";
 
 /**
@@ -41,6 +42,10 @@ export interface HelperWorld {
   focusTextField(): Promise<void>;
   /** What the test text field now holds. */
   textFieldValue(): Promise<string>;
+  /** Plugs in or unplugs a second microphone. */
+  plugMicrophone(connected: boolean): Promise<void>;
+  /** Types a word and a space on the keyboard, then lets the helper's count come due. */
+  typeAWord(binding: HotkeyBinding): Promise<void>;
   /** Changes what the test text field holds, as a person correcting it would. */
   editTextField(text: string): Promise<void>;
   /** Selects this text in the focused field; empty selects nothing. */
@@ -70,6 +75,9 @@ export const CONFORMANCE_SCENARIOS = [
   "context",
   "edit watching",
   "inspector",
+  "typing counts",
+  "media pause",
+  "device changes",
   "secure store",
   "front app",
   "meeting detection",
@@ -292,6 +300,41 @@ export function describePlatformHelperConformance(name: string, options: Conform
       expect(tree).toMatchObject({ bundleId: "app.one", truncated: false });
       expect(tree!.nodes.length).toBeGreaterThan(0);
       for (const node of tree!.nodes) expect(node.value).toBeNull();
+    });
+
+    scenario("typing counts", async ({ helper, holdBinding, typeAWord }) => {
+      await helper.start();
+      // Counting needs the key listener, which runs while a binding is set.
+      await helper.configureHotkeys([holdBinding]);
+      const seen: TypingActivity[] = [];
+      helper.onTypingActivity((activity) => seen.push(activity));
+      await helper.watchTyping(true);
+      await typeAWord(holdBinding);
+      await eventually(() => seen.length === 1, "the typed-word count");
+      expect(seen[0]?.words).toBe(1);
+      expect(seen[0]?.periodMs).toBeGreaterThan(0);
+      await helper.watchTyping(false);
+    });
+
+    scenario("media pause", async ({ helper }) => {
+      await helper.start();
+      expect(await helper.getPlayback()).toEqual({ available: true, playing: true });
+      expect(await helper.pauseMedia()).toBe(true);
+      expect(await helper.pauseMedia()).toBe(false);
+      expect(await helper.resumeMedia()).toBe(true);
+    });
+
+    scenario("device changes", async ({ helper, plugMicrophone }) => {
+      await helper.start();
+      const lists: string[][] = [];
+      helper.onAudioDevicesChanged((change) => lists.push(change.devices.map((d) => d.id)));
+      await plugMicrophone(true);
+      await eventually(() => lists.length === 1, "the microphone arriving", 4000);
+      expect(lists[0]).toContain("second-mic");
+      await plugMicrophone(false);
+      await eventually(() => lists.length === 2, "the microphone leaving", 4000);
+      expect(lists[1]).not.toContain("second-mic");
+      expect((await helper.listAudioDevices()).map((d) => d.id)).not.toContain("second-mic");
     });
 
     scenario("secure store", async ({ helper }) => {

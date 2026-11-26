@@ -19,7 +19,12 @@ public sealed class MicSession
     private readonly Func<long> _now;
     private readonly string _folder;
     private readonly object _gate = new();
+    private readonly object _devices = new();
+    private readonly Timer _settle;
     private Active? _active;
+
+    /// <summary>Changes arrive in bursts; they are acted on once they have settled.</summary>
+    private const int ChangeSettleMs = 500;
 
     public MicSession(IAudioSourceFactory factory, IPermissionProvider permissions, EventSink sink, Func<long> now, string folder)
     {
@@ -28,12 +33,17 @@ public sealed class MicSession
         _sink = sink;
         _now = now;
         _folder = folder;
+        _settle = new Timer(_ => { try { ApplyDeviceChange(); } catch (Exception) { /* the devices changed again */ } });
+        _factory.DevicesChanged += () => _settle.Change(ChangeSettleMs, Timeout.Infinite);
     }
 
     private sealed class Active
     {
         public required string SessionId;
         public required IAudioSource Source;
+        /// <summary>The device the app asked for; null for the system default.</summary>
+        public string? Requested;
+        public bool Failed;
         public required bool Test;
         public required bool EmitLevels;
         public required int LevelIntervalMs;
@@ -74,11 +84,13 @@ public sealed class MicSession
         if (_permissions.Status("microphone") == "denied")
             throw new HelperException(ErrorCode.PermissionDenied, "Microphone access is off for Murmur.");
         var test = Payload.TryBool(p, "test") ?? false;
-        var source = _factory.Microphone(Payload.TryStr(p, "deviceId"));
+        var requested = Payload.TryStr(p, "deviceId");
+        var source = _factory.Microphone(requested);
         var active = new Active
         {
             SessionId = sessionId,
             Source = source,
+            Requested = requested,
             Test = test,
             EmitLevels = Payload.TryBool(p, "emitLevels") ?? false,
             LevelIntervalMs = Payload.TryInt(p, "levelIntervalMs") ?? 100,
@@ -100,8 +112,7 @@ public sealed class MicSession
             }
             _active = active;
         }
-        source.Samples += samples => OnSamples(active, samples);
-        source.Failed += _ => { };
+        Attach(active, source);
         try
         {
             source.Start();
@@ -119,6 +130,68 @@ public sealed class MicSession
             ["channels"] = 1,
             ["deviceName"] = source.DeviceName,
         };
+    }
+
+    private void Attach(Active a, IAudioSource source)
+    {
+        // Samples from a source that was replaced are dropped.
+        source.Samples += samples => { if (ReferenceEquals(a.Source, source)) OnSamples(a, samples); };
+        source.Failed += _ =>
+        {
+            if (!ReferenceEquals(a.Source, source)) return;
+            a.Failed = true;
+            _settle.Change(ChangeSettleMs, Timeout.Infinite);
+        };
+    }
+
+    /// <summary>
+    /// Sends the new device list, and keeps a running session recording (DC-10, DC-16): if its
+    /// device is gone, or capture stopped by itself, it continues on the device that was asked for
+    /// (if still there) or the system default, into the same file.
+    /// </summary>
+    public void ApplyDeviceChange()
+    {
+        lock (_devices)
+        {
+            var list = Devices()["devices"]!.DeepClone().AsArray();
+            _sink("audio.devices.changed", new JsonObject { ["devices"] = list });
+            Active? a;
+            lock (_gate) a = _active;
+            if (a is null) return;
+            var present = _factory.Devices().Select(d => d.Id).ToHashSet();
+            var removed = a.Source.DeviceId is { } running && !present.Contains(running);
+            if (!removed && !a.Failed) return;
+            var target = a.Requested is { } wanted && present.Contains(wanted) ? wanted : null;
+            var old = a.Source;
+            try { old.Stop(); } catch (Exception) { /* already stopped */ }
+            old.Dispose();
+            string? name = null;
+            IAudioSource? next = null;
+            try
+            {
+                next = _factory.Microphone(target);
+                lock (_gate)
+                {
+                    // The session ended while the device was changing.
+                    if (_active != a) { next.Dispose(); return; }
+                    a.Source = next;
+                    a.Failed = false;
+                }
+                Attach(a, next);
+                next.Start();
+                name = next.DeviceName;
+            }
+            catch (Exception)
+            {
+                next?.Dispose();
+            }
+            _sink("audio.route.changed", new JsonObject
+            {
+                ["sessionId"] = a.SessionId,
+                ["reason"] = removed ? "device-removed" : "interrupted",
+                ["deviceName"] = name,
+            });
+        }
     }
 
     private void OnSamples(Active a, float[] raw)

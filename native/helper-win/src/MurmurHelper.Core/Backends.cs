@@ -18,6 +18,7 @@ public interface IPermissionProvider
 public interface IHotkeyService
 {
     HotkeyConfigureResult Configure(IReadOnlyList<HotkeyBinding> bindings);
+    void WatchTyping(bool enabled, int periodMs = HotkeyEngine.TypingReportMs);
     void Stop();
 }
 
@@ -58,6 +59,9 @@ public sealed record AudioDeviceInfo(string Id, string Name, bool IsDefault, str
 public interface IAudioSource : IDisposable
 {
     string DeviceName { get; }
+
+    /// <summary>The id of the device being captured, as <see cref="IAudioSourceFactory.Devices"/> lists it.</summary>
+    string? DeviceId { get; }
     /// <summary>Raised on the capture thread with samples in the range -1 to 1.</summary>
     event Action<float[]> Samples;
     event Action<string> Failed;
@@ -68,6 +72,9 @@ public interface IAudioSource : IDisposable
 public interface IAudioSourceFactory
 {
     IReadOnlyList<AudioDeviceInfo> Devices();
+
+    /// <summary>An input was added, removed or changed.</summary>
+    event Action? DevicesChanged;
     /// <summary>The microphone, or the device with this id. Throws <see cref="HelperException"/> DEVICE_NOT_FOUND.</summary>
     IAudioSource Microphone(string? deviceId);
     /// <summary>What the default output is playing (loopback). Null when it cannot be captured.</summary>
@@ -110,6 +117,7 @@ public sealed class Backends
     public IFocusReader? Focus { get; init; }
     public IWatchedFieldSource? WatchedFields { get; init; }
     public IInspectSource? Inspect { get; init; }
+    public IMediaPlayback? Media { get; init; }
     /// <summary>Whether the front app watch also reports a browser's page.</summary>
     public bool ReportsSites { get; init; }
     /// <summary>Test builds only: handles <c>test.world</c> requests that act on the fake OS.</summary>

@@ -19,7 +19,7 @@ export interface WindowsHelperPathOptions {
 }
 
 /** The .NET target the helper is built for (`native/helper-win`). */
-const BUILD_TARGET = "net9.0-windows";
+const BUILD_TARGET = "net9.0-windows10.0.19041.0";
 
 /**
  * Finds the Windows helper. Packaged builds use `resources/helper/murmur-helper.exe`.

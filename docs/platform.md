@@ -87,7 +87,7 @@ A .NET 9 program (C#) that speaks the same protocol as the Mac helper over stdin
   `--self-test` runs the real Windows backends once and prints what worked.
 
 `npm run build:helper:win` builds it. In development the app finds
-`native/helper-win/src/MurmurHelper/bin/{Release,Debug}/net9.0-windows/murmur-helper.exe`, or
+`native/helper-win/src/MurmurHelper/bin/{Release,Debug}/net9.0-windows10.0.19041.0/murmur-helper.exe`, or
 `MURMUR_HELPER_PATH`; packaged, `resources/helper/murmur-helper.exe`, checked by hash first.
 
 ### What is checked, and where
@@ -173,9 +173,18 @@ its own task, so pings are answered while it works.
   `focus.app` carries the page's host and path, read from the first web document in the window. This
   has not been tried against a real browser.
 
-### What it does not do yet
+### Typing counts, media pause and microphone changes
 
-- **Not announced, so refused:** typing counts and media pause.
+- **Typing counts.** The keyboard hook's key codes are counted as words (Alt Gr types; Control,
+  Alt and Windows shortcuts do not). Only the count is sent. As on the Mac, counting sees keys only
+  while a binding keeps the hook running.
+- **Media.** `media.pause` pauses the first playing session in the system's media transport
+  controls and `media.resume` plays only that one. Where the system does not offer the controls,
+  playback is reported as unavailable. This needs Windows 10 version 2004 or later, which is the
+  helper's target.
+- **Microphones.** When inputs change the helper sends the new list; a recording whose device went
+  away, or whose capture stopped, carries on into the same file on the chosen device or the default.
+
 - **Elevated programs** do not receive input from a program that is not elevated, so insertion and
   hotkeys do not reach them.
 

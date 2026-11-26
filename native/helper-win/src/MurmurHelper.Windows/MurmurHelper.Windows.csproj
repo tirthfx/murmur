@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net9.0-windows</TargetFramework>
+    <!-- Windows 10 version 2004 and later: the media transport controls come from the Windows Runtime. -->
+    <TargetFramework>net9.0-windows10.0.19041.0</TargetFramework>
     <RootNamespace>Murmur.Helper.Windows</RootNamespace>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
