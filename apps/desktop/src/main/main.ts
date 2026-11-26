@@ -183,6 +183,8 @@ import { diagnosticsReport } from "./testing/diagnostics";
 import { writeExport } from "./privacy/data-export";
 import { createNotesStore } from "./notes/notes-store";
 import { createContactsStore } from "./contacts/contacts-store";
+import { createPrivateFocus } from "./privacy/private-focus";
+import guide from "./help/guide.md?raw";
 import { createMeetingsStore } from "./meetings/meetings-store";
 import { createMeetingRecorder } from "./meetings/meeting-recorder";
 import { createMeetingStarter } from "./meetings/meeting-starter";
@@ -1239,6 +1241,12 @@ const translateEmail = createTranslator({
   logger: createConsoleLogger("[email]"),
 });
 
+// HB-48: no text is read from an app on the private list.
+const privateFocus = createPrivateFocus(
+  (input) => helper.focusContext(input),
+  () => settingsStore.get().privacy.contextExcludedApps,
+);
+
 const recorder = createRecorder({
   helper,
   logger: createConsoleLogger("[audio]"),
@@ -1256,9 +1264,7 @@ const recorder = createRecorder({
     // With context awareness off, only the app and its window are asked for (for the style);
     // no text around the caret. Without Accessibility there is no context at all.
     const on = settingsStore.get().contextAwareness;
-    const context = await helper
-      .focusContext(on ? {} : { maxBefore: 0, maxAfter: 0 })
-      .catch(() => null);
+    const context = await privateFocus(on ? {} : { maxBefore: 0, maxAfter: 0 }).catch(() => null);
     smokeChecks?.handleContext(context);
     // File tags: index the editor's workspace while the owner speaks.
     if (context) {
@@ -3609,6 +3615,13 @@ app.on("web-contents-created", (_event, contents) => {
 function registerIpc(): void {
   const handle = createIpcHandler({
     entryUrl: hubEntryUrl,
+    openGuide: async () => {
+      // HB-08: written beside the data, so any text viewer can open it.
+      const file = path.join(profile.appData, "Murmur", "Murmur guide.md");
+      mkdirSync(path.dirname(file), { recursive: true });
+      writeFileSync(file, guide);
+      return (await shell.openPath(file)) === "";
+    },
     reportProblem: () => writeDiagnostics(),
     testingTool: (tool) => runTestingTool(tool),
     axInspect: (showValues) => helper.inspectAccessibility(showValues),
@@ -3662,6 +3675,18 @@ function registerIpc(): void {
                 return thread ? [thread] : [];
               }),
             insights: () => insights?.days(null) ?? [],
+            meetings: () =>
+              (meetingsStore?.list(100_000) ?? []).map((meeting) => ({
+                title: meeting.title,
+                startedAt: meeting.startedAt,
+                endedAt: meeting.endedAt,
+                attendees: meeting.attendees ?? [],
+                notes: meetingNotes?.notes(meeting.id).body ?? "",
+                summaries: meetingSummaries?.list(meeting.id) ?? [],
+                transcript: meetingTranscripts?.segments(meeting.id) ?? [],
+              })),
+            tasks: () => tasksService?.list().tasks ?? [],
+            contacts: () => contactsStore?.list() ?? [],
             audioFiles: () => history.audioFiles(),
           },
           Date.now(),

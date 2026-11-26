@@ -11,6 +11,7 @@ export const EXPORT_CATEGORIES = [
   "notes",
   "instruct",
   "insights",
+  "meetings",
   "audio",
 ] as const;
 export type ExportCategory = (typeof EXPORT_CATEGORIES)[number];
@@ -24,6 +25,7 @@ export const EXPORT_LABELS: Record<ExportCategory, string> = {
   notes: "Scratchpad notes (Markdown, with images)",
   instruct: "Instruct threads (Markdown)",
   insights: "Insights (CSV)",
+  meetings: "Meetings, tasks and contacts (JSON; no meeting audio)",
   audio: "Kept recordings (audio files)",
 };
 

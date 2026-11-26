@@ -1,3 +1,4 @@
+import { TextArea } from "@astryxdesign/core/TextArea";
 import { RetentionPolicyNote } from "./PolicyNotice";
 import { useEffect, useState } from "react";
 import { Button } from "@astryxdesign/core/Button";
@@ -89,6 +90,28 @@ function Choice<T extends string | number | null>({
 }
 
 /** Settings, Data and Privacy (HB-21, HB-48 to HB-50, HB-52). */
+/** HB-48: apps whose text is never read, one id per line. */
+function PrivateApps({ apps, onChange }: { apps: string[]; onChange: (apps: string[]) => void }) {
+  const [text, setText] = useState(apps.join("\n"));
+  return (
+    <TextArea
+      label="Never read the text in these apps"
+      description="One app id per line, such as com.example.notes or notes.exe. Dictation still works there; nothing around the cursor is read."
+      value={text}
+      onChange={(value) => {
+        setText(value);
+        onChange(
+          value
+            .split("\n")
+            .map((line) => line.trim())
+            .filter((line) => line !== "" && line.length <= 255)
+            .slice(0, 100),
+        );
+      }}
+    />
+  );
+}
+
 export function DataPrivacySection({
   settings,
   update,
@@ -179,6 +202,10 @@ export function DataPrivacySection({
           <Text size="sm" color="secondary" data-testid="privacy-preset">
             Now: {PRESET_LABELS[preset]}. Changing a switch below makes it Custom.
           </Text>
+          <PrivateApps
+            apps={privacy.contextExcludedApps}
+            onChange={(contextExcludedApps) => setPrivacy({ contextExcludedApps })}
+          />
           <Switch
             label="Keep dictations in History"
             description="Off: nothing you dictate is written to History. Insights keep word counts only."

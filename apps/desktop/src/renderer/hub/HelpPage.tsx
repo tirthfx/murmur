@@ -84,6 +84,13 @@ export function HelpPage({
             <Button variant="secondary" label="Restart the setup tutorial" onClick={onRunSetup}>
               Restart tutorial
             </Button>
+            <Button
+              variant="secondary"
+              label="Open the guide"
+              onClick={() => void window.murmur.openGuide()}
+            >
+              Open the guide
+            </Button>
             <Button variant="secondary" label="Report a problem" onClick={() => void report()}>
               Report a problem
             </Button>

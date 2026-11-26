@@ -36,6 +36,7 @@ function setup() {
   const handle = createIpcHandler({
     entryUrl,
     hubSetPage: vi.fn(),
+    openGuide: vi.fn(),
     reportProblem: vi.fn(() => Promise.resolve({ ok: true, message: "" })),
     testingTool: vi.fn(() => Promise.resolve({ ok: true, message: "" })),
     axInspect: vi.fn(() => Promise.resolve(null)),

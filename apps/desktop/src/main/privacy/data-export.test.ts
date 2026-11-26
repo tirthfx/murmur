@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -79,6 +79,9 @@ function sources(audio: string[] = []): ExportSources {
     noteImages: { file: () => null, dataUrl: () => null },
     instructThreads: () => [],
     insights: () => [],
+    meetings: () => [],
+    tasks: () => [],
+    contacts: () => [],
     audioFiles: () => audio,
   };
 }
@@ -109,5 +112,33 @@ describe("data export (HB-46)", () => {
     const withAudio = path.join(dir, "with");
     expect(writeExport(withAudio, ["audio"], sources([recording]), 0)).toEqual({ audio: 1 });
     expect(existsSync(path.join(withAudio, "audio", "rec.pcm"))).toBe(true);
+  });
+});
+
+describe("exporting meetings (HB-46)", () => {
+  it("writes one file per meeting, with tasks and contacts, never mixing up names", () => {
+    const folder = mkdtempSync(path.join(os.tmpdir(), "export-meetings-"));
+    const meeting = {
+      title: "Plan: Q1/Q2",
+      startedAt: Date.UTC(2026, 0, 5),
+      endedAt: null,
+      attendees: [],
+      notes: "Hello",
+      summaries: [],
+      transcript: [],
+    };
+    const counts = writeExport(
+      folder,
+      ["meetings"],
+      { ...sources(), meetings: () => [meeting, meeting], tasks: () => [{ title: "t" }] },
+      0,
+    );
+    expect(counts.meetings).toBe(2);
+    expect(readdirSync(path.join(folder, "meetings")).sort()).toEqual([
+      "2026-01-05 Plan Q1 Q2 2.json",
+      "2026-01-05 Plan Q1 Q2.json",
+    ]);
+    expect(readFileSync(path.join(folder, "tasks.json"), "utf8")).toContain('"t"');
+    rmSync(folder, { recursive: true, force: true });
   });
 });

@@ -20,6 +20,8 @@ export const privacySettingsSchema = z.strictObject({
   historyDays: z.union([z.null(), z.literal(365), z.literal(30), z.literal(7)]),
   /** HB-52: no network at all, recordings gone at once, no learning. */
   strictLocal: z.boolean(),
+  /** HB-48: apps whose text is never read for context, by their id. */
+  contextExcludedApps: z.array(z.string().trim().min(1).max(255)).max(100).default([]),
 });
 export type PrivacySettings = z.infer<typeof privacySettingsSchema>;
 
@@ -28,6 +30,7 @@ export const DEFAULT_PRIVACY: PrivacySettings = {
   audio: "24h",
   historyDays: null,
   strictLocal: false,
+  contextExcludedApps: [],
 };
 
 export const PRIVACY_PRESETS = ["balanced", "minimal", "full"] as const;
@@ -35,7 +38,8 @@ export type PrivacyPreset = (typeof PRIVACY_PRESETS)[number];
 
 /** The switches a preset sets. */
 export interface PrivacySwitches {
-  privacy: Omit<PrivacySettings, "strictLocal">;
+  /** Strict local mode and the private-app list are not part of any preset. */
+  privacy: Omit<PrivacySettings, "strictLocal" | "contextExcludedApps">;
   contextAwareness: boolean;
   learnCorrections: boolean;
   voiceProfile: boolean;

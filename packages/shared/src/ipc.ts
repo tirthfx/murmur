@@ -377,6 +377,7 @@ export const IPC_CHANNELS = {
   planView: "plan:view",
   testingTool: "testing:tool",
   reportProblem: "help:report-problem",
+  openGuide: "help:open-guide",
   axInspect: "testing:ax-inspect",
   planAct: "plan:act",
   dataCounts: "data:counts",
@@ -882,6 +883,7 @@ export const IPC_CONTRACT = {
   [IPC_CHANNELS.focusRemoveApp]: { args: z.tuple([z.string().min(1)]), result: z.void() },
   // HB-08.
   [IPC_CHANNELS.reportProblem]: { args: z.tuple([]), result: testingToolResultSchema },
+  [IPC_CHANNELS.openGuide]: { args: z.tuple([]), result: z.boolean() },
   // HB-55, HB-56.
   [IPC_CHANNELS.testingTool]: {
     args: z.tuple([z.enum(TESTING_TOOLS)]),
@@ -1565,6 +1567,8 @@ export interface MurmurApi {
   focusInstalledApps(): Promise<InstalledApp[]>;
   /** Help, Report a problem (HB-08): a local diagnostics bundle, sent nowhere. */
   reportProblem(): Promise<TestingToolResult>;
+  /** Opens the bundled guide in the default text viewer; false when that failed. */
+  openGuide(): Promise<boolean>;
   /** A Testing page tool (HB-55); developer mode only. */
   testingTool(tool: TestingTool): Promise<TestingToolResult>;
   /** The accessibility inspector (HB-56): the app in front now; null when it cannot. */

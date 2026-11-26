@@ -42,7 +42,13 @@ describe("Data and Privacy (HB-21, HB-48 to HB-52)", () => {
     const update = mount();
     await userEvent.click(screen.getByRole("radio", { name: "Minimal" }));
     expect(update).toHaveBeenCalledWith({
-      privacy: { storeHistory: true, audio: "never", historyDays: 7, strictLocal: false },
+      privacy: {
+        storeHistory: true,
+        audio: "never",
+        historyDays: 7,
+        contextExcludedApps: [],
+        strictLocal: false,
+      },
       contextAwareness: true,
       learnCorrections: false,
       voiceProfile: expect.objectContaining({ enabled: false }),

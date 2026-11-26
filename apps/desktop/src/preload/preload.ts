@@ -11,6 +11,7 @@ import {
 // Only this narrow, typed surface reaches the renderer. ipcRenderer itself is never exposed.
 const api: MurmurApi = {
   getAppInfo: () => ipcRenderer.invoke(IPC_CHANNELS.getAppInfo),
+  openGuide: () => ipcRenderer.invoke(IPC_CHANNELS.openGuide),
   reportProblem: () => ipcRenderer.invoke(IPC_CHANNELS.reportProblem),
   testingTool: (tool) => ipcRenderer.invoke(IPC_CHANNELS.testingTool, tool),
   axInspect: (showValues) => ipcRenderer.invoke(IPC_CHANNELS.axInspect, showValues),

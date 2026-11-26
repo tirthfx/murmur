@@ -102,3 +102,7 @@ Tick categories and choose a folder. Murmur writes a new `Murmur export <date ti
 - **Meetings and their recordings:** every meeting, its chunk rows, transcript, summaries, notes and the `meetings` folder (NT-04), the tasks taken from meetings and the Ask conversations and index about them (NT-26, NT-14). Tasks written by hand stay.
 
 **"Delete all data and reset"** deletes every category, plus custom Rewrites, Focus lists, retention records and every setting. With the box ticked, it also deletes downloaded models. Murmur then restarts at first-run setup.
+
+## Private apps and meeting export
+
+Data and Privacy has a list of apps whose text is never read for context (`privacy/private-focus.ts`): the app is learned without any text, and listed apps are not asked for it. Export includes meetings (notes, summaries and transcript, one JSON file each), tasks and contacts; meeting audio stays out.
