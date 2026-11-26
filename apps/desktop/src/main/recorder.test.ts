@@ -15,6 +15,7 @@ import { developerVocabulary } from "./developer/packs";
 import {
   RESPONSE_TARGET_MS,
   createRecorder,
+  type RecorderEvent,
   type AutoRewriteResult,
   type DictationRecord,
 } from "./recorder";
@@ -200,7 +201,7 @@ describe("recorder", () => {
     recorder.handleHotkey(key("down"));
     recorder.handleHotkey(key("up"));
     await recorder.idle();
-    expect(transcribe).toHaveBeenCalledWith("/tmp/a.pcm", { prompt: "" });
+    expect(transcribe).toHaveBeenCalledWith("/tmp/a.pcm", expect.objectContaining({ prompt: "" }));
     expect(logger.lines).toContain("info: transcribed 10.02 s in 640 ms: 5 words, language en");
     expect(logger.lines.join("\n")).not.toContain("Thursday");
   });
@@ -321,7 +322,10 @@ describe("recorder", () => {
     expect(events.at(-1)).toEqual({ type: "transcription-failed" });
     expect(recorder.retryLast()).toBe(true);
     await recorder.idle();
-    expect(transcribe).toHaveBeenLastCalledWith("/tmp/a.pcm", { prompt: "" });
+    expect(transcribe).toHaveBeenLastCalledWith(
+      "/tmp/a.pcm",
+      expect.objectContaining({ prompt: "" }),
+    );
     expect(events.at(-1)).toEqual({ type: "transcribed", words: 1 });
     expect(recorder.retryLast()).toBe(false);
   });
@@ -365,7 +369,10 @@ describe("recorder", () => {
     recorder.handleHotkey(key("down"));
     recorder.handleHotkey(key("up"));
     await recorder.idle();
-    expect(transcribe).toHaveBeenCalledWith("/tmp/a.pcm", { prompt: "Priya." });
+    expect(transcribe).toHaveBeenCalledWith(
+      "/tmp/a.pcm",
+      expect.objectContaining({ prompt: "Priya." }),
+    );
     expect(clean).toHaveBeenCalledWith("ship Kubernetes to Priya", {
       terms: ["Priya", "Kubernetes"],
       budgetMs: expect.any(Number),
@@ -492,7 +499,7 @@ describe("recorder", () => {
       bundleId: "net.whatsapp.WhatsApp",
       windowTitle: "Chat with Sam",
     });
-    expect(transcribe).toHaveBeenCalledWith("/tmp/a.pcm", { prompt: "" });
+    expect(transcribe).toHaveBeenCalledWith("/tmp/a.pcm", expect.objectContaining({ prompt: "" }));
     expect(clean.mock.calls[0]![1]).toMatchObject({
       terms: [],
       instructions: [expect.stringContaining("Keep it short.")],
@@ -1078,7 +1085,10 @@ describe("recorder", () => {
     await recorder.idle();
     expect(recorder.retryLast()).toBe(true);
     await recorder.idle();
-    expect(transcribe).toHaveBeenLastCalledWith("/kept/s-1.pcm", { prompt: "" });
+    expect(transcribe).toHaveBeenLastCalledWith(
+      "/kept/s-1.pcm",
+      expect.objectContaining({ prompt: "" }),
+    );
   });
 
   it("retries once by itself after a timeout, and records only the outcome", async () => {
@@ -1192,7 +1202,10 @@ describe("recorder", () => {
     expect(recorder.retryLast()).toBe(false);
     await recorder.idle();
     expect(events[0]).toBe("retrying");
-    expect(transcribe).toHaveBeenCalledWith("/kept/s-old.pcm", { prompt: "" });
+    expect(transcribe).toHaveBeenCalledWith(
+      "/kept/s-old.pcm",
+      expect.objectContaining({ prompt: "" }),
+    );
     expect(insert).toHaveBeenCalledOnce();
     expect(records[0]).toMatchObject({ source: "retry", retryOf: "h-old", sessionId: "s-old" });
     expect(recorder.retryLast()).toBe(false);
@@ -1609,9 +1622,12 @@ describe("recorder", () => {
     recorder.toggle();
     await recorder.idle();
     expect(readContext).toHaveBeenCalledOnce();
-    expect(transcribe).toHaveBeenCalledWith("/tmp/a.pcm", {
-      prompt: "Thanks Priya Raghunathan for the notes.",
-    });
+    expect(transcribe).toHaveBeenCalledWith(
+      "/tmp/a.pcm",
+      expect.objectContaining({
+        prompt: "Thanks Priya Raghunathan for the notes.",
+      }),
+    );
     expect(clean).toHaveBeenCalledWith("send it to priya ragunathan", {
       terms: ["Priya", "Raghunathan"],
       budgetMs: expect.any(Number),
@@ -1634,7 +1650,7 @@ describe("recorder", () => {
     await recorder.idle();
     recorder.toggle();
     await recorder.idle();
-    expect(transcribe).toHaveBeenCalledWith("/tmp/a.pcm", { prompt: "" });
+    expect(transcribe).toHaveBeenCalledWith("/tmp/a.pcm", expect.objectContaining({ prompt: "" }));
   });
 
   it("tells the Bar once when the microphone changes mid-recording, and only for this session", async () => {
@@ -1971,5 +1987,51 @@ describe("Instruct auto-detect in the recorder (RW-16)", () => {
     const plain = autoSetup({ enabled: true, answer: true, said: "See you at five." });
     await plain.dictate();
     expect(plain.ask).not.toHaveBeenCalled();
+  });
+});
+
+describe("the recording length limit (DC-21)", () => {
+  async function recording(minutes: number) {
+    const clock = new FakeClock();
+    const events: RecorderEvent[] = [];
+    const ctx = setup({
+      clock,
+      sessionLimitMinutes: () => minutes,
+      onEvent: (event) => events.push(event),
+    });
+    ctx.recorder.toggle();
+    await ctx.recorder.idle();
+    return { ...ctx, clock, events, types: () => events.map((event) => event.type) };
+  }
+
+  it("warns a minute before, then stops and processes the recording once", async () => {
+    const { clock, events, types, calls, recorder } = await recording(5);
+    await clock.advance(4 * 60_000 - 1);
+    expect(types()).not.toContain("limit-warning");
+    await clock.advance(1);
+    expect(events).toContainEqual({ type: "limit-warning", seconds: 60 });
+    await clock.advance(60_000);
+    await recorder.idle();
+    expect(types().filter((type) => type === "stopped")).toHaveLength(1);
+    expect(calls.filter((call) => call.startsWith("stop"))).toHaveLength(1);
+  });
+
+  it("does nothing once the recording ended by itself", async () => {
+    const { clock, types, recorder } = await recording(5);
+    recorder.toggle();
+    await recorder.idle();
+    await clock.advance(10 * 60_000);
+    await recorder.idle();
+    expect(types()).not.toContain("limit-warning");
+    expect(types().filter((type) => type === "stopped")).toHaveLength(1);
+  });
+
+  it("starts a new recording with the next press after the cap", async () => {
+    const { clock, types, recorder } = await recording(5);
+    await clock.advance(5 * 60_000);
+    await recorder.idle();
+    recorder.toggle();
+    await recorder.idle();
+    expect(types().filter((type) => type === "started")).toHaveLength(2);
   });
 });

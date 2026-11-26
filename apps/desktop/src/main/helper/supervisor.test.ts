@@ -7,7 +7,7 @@ import {
   flush,
   type FakeHelperProcess,
 } from "./fakes";
-import { HelperSupervisor } from "./supervisor";
+import { HelperSupervisor, transcribeTimeout } from "./supervisor";
 
 function setup(options: Partial<ConstructorParameters<typeof HelperSupervisor>[0]> = {}) {
   const clock = new FakeClock();
@@ -669,5 +669,13 @@ describe("selection and keys", () => {
     await expect(supervisor.pressKey({ key: "return", modifiers: [] })).rejects.toMatchObject({
       code: "HELPER_UNAVAILABLE",
     });
+  });
+});
+
+describe("the wait for a transcription", () => {
+  it("is two minutes, and longer for a long recording", () => {
+    expect(transcribeTimeout(0)).toBe(120_000);
+    expect(transcribeTimeout(30_000)).toBe(120_000);
+    expect(transcribeTimeout(20 * 60_000)).toBe(21 * 60_000);
   });
 });

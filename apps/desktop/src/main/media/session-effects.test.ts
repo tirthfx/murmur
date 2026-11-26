@@ -26,6 +26,7 @@ const base: Settings = {
   cleanupLevel: "standard",
   sounds: { start: true, lock: true, success: true, error: true, cancel: false },
   muteWhileDictating: true,
+  sessionLimitMinutes: 20,
   setupComplete: true,
   pressEnterCommand: true,
   openHubOnLaunch: true,
@@ -233,6 +234,7 @@ describe("session effects", () => {
     const { effects, steps } = setup({
       settings: {
         muteWhileDictating: false,
+        sessionLimitMinutes: 20,
         setupComplete: true,
         pressEnterCommand: true,
         openHubOnLaunch: true,

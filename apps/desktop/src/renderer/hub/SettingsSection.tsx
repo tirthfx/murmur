@@ -57,6 +57,12 @@ const CONSENT_LABELS: Record<ConsentNotice, string> = {
   off: "Never",
 };
 
+/** DC-21: every five minutes of the range, and a saved value between them. */
+const SESSION_LIMIT_OPTIONS = [5, 10, 15, 20, 25, 30].map((minutes) => ({
+  value: String(minutes),
+  label: `${minutes} minutes`,
+}));
+
 const SOUND_LABELS: Record<(typeof SOUND_NAMES)[number], string> = {
   start: "Start sound",
   lock: "Hands-free sound",
@@ -297,6 +303,15 @@ export function SettingsSection({
             description="Only at the end of a dictation. The words are left out of the text."
             value={settings.pressEnterCommand}
             onChange={(pressEnterCommand) => update({ pressEnterCommand })}
+          />
+        </Row>
+        <Row id="session-limit">
+          <Selector
+            label="Longest recording"
+            description="A recording stops by itself at this length, with a warning a minute before. Everything said up to then is inserted."
+            options={SESSION_LIMIT_OPTIONS}
+            value={String(settings.sessionLimitMinutes)}
+            onChange={(minutes) => update({ sessionLimitMinutes: Number(minutes) })}
           />
         </Row>
         <Row id="context">

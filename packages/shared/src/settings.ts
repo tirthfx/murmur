@@ -44,6 +44,11 @@ export function languageLabel(code: string): string {
 /** A wake phrase is two to forty characters. */
 export const COMMAND_WAKE_PHRASE_LIMITS = { min: 2, max: 40 } as const;
 
+/** DC-21: the default length cap on one recording, and its range, in minutes. */
+export const SESSION_LIMIT_DEFAULT = 20;
+export const SESSION_LIMIT_MIN = 5;
+export const SESSION_LIMIT_MAX = 30;
+
 export const settingsSchema = z.strictObject({
   /** Hold to dictate. */
   holdShortcut: hotkeyTriggerSchema,
@@ -162,6 +167,8 @@ export const settingsSchema = z.strictObject({
   muteWhileDictating: z.boolean(),
   /** Read the focused field to help spell names and terms (DC-30). */
   contextAwareness: z.boolean(),
+  /** How long one recording may run before it stops by itself (DC-21). */
+  sessionLimitMinutes: z.number().int().min(SESSION_LIMIT_MIN).max(SESSION_LIMIT_MAX),
   /** Saying "press enter" at the end of a dictation presses Return (DC-36). */
   pressEnterCommand: z.boolean(),
   /** The local plan tier (RW-22, TM-25): unlocks features for testing; nothing is charged. */
@@ -229,6 +236,7 @@ export const settingsPatchSchema = settingsSchema
     muteWhileDictating: true,
     setupComplete: true,
     pressEnterCommand: true,
+    sessionLimitMinutes: true,
     contextAwareness: true,
     mouseButtons: true,
     typingReminder: true,
@@ -284,6 +292,7 @@ export const SETTING_KEYS: Record<keyof Settings, string> = {
   muteWhileDictating: "media.mute_while_dictating",
   setupComplete: "onboarding.complete",
   pressEnterCommand: "press_enter.enabled",
+  sessionLimitMinutes: "audio.session_limit_minutes",
   contextAwareness: "context.enabled",
   mouseButtons: "hotkey.mouse_buttons",
   typingReminder: "reminder.typing",

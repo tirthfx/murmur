@@ -43,7 +43,8 @@ export interface SpeechService {
   recheck(): void;
   /** Transcribes a recorded file. Rejects when the model is not ready. */
   /** `prompt`: words already on screen, to help spell names. */
-  transcribe(path: string, prompt?: string): Promise<Transcript>;
+  /** `audioMs`, when known, lets a long recording take longer. */
+  transcribe(path: string, prompt?: string, audioMs?: number): Promise<Transcript>;
   /**
    * NT-05: transcribes a meeting chunk, keeping its timing. Waits behind any dictation, which
    * always goes first: the helper decodes one file at a time.
@@ -173,15 +174,14 @@ export function createSpeechService(deps: SpeechServiceDeps): SpeechService {
       verified = false;
       if (subscription && helper.getStatus().state === "ready") void prepare();
     },
-    transcribe(path, prompt) {
+    transcribe(path, prompt, audioMs) {
       if (state !== "ready") return Promise.reject(notReady());
-      return decode(true, () =>
-        helper.transcribeFile({
-          path,
-          languages: languages(),
-          ...(prompt ? { prompt } : {}),
-        }),
-      );
+      return decode(true, () => {
+        const input = { path, languages: languages(), ...(prompt ? { prompt } : {}) };
+        return audioMs === undefined
+          ? helper.transcribeFile(input)
+          : helper.transcribeFile(input, audioMs);
+      });
     },
     transcribeLive(input) {
       if (state !== "ready") return Promise.reject(notReady());

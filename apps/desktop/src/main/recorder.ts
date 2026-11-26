@@ -58,6 +58,9 @@ const AUTO_RETRY_CODES: ReadonlySet<unknown> = new Set([
  */
 export const RESPONSE_TARGET_MS = 2300;
 
+/** How long before the length cap the Bar says it is close (DC-21). */
+export const SESSION_LIMIT_WARNING_MS = 60_000;
+
 /** Wait before the automatic retry. */
 export const AUTO_RETRY_DELAY_MS = 2000;
 
@@ -79,7 +82,7 @@ export interface RecorderDeps {
   newSessionId: () => string;
   levelIntervalMs?: number;
   /** Turns a recorded file into text. Without it, recordings are only logged. */
-  transcribe?: (path: string, options: { prompt: string }) => Promise<Transcript>;
+  transcribe?: (path: string, options: { prompt: string; audioMs: number }) => Promise<Transcript>;
   /**
    * Reads the focused field when a recording starts (DC-30). Null when context is off or
    * cannot be read. Kept in memory for that dictation only.
@@ -178,6 +181,8 @@ export interface RecorderDeps {
   };
   /** Split long dictations into messages at pauses (experimental, DC-37). */
   splitMessages?: () => boolean;
+  /** The length cap on one recording in minutes (DC-21), read when it starts. None when missing. */
+  sessionLimitMinutes?: () => number;
   /** Whether "press enter" at the end of a dictation presses Return. Off when missing. */
   pressEnterCommand?: () => boolean;
   /** Clipboard fallback when inserting is not allowed. */
@@ -294,6 +299,8 @@ interface Take {
   context: Promise<FocusContext | null>;
   /** When the key was released (or a retry began): the response deadline counts from here. */
   releasedAt: number;
+  /** The recording was stopped by the length cap, after this many minutes. */
+  limitMinutes?: number;
   /** Set on the one automatic retry, so it is never retried twice. */
   autoRetried?: boolean;
   /** Recorded with the Command Mode key (a command, RW-08) or the Instruct key (RW-11). */
@@ -313,7 +320,10 @@ export type RecorderEvent =
   | { type: "silent-mic"; deviceName: string }
   | { type: "no-speech" }
   | { type: "stop-failed" }
-  | { type: "transcribed"; words: number }
+  /** `note` is said instead of the word count: why the recording ended. */
+  | { type: "transcribed"; words: number; note?: string }
+  /** The length cap is close (DC-21); recording goes on. */
+  | { type: "limit-warning"; seconds: number }
   | { type: "transcription-failed" }
   | { type: "copied-instead" }
   | { type: "insert-failed" }
@@ -368,6 +378,9 @@ interface Session {
   switched: boolean;
   /** Started by the Command Mode key, not the dictation keys. */
   purpose: "dictation" | "command" | "instruct";
+  /** The length cap's timers, and the cap once it has stopped the recording. */
+  limitTimers: TimerHandle[];
+  limitMinutes?: number;
 }
 
 function errorCode(error: unknown): unknown {
@@ -376,6 +389,15 @@ function errorCode(error: unknown): unknown {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/** The finished step, saying when the length cap ended the recording. */
+function transcribed(take: Take, words: number): RecorderEvent {
+  return {
+    type: "transcribed",
+    words,
+    ...(take.limitMinutes ? { note: `Stopped at the ${take.limitMinutes}-minute limit` } : {}),
+  };
 }
 
 /**
@@ -496,6 +518,33 @@ export function createRecorder(deps: RecorderDeps): Recorder {
     queue = queue.then(step, step);
   }
 
+  /** DC-21: warns a minute before the cap, then stops and processes the recording. */
+  function startLimit(session: Session): void {
+    const minutes = deps.sessionLimitMinutes?.();
+    if (!minutes) return;
+    const capMs = minutes * 60_000;
+    session.limitTimers = [
+      clock.setTimeout(() => {
+        if (current !== session) return;
+        emit({ type: "limit-warning", seconds: SESSION_LIMIT_WARNING_MS / 1000 });
+      }, capMs - SESSION_LIMIT_WARNING_MS),
+      clock.setTimeout(() => {
+        if (current !== session) return;
+        logger.info(`the ${minutes}-minute limit was reached; stopping`);
+        session.limitMinutes = minutes;
+        // The key may still be held or hands-free on: its next release or press starts nothing.
+        gesture.reset();
+        heldKey = { kind: "idle" };
+        enqueue(() => end(session.purpose));
+      }, capMs),
+    ];
+  }
+
+  function stopLimit(session: Session): void {
+    for (const timer of session.limitTimers) clock.clearTimeout(timer);
+    session.limitTimers = [];
+  }
+
   async function begin(purpose: Session["purpose"]): Promise<void> {
     if (current) return;
     const reason = (await deps.blocked?.()) ?? null;
@@ -512,6 +561,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
       levels: 0,
       switched: false,
       purpose,
+      limitTimers: [],
       // Read before the microphone starts, while the field the user is in still has focus.
       context: readContext(),
     };
@@ -538,6 +588,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
       logger.info(`recording from ${started.deviceName}`);
       note(() => deps.pending?.start(session.id, now()));
       emit({ type: "started", at: started.startedAt });
+      startLimit(session);
       deps.prepareCleanup?.();
     } catch (error) {
       if (current === session) current = null;
@@ -561,6 +612,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
     // A dictation key's release never ends a command recording, nor the other way round.
     if (!session || session.purpose !== purpose) return;
     current = null;
+    stopLimit(session);
     const releasedAt = now();
     emit({ type: "stopped" });
     try {
@@ -586,6 +638,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
         context: session.context,
         releasedAt,
         ...(purpose !== "dictation" ? { purpose } : {}),
+        ...(session.limitMinutes ? { limitMinutes: session.limitMinutes } : {}),
       };
       if (result.audioFile) {
         const audioPath = result.audioFile.path;
@@ -611,6 +664,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
     const session = current;
     if (!session) return;
     current = null;
+    stopLimit(session);
     emit({ type: "cancelled" });
     try {
       await helper.cancelAudio(session.id);
@@ -696,6 +750,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
       }
       transcript = await deps.transcribe!(take.audio!.path, {
         prompt: speechPromptWithTerms(promptTerms, speechPrompt(context)),
+        audioMs: take.durationMs,
       });
     } catch (error) {
       logger.warn(`could not transcribe: ${errorMessage(error)}`);
@@ -967,7 +1022,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
     emit(
       finalWords === 0 && !spoken.pressEnter
         ? { type: "no-speech" }
-        : { type: "transcribed", words: finalWords },
+        : transcribed(take, finalWords),
     );
     const outcome =
       final === "" && !spoken.pressEnter
@@ -1042,7 +1097,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
         ? `${assembled.html}<p>${plainToHtml(signature)}</p>`
         : assembled.html;
     const words = text.split(/\s+/).filter(Boolean).length;
-    emit({ type: "transcribed", words });
+    emit(transcribed(take, words));
     const outcome = await insert(text, pressEnter, html);
     record(take, {
       ...outcome,
@@ -1070,7 +1125,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
     // The spoken command, if any, was on the last part's segments; take it off there too.
     const last = splitPressEnter(parts.at(-1)!);
     const texts = [...parts.slice(0, -1), pressEnterAtEnd ? last.text : parts.at(-1)!];
-    emit({ type: "transcribed", words: texts.join(" ").split(/\s+/).filter(Boolean).length });
+    emit(transcribed(take, texts.join(" ").split(/\s+/).filter(Boolean).length));
     const finals: string[] = [];
     let outcome: InsertOutcome = { insertStatus: "inserted" };
     for (const [index, text] of texts.entries()) {
@@ -1269,6 +1324,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
         helper.onStatusChange((status) => {
           // A restarted helper has no session; forget ours, and any lock.
           if (status.state !== "ready") {
+            if (current) stopLimit(current);
             current = null;
             gesture.reset();
           }

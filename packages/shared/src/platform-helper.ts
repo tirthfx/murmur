@@ -118,7 +118,8 @@ export interface PlatformHelper {
   loadSpeechModel(input: SpeechModelLoadInput): Promise<SpeechModelLoadResult>;
   unloadSpeechModel(): Promise<void>;
   /** Transcribes a recorded file on the device. No network is used. */
-  transcribeFile(input: TranscribeFileInput): Promise<Transcript>;
+  /** `audioMs`, when known, lengthens the wait for a long recording. */
+  transcribeFile(input: TranscribeFileInput, audioMs?: number): Promise<Transcript>;
   /**
    * Inserts text into the focused field: paste with the clipboard restored afterwards, or
    * typed when paste is not handled. Needs Accessibility; rejects with PERMISSION_DENIED
