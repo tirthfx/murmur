@@ -266,6 +266,16 @@ import {
   type ShortcutSlot,
   SHORTCUT_SLOTS,
 } from "./settings";
+import {
+  CONTACT_LIMITS,
+  contactCardSchema,
+  contactResultSchema,
+  contactSchema,
+  type Contact,
+  type ContactCard,
+  type ContactDraft,
+  type ContactResult,
+} from "./contacts";
 import { setupStatusSchema, type SetupStatus } from "./setup";
 import { mediaPlaybackResultSchema, type MediaPlayback } from "./media";
 import {
@@ -504,6 +514,10 @@ export const IPC_CHANNELS = {
   askThreads: "ask:threads",
   askThread: "ask:thread",
   askSend: "ask:send",
+  contactsList: "contacts:list",
+  contactSave: "contacts:save",
+  contactDelete: "contacts:delete",
+  contactCard: "contacts:card",
   askDelete: "ask:delete",
   meetingSpeakerRename: "meetings:speaker-rename",
   meetingSpeakerClip: "meetings:speaker-clip",
@@ -1388,6 +1402,26 @@ export const IPC_CONTRACT = {
   },
   [IPC_CHANNELS.askSend]: { args: z.tuple([askSendSchema]), result: z.custom<AskSendResult>() },
   [IPC_CHANNELS.askDelete]: { args: z.tuple([z.string().min(1).max(64)]), result: z.void() },
+  [IPC_CHANNELS.contactsList]: {
+    args: z.tuple([z.string().max(CONTACT_LIMITS.email)]),
+    result: z.array(contactSchema),
+  },
+  // The draft is checked by the store, so its refusal reaches the person as a sentence.
+  [IPC_CHANNELS.contactSave]: {
+    args: z.tuple([
+      z.string().min(1).max(64).nullable(),
+      z.strictObject({ name: z.string().max(500), email: z.string().max(500).nullable() }),
+    ]),
+    result: contactResultSchema,
+  },
+  [IPC_CHANNELS.contactDelete]: {
+    args: z.tuple([z.string().min(1).max(64)]),
+    result: z.boolean(),
+  },
+  [IPC_CHANNELS.contactCard]: {
+    args: z.tuple([z.string().min(1).max(64)]),
+    result: contactCardSchema.nullable(),
+  },
   [IPC_CHANNELS.meetingFindTasks]: {
     args: z.tuple([z.string().min(1).max(64)]),
     result: z.custom<MeetingFindTasksResult>(),
@@ -1676,6 +1710,10 @@ export interface MurmurApi {
   askThread(id: string): Promise<AskThread | null>;
   /** Answers a question from the meetings in its scope (a few seconds to a minute). */
   askSend(input: AskSendInput): Promise<AskSendResult>;
+  contactsList(query: string): Promise<Contact[]>;
+  contactSave(id: string | null, draft: ContactDraft): Promise<ContactResult>;
+  contactDelete(id: string): Promise<boolean>;
+  contactCard(id: string): Promise<ContactCard | null>;
   askDelete(id: string): Promise<void>;
   /** NT-07: gives a speaker a name for the whole meeting (every line of theirs, at once). */
   meetingSpeakerRename(

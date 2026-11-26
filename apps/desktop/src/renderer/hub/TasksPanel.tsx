@@ -1,3 +1,5 @@
+import { MentionField } from "./MentionField";
+import { readableMentions } from "@murmur/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge } from "@astryxdesign/core/Badge";
 import { Banner } from "@astryxdesign/core/Banner";
@@ -6,7 +8,6 @@ import { HStack } from "@astryxdesign/core/HStack";
 import { Selector } from "@astryxdesign/core/Selector";
 import { Switch } from "@astryxdesign/core/Switch";
 import { Text } from "@astryxdesign/core/Text";
-import { TextArea } from "@astryxdesign/core/TextArea";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { VStack } from "@astryxdesign/core/VStack";
 import { CalendarEventCreate } from "./CalendarEventCreate";
@@ -98,7 +99,7 @@ function TaskEditor({
 
   return (
     <VStack gap={2}>
-      <TextInput label="Task" value={title} onChange={setTitle} />
+      <MentionField label="Task" value={title} onChange={setTitle} />
       <Switch label="This task is mine" value={mine} onChange={setMine} />
       {mine ? null : (
         <TextInput
@@ -109,7 +110,7 @@ function TaskEditor({
         />
       )}
       <TextInput label="Due date" placeholder="YYYY-MM-DD" value={due} onChange={setDue} />
-      <TextArea label="Notes" rows={3} value={notes} onChange={setNotes} />
+      <MentionField label="Notes" rows={3} value={notes} onChange={setNotes} />
       {message ? <Banner status="warning" title={message} /> : null}
       <HStack gap={2}>
         <Button
@@ -212,7 +213,7 @@ export function TasksPanel({
       <Button
         size="sm"
         variant="secondary"
-        label={`Open the transcript where “${task.title}” was said`}
+        label={`Open the transcript where “${readableMentions(task.title)}” was said`}
         onClick={() => onOpenSource(task.meetingId!, task.sourceSegmentId!)}
       >
         Source
@@ -358,7 +359,7 @@ export function TasksPanel({
               ) : (
                 <VStack gap={1}>
                   <HStack gap={2} align="center" wrap="wrap">
-                    <Text weight="semibold">{task.title}</Text>
+                    <Text weight="semibold">{readableMentions(task.title)}</Text>
                     <Badge
                       variant={task.status === "suggested" ? "info" : "neutral"}
                       label={TASK_STATUS_TEXT[task.status]}
@@ -384,7 +385,7 @@ export function TasksPanel({
                       <Button
                         size="sm"
                         variant="primary"
-                        label={`Accept “${task.title}”`}
+                        label={`Accept “${readableMentions(task.title)}”`}
                         onClick={() => void act(task, "accept")}
                       >
                         Accept
@@ -394,7 +395,7 @@ export function TasksPanel({
                       <Button
                         size="sm"
                         variant="primary"
-                        label={`Mark “${task.title}” done`}
+                        label={`Mark “${readableMentions(task.title)}” done`}
                         onClick={() => void act(task, "done")}
                       >
                         Done
@@ -404,7 +405,7 @@ export function TasksPanel({
                       <Button
                         size="sm"
                         variant="secondary"
-                        label={`Reopen “${task.title}”`}
+                        label={`Reopen “${readableMentions(task.title)}”`}
                         onClick={() => void act(task, "reopen")}
                       >
                         Reopen
@@ -414,7 +415,7 @@ export function TasksPanel({
                       <Button
                         size="sm"
                         variant="secondary"
-                        label={`Restore “${task.title}”`}
+                        label={`Restore “${readableMentions(task.title)}”`}
                         onClick={() => void act(task, "restore")}
                       >
                         Restore
@@ -423,7 +424,7 @@ export function TasksPanel({
                       <Button
                         size="sm"
                         variant="secondary"
-                        label={`${task.status === "suggested" ? "Dismiss" : "Archive"} “${task.title}”`}
+                        label={`${task.status === "suggested" ? "Dismiss" : "Archive"} “${readableMentions(task.title)}”`}
                         onClick={() => void act(task, "archive")}
                       >
                         {task.status === "suggested" ? "Dismiss" : "Archive"}
@@ -432,7 +433,7 @@ export function TasksPanel({
                     <Button
                       size="sm"
                       variant="secondary"
-                      label={`Edit “${task.title}”`}
+                      label={`Edit “${readableMentions(task.title)}”`}
                       onClick={() => setEditing(task.id)}
                     >
                       Edit
@@ -440,7 +441,7 @@ export function TasksPanel({
                     <Button
                       size="sm"
                       variant="secondary"
-                      label={`Move “${task.title}” up`}
+                      label={`Move “${readableMentions(task.title)}” up`}
                       isDisabled={index === 0}
                       onClick={() => void move(task, "up")}
                     >
@@ -449,7 +450,7 @@ export function TasksPanel({
                     <Button
                       size="sm"
                       variant="secondary"
-                      label={`Move “${task.title}” down`}
+                      label={`Move “${readableMentions(task.title)}” down`}
                       isDisabled={index === shown.length - 1}
                       onClick={() => void move(task, "down")}
                     >

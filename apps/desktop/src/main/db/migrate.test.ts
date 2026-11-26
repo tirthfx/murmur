@@ -45,6 +45,7 @@ describe("migrations", () => {
       "command_runs",
       "connector_accounts",
       "connector_cache",
+      "contacts",
       "dictionary",
       "focus_rules",
       "focus_sessions",

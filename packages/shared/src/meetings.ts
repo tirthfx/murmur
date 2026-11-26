@@ -620,6 +620,8 @@ export const notetakerSettingsSchema = z.strictObject({
   retention: meetingRetentionSettingsSchema.default(DEFAULT_MEETING_RETENTION),
   /** NT-17: folders. */
   folders: foldersSettingsSchema.default(DEFAULT_FOLDERS_SETTINGS),
+  /** NT-12: whether calendar attendees become contacts. */
+  contacts: z.strictObject({ fromCalendar: z.boolean() }).default({ fromCalendar: true }),
   /** NT-24: corrections to a transcript. */
   corrections: z
     .strictObject({
@@ -633,6 +635,7 @@ export type NotetakerSettings = z.infer<typeof notetakerSettingsSchema>;
 export const DEFAULT_NOTETAKER: NotetakerSettings = {
   captureSystem: true,
   chunkSeconds: 30,
+  contacts: { fromCalendar: true },
   live: true,
   consent: { notice: "first", seen: false },
   windowsAudio: DEFAULT_WINDOWS_AUDIO,

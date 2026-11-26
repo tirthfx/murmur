@@ -1,3 +1,5 @@
+import { ContactsPanel } from "./ContactsPanel";
+import { MentionField } from "./MentionField";
 import { PolicyFeatureNotice } from "./PolicyNotice";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BriefPanel, MeetingBriefTab } from "./BriefPanel";
@@ -18,7 +20,6 @@ import { HStack } from "@astryxdesign/core/HStack";
 import { Selector } from "@astryxdesign/core/Selector";
 import { Tab, TabList } from "@astryxdesign/core/TabList";
 import { Text } from "@astryxdesign/core/Text";
-import { TextArea } from "@astryxdesign/core/TextArea";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { VStack } from "@astryxdesign/core/VStack";
 import {
@@ -283,9 +284,9 @@ function Notes({ detail }: { detail: MeetingDetail }) {
 
   return (
     <VStack gap={1}>
-      <TextArea
+      <MentionField
         label="My notes"
-        description="Your own notes for this meeting, in Markdown. Saved as you type."
+        description="Your own notes for this meeting, in Markdown. Type @ to mention someone. Saved as you type."
         rows={12}
         value={text}
         onChange={(value) => {
@@ -674,9 +675,9 @@ export function NotetakerPage() {
   const [detail, setDetail] = useState<MeetingDetail | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
-  const [page, setPage] = useState<"meetings" | "upcoming" | "ask" | "tasks" | "skills">(
-    "meetings",
-  );
+  const [page, setPage] = useState<
+    "meetings" | "upcoming" | "ask" | "tasks" | "contacts" | "skills"
+  >("meetings");
   const [briefFocus, setBriefFocus] = useState<string | null>(null);
 
   // The menu bar can ask for the brief of the next meeting: it is handed over once.
@@ -808,12 +809,15 @@ export function NotetakerPage() {
         value={page}
         role="tablist"
         hasDivider
-        onChange={(value) => setPage(value as "meetings" | "upcoming" | "ask" | "tasks" | "skills")}
+        onChange={(value) =>
+          setPage(value as "meetings" | "upcoming" | "ask" | "tasks" | "contacts" | "skills")
+        }
       >
         <Tab value="meetings" label="Meetings" panelId="notetaker-meetings" />
         <Tab value="upcoming" label="Upcoming" panelId="notetaker-upcoming" />
         <Tab value="ask" label="Ask" panelId="notetaker-ask" />
         <Tab value="tasks" label="My Tasks" panelId="notetaker-tasks" />
+        <Tab value="contacts" label="Contacts" panelId="notetaker-contacts" />
         <Tab value="skills" label="Skills" panelId="notetaker-skills" />
       </TabList>
 
@@ -846,6 +850,16 @@ export function NotetakerPage() {
             onOpenSource={(meetingId, segmentId) => {
               setOpenId(meetingId);
               setJump({ meetingId, segmentId, tab: "transcript", n: Date.now() });
+              setPage("meetings");
+            }}
+          />
+        </div>
+      ) : null}
+      {page === "contacts" ? (
+        <div id="notetaker-contacts" role="tabpanel" aria-label="Contacts">
+          <ContactsPanel
+            onOpenMeeting={(meetingId) => {
+              setOpenId(meetingId);
               setPage("meetings");
             }}
           />

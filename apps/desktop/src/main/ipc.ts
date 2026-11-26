@@ -189,6 +189,10 @@ import {
   type McpClientsView,
   type McpConfigPreviewResult,
   type McpStatus,
+  type Contact,
+  type ContactCard,
+  type ContactDraft,
+  type ContactResult,
 } from "@murmur/shared";
 import { isTrustedIpcSender } from "../security/guards";
 
@@ -222,6 +226,10 @@ export interface IpcDeps {
   askThreads: () => AskThreadItem[];
   askThread: (id: string) => AskThread | null;
   askSend: (input: AskSendInput) => Promise<AskSendResult>;
+  contactsList: (query: string) => Contact[];
+  contactSave: (id: string | null, draft: ContactDraft) => ContactResult;
+  contactDelete: (id: string) => boolean;
+  contactCard: (id: string) => ContactCard | null;
   askDelete: (id: string) => void;
   meetingSpeakerRename: (meetingId: string, speakerId: string, name: string) => SpeakerRenameResult;
   meetingSpeakerClip: (meetingId: string, speakerId: string) => SpeakerClipResult;
@@ -966,6 +974,14 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.askThread(request.args[0] as string);
       case IPC_CHANNELS.askSend:
         return deps.askSend(request.args[0] as AskSendInput);
+      case IPC_CHANNELS.contactsList:
+        return deps.contactsList(request.args[0] as string);
+      case IPC_CHANNELS.contactSave:
+        return deps.contactSave(request.args[0] as string | null, request.args[1] as ContactDraft);
+      case IPC_CHANNELS.contactDelete:
+        return deps.contactDelete(request.args[0] as string);
+      case IPC_CHANNELS.contactCard:
+        return deps.contactCard(request.args[0] as string);
       case IPC_CHANNELS.askDelete:
         return deps.askDelete(request.args[0] as string);
       case IPC_CHANNELS.meetingRename:

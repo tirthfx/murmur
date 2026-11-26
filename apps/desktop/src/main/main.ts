@@ -182,6 +182,7 @@ import { createPlanController } from "./plans/plan-controller";
 import { diagnosticsReport } from "./testing/diagnostics";
 import { writeExport } from "./privacy/data-export";
 import { createNotesStore } from "./notes/notes-store";
+import { createContactsStore } from "./contacts/contacts-store";
 import { createMeetingsStore } from "./meetings/meetings-store";
 import { createMeetingRecorder } from "./meetings/meeting-recorder";
 import { createMeetingStarter } from "./meetings/meeting-starter";
@@ -1928,7 +1929,25 @@ helper.onEditsChanged((change) => {
 });
 
 // NT-04: meeting recordings. The helper writes the chunk files; main keeps the rows.
-const meetingsStore = database ? createMeetingsStore(database) : null;
+// NT-12: people mentioned in notes, tasks and Ask.
+const contactsStore = database
+  ? createContactsStore(database, {
+      now: Date.now,
+      newId: () => randomBytes(8).toString("hex"),
+    })
+  : null;
+const meetingsStore = database
+  ? createMeetingsStore(database, {
+      onAttendees: (attendees) => {
+        if (!settingsStore.get().notetaker.contacts.fromCalendar) return;
+        try {
+          contactsStore?.addAttendees(attendees);
+        } catch (error) {
+          console.warn(`[contacts] could not add the attendees: ${String(error)}`);
+        }
+      },
+    })
+  : null;
 const meetingTranscripts = database ? createTranscriptStore(database) : null;
 const meetingNotes = database ? createMeetingNotesStore(database) : null;
 const meetingSummaries = database ? createSummariesStore(database) : null;
@@ -3753,9 +3772,17 @@ function registerIpc(): void {
         ok: false as const,
         message: "Speakers cannot be saved without the database.",
       };
-      if (result.ok) notifyMeetings(meetingId);
+      if (result.ok) {
+        contactsStore?.addSpeaker(name);
+        notifyMeetings(meetingId);
+      }
       return result;
     },
+    contactsList: (query) => contactsStore?.list(query) ?? [],
+    contactSave: (id, draft) =>
+      contactsStore?.save(id, draft) ?? { ok: false, message: "Contacts need the database." },
+    contactDelete: (id) => contactsStore?.remove(id) ?? false,
+    contactCard: (id) => contactsStore?.card(id) ?? null,
     meetingCorrect: (meetingId, correction) => {
       if (!correctionsStore) return { ok: false, message: "Corrections need the database." };
       const result = correctionsStore.apply(meetingId, correction);

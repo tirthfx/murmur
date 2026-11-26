@@ -1,5 +1,11 @@
 import { z } from "zod";
-import { MCP_LIMITS, TASK_OWNER_FILTERS, TASK_STATUSES, type TaskFilter } from "@murmur/shared";
+import {
+  MCP_LIMITS,
+  TASK_OWNER_FILTERS,
+  TASK_STATUSES,
+  type TaskFilter,
+  readableMentions,
+} from "@murmur/shared";
 import type { AskIndex } from "../meetings/ask-index";
 import type { FoldersStore } from "../meetings/folders-store";
 import type { MeetingNotesStore } from "../meetings/meeting-notes-store";
@@ -399,8 +405,8 @@ export function createMcpTools(data: McpData): McpTool[] {
       return {
         tasks: tasks.map((task) => ({
           id: task.id,
-          title: task.title,
-          notes: task.notes,
+          title: readableMentions(task.title),
+          notes: readableMentions(task.notes),
           status: task.status,
           owner: task.ownerIsMe ? "me" : task.owner,
           dueOn: task.dueOn,

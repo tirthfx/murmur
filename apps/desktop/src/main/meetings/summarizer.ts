@@ -5,6 +5,7 @@ import {
   formatElapsed,
   type Skill,
   type SkillLength,
+  readableMentions,
 } from "@murmur/shared";
 
 /** A transcript segment as the summary sees it. */
@@ -267,7 +268,7 @@ export async function summarizeMeeting(
 ): Promise<string> {
   const lines = transcriptLines(request.segments);
   const total = lines.join("\n");
-  const notes = request.notes.trim().slice(0, NOTES_CHARS);
+  const notes = readableMentions(request.notes).trim().slice(0, NOTES_CHARS);
   let done = 0;
   let steps = 1;
   const call = async (system: string, prompt: string, maxTokens: number) => {
