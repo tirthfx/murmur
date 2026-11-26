@@ -100,3 +100,7 @@ no history row. It uses the chosen microphone and the whisper setting.
 Automatic choice: make a virtual device (for example an aggregate device in Audio MIDI Setup)
 the system input and dictate: the log says Auto uses the real microphone. With an external
 microphone and display, close the lid and dictate: the external microphone is used.
+
+## Length limit
+
+A recording stops by itself at the length set in Settings, System: 20 minutes by default, 5 to 30. The Bar warns a minute before. The audio up to the cap is processed and inserted, and the Bar says the limit stopped it. The app waits for the transcription at least as long as the recording ran, plus a minute. Code: `apps/desktop/src/main/recorder.ts`.

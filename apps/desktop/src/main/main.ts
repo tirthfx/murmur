@@ -126,6 +126,7 @@ import {
   type SoundName,
   matchersForOs,
   shouldWarnAboutPlayback,
+  SESSION_LIMIT_DEFAULT,
 } from "@murmur/shared";
 import {
   createNavigationGuard,
@@ -834,6 +835,7 @@ const settingsStore = createSettingsStore(database, {
   muteWhileDictating: false,
   setupComplete: false,
   pressEnterCommand: true,
+  sessionLimitMinutes: SESSION_LIMIT_DEFAULT,
   openHubOnLaunch: true,
   insights: { typingWpm: INSIGHTS_LIMITS.typingWpm.default },
   profile: { displayName: "", showOnHome: true },
@@ -1203,14 +1205,14 @@ const recorder = createRecorder({
   helper,
   logger: createConsoleLogger("[audio]"),
   newSessionId: randomUUID,
-  transcribe: (file, { prompt }) => {
+  transcribe: (file, { prompt, audioMs }) => {
     if (smokeFailNextTranscription) {
       smokeFailNextTranscription = false;
       return Promise.reject(
         new HelperError("TRANSCRIPTION_FAILED", "failed on purpose by the smoke test"),
       );
     }
-    return speech.transcribe(file, prompt);
+    return speech.transcribe(file, prompt, audioMs);
   },
   readContext: async () => {
     // With context awareness off, only the app and its window are asked for (for the style);
@@ -1246,6 +1248,7 @@ const recorder = createRecorder({
     });
   },
   pressEnterCommand: () => settingsStore.get().pressEnterCommand,
+  sessionLimitMinutes: () => settingsStore.get().sessionLimitMinutes,
   copy: (text) => helper.copyText(text),
   onEvent: (event) => {
     bar.dispatch(barEventFor(event));

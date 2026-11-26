@@ -21,7 +21,13 @@ export function barEventFor(event: RecorderEvent): BarEvent {
     case "stop-failed":
       return { type: "warn", message: "The recording could not be saved" };
     case "transcribed":
-      return { type: "transcribed", words: event.words };
+      return {
+        type: "transcribed",
+        words: event.words,
+        ...(event.note ? { note: event.note } : {}),
+      };
+    case "limit-warning":
+      return { type: "warn", message: `Recording stops in ${event.seconds} seconds` };
     case "transcription-failed":
       return { type: "failed" };
     case "copied-instead":

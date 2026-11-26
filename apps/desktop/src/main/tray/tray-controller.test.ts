@@ -38,6 +38,7 @@ function setup() {
     cleanupLevel: "standard",
     sounds: DEFAULT_SOUNDS,
     muteWhileDictating: false,
+    sessionLimitMinutes: 20,
     setupComplete: true,
     pressEnterCommand: true,
     openHubOnLaunch: true,

@@ -78,6 +78,10 @@ function subscribe<T>(handlers: Set<(value: T) => void>, handler: (value: T) => 
 export const SPEECH_LOAD_TIMEOUT_MS = 10 * 60_000;
 /** The helper applies its own decode timeout; this only catches a helper that went quiet. */
 export const TRANSCRIBE_TIMEOUT_MS = 2 * 60_000;
+/** A long recording (up to 30 minutes, DC-21) may take as long as it runs, and a minute more. */
+export function transcribeTimeout(audioMs: number): number {
+  return Math.max(TRANSCRIBE_TIMEOUT_MS, audioMs + 60_000);
+}
 
 /** Where the helper binary is, or why there is none. */
 export type HelperBinary = { path: string } | { path: null; message: string };
@@ -289,11 +293,11 @@ export class HelperSupervisor implements PlatformHelper {
     await this.connection.request("transcribe.unload", {});
   }
 
-  transcribeFile(input: TranscribeFileInput): Promise<Transcript> {
+  transcribeFile(input: TranscribeFileInput, audioMs = 0): Promise<Transcript> {
     if (!this.connection || this.status.state !== "ready") {
       return Promise.reject(new HelperError("HELPER_UNAVAILABLE", "The helper is not running"));
     }
-    return this.connection.request("transcribe.file", input, TRANSCRIBE_TIMEOUT_MS);
+    return this.connection.request("transcribe.file", input, transcribeTimeout(audioMs));
   }
 
   insertText(input: InsertTextInput): Promise<InsertTextResult> {

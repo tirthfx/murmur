@@ -42,6 +42,12 @@ export const SETTINGS_INDEX: readonly SettingEntry[] = [
   { id: "setup", page: "general", label: "Run setup again", words: "onboarding tutorial" },
   { id: "cleanup", page: "system", label: "Cleanup", words: "fillers punctuation level" },
   { id: "press-enter", page: "system", label: "Say “press enter” to press Return" },
+  {
+    id: "session-limit",
+    page: "system",
+    label: "Longest recording",
+    words: "limit minutes length",
+  },
   { id: "context", page: "system", label: "Use the text around the cursor", words: "context" },
   { id: "typing-reminder", page: "system", label: "Suggest dictating after a lot of typing" },
   { id: "sounds", page: "system", label: "Sounds", words: "tones audio" },

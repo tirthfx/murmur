@@ -15,7 +15,8 @@ export type BarEvent =
   /** Recording stopped; transcription runs. */
   | { type: "stop" }
   | { type: "cancel" }
-  | { type: "transcribed"; words: number }
+  /** `note` is shown for longer, in place of the word count. */
+  | { type: "transcribed"; words: number; note?: string }
   | { type: "failed"; message?: string }
   /** Transcribe the last failed recording again (Bar click in error, or the tray). */
   | { type: "retry" }
@@ -101,9 +102,10 @@ export function transition(current: BarView, event: BarEvent): BarStep {
         ? same
         : to(view("cancelled"), CANCELLED_MS);
     case "transcribed":
-      return current.state === "processing"
-        ? to(view("done", { words: event.words }), DONE_MS)
-        : same;
+      if (current.state !== "processing") return same;
+      return event.note
+        ? to(view("done", { words: event.words, message: event.note }), WARNING_MS)
+        : to(view("done", { words: event.words }), DONE_MS);
     case "failed":
       return current.state === "processing"
         ? to(view("error", { message: event.message ?? BAR_ERROR_TEXT }))

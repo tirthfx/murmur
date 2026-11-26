@@ -56,6 +56,7 @@ export const SAMPLE_SETTINGS: SettingsView = {
     cleanupLevel: "standard",
     sounds: { start: true, lock: true, success: true, error: true, cancel: false },
     muteWhileDictating: false,
+    sessionLimitMinutes: 20,
     setupComplete: true,
     pressEnterCommand: true,
     openHubOnLaunch: true,

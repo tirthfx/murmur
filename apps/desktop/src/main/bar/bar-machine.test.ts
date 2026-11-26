@@ -296,3 +296,15 @@ describe("a note (DC-39)", () => {
     expect(transition(listening, { type: "note", message: "Copied" }).changed).toBe(false);
   });
 });
+
+describe("a recording stopped by the limit (DC-21)", () => {
+  it("says so, for longer than a word count", () => {
+    const step = transition(at("processing"), {
+      type: "transcribed",
+      words: 900,
+      note: "Stopped at the 20-minute limit",
+    });
+    expect(step.view).toMatchObject({ state: "done", message: "Stopped at the 20-minute limit" });
+    expect(step.timeoutMs).toBe(WARNING_MS);
+  });
+});
