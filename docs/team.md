@@ -147,3 +147,5 @@ A third interface next to the frozen `teamClient.v1`, `TeamAccountClient` (`pack
 ## Leaderboard
 
 Insights, Leaderboard shows the team's ranks for the last seven days or all time, with a switch for whether you are listed (TM-26). It needs the local team server; the Supabase backend has no leaderboard yet and says so.
+
+A shared term's pronunciation hint is used too: when the speech model writes the hint, the term is written instead.

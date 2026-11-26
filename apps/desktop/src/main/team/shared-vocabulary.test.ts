@@ -147,3 +147,29 @@ describe("shared snippets", () => {
     expect(vocabulary.snippets([]).map((s) => s.plain)).toEqual(["A"]);
   });
 });
+
+describe("a shared pronunciation hint (TM-06)", () => {
+  it("writes the term when the hint is heard, unless the person has a rule for it", () => {
+    const shared = createSharedVocabulary();
+    shared.set([
+      {
+        teamName: "Design",
+        me: "Ada",
+        dictionary: [
+          { id: "1", term: "Siobhan", replacement: null, pronunciation: "shivawn" },
+          { id: "2", term: "Nguyen", replacement: null, pronunciation: "" },
+        ],
+        snippets: [],
+      },
+    ]);
+    const empty = { promptTerms: [], starredCount: 0, spellings: [], replacements: [] };
+    expect(shared.rules(empty).replacements).toEqual([
+      { id: "team:1:heard", term: "shivawn", replacement: "Siobhan", caseSensitive: false },
+    ]);
+    const own = {
+      ...empty,
+      replacements: [{ id: "p", term: "Shivawn", replacement: "x", caseSensitive: false }],
+    };
+    expect(shared.rules(own).replacements).toHaveLength(1);
+  });
+});

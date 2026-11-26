@@ -92,6 +92,16 @@ export function createSharedVocabulary(now: () => number = Date.now) {
         if (entry.replacement === null) {
           spellings.push({ id: `team:${entry.id}`, term: entry.term });
           promptTerms.push(entry.term);
+          // TM-06: what the speech model writes when it spells the sound becomes the term. A
+          // person's own rule for that wording wins.
+          const heard = entry.pronunciation?.trim() ?? "";
+          if (heard !== "" && !same(heard, entry.term) && !mine.some((term) => same(term, heard)))
+            replacements.push({
+              id: `team:${entry.id}:heard`,
+              term: heard,
+              replacement: entry.term,
+              caseSensitive: false,
+            });
         } else
           replacements.push({
             id: `team:${entry.id}`,
