@@ -16,13 +16,15 @@ public static class WindowsBackends
         var detectTimer = new Timer(_ => { try { detection.Tick(); } catch { /* the window list changed */ } }, null, 2000, 2000);
 
         var keys = new WindowsKeys();
+        var audio = new WindowsAudio();
         var backends = new Backends
         {
             Permissions = new WindowsPermissions(),
             Hotkeys = engine,
             Insertion = new WindowsInsertion(),
             SecureStore = new WindowsSecureStore(),
-            Audio = new WindowsAudio(),
+            Audio = audio,
+            Media = new WindowsMedia(),
             FrontApp = front,
             Detection = detection,
             Output = new WindowsOutputMute(),
@@ -36,7 +38,7 @@ public static class WindowsBackends
             Inspect = focus,
             ReportsSites = true,
         };
-        return (backends, new Disposables(keyboard, frontTimer, detectTimer));
+        return (backends, new Disposables(keyboard, frontTimer, detectTimer, audio));
     }
 
     private sealed class Disposables(params IDisposable[] items) : IDisposable

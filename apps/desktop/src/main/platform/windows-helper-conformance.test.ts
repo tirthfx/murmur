@@ -23,7 +23,7 @@ const appPath = path.resolve(__dirname, "../../..");
 const buildDir = path.resolve(appPath, "../../native/helper-win/src/MurmurHelper/bin");
 const candidates = ["Release", "Debug"].flatMap((configuration) =>
   ["murmur-helper", "murmur-helper.exe"].map((name) =>
-    path.join(buildDir, configuration, "net9.0-windows", name),
+    path.join(buildDir, configuration, "net9.0-windows10.0.19041.0", name),
   ),
 );
 const binary = candidates.find((candidate) => existsSync(candidate));
@@ -145,6 +145,17 @@ if (!binary && !required) {
         },
         async textFieldValue() {
           return String((await act({ op: "readField" })).text);
+        },
+        async plugMicrophone(connected) {
+          await act({ op: "plugDevice", id: "second-mic", name: "Second microphone", connected });
+        },
+        async typeAWord() {
+          // Virtual keys for "a" and the space bar.
+          for (const keyCode of [0x41, 0x20]) {
+            await act({ op: "key", keyCode, modifiers: [], down: true });
+            await act({ op: "key", keyCode, modifiers: [], down: false });
+          }
+          await act({ op: "typingReport" });
         },
         async editTextField(text) {
           await act({ op: "editField", text });

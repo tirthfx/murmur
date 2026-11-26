@@ -23,6 +23,7 @@ public sealed class Router
     private readonly ContextController? _context;
     private readonly EditWatchController? _edits;
     private readonly InspectController? _inspector;
+    private readonly PlaybackController? _playback;
     private bool _handshake;
 
     public Router(Backends backends, MicSession? mic, MeetingCapture? meeting, EventSink? sink = null)
@@ -38,6 +39,7 @@ public sealed class Router
         _context = backends.Focus is null ? null : new ContextController(backends.Focus);
         _edits = backends.WatchedFields is null || sink is null ? null : new EditWatchController(backends.WatchedFields, sink);
         _inspector = backends.Inspect is null ? null : new InspectController(backends.Inspect);
+        _playback = backends.Media is null ? null : new PlaybackController(backends.Media);
     }
 
     public bool ShouldExit { get; private set; }
@@ -46,7 +48,8 @@ public sealed class Router
     public IReadOnlyList<string> Capabilities()
     {
         var list = new List<string> { "permissions.check" };
-        if (_backends.Hotkeys is not null) { list.Add("hotkey.hold"); list.Add("hotkey.mouse"); list.Add("hotkey.exclusive"); }
+        if (_backends.Hotkeys is not null) { list.Add("hotkey.hold"); list.Add("hotkey.mouse"); list.Add("hotkey.exclusive"); list.Add("typing.watch"); }
+        if (_playback is not null) list.Add("media.playback");
         if (_selection is not null) list.Add("selection.read");
         if (_keys is not null) list.Add("keys.press");
         if (_processes is not null) list.Add("proc.foreground");
@@ -55,7 +58,7 @@ public sealed class Router
         if (_edits is not null) list.Add("edits.watch");
         if (_inspector is not null) list.Add("ax.inspect");
         if (_backends.FrontApp is not null && _backends.ReportsSites) list.Add("focus.sites");
-        if (_mic is not null) { list.Add("audio.capture"); list.Add("audio.silent-warning"); }
+        if (_mic is not null) { list.Add("audio.capture"); list.Add("audio.silent-warning"); list.Add("audio.hotplug"); }
         if (_insertion is not null) { list.Add("insert.paste"); list.Add("insert.keystrokes"); list.Add("insert.press-enter"); }
         if (_backends.Output is not null) list.Add("media.mute");
         if (_backends.FrontApp is not null) list.Add("focus.watch");
@@ -82,7 +85,7 @@ public sealed class Router
     /// <summary>Requests that can take long. With a <c>later</c> callback they run on their own task, so pings keep being answered.</summary>
     private static bool IsSlow(string type) =>
         type is "transcribe.load" or "transcribe.file" or "transcribe.live" or "selection.read" or "apps.list"
-            or "context.snapshot" or "ax.inspect";
+            or "context.snapshot" or "ax.inspect" or "media.playback" or "media.pause" or "media.resume";
 
     /// <summary>
     /// Handles one line from stdin. Never throws on bad input. A slow request (speech, reading another app) answers
@@ -218,6 +221,15 @@ public sealed class Router
             case "edits.watch": return Need(_edits).Watch(p);
             case "edits.cancel": return Need(_edits).Cancel();
             case "ax.inspect": return Need(_inspector).Inspect(p);
+            case "typing.watch":
+            {
+                var enabled = Payload.Bool(p, "enabled");
+                Need(_backends.Hotkeys).WatchTyping(enabled);
+                return new JsonObject { ["watching"] = enabled };
+            }
+            case "media.playback": return Need(_playback).Playback();
+            case "media.pause": return Need(_playback).Pause();
+            case "media.resume": return Need(_playback).Resume();
             case "detect.subscribe":
             {
                 var enabled = Payload.Bool(p, "enabled");

@@ -87,7 +87,7 @@ A .NET 9 program (C#) that speaks the same protocol as the Mac helper over stdin
   `--self-test` runs the real Windows backends once and prints what worked.
 
 `npm run build:helper:win` builds it. In development the app finds
-`native/helper-win/src/MurmurHelper/bin/{Release,Debug}/net9.0-windows/murmur-helper.exe`, or
+`native/helper-win/src/MurmurHelper/bin/{Release,Debug}/net9.0-windows10.0.19041.0/murmur-helper.exe`, or
 `MURMUR_HELPER_PATH`; packaged, `resources/helper/murmur-helper.exe`, checked by hash first.
 
 ### What is checked, and where

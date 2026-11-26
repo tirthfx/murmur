@@ -342,6 +342,7 @@ public class LiveTranscriptionTests
         public IReadOnlyList<AudioDeviceInfo> Devices() => Array.Empty<AudioDeviceInfo>();
         public IAudioSource Microphone(string? deviceId) => Mic;
         public IAudioSource? SystemOutput() => null;
+        public event Action? DevicesChanged { add { } remove { } }
     }
 
     /// <summary>A router with a meeting recording on the fake microphone, one 2 s chunk at a time.</summary>

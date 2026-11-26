@@ -25,9 +25,10 @@ public sealed class FakeWorld
         }
     }
 
-    public sealed class Source(string name, bool tone = true) : IAudioSource
+    public sealed class Source(string name, bool tone = true, string? id = "mic-1") : IAudioSource
     {
         public string DeviceName { get; } = name;
+        public string? DeviceId { get; } = id;
         public event Action<float[]>? Samples;
         public event Action<string>? Failed;
         public bool Started { get; private set; }
@@ -48,11 +49,16 @@ public sealed class FakeWorld
     public sealed class Audio : IAudioSourceFactory
     {
         public bool SystemAvailable = true;
-        public IReadOnlyList<AudioDeviceInfo> Devices() => new[] { new AudioDeviceInfo("mic-1", "Test microphone", true, "builtin", 48000) };
+        public readonly List<AudioDeviceInfo> Inputs = new() { new AudioDeviceInfo("mic-1", "Test microphone", true, "builtin", 48000) };
+        public Source? Last;
+        public event Action? DevicesChanged;
+        public void Changed() => DevicesChanged?.Invoke();
+        public IReadOnlyList<AudioDeviceInfo> Devices() => Inputs.ToList();
         public IAudioSource Microphone(string? deviceId)
         {
-            if (deviceId is not null && deviceId != "mic-1") throw new HelperException(ErrorCode.DeviceNotFound, "No such microphone.");
-            return new Source("Test microphone");
+            var device = deviceId is null ? Inputs.FirstOrDefault() : Inputs.FirstOrDefault(d => d.Id == deviceId);
+            if (device is null) throw new HelperException(ErrorCode.DeviceNotFound, "No such microphone.");
+            return Last = new Source(device.Name, id: device.Id);
         }
         public IAudioSource? SystemOutput() => SystemAvailable ? new Source("Test output") : null;
     }
@@ -149,6 +155,26 @@ public sealed class FakeWorld
         }
     }
 
+    public sealed class Player : IMediaPlayback
+    {
+        /// <summary>Null: the system does not say.</summary>
+        public bool? Playing = true;
+        private bool _paused;
+        public bool? IsPlaying() => Playing;
+        public bool Pause()
+        {
+            Playing = false;
+            return _paused = true;
+        }
+        public bool Resume()
+        {
+            if (!_paused) return false;
+            _paused = false;
+            Playing = true;
+            return true;
+        }
+    }
+
     public sealed class Store : ISecureStore
     {
         private readonly Dictionary<string, string> _items = new();
@@ -179,6 +205,7 @@ public sealed class FakeWorld
     public readonly Inserter InsertionState;
     public readonly Desktop DesktopState;
     public readonly Reader ReaderState;
+    public readonly Player PlayerState = new();
     public readonly List<WindowInfo> Windows = new();
     public string Field = "";
     public FrontAppInfo? FrontApp;
@@ -219,6 +246,7 @@ public sealed class FakeWorld
         WatchedFields = ReaderState,
         Inspect = ReaderState,
         ReportsSites = true,
+        Media = PlayerState,
         TestWorld = Act,
     };
 
@@ -256,6 +284,17 @@ public sealed class FakeWorld
             case "selectText":
                 DesktopState.Selected = Payload.Str(p, "text");
                 return new JsonObject();
+            case "typingReport":
+                _hotkeys.ReportTyping(HotkeyEngine.TypingReportMs);
+                return new JsonObject();
+            case "plugDevice":
+            {
+                var id = Payload.Str(p, "id");
+                AudioState.Inputs.RemoveAll(d => d.Id == id);
+                if (Payload.Bool(p, "connected")) AudioState.Inputs.Add(new AudioDeviceInfo(id, Payload.Str(p, "name"), false, "usb", 48000));
+                AudioState.Changed();
+                return new JsonObject();
+            }
             case "editField":
                 Field = Payload.Str(p, "text");
                 return new JsonObject();

@@ -1,7 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net9.0-windows</TargetFramework>
+    <!-- Windows 10 version 2004 and later: the media transport controls come from the Windows Runtime. -->
+    <TargetFramework>net9.0-windows10.0.19041.0</TargetFramework>
     <AssemblyName>murmur-helper</AssemblyName>
     <RootNamespace>Murmur.Helper</RootNamespace>
     <RollForward>Major</RollForward>

@@ -205,6 +205,21 @@ public static class SelfTest
             return $"{apps.Count} apps";
         });
 
+        Check("media transport controls", () =>
+        {
+            // Server editions may not have the service; then it says so instead of failing.
+            var media = new WindowsMedia();
+            var playing = media.IsPlaying();
+            return playing is null ? "not reported on this system" : $"playing={playing}";
+        });
+
+        Check("device change notifications", () =>
+        {
+            using var audio = new WindowsAudio();
+            audio.DevicesChanged += () => { };
+            return null;
+        });
+
         // The speech check needs a model folder, so it runs only when one is named (CI downloads a small one).
         var speechModel = Environment.GetEnvironmentVariable("MURMUR_SELFTEST_SPEECH_MODEL");
         if (!string.IsNullOrEmpty(speechModel))

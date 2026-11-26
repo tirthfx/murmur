@@ -97,7 +97,7 @@ jobs:
           "MURMUR_SELFTEST_SPEECH_MODEL=$folder" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Self-test on Windows
-        run: native/helper-win/src/MurmurHelper/bin/Release/net9.0-windows/murmur-helper.exe --self-test
+        run: native/helper-win/src/MurmurHelper/bin/Release/net9.0-windows10.0.19041.0/murmur-helper.exe --self-test
 
   package-win:
     # Packages the app on Windows with the helper inside, makes the installer, installs it silently,

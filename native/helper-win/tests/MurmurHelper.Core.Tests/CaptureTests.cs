@@ -116,5 +116,6 @@ public class CaptureTests
         public IReadOnlyList<AudioDeviceInfo> Devices() => Array.Empty<AudioDeviceInfo>();
         public IAudioSource Microphone(string? deviceId) => Mic;
         public IAudioSource? SystemOutput() => null;
+        public event Action? DevicesChanged { add { } remove { } }
     }
 }

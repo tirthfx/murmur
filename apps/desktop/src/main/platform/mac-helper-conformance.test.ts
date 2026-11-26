@@ -27,6 +27,10 @@ class ScriptedMacHelper extends FakeHelperProcess {
   field = "";
   selected = "";
   watchedText: string | null = null;
+  countingTyping = false;
+  playing = true;
+  pausedByUs = false;
+  microphones = ["built-in-mic"];
   fieldFocused = false;
   front: { bundleId: string; name: string } | null = null;
   watchingFront = false;
@@ -97,6 +101,25 @@ class ScriptedMacHelper extends FakeHelperProcess {
         return this.ok(request, { ok: true });
       case "keychain.delete":
         return this.ok(request, { deleted: this.secrets.delete(key) });
+      case "typing.watch":
+        this.countingTyping = payload.enabled === true;
+        return this.ok(request, { watching: this.countingTyping });
+      case "media.playback":
+        return this.ok(request, { available: true, playing: this.playing });
+      case "media.pause": {
+        const paused = this.playing;
+        this.playing = false;
+        this.pausedByUs ||= paused;
+        return this.ok(request, { paused });
+      }
+      case "media.resume": {
+        const resumed = this.pausedByUs;
+        this.playing ||= resumed;
+        this.pausedByUs = false;
+        return this.ok(request, { resumed });
+      }
+      case "audio.devices":
+        return this.ok(request, { devices: this.devices(), lidClosed: null });
       case "context.snapshot": {
         const maxBefore = typeof payload.maxBefore === "number" ? payload.maxBefore : 1500;
         return this.ok(request, {
@@ -265,6 +288,16 @@ class ScriptedMacHelper extends FakeHelperProcess {
     }
   }
 
+  devices(): Record<string, unknown>[] {
+    return this.microphones.map((id) => ({
+      id,
+      name: id,
+      isDefault: id === "built-in-mic",
+      transport: "other",
+      sampleRate: 48_000,
+    }));
+  }
+
   announceFront(): void {
     if (!this.front) return;
     this.send({
@@ -323,6 +356,20 @@ describePlatformHelperConformance("Mac helper, scripted", {
       },
       async textFieldValue() {
         return script.field;
+      },
+      async plugMicrophone(connected) {
+        script.microphones = connected ? ["built-in-mic", "second-mic"] : ["built-in-mic"];
+        script.send({
+          id: null,
+          type: "audio.devices.changed",
+          payload: { devices: script.devices() },
+        });
+        await flush();
+      },
+      async typeAWord() {
+        if (!script.countingTyping) return;
+        script.send({ id: null, type: "typing.activity", payload: { words: 1, periodMs: 30_000 } });
+        await flush();
       },
       async editTextField(text) {
         script.field = text;

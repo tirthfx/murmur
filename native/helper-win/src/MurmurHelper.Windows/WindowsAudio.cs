@@ -1,4 +1,5 @@
 using NAudio.CoreAudioApi;
+using NAudio.CoreAudioApi.Interfaces;
 using NAudio.Wave;
 
 namespace Murmur.Helper.Windows;
@@ -8,8 +9,39 @@ namespace Murmur.Helper.Windows;
 /// converted to 16 kHz mono by <see cref="Resampler"/>. The system channel is the default output,
 /// so it records everything playing (SW-11); per-app capture is not done.
 /// </summary>
-public sealed class WindowsAudio : IAudioSourceFactory
+public sealed class WindowsAudio : IAudioSourceFactory, IDisposable
 {
+    private readonly MMDeviceEnumerator _watching = new();
+    private readonly Notifications _notifications;
+
+    public WindowsAudio()
+    {
+        _notifications = new Notifications(() => DevicesChanged?.Invoke());
+        try { _watching.RegisterEndpointNotificationCallback(_notifications); }
+        catch (System.Runtime.InteropServices.COMException) { /* no audio service: nothing to report */ }
+    }
+
+    public event Action? DevicesChanged;
+
+    public void Dispose()
+    {
+        try { _watching.UnregisterEndpointNotificationCallback(_notifications); } catch (System.Runtime.InteropServices.COMException) { }
+        _watching.Dispose();
+    }
+
+    /// <summary>Windows calls these on its own thread; nothing is looked up inside them.</summary>
+    private sealed class Notifications(Action changed) : IMMNotificationClient
+    {
+        public void OnDeviceStateChanged(string deviceId, DeviceState newState) => changed();
+        public void OnDeviceAdded(string deviceId) => changed();
+        public void OnDeviceRemoved(string deviceId) => changed();
+        public void OnDefaultDeviceChanged(DataFlow flow, Role role, string defaultDeviceId)
+        {
+            if (flow == DataFlow.Capture) changed();
+        }
+        public void OnPropertyValueChanged(string deviceId, PropertyKey key) { }
+    }
+
     public IReadOnlyList<AudioDeviceInfo> Devices()
     {
         using var enumerator = new MMDeviceEnumerator();
@@ -33,7 +65,7 @@ public sealed class WindowsAudio : IAudioSourceFactory
             var device = deviceId is null
                 ? enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Communications)
                 : enumerator.GetDevice(deviceId);
-            return new WasapiSource(device.FriendlyName, new WasapiCapture(device));
+            return new WasapiSource(device.ID, device.FriendlyName, new WasapiCapture(device));
         }
         catch (Exception error) when (error is System.Runtime.InteropServices.COMException or ArgumentException)
         {
@@ -47,7 +79,7 @@ public sealed class WindowsAudio : IAudioSourceFactory
         {
             using var enumerator = new MMDeviceEnumerator();
             var device = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
-            return new WasapiSource(device.FriendlyName, new WasapiLoopbackCapture(device));
+            return new WasapiSource(device.ID, device.FriendlyName, new WasapiLoopbackCapture(device));
         }
         catch (System.Runtime.InteropServices.COMException)
         {
@@ -64,8 +96,9 @@ public sealed class WindowsAudio : IAudioSourceFactory
         private readonly bool _float;
         private readonly int _bits;
 
-        public WasapiSource(string name, WasapiCapture capture)
+        public WasapiSource(string id, string name, WasapiCapture capture)
         {
+            DeviceId = id;
             DeviceName = name;
             _capture = capture;
             var format = capture.WaveFormat;
@@ -87,6 +120,7 @@ public sealed class WindowsAudio : IAudioSourceFactory
         }
 
         public string DeviceName { get; }
+        public string? DeviceId { get; }
         public event Action<float[]>? Samples;
         public event Action<string>? Failed;
         public void Start() => _capture.StartRecording();
