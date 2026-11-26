@@ -271,26 +271,40 @@ describe.skipIf(!LIVE)("moving a server into a Supabase test project", () => {
     const lines = await verifyImport(plan, api);
     expect(lines.filter((l) => !l.ok)).toEqual([]);
     expect(lines.length).toBeGreaterThan(8);
-    const bea = report.accounts.find((a) => a.email === "bea.member@example.com")!;
-    const res = await fetch(`${URL}/auth/v1/token?grant_type=password`, {
-      method: "POST",
-      headers: {
-        apikey: process.env["MURMUR_SUPABASE_TEST_ANON_KEY"] ?? "",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({ email: bea.email, password: bea.temporaryPassword }),
-    });
-    expect(res.status).toBe(200);
+    const anon = process.env["MURMUR_SUPABASE_TEST_ANON_KEY"] ?? "";
+    const post = (path: string, body: unknown, token?: string) =>
+      fetch(`${URL}${path}`, {
+        method: "POST",
+        headers: {
+          apikey: anon,
+          "content-type": "application/json",
+          ...(token ? { authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(body),
+      });
+    const signIn = (email: string, password: string) =>
+      post("/auth/v1/token?grant_type=password", { email, password });
+    const account = (email: string) => report.accounts.find((a) => a.email === email)!;
+
+    const bea = account("bea.member@example.com");
+    expect((await signIn(bea.email, bea.temporaryPassword)).status).toBe(200);
     // And the old password does not work: the hashes were not carried over.
-    const old = await fetch(`${URL}/auth/v1/token?grant_type=password`, {
-      method: "POST",
-      headers: {
-        apikey: process.env["MURMUR_SUPABASE_TEST_ANON_KEY"] ?? "",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({ email: bea.email, password: PASSWORD }),
-    });
-    expect(old.status).toBe(400);
+    expect((await signIn(bea.email, PASSWORD)).status).toBe(400);
+
+    // SW-02: each team's new audit chain verifies, and starts with the one import event.
+    const owner = account("owner@example.com");
+    const session = (await (await signIn(owner.email, owner.temporaryPassword)).json()) as {
+      access_token: string;
+    };
+    expect(plan.teams.length).toBeGreaterThan(0);
+    for (const team of plan.teams) {
+      const checked = await post(
+        "/rest/v1/rpc/verify_audit_chain",
+        { p_team: team["id"] },
+        session.access_token,
+      );
+      expect(await checked.json()).toEqual({ ok: true, count: 1 });
+    }
     // Importing again is refused.
     await expect(applyImport(plan, api)).rejects.toThrow(/already in the project/);
   });

@@ -210,7 +210,7 @@ its own task, so pings are answered while it works.
 ## Packaging on Windows (SW-13)
 
 - `npm run publish:helper:win` makes the helper as one self-contained file (the .NET runtime is
-  inside, about 38 MB), so a PC needs nothing installed and one hash covers it. CI runs the packaged
+  inside, about 45 MB), so a PC needs nothing installed and one hash covers it. CI runs the packaged
   and installed helper with no .NET runtime reachable. The package
   step puts it at `resources/helper/murmur-helper.exe` with `murmur-helper.exe.sha256` beside it,
   and the app does not start a helper that differs from that hash.
