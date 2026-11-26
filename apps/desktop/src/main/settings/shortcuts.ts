@@ -28,6 +28,7 @@ export const SLOT_NAMES: Record<ShortcutSlot, string> = {
   copyLast: "Copy last transcript",
   pasteLast: "Paste last transcript",
   pressEnter: "Press Enter",
+  recap: "What did I miss",
 };
 
 /** Slots that act on a press: a modifier on its own would fire all the time. */
@@ -39,6 +40,7 @@ const PRESS_SLOTS: ReadonlySet<ShortcutSlot> = new Set([
   "copyLast",
   "pasteLast",
   "pressEnter",
+  "recap",
 ]);
 
 export function sameTrigger(a: HotkeyTrigger, b: HotkeyTrigger): boolean {

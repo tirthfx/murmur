@@ -351,3 +351,7 @@ With the experimental option "Ask can propose connector actions" on, Ask can tur
 Notetaker, Contacts holds people: added by hand, taken from the invitees of a calendar meeting (a switch on that tab) or from a renamed speaker. Typing "@" in meeting notes, a task or a question offers them, or creating one.
 
 A mention is written into the text as `@[contact:<id>|<name>]`; there is no separate table. Renaming a contact rewrites the name in every mention; deleting one leaves the plain name. Anything that leaves the text box (summaries, Ask, the shared files, the MCP tools) shows "@Name". A contact's card lists the meetings they were invited to, spoke in or are mentioned in, and their open tasks. "Delete meetings" removes contacts too. Code: `apps/desktop/src/main/contacts/`, `renderer/hub/MentionField.tsx`.
+
+## Titles, recap shortcut and sleep
+
+Settings, System sets the title of a new meeting (`{date}` and `{time}` are filled in). A shortcut (Settings, Shortcuts; unset at first) writes the recap of the meeting being recorded. When sleep stops a recording, the Bar asks on wake whether to record again, as a new meeting.

@@ -498,6 +498,7 @@ let lastDictation: LastDictation | null = null;
 /** How long the Bar offers to undo a command. */
 const UNDO_OFFER_MS = 8000;
 const UNDO_QUESTION = "Text changed";
+const RESUME_QUESTION = "Recording was interrupted";
 let commandQuestion: { answer: (yes: boolean) => void; timer: NodeJS.Timeout } | null = null;
 /** How long a Command Mode question waits before it counts as No. */
 const COMMAND_ASK_MS = 60_000;
@@ -530,6 +531,12 @@ let profilePromptShown = false;
 let offeredFact: { text: string; until: number } | null = null;
 /** The Bar's question was answered: "Save to Memory?" or the weekly profile prompt. */
 function answerBar(choice: BarAnswer): void {
+  // NT-05: recording again after sleep stopped a recording.
+  if (bar.getView().state === "ask" && bar.getView().message === RESUME_QUESTION) {
+    bar.dispatch({ type: "answered" });
+    if (choice === "yes") void meetingStarter?.start();
+    return;
+  }
   // RW-10: Undo, offered after a command changed text. Only that question answers to this.
   if (bar.getView().state === "ask" && bar.getView().message === UNDO_QUESTION) {
     bar.dispatch({ type: "answered" });
@@ -840,6 +847,7 @@ const settingsDefaults: Settings = {
   copyLastShortcut: defaultCopyLastShortcut(hostPlatform()),
   pasteLastShortcut: defaultPasteLastShortcut(hostPlatform()),
   pressEnterShortcut: null,
+  recapShortcut: null,
   scratchpad: { enabled: true, newTab: true },
   theme: "system",
   language: "en",
@@ -1922,10 +1930,30 @@ settingsStore.onChange(() => {
   }
 });
 
+/** NT-13: the recap shortcut. Opens the meeting being recorded and writes its recap. */
+async function recapNow(): Promise<void> {
+  const state = meetings?.state();
+  if (state?.status !== "recording" || !recapRunner) {
+    bar.dispatch({ type: "warn", message: "No meeting is being recorded" });
+    return;
+  }
+  openHubPage("notetaker");
+  try {
+    await recapRunner.run(state.meetingId);
+  } catch (error) {
+    console.warn(`[recap] ${error instanceof Error ? error.message : String(error)}`);
+    bar.dispatch({ type: "warn", message: "The recap could not be written" });
+  }
+}
+
 hotkeys.onEvent((event) => {
   if (event.action === "notetaker.start") {
     // A press starts a recording, and the next one stops it (NT-03).
     if (event.state !== "up") void meetingStarter?.toggle();
+    return;
+  }
+  if (event.action === "notetaker.recap") {
+    if (event.state !== "up") void recapNow();
     return;
   }
   if (event.action === "scratchpad.open") {
@@ -2801,6 +2829,7 @@ const meetings = meetingsStore
         return {
           captureSystem: settings.notetaker.captureSystem,
           chunkSeconds: settings.notetaker.chunkSeconds,
+          titleFormat: settings.notetaker.titleFormat,
           micDeviceId: settings.inputDevice === "auto" ? null : settings.inputDevice,
           language:
             settings.notetaker.language.default === "auto"
@@ -4953,12 +4982,28 @@ void app.whenReady().then(() => {
   hotkeys.start();
   recorder.start();
   speech.start();
-  // NT-05: sleep closes the recording cleanly; it is not resumed on wake (ADR-0076).
+  // NT-05: sleep closes the recording cleanly (ADR-0076); on wake a new one is offered.
+  let stoppedBySleep = false;
   powerMonitor.on("suspend", () => {
     const now = meetings?.state();
     if (now?.status !== "recording") return;
+    stoppedBySleep = true;
     meetingsStore?.addWarning(now.meetingId, "sleep");
     void meetings?.stop();
+  });
+  powerMonitor.on("resume", () => {
+    if (!stoppedBySleep) return;
+    stoppedBySleep = false;
+    if (!settingsStore.get().notetaker.resumeAfterSleep) return;
+    bar.dispatch({
+      type: "ask",
+      message: RESUME_QUESTION,
+      detail: "Sleep stopped the meeting recording.",
+      actions: [
+        { answer: "yes", label: "Record again", primary: true },
+        { answer: "no", label: "Not now" },
+      ],
+    });
   });
   // The app works without the helper; its status is shown in the Hub.
   helper.start().then(

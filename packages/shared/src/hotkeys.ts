@@ -25,6 +25,7 @@ export const HOTKEY_ACTIONS = [
   "copy.last",
   "scratchpad.open",
   "notetaker.start",
+  "notetaker.recap",
   "command.mode",
   "instruct.mode",
   "rewrite",

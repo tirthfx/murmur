@@ -68,6 +68,12 @@ export const SETTINGS_INDEX: readonly SettingEntry[] = [
   { id: "mute", page: "system", label: "Mute other audio while dictating" },
   { id: "scratchpad", page: "system", label: "Scratchpad", words: "notes tabs" },
   {
+    id: "meeting-title",
+    page: "system",
+    label: "Meeting titles and sleep",
+    words: "notetaker name format resume",
+  },
+  {
     id: "meeting-notice",
     page: "system",
     label: "Recording notice",
@@ -196,6 +202,7 @@ export const SETTINGS_INDEX: readonly SettingEntry[] = [
     label: "Copy last transcript (mouse)",
     words: "button",
   },
+  { id: "recap-shortcut", page: "shortcuts", label: "What did I miss shortcut", words: "recap" },
   { id: "mouse-hold", page: "shortcuts", label: "Push to talk (mouse)", words: "button" },
   { id: "mouse-hands-free", page: "shortcuts", label: "Hands-free (mouse)", words: "button" },
   { id: "languages", page: "languages", label: "Dictation languages", words: "language" },

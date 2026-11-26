@@ -72,6 +72,7 @@ export const SAMPLE_SETTINGS: SettingsView = {
     copyLastShortcut: null,
     pasteLastShortcut: null,
     pressEnterShortcut: null,
+    recapShortcut: null,
     scratchpad: { enabled: true, newTab: true },
     theme: "system",
     language: "en",
@@ -141,6 +142,7 @@ export const SAMPLE_SETTINGS: SettingsView = {
     copyLast: "Off",
     pasteLast: "Off",
     pressEnter: "Off",
+    recap: "Off",
   },
   unavailable: [],
   devices: [
