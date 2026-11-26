@@ -171,6 +171,12 @@ export const settingsSchema = z.strictObject({
   sessionLimitMinutes: z.number().int().min(SESSION_LIMIT_MIN).max(SESSION_LIMIT_MAX),
   /** Numbers, times, money, addresses and links written the usual way (DC-29). */
   smartFormatting: z.boolean(),
+  /** The floating Bar (DC-07, HB-17): shown at all, on every space, over full-screen apps. */
+  bar: z.strictObject({
+    visible: z.boolean(),
+    allSpaces: z.boolean(),
+    aboveFullScreen: z.boolean(),
+  }),
   /** Saying "press enter" at the end of a dictation presses Return (DC-36). */
   pressEnterCommand: z.boolean(),
   /** The local plan tier (RW-22, TM-25): unlocks features for testing; nothing is charged. */
@@ -238,6 +244,7 @@ export const settingsPatchSchema = settingsSchema
     muteWhileDictating: true,
     setupComplete: true,
     pressEnterCommand: true,
+    bar: true,
     smartFormatting: true,
     sessionLimitMinutes: true,
     contextAwareness: true,
@@ -295,6 +302,7 @@ export const SETTING_KEYS: Record<keyof Settings, string> = {
   muteWhileDictating: "media.mute_while_dictating",
   setupComplete: "onboarding.complete",
   pressEnterCommand: "press_enter.enabled",
+  bar: "ui.bar",
   smartFormatting: "format.smart",
   sessionLimitMinutes: "audio.session_limit_minutes",
   contextAwareness: "context.enabled",
@@ -328,6 +336,13 @@ export const SETTING_KEYS: Record<keyof Settings, string> = {
   connectors: "connectors.settings",
   mcp: "mcp.settings",
   extensions: "extensions.settings",
+};
+
+/** HB-17 defaults for the Bar. */
+export const DEFAULT_BAR: Settings["bar"] = {
+  visible: true,
+  allSpaces: true,
+  aboveFullScreen: false,
 };
 
 /** HB-24 defaults. */

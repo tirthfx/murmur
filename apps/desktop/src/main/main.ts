@@ -129,6 +129,7 @@ import {
   shouldWarnAboutPlayback,
   SESSION_LIMIT_DEFAULT,
   type Settings,
+  DEFAULT_BAR,
 } from "@murmur/shared";
 import {
   createNavigationGuard,
@@ -842,6 +843,7 @@ const settingsStore = createSettingsStore(database, {
   pressEnterCommand: true,
   sessionLimitMinutes: SESSION_LIMIT_DEFAULT,
   smartFormatting: true,
+  bar: DEFAULT_BAR,
   openHubOnLaunch: true,
   insights: { typingWpm: INSIGHTS_LIMITS.typingWpm.default },
   profile: { displayName: "", showOnHome: true },
@@ -987,7 +989,11 @@ const blockersNow = (): DictationBlocker[] =>
     speech: speech.getState(),
   });
 /** Why dictation cannot start, or null. A permission is read again before it counts. */
+/** DC-45: paused from the menu, until resumed there or the next start. */
+let dictationPaused = false;
+
 async function dictationBlocked(): Promise<string | null> {
+  if (dictationPaused) return "Dictation is paused. Resume it from the menu bar.";
   // HB-19: Free stops at its weekly word limit; any other tier has none.
   if (weeklyLimitReached(settingsStore.get().plan, weekWords())) return PLAN_MESSAGES.weeklyLimit;
   let blockers = blockersNow();
@@ -1010,6 +1016,7 @@ const barWindow = new BarWindow({
   preloadPath: path.join(__dirname, "bar-preload.cjs"),
   entryUrl: barEntryUrl,
   isDevelopment,
+  placement: () => settingsStore.get().bar,
   positionFile: barPositionFile(profile.userData),
   displays: () => screen.getAllDisplays().map(displayArea),
   primaryDisplay: () => displayArea(screen.getPrimaryDisplay()),
@@ -1846,6 +1853,13 @@ nativeTheme.themeSource = settingsStore.get().theme;
 settingsStore.onChange(() => {
   const theme = settingsStore.get().theme;
   if (nativeTheme.themeSource !== theme) nativeTheme.themeSource = theme;
+});
+
+// HB-17: the Bar's settings apply at once.
+settingsStore.onChange((_settings, changed) => {
+  if (!changed.includes("bar")) return;
+  barWindow.place();
+  barPort.render(bar.getView());
 });
 
 // HB-34: turning Scratchpad off closes its window; notes stay on disk.
@@ -3056,6 +3070,12 @@ function createTray(): void {
     updateSettings: (patch) => settingsStore.update(patch),
     listDevices: () => helper.listAudioDevices(),
     lastTranscript: () => lastTranscript.read(),
+    pasteLast: () => void lastTranscript.paste(),
+    openHub: () => openHubPage("home"),
+    paused: () => dictationPaused,
+    setPaused: (paused) => {
+      dictationPaused = paused;
+    },
     toggleDictation: () => recorder.toggle(),
     canRetry: () => recorder.canRetry(),
     retryLast: () => void recorder.retryLast(),
@@ -4722,6 +4742,7 @@ function registerIpc(): void {
       if (action === "retry") recorder.retryLast();
       // A click on the recording indicator opens the Notetaker page, where Stop is.
       else if (bar.getView().state === "idle" && meetingBadge) openHubPage("notetaker");
+      else if (action === "start" || action === "stop") recorder.toggle();
     },
     answer: (choice) => answerBar(choice),
     menu: () => void openBarMenu(),

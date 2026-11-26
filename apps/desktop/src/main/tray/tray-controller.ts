@@ -50,6 +50,10 @@ export interface TrayControllerDeps {
   toggleDictation(): void;
   canRetry(): boolean;
   retryLast(): void;
+  pasteLast(): void;
+  openHub(): void;
+  paused(): boolean;
+  setPaused(paused: boolean): void;
   snoozeReminder(choice: "hour" | "tomorrow" | "off" | "on"): void;
   copy(text: string): void;
   quit(): void;
@@ -152,6 +156,8 @@ export function createTrayController(deps: TrayControllerDeps): TrayController {
       languages: settings.languages,
       language: settings.language,
       hasLastTranscript: deps.lastTranscript() !== null,
+      paused: deps.paused(),
+      barVisible: settings.bar.visible,
       canRetry: deps.canRetry(),
       typingReminder: reminderStatus(settings.typingReminder, deps.clock.now()),
       focus:
@@ -242,6 +248,19 @@ export function createTrayController(deps: TrayControllerDeps): TrayController {
           else deps.copy(text);
           return;
         }
+        case "paste-last":
+          deps.pasteLast();
+          return;
+        case "pause":
+          deps.setPaused(action.paused);
+          refresh();
+          return;
+        case "show-bar":
+          deps.updateSettings({ bar: { ...deps.settings().bar, visible: action.visible } });
+          return;
+        case "open-hub":
+          deps.openHub();
+          return;
         case "retry-last":
           deps.retryLast();
           return;

@@ -8,6 +8,7 @@ import {
   BAR_HEIGHT,
   BAR_WIDTH,
   parseSaved,
+  dock,
   restorePosition,
   toSaved,
   type DisplayArea,
@@ -63,7 +64,15 @@ export function createBarWindowOptions(
   };
 }
 
+export interface BarPlacement {
+  visible: boolean;
+  allSpaces: boolean;
+  aboveFullScreen: boolean;
+}
+
 export interface BarWindowDeps {
+  /** HB-17: whether and where the Bar shows. Shown on every space when not given. */
+  placement?: () => BarPlacement;
   create: (options: BrowserWindowConstructorOptions) => BrowserWindow;
   preloadPath: string;
   entryUrl: string;
@@ -97,13 +106,26 @@ export class BarWindow implements BarPort {
         y,
       }),
     );
-    window.setAlwaysOnTop(true, "floating");
-    window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: false });
     window.on("closed", () => {
       this.window = null;
     });
     this.window = window;
+    this.place();
     await window.loadURL(this.deps.entryUrl);
+  }
+
+  private placement(): BarPlacement {
+    return this.deps.placement?.() ?? { visible: true, allSpaces: true, aboveFullScreen: false };
+  }
+
+  /** Applies the Bar's settings to the window. Safe to call again after a change. */
+  place(): void {
+    const window = this.window;
+    if (!window || window.isDestroyed()) return;
+    const { allSpaces, aboveFullScreen } = this.placement();
+    // Full-screen apps are drawn above ordinary floating windows.
+    window.setAlwaysOnTop(true, aboveFullScreen ? "screen-saver" : "floating");
+    window.setVisibleOnAllWorkspaces(allSpaces, { visibleOnFullScreen: aboveFullScreen });
   }
 
   isBarSender(senderId: number): boolean {
@@ -114,7 +136,9 @@ export class BarWindow implements BarPort {
     const window = this.window;
     if (!window || window.isDestroyed()) return;
     window.webContents.send(BAR_PUSH_CHANNELS.view, view);
-    if (view.state === "hidden") window.hide();
+    // A hidden Bar still appears for a question, which needs an answer.
+    const wanted = this.placement().visible || view.state === "ask";
+    if (view.state === "hidden" || !wanted) window.hide();
     else if (!window.isVisible()) window.showInactive();
   }
 
@@ -150,7 +174,10 @@ export class BarWindow implements BarPort {
     this.dragOrigin = null;
     const position = this.window?.getPosition();
     if (!position) return;
-    const saved = toSaved({ x: position[0]!, y: position[1]! }, this.deps.displays());
+    const dropped = { x: position[0]!, y: position[1]! };
+    const settled = dock(dropped, this.deps.displays());
+    if (settled.x !== dropped.x) this.window?.setPosition(settled.x, settled.y);
+    const saved = toSaved(settled, this.deps.displays());
     if (!saved) return;
     try {
       await writeFile(this.deps.positionFile, JSON.stringify(saved));

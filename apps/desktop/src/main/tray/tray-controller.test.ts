@@ -40,6 +40,7 @@ function setup() {
     muteWhileDictating: false,
     sessionLimitMinutes: 20,
     smartFormatting: true,
+    bar: { visible: true, allSpaces: true, aboveFullScreen: false },
     setupComplete: true,
     pressEnterCommand: true,
     openHubOnLaunch: true,
@@ -107,6 +108,10 @@ function setup() {
     toggleDictation: vi.fn(),
     snoozeReminder: vi.fn(),
     canRetry: vi.fn(() => false),
+    pasteLast: vi.fn(),
+    openHub: vi.fn(),
+    paused: vi.fn(() => false),
+    setPaused: vi.fn(),
     retryLast: vi.fn(),
     copy: vi.fn(),
     quit: vi.fn(),
@@ -149,6 +154,10 @@ describe("tray meeting recording", () => {
       toggleDictation: () => {},
       canRetry: () => false,
       retryLast: () => {},
+      pasteLast: () => {},
+      openHub: () => {},
+      paused: () => false,
+      setPaused: () => {},
       snoozeReminder: () => {},
       copy: () => {},
       quit: () => {},
@@ -205,6 +214,10 @@ describe("tray next meeting (NT-29)", () => {
       toggleDictation: () => {},
       canRetry: () => false,
       retryLast: () => {},
+      pasteLast: () => {},
+      openHub: () => {},
+      paused: () => false,
+      setPaused: () => {},
       snoozeReminder: () => {},
       copy: () => {},
       quit: () => {},
@@ -367,5 +380,21 @@ describe("tray controller", () => {
     expect(deps.snoozeReminder).toHaveBeenCalledWith("hour");
     controller.perform({ type: "quit" });
     expect(deps.quit).toHaveBeenCalledOnce();
+  });
+});
+
+describe("tray pause, Bar and Hub (DC-45)", () => {
+  it("pauses and resumes, hides the Bar, pastes the last transcript and opens the Hub", () => {
+    const { controller, deps } = setup();
+    controller.perform({ type: "pause", paused: true });
+    expect(deps.setPaused).toHaveBeenCalledWith(true);
+    controller.perform({ type: "paste-last" });
+    expect(deps.pasteLast).toHaveBeenCalledOnce();
+    controller.perform({ type: "open-hub" });
+    expect(deps.openHub).toHaveBeenCalledOnce();
+    controller.perform({ type: "show-bar", visible: false });
+    expect(controller.view().items).toEqual(
+      expect.arrayContaining([expect.objectContaining({ label: "Show Bar" })]),
+    );
   });
 });

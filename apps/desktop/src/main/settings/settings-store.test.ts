@@ -27,6 +27,7 @@ const defaults: Settings = {
   muteWhileDictating: false,
   sessionLimitMinutes: 20,
   smartFormatting: true,
+  bar: { visible: true, allSpaces: true, aboveFullScreen: false },
   setupComplete: true,
   pressEnterCommand: true,
   openHubOnLaunch: true,

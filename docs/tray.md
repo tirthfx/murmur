@@ -64,3 +64,7 @@ All under `apps/desktop/src/main/tray/`.
 6. Pick a microphone and a language. Open the Hub's Settings: both show the new choice.
 7. Close the Hub window. The menu still works.
 8. Choose "Quit Murmur". The app and its helper exit.
+
+## Also in the menu (DC-45)
+
+Paste last transcript, Pause dictation (dictation keys and the Bar then say it is paused; resumed from the same item, or by restarting), Show or Hide Bar, and Open Murmur.

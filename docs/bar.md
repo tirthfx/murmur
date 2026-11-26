@@ -37,6 +37,10 @@ The `ask` state shows a question with a second line and Save and Dismiss buttons
 five minutes, never covers a recording, and a new dictation replaces it. The buttons stop the
 pointer from starting a drag.
 
+## Settings, clicks and docking
+
+Settings, General has three switches: show the Bar, show it on all Spaces, and show it over full-screen apps. A hidden Bar still appears for a question. A click on the resting Bar starts hands-free dictation and the next click stops it. A Bar dropped within 24 points of a side edge docks to it.
+
 ## Right-click menu
 
 A right click opens a system menu over the Bar (`bar/bar-menu.ts`): the microphone the next dictation will record from, its language and cleanup level, each with a submenu to change it, and the typing reminder's snooze. A change applies to the next dictation only (`bar/next-session.ts`); "Save as default" writes it to Settings. The menu closes on an outside click or Escape, as system menus do.

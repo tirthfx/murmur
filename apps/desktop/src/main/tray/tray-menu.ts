@@ -26,6 +26,10 @@ export interface TrayState {
   /** In order, primary first; empty means detect. */
   languages: SpeechLanguage[];
   hasLastTranscript: boolean;
+  /** Dictation is paused (DC-45). */
+  paused: boolean;
+  /** The Bar is shown (HB-17). */
+  barVisible: boolean;
   /** A failed dictation can be transcribed again. */
   canRetry: boolean;
   typingReminder: "on" | "snoozed" | "off";
@@ -58,6 +62,11 @@ export type TrayAction =
   /** Makes a language the primary one, or "auto" to detect. */
   | { type: "language"; code: SpeechLanguage | "auto" }
   | { type: "copy-last" }
+  | { type: "paste-last" }
+  /** DC-45: dictation off until resumed. */
+  | { type: "pause"; paused: boolean }
+  | { type: "show-bar"; visible: boolean }
+  | { type: "open-hub" }
   | { type: "retry-last" }
   | { type: "reminder"; choice: "hour" | "tomorrow" | "off" | "on" }
   | { type: "focus"; duration: FocusDuration }
@@ -292,6 +301,12 @@ export function trayMenu(state: TrayState): TrayItem[] {
     },
     {
       kind: "item",
+      label: tr(state.language, "tray.pasteLast"),
+      enabled: state.hasLastTranscript,
+      action: { type: "paste-last" },
+    },
+    {
+      kind: "item",
       label: tr(state.language, "tray.retryLast"),
       enabled: state.canRetry,
       action: { type: "retry-last" },
@@ -313,6 +328,18 @@ export function trayMenu(state: TrayState): TrayItem[] {
           },
         ]
       : []),
+    { kind: "separator" },
+    {
+      kind: "item",
+      label: tr(state.language, state.paused ? "tray.resume" : "tray.pause"),
+      action: { type: "pause", paused: !state.paused },
+    },
+    {
+      kind: "item",
+      label: tr(state.language, state.barVisible ? "tray.bar.hide" : "tray.bar.show"),
+      action: { type: "show-bar", visible: !state.barVisible },
+    },
+    { kind: "item", label: tr(state.language, "tray.openHub"), action: { type: "open-hub" } },
     { kind: "separator" },
     { kind: "item", label: tr(state.language, "tray.quit"), action: { type: "quit" } },
   ];

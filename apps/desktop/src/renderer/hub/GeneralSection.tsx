@@ -11,6 +11,8 @@ import { DEVELOPER_CLICKS, type AppInfo, type LoginItem } from "@murmur/shared";
 export function GeneralSection({
   openHubOnLaunch,
   onOpenHubOnLaunch,
+  bar,
+  onBar,
   profile,
   onProfile,
   theme,
@@ -20,6 +22,9 @@ export function GeneralSection({
 }: {
   openHubOnLaunch: boolean;
   onOpenHubOnLaunch: (on: boolean) => void;
+  /** HB-17: the floating Bar. */
+  bar: { visible: boolean; allSpaces: boolean; aboveFullScreen: boolean };
+  onBar: (bar: { visible: boolean; allSpaces: boolean; aboveFullScreen: boolean }) => void;
   /** HB-51: the local display name. */
   profile: { displayName: string; showOnHome: boolean };
   onProfile: (profile: { displayName: string; showOnHome: boolean }) => void;
@@ -89,6 +94,26 @@ export function GeneralSection({
           value={openHubOnLaunch}
           onChange={onOpenHubOnLaunch}
         />
+      </div>
+      <div data-setting="bar" className="hub-setting-row">
+        <VStack gap={2}>
+          <Switch
+            label="Show the Bar"
+            description="The small floating pill that shows what dictation is doing. Without it, shortcuts and the menu still work, and it appears only to ask a question."
+            value={bar.visible}
+            onChange={(visible) => onBar({ ...bar, visible })}
+          />
+          <Switch
+            label="Show the Bar on all Spaces"
+            value={bar.allSpaces}
+            onChange={(allSpaces) => onBar({ ...bar, allSpaces })}
+          />
+          <Switch
+            label="Show the Bar over full-screen apps"
+            value={bar.aboveFullScreen}
+            onChange={(aboveFullScreen) => onBar({ ...bar, aboveFullScreen })}
+          />
+        </VStack>
       </div>
       <div data-setting="theme" className="hub-setting-row">
         <VStack gap={1}>
