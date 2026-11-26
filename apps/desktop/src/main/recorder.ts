@@ -28,6 +28,7 @@ import {
 import { splitMessages } from "./experimental/split-messages";
 import { formatLists } from "./cleanup/lists";
 import { smartFormat } from "./cleanup/smart-format";
+import { nothingFocused } from "./insertion/focus";
 import { splitPressEnter } from "./insertion/press-enter";
 import { applyReplacements, keepSpellings, speechPromptWithTerms } from "./dictionary/apply";
 import type { DictionaryRules } from "./dictionary/dictionary-store";
@@ -63,6 +64,9 @@ export const RESPONSE_TARGET_MS = 2300;
 /** How long before the length cap the Bar says it is close (DC-21). */
 export const SESSION_LIMIT_WARNING_MS = 60_000;
 
+/** A silent recording shorter than this was a stray tap, and ends quietly (DC-02). */
+export const STRAY_TAP_MS = 600;
+
 /** Wait before the automatic retry. */
 export const AUTO_RETRY_DELAY_MS = 2000;
 
@@ -95,8 +99,10 @@ export interface RecorderDeps {
   /** Puts the text into the focused field. Without it, text is only logged. */
   insert?: (
     text: string,
-    options: { pressEnter: boolean; html?: string },
+    options: { pressEnter: boolean; html?: string; keepOnClipboard?: boolean },
   ) => Promise<InsertTextResult>;
+  /** The focused field as the text is about to go in (DC-01). Not checked when missing. */
+  focusNow?: () => Promise<FocusContext | null>;
   /**
    * Whether the text around the caret may be used (context awareness). When false the context
    * still names the app, for its style, but its text and title are not used. On when missing.
@@ -326,6 +332,10 @@ export type RecorderEvent =
   | { type: "stopped" }
   | { type: "silent-mic"; deviceName: string }
   | { type: "no-speech" }
+  /** A short tap with nothing said: it ends without a word (DC-02). */
+  | { type: "tap-ignored" }
+  /** Nothing had the focus, so the text was also left on the clipboard (DC-01). */
+  | { type: "no-field" }
   | { type: "stop-failed" }
   /** `note` is said instead of the word count: why the recording ended. */
   | { type: "transcribed"; words: number; note?: string }
@@ -651,7 +661,10 @@ export function createRecorder(deps: RecorderDeps): Recorder {
         const audioPath = result.audioFile.path;
         note(() => deps.pending?.stopped(session.id, audioPath, result.durationMs));
       }
-      if (result.silent || !result.audioFile) {
+      if (result.silent && result.durationMs < STRAY_TAP_MS) {
+        note(() => deps.pending?.clear(session.id));
+        emit({ type: "tap-ignored" });
+      } else if (result.silent || !result.audioFile) {
         if (result.silent) logger.warn("nothing above the silence threshold was heard");
         emit({ type: "no-speech" });
         record(take, { insertStatus: "empty" });
@@ -686,15 +699,44 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 
   /** Transcribe, clean, insert, then write the history row. */
   let processing = 0;
+  /** Dictations being processed, and those Escape has since called off (DC-05). */
+  const inFlight = new Set<string>();
+  const calledOff = new Set<string>();
   /** Apps already told that their text cannot be read for variable names (once per run). */
   const hinted = new Set<string>();
 
+  /** Escape after the recording stopped: nothing more is inserted (DC-05). */
+  function callOff(): void {
+    const waiting = [...inFlight].filter((id) => !calledOff.has(id));
+    if (waiting.length === 0) return;
+    for (const id of waiting) calledOff.add(id);
+    logger.info("dictation cancelled while it was being processed");
+    emit({ type: "cancelled" });
+  }
+
+  /** True for a called-off dictation, once its row is written without any text. */
+  function dropped(take: Take): boolean {
+    if (!calledOff.has(take.sessionId)) return false;
+    record(take, {
+      insertStatus: "empty",
+      language: null,
+      rawText: null,
+      finalText: null,
+      wordCount: 0,
+      cleanup: null,
+    });
+    return true;
+  }
+
   async function runTake(take: Take): Promise<void> {
     processing++;
+    inFlight.add(take.sessionId);
     try {
       await processTake(take);
     } finally {
       processing--;
+      inFlight.delete(take.sessionId);
+      calledOff.delete(take.sessionId);
     }
   }
 
@@ -760,6 +802,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
         audioMs: take.durationMs,
       });
     } catch (error) {
+      if (dropped(take)) return;
       logger.warn(`could not transcribe: ${errorMessage(error)}`);
       if (AUTO_RETRY_CODES.has(errorCode(error)) && !take.autoRetried) {
         // Nothing is recorded yet: only the outcome of the retry is, so text goes in once.
@@ -789,6 +832,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
     );
     if (deps.logTranscripts) logger.info(`text: ${transcript.text}`);
     lastFailed = null;
+    if (dropped(take)) return;
     // Noise labels ("*thud*") were never said; then any script rewrite (Hindi in Latin letters),
     // then the dictionary's replacements and spellings.
     const rules = deps.dictionary?.rules() ?? null;
@@ -1032,6 +1076,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
       terms,
     );
     const final = signEmail(styled(respell(translated)), style);
+    if (dropped(take)) return;
     countUses();
     const finalWords = final.split(/\s+/).filter(Boolean).length;
     emit(
@@ -1112,6 +1157,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
         ? `${assembled.html}<p>${plainToHtml(signature)}</p>`
         : assembled.html;
     const words = text.split(/\s+/).filter(Boolean).length;
+    if (dropped(take)) return;
     emit(transcribed(take, words));
     const outcome = await insert(text, pressEnter, html);
     record(take, {
@@ -1140,6 +1186,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
     // The spoken command, if any, was on the last part's segments; take it off there too.
     const last = splitPressEnter(parts.at(-1)!);
     const texts = [...parts.slice(0, -1), pressEnterAtEnd ? last.text : parts.at(-1)!];
+    if (dropped(take)) return;
     emit(transcribed(take, texts.join(" ").split(/\s+/).filter(Boolean).length));
     const finals: string[] = [];
     let outcome: InsertOutcome = { insertStatus: "inserted" };
@@ -1152,7 +1199,11 @@ export function createRecorder(deps: RecorderDeps): Recorder {
       const result = await insert(final, isLast ? pressEnterAtEnd : true);
       outcome = result;
       // A part that did not go in stops the rest, so messages never arrive out of order.
-      if (result.insertStatus !== "inserted") break;
+      if (result.insertStatus !== "inserted" || calledOff.has(take.sessionId)) break;
+    }
+    // Parts left over are not lost: with the text on the clipboard, all of it goes there.
+    if (outcome.insertStatus === "clipboard_only" && finals.length < texts.length) {
+      await deps.copy?.([...finals, ...texts.slice(finals.length)].join("\n")).catch(() => {});
     }
     const finalText = finals.join("\n");
     const finalWords = finalText.split(/\s+/).filter(Boolean).length;
@@ -1230,8 +1281,20 @@ export function createRecorder(deps: RecorderDeps): Recorder {
   ): Promise<InsertOutcome> {
     if (!deps.insert) return { insertStatus: "failed", errorCode: "NO_INSERTER" };
     const started = Date.now();
+    const stranded =
+      text !== "" && nothingFocused((await deps.focusNow?.().catch(() => null)) ?? null);
     try {
-      const result = await deps.insert(text, { pressEnter, ...(html ? { html } : {}) });
+      const result = await deps.insert(text, {
+        pressEnter,
+        ...(html ? { html } : {}),
+        ...(stranded ? { keepOnClipboard: true } : {}),
+      });
+      if (stranded) {
+        // Typed insertion leaves the clipboard alone, so it is written here.
+        if (result.method === "keystrokes") await deps.copy?.(text).catch(() => {});
+        logger.warn("nothing had the focus; the text was also left on the clipboard");
+        emit({ type: "no-field" });
+      }
       const restored =
         result.clipboardRestored === null
           ? ""
@@ -1358,10 +1421,13 @@ export function createRecorder(deps: RecorderDeps): Recorder {
       if (event.action === "dictate.hold") {
         if (event.state === "down") gesture.holdDown(event.at);
         else if (event.state === "up") gesture.holdUp(event.at);
+        // Another key while holding: a shortcut or a special character, not speech (DC-02).
+        else if (event.state === "interrupted") gesture.interrupt();
       } else if (event.action === "dictate.toggle" && event.state !== "up") {
         gesture.toggle();
       } else if (event.action === "dictate.cancel" && event.state !== "up") {
-        gesture.cancel();
+        if (gesture.recording || current) gesture.cancel();
+        else callOff();
       }
     },
     toggle() {

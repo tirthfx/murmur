@@ -2103,3 +2103,83 @@ describe("lists and Smart Formatting (DC-26, DC-29)", () => {
     await expect(dictate({ lists: true, smart: true }, "dev")).resolves.toContain("fifty dollars");
   });
 });
+
+describe("calling a dictation off, and stray taps", () => {
+  const typed = { method: "paste_cmd_v" as const, delivered: true, clipboardRestored: true };
+  const said = async () => ({
+    text: "hello there",
+    language: "en",
+    audioMs: 1000,
+    decodeMs: 10,
+    segments: [],
+  });
+  const key = (action: "dictate.hold" | "dictate.cancel", state: HotkeyEvent["state"], at = 0) => ({
+    bindingId: action,
+    action,
+    state,
+    at,
+  });
+
+  it("drops a held recording when another key is pressed (DC-02)", async () => {
+    const { recorder, calls } = setup({ clock: new FakeClock() });
+    recorder.handleHotkey(key("dictate.hold", "down"));
+    recorder.handleHotkey(key("dictate.hold", "interrupted", 100));
+    await recorder.idle();
+    expect(calls).toEqual(["start s1", "cancel s1"]);
+  });
+
+  it("inserts nothing after Escape during processing (DC-05)", async () => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const insert = vi.fn(async () => typed);
+    const events: string[] = [];
+    const { recorder } = setup({
+      clock: new FakeClock(),
+      insert,
+      onEvent: (event) => events.push(event.type),
+      transcribe: async () => {
+        await gate;
+        return said();
+      },
+    });
+    recorder.toggle();
+    recorder.toggle();
+    for (let i = 0; i < 50; i++) await Promise.resolve();
+    recorder.handleHotkey(key("dictate.cancel", "press"));
+    release();
+    await recorder.idle();
+    expect(insert).not.toHaveBeenCalled();
+    expect(events).toContain("cancelled");
+    expect(events).not.toContain("transcribed");
+  });
+
+  it("leaves the text on the clipboard when nothing has the focus (DC-01)", async () => {
+    const insert = vi.fn(async () => typed);
+    const events: string[] = [];
+    const { recorder } = setup({
+      clock: new FakeClock(),
+      insert,
+      transcribe: said,
+      onEvent: (event) => events.push(event.type),
+      focusNow: async () => ({
+        appName: "Finder",
+        bundleId: "com.apple.finder",
+        windowTitle: null,
+        role: null,
+        subrole: null,
+        editable: false,
+        secure: false,
+        textBefore: "",
+        textAfter: "",
+      }),
+    });
+    recorder.toggle();
+    recorder.toggle();
+    await recorder.idle();
+    expect(insert).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ keepOnClipboard: true }),
+    );
+    expect(events).toContain("no-field");
+  });
+});

@@ -270,7 +270,13 @@ describe("settings service", () => {
 
   it("turns settings into bindings, a device and languages", () => {
     expect(bindingsFor(defaults)).toEqual([
-      { id: "dictate-hold", action: "dictate.hold", trigger: defaults.holdShortcut, mode: "hold" },
+      {
+        id: "dictate-hold",
+        action: "dictate.hold",
+        trigger: defaults.holdShortcut,
+        mode: "hold",
+        exclusive: true,
+      },
     ]);
     const withToggle = {
       ...defaults,

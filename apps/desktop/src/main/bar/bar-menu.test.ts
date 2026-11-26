@@ -36,6 +36,7 @@ describe("the Bar's menu (DC-46)", () => {
       "Microphone: Desk Mic",
       "Language: English",
       "Cleanup: Standard",
+      "Whisper mode",
       expect.any(String),
     ]);
   });

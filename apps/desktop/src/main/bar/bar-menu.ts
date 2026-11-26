@@ -90,6 +90,16 @@ export function barMenu(state: BarMenuState): MenuRow<BarMenuAction>[] {
       label: tr("barMenu.cleanup", tr(`barMenu.cleanup.${settings.cleanupLevel}`)),
       submenu: levels,
     },
+    {
+      kind: "item",
+      label: tr("barMenu.whisper"),
+      submenu: [true, false].map((on) => ({
+        kind: "item" as const,
+        label: tr(on ? "barMenu.on" : "barMenu.off"),
+        checked: settings.whisperMode === on,
+        action: choose({ whisperMode: on }),
+      })),
+    },
     { kind: "separator" },
     ...(state.pending
       ? [
