@@ -17,6 +17,8 @@ const base: TrayState = {
   inputDevice: "auto",
   languages: [],
   hasLastTranscript: true,
+  paused: false,
+  barVisible: true,
   canRetry: false,
   typingReminder: "on",
 };
@@ -33,8 +35,12 @@ describe("tray menu", () => {
       "Microphone",
       "Languages",
       "Copy last transcript",
+      "Paste last transcript",
       "Retry last dictation",
       "Typing reminder",
+      "Pause dictation",
+      "Hide Bar",
+      "Open Murmur",
       "Quit Murmur",
     ]);
   });

@@ -61,11 +61,13 @@ describe("bar controller", () => {
     expect(levels).toEqual([-20]);
   });
 
-  it("turns a click into retry in error only", () => {
+  it("starts at rest, stops a hands-free recording and retries an error", () => {
     const { bar } = setup();
-    expect(bar.click()).toBeNull();
+    expect(bar.click()).toBe("start");
     bar.dispatch({ type: "start", at: 0 });
     expect(bar.click()).toBeNull();
+    bar.dispatch({ type: "lock" });
+    expect(bar.click()).toBe("stop");
     bar.dispatch({ type: "stop" });
     bar.dispatch({ type: "failed" });
     expect(bar.click()).toBe("retry");

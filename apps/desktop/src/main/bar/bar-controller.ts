@@ -13,7 +13,7 @@ export interface BarController {
   level(rmsDb: number): void;
   getView(): BarView;
   /** A click on the pill: retry in `error`. Other states ignore clicks for now. */
-  click(): "retry" | null;
+  click(): "retry" | "start" | "stop" | null;
 }
 
 /** Runs the state machine, owns the one timer, and pushes every change to the port. */
@@ -51,7 +51,10 @@ export function createBarController(port: BarPort, clock: Clock): BarController 
     },
     getView: () => current,
     click() {
-      return current.state === "error" ? "retry" : null;
+      if (current.state === "error") return "retry";
+      // At rest a click starts hands-free dictation, and the next one ends it (DC-07).
+      if (current.state === "idle") return "start";
+      return current.state === "locked" ? "stop" : null;
     },
   };
 }

@@ -183,6 +183,8 @@ export function SettingsSection({
         <GeneralSection
           openHubOnLaunch={settings.openHubOnLaunch}
           onOpenHubOnLaunch={(openHubOnLaunch) => update({ openHubOnLaunch })}
+          bar={settings.bar}
+          onBar={(bar) => update({ bar })}
           profile={settings.profile}
           onProfile={(profile) => update({ profile })}
           theme={settings.theme}

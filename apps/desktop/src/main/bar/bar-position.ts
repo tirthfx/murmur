@@ -61,6 +61,27 @@ export function toSaved(
   };
 }
 
+/** A Bar dropped this close to a side edge docks to it (DC-07). */
+export const DOCK_DISTANCE = 24;
+
+/** Where a dropped Bar settles: against a side edge when near one, else where it is. */
+export function dock(
+  point: { x: number; y: number },
+  displays: DisplayArea[],
+): { x: number; y: number } {
+  const centre = { x: point.x + BAR_WIDTH / 2, y: point.y + BAR_HEIGHT / 2 };
+  const area = displays.find(
+    ({ workArea: a }) =>
+      centre.x >= a.x && centre.x < a.x + a.width && centre.y >= a.y && centre.y < a.y + a.height,
+  );
+  if (!area) return point;
+  const left = area.workArea.x;
+  const right = area.workArea.x + area.workArea.width - BAR_WIDTH;
+  if (point.x - left <= DOCK_DISTANCE) return { x: left, y: point.y };
+  if (right - point.x <= DOCK_DISTANCE) return { x: right, y: point.y };
+  return point;
+}
+
 /** The saved spot on its display if that display is still there, else the default on the primary. */
 export function restorePosition(
   saved: SavedPosition | null,
