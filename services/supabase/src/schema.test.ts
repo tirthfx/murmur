@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { PLAN_FEATURES } from "../../../packages/shared/src/plans.ts";
+import { matrixSql, VISIBLE } from "./matrix.ts";
 import { latestSeed, seedSql, statementsOf } from "./seed.ts";
 
 /**
@@ -35,6 +36,14 @@ describe("the migrations", () => {
     // A change to a matrix needs a new seed migration (`npm run seed --workspace @murmur/supabase`);
     // the newest one must say what the sources say now.
     expect(statementsOf(latestSeed().sql)).toBe(statementsOf(seedSql()));
+  });
+
+  it("have the permission matrix test up to date, with every table in it", () => {
+    // After a change: `npm run matrix --workspace @murmur/supabase`, then run it on a database.
+    const written = readFileSync(new URL("../tests/matrix.sql", import.meta.url), "utf8");
+    expect(written).toBe(matrixSql());
+    const tables = [...code.matchAll(/create table public\.([a-z_]+)/g)].map((match) => match[1]);
+    expect(Object.keys(VISIBLE).sort()).toEqual(tables.sort());
   });
 
   it("turn row-level security on for every table in public", () => {
