@@ -5,6 +5,7 @@ import {
   PERMISSION_KINDS,
   PROTOCOL_VERSION,
   type DetectEvent,
+  type EditsChanged,
   type FrontApp,
   type HotkeyBinding,
   type HotkeyEvent,
@@ -40,6 +41,8 @@ export interface HelperWorld {
   focusTextField(): Promise<void>;
   /** What the test text field now holds. */
   textFieldValue(): Promise<string>;
+  /** Changes what the test text field holds, as a person correcting it would. */
+  editTextField(text: string): Promise<void>;
   /** Selects this text in the focused field; empty selects nothing. */
   selectText(text: string): Promise<void>;
   /** Brings an app to the front. */
@@ -64,6 +67,9 @@ export const CONFORMANCE_SCENARIOS = [
   "selection",
   "key presses",
   "processes and apps",
+  "context",
+  "edit watching",
+  "inspector",
   "secure store",
   "front app",
   "meeting detection",
@@ -233,6 +239,59 @@ export function describePlatformHelperConformance(name: string, options: Conform
         expect(app.bundleId.length).toBeGreaterThan(0);
         expect(app.name.length).toBeGreaterThan(0);
       }
+    });
+
+    scenario("context", async ({ helper, setPermission, focusApp, focusTextField }) => {
+      await helper.start();
+      await setPermission("accessibility", "granted");
+      await focusApp({ bundleId: "app.one", name: "One" });
+      await focusTextField();
+      await helper.insertText({
+        text: "Written before the caret",
+        method: "auto",
+        restoreClipboard: true,
+        restoreDelayMs: 0,
+      });
+      const context = await helper.focusContext({});
+      expect(context).toMatchObject({
+        bundleId: "app.one",
+        appName: "One",
+        editable: true,
+        secure: false,
+        textBefore: "Written before the caret",
+        textAfter: "",
+      });
+      expect((await helper.focusContext({ maxBefore: 5 })).textBefore).toBe("caret");
+    });
+
+    scenario("edit watching", async ({ helper, setPermission, focusTextField, editTextField }) => {
+      await helper.start();
+      await setPermission("accessibility", "granted");
+      await focusTextField();
+      await helper.insertText({
+        text: "meet at the offce",
+        method: "auto",
+        restoreClipboard: true,
+        restoreDelayMs: 0,
+      });
+      const changes: EditsChanged[] = [];
+      helper.onEditsChanged((change) => changes.push(change));
+      expect(await helper.watchEdits({ text: "not in the field", durationMs: 5000 })).toBe(false);
+      expect(await helper.watchEdits({ text: "meet at the offce", durationMs: 10_000 })).toBe(true);
+      await editTextField("meet at the office");
+      await eventually(() => changes.length === 1, "the correction", 5000);
+      expect(changes).toEqual([{ before: "offce", after: "office" }]);
+      await helper.cancelEdits();
+    });
+
+    scenario("inspector", async ({ helper, setPermission, focusApp }) => {
+      await helper.start();
+      await setPermission("accessibility", "granted");
+      await focusApp({ bundleId: "app.one", name: "One" });
+      const tree = await helper.inspectAccessibility(false);
+      expect(tree).toMatchObject({ bundleId: "app.one", truncated: false });
+      expect(tree!.nodes.length).toBeGreaterThan(0);
+      for (const node of tree!.nodes) expect(node.value).toBeNull();
     });
 
     scenario("secure store", async ({ helper }) => {

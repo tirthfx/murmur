@@ -49,6 +49,7 @@ internal static class Native
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] public static extern bool TranslateMessage(ref Msg message);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr DispatchMessage(ref Msg message);
     [DllImport("user32.dll")] public static extern IntPtr SetFocus(IntPtr hwnd);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] public static extern bool SetWindowText(IntPtr hwnd, string text);
     [DllImport("ntdll.dll")] public static extern int NtQueryInformationProcess(IntPtr process, int kind, IntPtr buffer, int length, out int needed);
 
     public delegate IntPtr HookProc(int code, IntPtr wParam, IntPtr lParam);

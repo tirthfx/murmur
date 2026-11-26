@@ -146,6 +146,9 @@ if (!binary && !required) {
         async textFieldValue() {
           return String((await act({ op: "readField" })).text);
         },
+        async editTextField(text) {
+          await act({ op: "editField", text });
+        },
         async selectText(text) {
           await act({ op: "selectText", text });
         },
