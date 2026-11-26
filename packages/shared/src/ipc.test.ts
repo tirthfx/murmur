@@ -1,3 +1,5 @@
+import { SHORTCUT_SLOTS } from "./settings";
+import { IPC_CONTRACT } from "./ipc";
 import { describe, expect, it } from "vitest";
 import { IPC_CHANNELS, appInfoSchema, isIpcChannel, parseIpcRequest } from "./ipc";
 import { helperStatusSchema } from "./platform-helper";
@@ -67,5 +69,16 @@ describe("getHelperStatus", () => {
     expect(helperStatusSchema.safeParse(ok).success).toBe(true);
     expect(helperStatusSchema.safeParse({ ...ok, state: "weird" }).success).toBe(false);
     expect(helperStatusSchema.safeParse({ ...ok, extra: 1 }).success).toBe(false);
+  });
+});
+
+describe("saving a shortcut", () => {
+  it("accepts every slot Settings shows, to set and to clear", () => {
+    const { args } = IPC_CONTRACT[IPC_CHANNELS.setShortcut];
+    for (const slot of SHORTCUT_SLOTS) {
+      expect(args.safeParse([slot, null]).success, slot).toBe(true);
+      expect(args.safeParse([slot, { code: "F13", modifiers: [] }]).success, slot).toBe(true);
+    }
+    expect(args.safeParse(["other", null]).success).toBe(false);
   });
 });
