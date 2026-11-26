@@ -135,10 +135,12 @@ public static class SelfTest
             using var window = new TestWindow("press and copy");
             if (!window.Focus()) return "skipped: the test window could not take focus";
             var keys = new WindowsKeys();
-            if (!keys.Press(KeyCombos.Translate("a", new HashSet<string> { "command" }))) throw new InvalidOperationException("the keys were refused");
+            window.Select(0, 0);
+            // Shift+End, which every edit box handles (Ctrl+A is left to the app on some).
+            if (!keys.Press(KeyCombos.Translate("right", new HashSet<string> { "command", "shift" }))) throw new InvalidOperationException("the keys were refused");
             Thread.Sleep(200);
             var all = window.Selection();
-            if (all != (0, 14)) throw new InvalidOperationException($"select all gave {all}");
+            if (all != (0, 14)) throw new InvalidOperationException($"selecting to the end gave {all}");
             var selection = new WindowsSelection(keys);
             var focused = selection.Read(SelectionController.MaxLength);
             if (focused.Text != "press and copy") throw new InvalidOperationException($"the focused element read {focused.Kind} \"{focused.Text}\"");
@@ -153,7 +155,7 @@ public static class SelfTest
             if (answer["status"]!.GetValue<string>() != "ok" || answer["text"]!.GetValue<string>() != "press and copy" || answer["source"]!.GetValue<string>() != "clipboard")
                 throw new InvalidOperationException($"the copy answered {answer.ToJsonString()}");
             if (WindowsClipboard.Snapshot()?.Text != "kept on the clipboard") throw new InvalidOperationException("the clipboard was not put back");
-            return "select all, focused read and copy";
+            return "select to the end, focused read and copy";
         });
 
         Check("processes under the front window", () =>

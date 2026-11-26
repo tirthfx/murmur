@@ -6,7 +6,7 @@ namespace Murmur.Helper.Windows;
 internal sealed class TestWindow : IDisposable
 {
     private const uint Overlapped = 0x00CF0000, Visible = 0x10000000, Password = 0x0020, AutoHScroll = 0x0080;
-    private const uint SetSel = 0x00B1, GetSel = 0x00B0;
+    private const uint SetSel = 0x00B1, GetSel = 0x00B0, TakeFocus = 0x8001;
 
     private readonly Thread _thread;
     private readonly ManualResetEventSlim _ready = new();
@@ -24,6 +24,8 @@ internal sealed class TestWindow : IDisposable
             _ready.Set();
             while (Native.GetMessage(out var message, IntPtr.Zero, 0, 0) > 0)
             {
+                // Keyboard focus can only be set by the thread that owns the window.
+                if (message.hwnd == IntPtr.Zero && message.message == TakeFocus) Native.SetFocus(Handle);
                 Native.TranslateMessage(ref message);
                 Native.DispatchMessage(ref message);
             }
@@ -48,6 +50,7 @@ internal sealed class TestWindow : IDisposable
         for (var attempt = 0; attempt < 10; attempt++)
         {
             Native.SetForegroundWindow(Handle);
+            Native.PostThreadMessage(_threadId, TakeFocus, UIntPtr.Zero, IntPtr.Zero);
             Thread.Sleep(100);
             if (Native.GetForegroundWindow() == Handle) return true;
         }
