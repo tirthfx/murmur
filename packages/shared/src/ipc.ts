@@ -264,6 +264,7 @@ import {
   type SettingsView,
   type ShortcutResult,
   type ShortcutSlot,
+  SHORTCUT_SLOTS,
 } from "./settings";
 import { setupStatusSchema, type SetupStatus } from "./setup";
 import { mediaPlaybackResultSchema, type MediaPlayback } from "./media";
@@ -648,9 +649,9 @@ export const IPC_CONTRACT = {
     args: z.tuple([settingsPatchSchema]),
     result: settingsViewSchema,
   },
-  // A null key clears the slot (only hands-free can be cleared).
+  // A null key clears the slot (every slot but push to talk can be cleared).
   [IPC_CHANNELS.setShortcut]: {
-    args: z.tuple([z.enum(["hold", "handsFree"]), capturedKeySchema.nullable()]),
+    args: z.tuple([z.enum(SHORTCUT_SLOTS), capturedKeySchema.nullable()]),
     result: shortcutResultSchema,
   },
   // Pauses the dictation key while the Hub records a new shortcut.
