@@ -9,7 +9,8 @@ public static class WindowsBackends
         var keyboard = new WindowsInputHook((vk, down) => engine?.OnKey(vk, down), (button, down) => engine?.OnMouse(button, down));
         engine = new HotkeyEngine(sink, now, keyboard.Listen);
 
-        var front = new FrontAppWatch(Windows.Front, sink);
+        var focus = new WindowsFocus();
+        var front = new FrontAppWatch(Windows.Front, sink, focus);
         var detection = new MeetingDetection(Windows.VisibleWindows, sink);
         var frontTimer = new Timer(_ => { try { front.Tick(); } catch { /* the window went away */ } }, null, 250, 250);
         var detectTimer = new Timer(_ => { try { detection.Tick(); } catch { /* the window list changed */ } }, null, 2000, 2000);
@@ -30,6 +31,10 @@ public static class WindowsBackends
             Keyboard = keys,
             Processes = new WindowsProcesses(),
             InstalledApps = new WindowsInstalledApps(),
+            Focus = focus,
+            WatchedFields = focus,
+            Inspect = focus,
+            ReportsSites = true,
         };
         return (backends, new Disposables(keyboard, frontTimer, detectTimer));
     }

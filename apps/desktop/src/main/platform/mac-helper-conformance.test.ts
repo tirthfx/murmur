@@ -26,6 +26,7 @@ class ScriptedMacHelper extends FakeHelperProcess {
   bindings: HotkeyBinding[] = [];
   field = "";
   selected = "";
+  watchedText: string | null = null;
   fieldFocused = false;
   front: { bundleId: string; name: string } | null = null;
   watchingFront = false;
@@ -96,6 +97,47 @@ class ScriptedMacHelper extends FakeHelperProcess {
         return this.ok(request, { ok: true });
       case "keychain.delete":
         return this.ok(request, { deleted: this.secrets.delete(key) });
+      case "context.snapshot": {
+        const maxBefore = typeof payload.maxBefore === "number" ? payload.maxBefore : 1500;
+        return this.ok(request, {
+          appName: this.front?.name ?? null,
+          bundleId: this.front?.bundleId ?? null,
+          windowTitle: null,
+          role: "AXTextArea",
+          subrole: null,
+          editable: true,
+          secure: false,
+          textBefore: this.field.slice(-maxBefore),
+          textAfter: "",
+        });
+      }
+      case "edits.watch": {
+        const text = String(payload.text);
+        const watching = this.field.includes(text);
+        this.watchedText = watching ? text : null;
+        return this.ok(request, { watching });
+      }
+      case "edits.cancel":
+        this.watchedText = null;
+        return this.ok(request, { cancelled: true });
+      case "ax.inspect":
+        return this.ok(request, {
+          app: this.front?.name ?? null,
+          bundleId: this.front?.bundleId ?? null,
+          nodes: [
+            {
+              depth: 0,
+              role: "AXWindow",
+              subrole: null,
+              title: "Window",
+              editable: false,
+              secure: false,
+              selectedRange: null,
+              value: null,
+            },
+          ],
+          truncated: false,
+        });
       case "selection.read": {
         const text = this.selected;
         return this.ok(request, {
@@ -281,6 +323,16 @@ describePlatformHelperConformance("Mac helper, scripted", {
       },
       async textFieldValue() {
         return script.field;
+      },
+      async editTextField(text) {
+        script.field = text;
+        if (script.watchedText === null) return;
+        script.send({
+          id: null,
+          type: "edits.changed",
+          payload: { before: "offce", after: "office" },
+        });
+        await flush();
       },
       async selectText(text) {
         script.selected = text;

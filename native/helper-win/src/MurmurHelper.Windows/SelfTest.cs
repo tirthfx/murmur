@@ -129,6 +129,35 @@ public static class SelfTest
             return null;
         });
 
+        Check("context beside the caret, edit watching and the inspector", () =>
+        {
+            using var window = new TestWindow("before after");
+            window.Select(7, 7);
+            var element = Automation.Client.ElementFromHandle(window.Handle);
+            var field = WindowsFocus.ReadField(element, 1500, 300);
+            if (field is not { Editable: true, Secure: false, TextBefore: "before ", TextAfter: "after" })
+                throw new InvalidOperationException($"the field read as {field}");
+            var near = WindowsFocus.ReadField(element, 3, 2);
+            if (near.TextBefore != "re " || near.TextAfter != "af") throw new InvalidOperationException($"the narrow read gave {near}");
+            var watched = new WindowsFocus.Watched(element);
+            window.SetText("before and after");
+            if (watched.Value() != "before and after") throw new InvalidOperationException($"the watched value is \"{watched.Value()}\"");
+            var row = new WindowsFocus.Element(element);
+            if (row.Secure || !row.Editable || row.Value() != "before and after") throw new InvalidOperationException($"the inspector saw {row.Role}, \"{row.Value()}\"");
+            _ = row.Children();
+            return $"role={field.Role}";
+        });
+
+        Check("a password field gives no context", () =>
+        {
+            using var window = new TestWindow("hunter2", password: true);
+            var element = Automation.Client.ElementFromHandle(window.Handle);
+            var field = WindowsFocus.ReadField(element, 1500, 300);
+            if (!field.Secure || field.TextBefore.Length + field.TextAfter.Length != 0) throw new InvalidOperationException($"it read as {field}");
+            if (!new WindowsFocus.Element(element).Secure) throw new InvalidOperationException("the inspector does not see it as a password field");
+            return null;
+        });
+
         // Typing and copying need the test window in front, which a locked or service session refuses.
         Check("keys and the copy fallback in the front window", () =>
         {

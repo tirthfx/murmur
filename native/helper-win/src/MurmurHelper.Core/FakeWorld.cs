@@ -120,6 +120,35 @@ public sealed class FakeWorld
         private sealed record Saved(string? Text);
     }
 
+    /// <summary>The fake text field as UI Automation would show it: the caret is at the end.</summary>
+    public sealed class Reader(FakeWorld world) : IFocusReader, IWatchedFieldSource, IWatchedField, IInspectSource, ISiteReader
+    {
+        public bool Secure;
+        public bool Focused = true;
+        public string? Title = "Untitled";
+        public string? Address;
+        public FrontAppInfo? App() => world.FrontApp;
+        public string? WindowTitle() => Title;
+        public string? PageAddress() => Address;
+        public FocusedField? Field(int maxBefore, int maxAfter) => new("Edit", true, Secure, world.Field);
+        IWatchedField? IWatchedFieldSource.Focused() => Secure ? null : this;
+        public string? Value() => world.Field;
+        public bool IsFocused() => Focused;
+        public (FrontAppInfo App, IInspectable Window)? Target() =>
+            world.FrontApp is { } app ? (app, new Node("Window", "Test window", new[] { new Node("Edit", null, Array.Empty<Node>(), world.Field, Secure) })) : null;
+
+        public sealed record Node(string Kind, string? Name, IReadOnlyList<Node> Nodes, string? Text = null, bool Password = false) : IInspectable
+        {
+            public string? Role => Kind;
+            public string? Title => Name;
+            public bool Editable => Kind == "Edit";
+            public bool Secure => Password;
+            public (int Location, int Length)? SelectedRange() => Kind == "Edit" ? (Text?.Length ?? 0, 0) : null;
+            public string? Value() => Text;
+            public IReadOnlyList<IInspectable> Children() => Nodes;
+        }
+    }
+
     public sealed class Store : ISecureStore
     {
         private readonly Dictionary<string, string> _items = new();
@@ -149,6 +178,7 @@ public sealed class FakeWorld
     public readonly Mute OutputState = new();
     public readonly Inserter InsertionState;
     public readonly Desktop DesktopState;
+    public readonly Reader ReaderState;
     public readonly List<WindowInfo> Windows = new();
     public string Field = "";
     public FrontAppInfo? FrontApp;
@@ -161,8 +191,9 @@ public sealed class FakeWorld
     {
         InsertionState = new Inserter(this);
         DesktopState = new Desktop(this);
+        ReaderState = new Reader(this);
         _hotkeys = new HotkeyEngine(sink, now);
-        _front = new FrontAppWatch(() => FrontApp, sink);
+        _front = new FrontAppWatch(() => FrontApp, sink, ReaderState, sitePolls: 1);
         _detection = new MeetingDetection(() => Windows.ToList(), sink);
     }
 
@@ -184,6 +215,10 @@ public sealed class FakeWorld
         Keyboard = DesktopState,
         Processes = DesktopState,
         InstalledApps = DesktopState,
+        Focus = ReaderState,
+        WatchedFields = ReaderState,
+        Inspect = ReaderState,
+        ReportsSites = true,
         TestWorld = Act,
     };
 
@@ -220,6 +255,9 @@ public sealed class FakeWorld
             }
             case "selectText":
                 DesktopState.Selected = Payload.Str(p, "text");
+                return new JsonObject();
+            case "editField":
+                Field = Payload.Str(p, "text");
                 return new JsonObject();
             case "focusTextField":
                 Field = "";

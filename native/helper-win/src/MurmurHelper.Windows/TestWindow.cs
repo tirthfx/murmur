@@ -38,6 +38,8 @@ internal sealed class TestWindow : IDisposable
 
     public void Select(int start, int end) => Native.SendMessage(Handle, SetSel, (IntPtr)start, (IntPtr)end);
 
+    public void SetText(string text) => Native.SetWindowText(Handle, text);
+
     public (int Start, int End) Selection()
     {
         var packed = (long)Native.SendMessage(Handle, GetSel, IntPtr.Zero, IntPtr.Zero);

@@ -40,7 +40,7 @@ else
 
 var mic = backends.Audio is null ? null : new MicSession(backends.Audio, backends.Permissions, sink, now, audioFolder);
 var meeting = backends.Audio is null ? null : new MeetingCapture(backends.Audio, backends.Permissions, sink, now);
-var router = new Router(backends, mic, meeting);
+var router = new Router(backends, mic, meeting, sink);
 try
 {
     host.Run(router);

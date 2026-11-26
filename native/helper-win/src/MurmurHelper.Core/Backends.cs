@@ -107,6 +107,11 @@ public sealed class Backends
     public IKeyboardPlatform? Keyboard { get; init; }
     public IProcessTable? Processes { get; init; }
     public IInstalledApps? InstalledApps { get; init; }
+    public IFocusReader? Focus { get; init; }
+    public IWatchedFieldSource? WatchedFields { get; init; }
+    public IInspectSource? Inspect { get; init; }
+    /// <summary>Whether the front app watch also reports a browser's page.</summary>
+    public bool ReportsSites { get; init; }
     /// <summary>Test builds only: handles <c>test.world</c> requests that act on the fake OS.</summary>
     public Func<JsonObject, JsonObject>? TestWorld { get; init; }
     public Action? OnShutdown { get; init; }

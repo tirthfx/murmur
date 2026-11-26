@@ -161,10 +161,21 @@ its own task, so pings are answered while it works.
   under the front window; for `node` or `python` it reports the script or package that runs, never
   the arguments.
 
+### Context, corrections, the inspector and browser pages
+
+- **Context.** `context.snapshot` reads the focused element through UI Automation: whether it takes
+  text, and only the characters beside the caret. A password field gives no text. An element with
+  no text pattern gives its value, taken as ending at the caret.
+- **Corrections.** `edits.watch` reads the same field every half second and sends only the changed
+  words, with the Mac's rules.
+- **Inspector.** `ax.inspect` walks the window in front, six deep and at most 500 rows.
+- **Browser pages.** In Chrome, Edge, Firefox, Brave, Vivaldi, Opera, Arc and Chromium,
+  `focus.app` carries the page's host and path, read from the first web document in the window. This
+  has not been tried against a real browser.
+
 ### What it does not do yet
 
-- **Not announced, so refused:** focus context, accessibility inspect, edit watching, typing
-  counts, media pause, and the page address of a browser.
+- **Not announced, so refused:** typing counts and media pause.
 - **Elevated programs** do not receive input from a program that is not elevated, so insertion and
   hotkeys do not reach them.
 

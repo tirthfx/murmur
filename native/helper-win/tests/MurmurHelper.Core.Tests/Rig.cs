@@ -20,7 +20,7 @@ public sealed class Rig : IDisposable
         EventSink sink = (type, payload) => Events.Add((type, payload));
         var mic = new MicSession(backends.Audio!, backends.Permissions, sink, () => _now++, Path.Combine(Folder, "audio"));
         var meeting = new MeetingCapture(backends.Audio!, backends.Permissions, sink, () => _now++);
-        Router = new Router(backends, mic, meeting);
+        Router = new Router(backends, mic, meeting, sink);
         if (handshake) Ack();
     }
 
