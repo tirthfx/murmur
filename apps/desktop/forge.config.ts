@@ -38,6 +38,9 @@ const config: ForgeConfig = {
   packagerConfig: {
     name: "Murmur",
     asar: true,
+    // The publisher in the Windows file's properties, and so the Start menu folder. Without it
+    // Electron's own default is used.
+    win32metadata: { CompanyName: "tirthfx" },
     // macOS shows this text in the microphone prompt. Without it the prompt cannot appear.
     extendInfo: {
       NSMicrophoneUsageDescription: "Murmur listens to your voice so it can turn it into text.",
