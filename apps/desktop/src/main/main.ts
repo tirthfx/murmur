@@ -1028,6 +1028,7 @@ const SESSION_OVER: ReadonlySet<RecorderEvent["type"]> = new Set([
   "stop-failed",
   "start-failed",
   "command-heard",
+  "tap-ignored",
 ]);
 /** The dictation state the Hub shows (HB-03), following the Bar. */
 let hubDictationState: DictationState = "idle";
@@ -1253,14 +1254,15 @@ const recorder = createRecorder({
   useContextText: () =>
     settingsStore.get().contextAwareness && !settingsStore.get().devMode.disableContext,
   logTranscripts: process.env.MURMUR_LOG_TRANSCRIPTS === "1",
-  insert: (text, { pressEnter, html }) => {
+  focusNow: () => helper.focusContext({ maxBefore: 0, maxAfter: 0 }),
+  insert: (text, { pressEnter, html, keepOnClipboard }) => {
     // During a smoke run text may only go into the test box.
     smoke?.assertFieldFocused();
     return helper.insertText({
       text,
       // HB-57: the Testing page can force typed insertion.
       method: settingsStore.get().devMode.forceTyped ? "keystrokes" : "auto",
-      restoreClipboard: true,
+      restoreClipboard: !keepOnClipboard,
       restoreDelayMs: 350,
       pressEnter,
       ...(html ? { html } : {}),
@@ -1375,7 +1377,7 @@ const recorder = createRecorder({
     return flags.enabled && flags.useInCleanup ? (voiceProfile?.summary(Date.now()) ?? null) : null;
   },
   deviceId: () => inputDevice(nextSession.settings()),
-  whisperMode: () => settingsStore.get().whisperMode,
+  whisperMode: () => nextSession.settings().whisperMode,
   ...(history
     ? {
         pending: {
@@ -3326,11 +3328,11 @@ function fullSmokeChecks(
 const lastTranscript = createLastTranscript({
   stored: () => history?.lastText() ?? null,
   focus: () => helper.focusContext({ maxBefore: 0, maxAfter: 0 }),
-  insert: (text) =>
+  insert: (text, options) =>
     helper.insertText({
       text,
       method: settingsStore.get().devMode.forceTyped ? "keystrokes" : "auto",
-      restoreClipboard: true,
+      restoreClipboard: !options?.keepOnClipboard,
       restoreDelayMs: 350,
       ...insertionRules(),
     }),

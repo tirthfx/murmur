@@ -1,3 +1,4 @@
+import { NO_FIELD_MESSAGE } from "../insertion/focus";
 import type { RecorderEvent } from "../recorder";
 import type { BarEvent } from "./bar-machine";
 
@@ -26,6 +27,10 @@ export function barEventFor(event: RecorderEvent): BarEvent {
         words: event.words,
         ...(event.note ? { note: event.note } : {}),
       };
+    case "tap-ignored":
+      return { type: "settle" };
+    case "no-field":
+      return { type: "warn", message: NO_FIELD_MESSAGE };
     case "limit-warning":
       return { type: "warn", message: `Recording stops in ${event.seconds} seconds` };
     case "transcription-failed":

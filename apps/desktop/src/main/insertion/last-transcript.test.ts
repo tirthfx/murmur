@@ -69,13 +69,13 @@ describe("last transcript", () => {
     expect(last.read()).toBe("the stored text");
   });
 
-  it("copies instead when nothing has the focus", async () => {
+  it("keeps the text on the clipboard when nothing has the focus", async () => {
     const { deps, last } = setup({
       focus: async () => ({ ...field, role: null, editable: false }),
     });
     await last.paste();
-    expect(deps.insert).not.toHaveBeenCalled();
-    expect(deps.copy).toHaveBeenCalledWith("the stored text");
+    expect(deps.insert).toHaveBeenCalledWith("the stored text", { keepOnClipboard: true });
+    expect(deps.notify).toHaveBeenCalledWith("warn", expect.stringContaining("clipboard"));
   });
 
   it("still pastes when the focus cannot be read", async () => {

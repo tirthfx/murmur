@@ -15,6 +15,10 @@ If Command+V cannot be posted, the clipboard is put back at once and the text is
 
 Empty text does nothing. One insertion runs at a time.
 
+## Nothing focused
+
+Just before inserting, the focused element is read again. When the app says nothing has the focus, the text is still pasted (some apps report this wrongly), it also stays on the clipboard, and the Bar says so (`insertion/focus.ts`).
+
 ## Rich text
 
 `insert.text` takes an optional `html` (rich snippets, see `snippets.md`). The helper writes it

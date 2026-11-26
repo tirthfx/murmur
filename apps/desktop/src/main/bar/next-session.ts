@@ -5,7 +5,9 @@ import type { Settings } from "@murmur/shared";
  * used by that dictation, and dropped when it is done, unless saved as the default.
  */
 
-export type SessionChoices = Partial<Pick<Settings, "inputDevice" | "languages" | "cleanupLevel">>;
+export type SessionChoices = Partial<
+  Pick<Settings, "inputDevice" | "languages" | "cleanupLevel" | "whisperMode">
+>;
 
 export interface NextSession {
   /** The settings the dictation in progress, or the next one, uses. */

@@ -36,7 +36,14 @@ export function bindingsFor(
   cancelKeyCode: number | null = null,
 ): HotkeyBinding[] {
   const bindings: HotkeyBinding[] = [
-    { id: "dictate-hold", action: "dictate.hold", trigger: settings.holdShortcut, mode: "hold" },
+    // Exclusive: another key while it is held ends the dictation (DC-02).
+    {
+      id: "dictate-hold",
+      action: "dictate.hold",
+      trigger: settings.holdShortcut,
+      mode: "hold",
+      exclusive: true,
+    },
   ];
   if (settings.handsFreeShortcut) {
     bindings.push({

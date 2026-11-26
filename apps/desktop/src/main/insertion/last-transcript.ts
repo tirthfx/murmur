@@ -1,5 +1,6 @@
 import type { FocusContext, InsertTextResult } from "@murmur/shared";
 import type { Logger } from "../helper/types";
+import { NO_FIELD_MESSAGE, nothingFocused } from "./focus";
 
 /**
  * Copy and paste the last transcript (DC-39). "Last" is the newest dictation with text. With
@@ -14,7 +15,7 @@ export interface LastTranscriptDeps {
   stored(): string | null;
   /** The focused field, or null when it cannot be read. */
   focus(): Promise<FocusContext | null>;
-  insert(text: string): Promise<InsertTextResult>;
+  insert(text: string, options?: { keepOnClipboard: boolean }): Promise<InsertTextResult>;
   copy(text: string): Promise<unknown>;
   /** A dictation is recording or being processed; nothing is pasted into the middle of it. */
   busy(): boolean;
@@ -70,10 +71,10 @@ export function createLastTranscript(deps: LastTranscriptDeps): LastTranscript {
       if (text === null) return deps.notify("warn", NOTHING_YET);
       pasting = true;
       try {
-        const focus = await deps.focus().catch(() => null);
-        // Nothing has the focus at all: the paste would go nowhere.
-        if (focus && focus.role === null && !focus.editable) {
-          await copyText(text, "Copied: no text field to paste into", "warn");
+        if (nothingFocused(await deps.focus().catch(() => null))) {
+          const result = await deps.insert(text, { keepOnClipboard: true });
+          if (result.method === "keystrokes") await deps.copy(text);
+          deps.notify("warn", NO_FIELD_MESSAGE);
           return;
         }
         await deps.insert(text);

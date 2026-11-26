@@ -148,6 +148,22 @@ export class DictationGesture {
     this.run("cancel");
   }
 
+  /**
+   * Another key went down while the dictation key was held: the recording is dropped. A
+   * hands-free recording goes on, since typing then is not part of the key press.
+   */
+  interrupt(): void {
+    const state = this.state;
+    if (state.kind === "held") {
+      this.state = { kind: "idle" };
+      this.run("cancel");
+    } else if (state.kind === "locked" && state.ignoreNextUp) {
+      this.state = { kind: "locked", ignoreNextUp: false };
+    } else if (state.kind === "stopping" || state.kind === "ignoring") {
+      this.state = { kind: "idle" };
+    }
+  }
+
   /** Forget everything, for example when the helper restarted mid-session. */
   reset(): void {
     const state = this.state;

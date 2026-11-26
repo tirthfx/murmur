@@ -36,6 +36,9 @@ Right Alt is not used because it is Alt Gr on many layouts. A binding on one sid
 - A press shorter than 300 ms is a tap. A second press within 400 ms of the first locks recording (the Bar shows Hands-free); let go and keep talking.
 - While locked, the next press of the key stops recording and the text is inserted once. The hands-free shortcut, if set, toggles the lock the same way.
 - A single short tap ends after the 400 ms window, like a short hold.
+- Another key or extra mouse button pressed while the dictation key is held cancels that recording (it was a shortcut or a special character). A hands-free recording goes on.
+- A silent recording shorter than 600 ms is a stray tap and ends without a message.
+- Escape also calls off a dictation that has stopped recording and is still being processed.
 - Escape cancels while recording: the recording is discarded and nothing is inserted. The key listener only listens, so the app in front still receives Escape too.
 - The lock lives only in memory; after a restart Murmur always starts idle.
 
