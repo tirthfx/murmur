@@ -75,7 +75,7 @@ public class RouterTests
     public void AnUnknownRequestIsUnsupportedAndAnUnreadableOneIsInvalid()
     {
         using var rig = new Rig();
-        Assert.Equal(ErrorCode.UnsupportedRequest, Rig.Error(rig.Send("selection.read", new JsonObject())));
+        Assert.Equal(ErrorCode.UnsupportedRequest, Rig.Error(rig.Send("selection.write", new JsonObject())));
         Assert.Equal(ErrorCode.InvalidPayload, Rig.Error(rig.Send("keychain.get", new JsonObject { ["service"] = 5 })));
         var bad = rig.Router.Handle("nonsense").Single();
         Assert.Equal("helper.error", bad.Type);

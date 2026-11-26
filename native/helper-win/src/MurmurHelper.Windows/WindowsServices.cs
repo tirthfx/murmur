@@ -91,8 +91,21 @@ internal static class Windows
     {
         var hwnd = Native.GetForegroundWindow();
         if (hwnd == IntPtr.Zero) return null;
-        var name = Native.ProcessNameOf(hwnd, out var pid);
-        return new FrontAppInfo(name, Native.TitleOf(hwnd), pid);
+        Native.GetWindowThreadProcessId(hwnd, out var pid);
+        var path = pid == 0 ? null : Native.ProcessPathOf(pid);
+        return new FrontAppInfo(path is null ? null : Path.GetFileName(path), path is null ? null : AppName(path), (int)pid);
+    }
+
+    /// <summary>The name a program gives itself ("Google Chrome"), or its file name without the extension.</summary>
+    private static string AppName(string path)
+    {
+        try
+        {
+            var description = System.Diagnostics.FileVersionInfo.GetVersionInfo(path).FileDescription?.Trim();
+            if (!string.IsNullOrEmpty(description)) return description;
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { /* the file name will do */ }
+        return Path.GetFileNameWithoutExtension(path);
     }
 
     public static IEnumerable<WindowInfo> VisibleWindows()

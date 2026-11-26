@@ -103,6 +103,10 @@ public sealed class Backends
     public IMeetingDetection? Detection { get; init; }
     public IOutputMute? Output { get; init; }
     public ISpeechEngine? Speech { get; init; }
+    public ISelectionPlatform? Selection { get; init; }
+    public IKeyboardPlatform? Keyboard { get; init; }
+    public IProcessTable? Processes { get; init; }
+    public IInstalledApps? InstalledApps { get; init; }
     /// <summary>Test builds only: handles <c>test.world</c> requests that act on the fake OS.</summary>
     public Func<JsonObject, JsonObject>? TestWorld { get; init; }
     public Action? OnShutdown { get; init; }

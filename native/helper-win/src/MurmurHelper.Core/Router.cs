@@ -17,6 +17,9 @@ public sealed class Router
     private readonly MeetingCapture? _meeting;
     private readonly InsertionController? _insertion;
     private readonly SpeechController? _speech;
+    private readonly SelectionController? _selection;
+    private readonly KeysController? _keys;
+    private readonly ProcessController? _processes;
     private bool _handshake;
 
     public Router(Backends backends, MicSession? mic, MeetingCapture? meeting)
@@ -26,6 +29,9 @@ public sealed class Router
         _meeting = meeting;
         _insertion = backends.Insertion is null ? null : new InsertionController(backends.Insertion);
         _speech = backends.Speech is null ? null : new SpeechController(backends.Speech);
+        _selection = backends.Selection is null ? null : new SelectionController(backends.Selection);
+        _keys = backends.Keyboard is null ? null : new KeysController(backends.Keyboard);
+        _processes = backends.Processes is null ? null : new ProcessController(backends.Processes);
     }
 
     public bool ShouldExit { get; private set; }
@@ -34,7 +40,11 @@ public sealed class Router
     public IReadOnlyList<string> Capabilities()
     {
         var list = new List<string> { "permissions.check" };
-        if (_backends.Hotkeys is not null) { list.Add("hotkey.hold"); list.Add("hotkey.mouse"); }
+        if (_backends.Hotkeys is not null) { list.Add("hotkey.hold"); list.Add("hotkey.mouse"); list.Add("hotkey.exclusive"); }
+        if (_selection is not null) list.Add("selection.read");
+        if (_keys is not null) list.Add("keys.press");
+        if (_processes is not null) list.Add("proc.foreground");
+        if (_backends.InstalledApps is not null) list.Add("apps.list");
         if (_mic is not null) { list.Add("audio.capture"); list.Add("audio.silent-warning"); }
         if (_insertion is not null) { list.Add("insert.paste"); list.Add("insert.keystrokes"); list.Add("insert.press-enter"); }
         if (_backends.Output is not null) list.Add("media.mute");
@@ -60,10 +70,11 @@ public sealed class Router
         HelperError(ErrorCode.InvalidPayload, $"Line exceeds {ProtocolConstants.MaxLineBytes} bytes and was dropped");
 
     /// <summary>Requests that can take long. With a <c>later</c> callback they run on their own task, so pings keep being answered.</summary>
-    private static bool IsSlow(string type) => type is "transcribe.load" or "transcribe.file" or "transcribe.live";
+    private static bool IsSlow(string type) =>
+        type is "transcribe.load" or "transcribe.file" or "transcribe.live" or "selection.read" or "apps.list";
 
     /// <summary>
-    /// Handles one line from stdin. Never throws on bad input. A slow request (speech) answers
+    /// Handles one line from stdin. Never throws on bad input. A slow request (speech, reading another app) answers
     /// through <paramref name="later"/> when one is given; without it the answer is returned.
     /// </summary>
     public IReadOnlyList<Envelope> Handle(string line, Action<Envelope>? later = null)
@@ -188,6 +199,10 @@ public sealed class Router
                 Need(_backends.FrontApp).Watch(enabled);
                 return new JsonObject { ["watching"] = enabled };
             }
+            case "selection.read": return Need(_selection).Read(p);
+            case "keys.press": return Need(_keys).Press(p);
+            case "proc.foreground": return Need(_processes).Foreground();
+            case "apps.list": return AppCatalog.Result(Need(_backends.InstalledApps).List());
             case "detect.subscribe":
             {
                 var enabled = Payload.Bool(p, "enabled");

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   PROTOCOL_VERSION,
   type Envelope,
@@ -24,6 +25,7 @@ class ScriptedMacHelper extends FakeHelperProcess {
   };
   bindings: HotkeyBinding[] = [];
   field = "";
+  selected = "";
   fieldFocused = false;
   front: { bundleId: string; name: string } | null = null;
   watchingFront = false;
@@ -94,6 +96,27 @@ class ScriptedMacHelper extends FakeHelperProcess {
         return this.ok(request, { ok: true });
       case "keychain.delete":
         return this.ok(request, { deleted: this.secrets.delete(key) });
+      case "selection.read": {
+        const text = this.selected;
+        return this.ok(request, {
+          status: text ? "ok" : "empty",
+          text,
+          length: text.length,
+          range: { location: 0, length: text.length },
+          hash: text ? createHash("sha256").update(text).digest("hex") : "",
+          source: text ? "ax" : null,
+          appBundleId: this.front?.bundleId ?? null,
+        });
+      }
+      case "keys.press": {
+        const front = this.front?.bundleId ?? null;
+        const pressed = payload.onlyInApp === undefined || payload.onlyInApp === front;
+        return this.ok(request, { pressed, appBundleId: front });
+      }
+      case "proc.foreground":
+        return this.ok(request, { names: ["zsh", "node"] });
+      case "apps.list":
+        return this.ok(request, { apps: [{ bundleId: "app.one", name: "One" }] });
       case "focus.watch":
         this.watchingFront = payload.enabled === true;
         this.ok(request, { watching: this.watchingFront });
@@ -258,6 +281,9 @@ describePlatformHelperConformance("Mac helper, scripted", {
       },
       async textFieldValue() {
         return script.field;
+      },
+      async selectText(text) {
+        script.selected = text;
       },
       async focusApp(app) {
         script.front = app;

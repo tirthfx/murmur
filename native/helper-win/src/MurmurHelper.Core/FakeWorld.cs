@@ -71,6 +71,55 @@ public sealed class FakeWorld
         public void Copy(string text) => Clipboard = text;
     }
 
+    /// <summary>The selection in the fake text field, the clipboard, and the keys pressed.</summary>
+    public sealed class Desktop(FakeWorld world) : ISelectionPlatform, IKeyboardPlatform, IProcessTable, IInstalledApps
+    {
+        public string Selected = "";
+        /// <summary>What UI Automation answers; null means the field's own selection.</summary>
+        public FocusedSelection? Reads;
+        /// <summary>What the app puts on the clipboard when asked to copy; null when it copies nothing.</summary>
+        public string? Copies;
+        public bool SaveFails, KeysRefused;
+        public uint ClipboardSequence { get; set; }
+        public string? ClipboardText = "before";
+        public int CopyPresses, Restores;
+        public readonly List<KeyStroke> Pressed = new();
+        public readonly List<ProcessRow> Processes = new() { new(100, 1, "WindowsTerminal.exe"), new(101, 100, "pwsh.exe"), new(102, 101, "node.exe") };
+        public readonly Dictionary<int, string> CommandLines = new() { [102] = "node C:\\npm\\node_modules\\@anthropic-ai\\claude-code\\cli.js" };
+
+        public string? FrontProcessName() => world.FrontApp?.ProcessName;
+        public FocusedSelection Read(int maxLength) =>
+            Reads ?? new FocusedSelection(SelectionKind.Selected, Selected, 0, Selected.Length);
+        public object? SaveClipboard() => SaveFails ? null : new Saved(ClipboardText);
+        public string? ReadClipboardText() => ClipboardText;
+        public void RestoreClipboard(object saved)
+        {
+            Restores++;
+            ClipboardText = ((Saved)saved).Text;
+            ClipboardSequence++;
+        }
+        public bool PressCopy()
+        {
+            CopyPresses++;
+            if (Copies is null) return true;
+            ClipboardText = Copies;
+            ClipboardSequence++;
+            return true;
+        }
+        public bool Press(KeyStroke stroke)
+        {
+            if (KeysRefused) return false;
+            Pressed.Add(stroke);
+            return true;
+        }
+        public int? FrontProcessId() => world.FrontApp?.Pid;
+        public IReadOnlyList<ProcessRow> Rows() => Processes;
+        public string? CommandLine(int pid) => CommandLines.GetValueOrDefault(pid);
+        public IEnumerable<InstalledApp> List() => new[] { new InstalledApp("notepad.exe", "Notepad"), new InstalledApp("chrome.exe", "Google Chrome") };
+
+        private sealed record Saved(string? Text);
+    }
+
     public sealed class Store : ISecureStore
     {
         private readonly Dictionary<string, string> _items = new();
@@ -99,6 +148,7 @@ public sealed class FakeWorld
     public readonly Store SecureStore = new();
     public readonly Mute OutputState = new();
     public readonly Inserter InsertionState;
+    public readonly Desktop DesktopState;
     public readonly List<WindowInfo> Windows = new();
     public string Field = "";
     public FrontAppInfo? FrontApp;
@@ -110,6 +160,7 @@ public sealed class FakeWorld
     public FakeWorld(EventSink sink, Func<long> now)
     {
         InsertionState = new Inserter(this);
+        DesktopState = new Desktop(this);
         _hotkeys = new HotkeyEngine(sink, now);
         _front = new FrontAppWatch(() => FrontApp, sink);
         _detection = new MeetingDetection(() => Windows.ToList(), sink);
@@ -129,6 +180,10 @@ public sealed class FakeWorld
         Detection = _detection,
         Output = OutputState,
         Speech = Speech,
+        Selection = DesktopState,
+        Keyboard = DesktopState,
+        Processes = DesktopState,
+        InstalledApps = DesktopState,
         TestWorld = Act,
     };
 
@@ -163,8 +218,12 @@ public sealed class FakeWorld
                 }
                 return new JsonObject();
             }
+            case "selectText":
+                DesktopState.Selected = Payload.Str(p, "text");
+                return new JsonObject();
             case "focusTextField":
                 Field = "";
+                DesktopState.Selected = "";
                 return new JsonObject();
             case "readField":
                 return new JsonObject { ["text"] = Field };

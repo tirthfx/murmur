@@ -14,6 +14,7 @@ public static class WindowsBackends
         var frontTimer = new Timer(_ => { try { front.Tick(); } catch { /* the window went away */ } }, null, 250, 250);
         var detectTimer = new Timer(_ => { try { detection.Tick(); } catch { /* the window list changed */ } }, null, 2000, 2000);
 
+        var keys = new WindowsKeys();
         var backends = new Backends
         {
             Permissions = new WindowsPermissions(),
@@ -25,6 +26,10 @@ public static class WindowsBackends
             Detection = detection,
             Output = new WindowsOutputMute(),
             Speech = new WhisperEngine(),
+            Selection = new WindowsSelection(keys),
+            Keyboard = keys,
+            Processes = new WindowsProcesses(),
+            InstalledApps = new WindowsInstalledApps(),
         };
         return (backends, new Disposables(keyboard, frontTimer, detectTimer));
     }

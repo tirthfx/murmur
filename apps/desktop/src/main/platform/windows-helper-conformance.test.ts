@@ -146,6 +146,9 @@ if (!binary && !required) {
         async textFieldValue() {
           return String((await act({ op: "readField" })).text);
         },
+        async selectText(text) {
+          await act({ op: "selectText", text });
+        },
         async focusApp(app) {
           await act({ op: "focusApp", bundleId: app.bundleId, name: app.name });
         },

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   DEFAULT_MEETING_MATCHERS,
@@ -39,6 +40,8 @@ export interface HelperWorld {
   focusTextField(): Promise<void>;
   /** What the test text field now holds. */
   textFieldValue(): Promise<string>;
+  /** Selects this text in the focused field; empty selects nothing. */
+  selectText(text: string): Promise<void>;
   /** Brings an app to the front. */
   focusApp(app: { bundleId: string; name: string }): Promise<void>;
   /** A call starts or ends in a window that the matcher knows. */
@@ -58,6 +61,9 @@ export const CONFORMANCE_SCENARIOS = [
   "permissions",
   "hotkeys",
   "insertion",
+  "selection",
+  "key presses",
+  "processes and apps",
   "secure store",
   "front app",
   "meeting detection",
@@ -172,6 +178,61 @@ export function describePlatformHelperConformance(name: string, options: Conform
       expect(done.delivered).toBe(true);
       expect(await textFieldValue()).toBe("Hello from Murmur");
       await expect(helper.copyText("on the clipboard")).resolves.toBeUndefined();
+    });
+
+    scenario("selection", async ({ helper, setPermission, focusApp, selectText }) => {
+      await helper.start();
+      await setPermission("accessibility", "granted");
+      await focusApp({ bundleId: "app.one", name: "One" });
+      await selectText("the chosen words");
+      const read = await helper.readSelection({ clipboardFallback: false });
+      expect(read).toMatchObject({
+        status: "ok",
+        text: "the chosen words",
+        length: 16,
+        source: "ax",
+        appBundleId: "app.one",
+      });
+      expect(read.hash).toBe(createHash("sha256").update("the chosen words").digest("hex"));
+      await selectText("");
+      expect(await helper.readSelection({ clipboardFallback: false })).toMatchObject({
+        status: "empty",
+        text: "",
+        hash: "",
+        source: null,
+      });
+    });
+
+    scenario("key presses", async ({ helper, setPermission, focusApp }) => {
+      await helper.start();
+      await setPermission("accessibility", "granted");
+      await focusApp({ bundleId: "app.one", name: "One" });
+      // Nothing is sent when another app is in front.
+      expect(
+        await helper.pressKey({ key: "a", modifiers: ["command"], onlyInApp: "app.other" }),
+      ).toEqual({ pressed: false, appBundleId: "app.one" });
+      expect(
+        await helper.pressKey({
+          key: "left",
+          modifiers: ["shift"],
+          repeat: 3,
+          onlyInApp: "app.one",
+        }),
+      ).toEqual({ pressed: true, appBundleId: "app.one" });
+    });
+
+    scenario("processes and apps", async ({ helper, focusApp }) => {
+      await helper.start();
+      await focusApp({ bundleId: "app.one", name: "One" });
+      const names = await helper.foregroundProcesses();
+      expect(names.length).toBeGreaterThan(0);
+      for (const name of names) expect(name).toBe(name.toLowerCase());
+      const apps = await helper.listApps();
+      expect(apps.length).toBeGreaterThan(0);
+      for (const app of apps) {
+        expect(app.bundleId.length).toBeGreaterThan(0);
+        expect(app.name.length).toBeGreaterThan(0);
+      }
     });
 
     scenario("secure store", async ({ helper }) => {

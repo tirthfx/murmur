@@ -2,7 +2,8 @@ using System.Text.Json.Nodes;
 
 namespace Murmur.Helper;
 
-public sealed record FrontAppInfo(string? ProcessName, string? Title, int? Pid);
+/// <summary>The app in front: its program file name (its id on Windows), the app's name, and its process id.</summary>
+public sealed record FrontAppInfo(string? ProcessName, string? Name, int? Pid);
 
 /// <summary>Reports the app in front while on: once at once, then on each change.</summary>
 public sealed class FrontAppWatch : IFrontAppWatch
@@ -45,7 +46,7 @@ public sealed class FrontAppWatch : IFrontAppWatch
         _sink("focus.app", new JsonObject
         {
             ["bundleId"] = now?.ProcessName,
-            ["name"] = now?.Title is { Length: > 0 } title ? title[..Math.Min(title.Length, 200)] : null,
+            ["name"] = now?.Name is { Length: > 0 } name ? name[..Math.Min(name.Length, 200)] : null,
             ["pid"] = now?.Pid,
             ["siteStatus"] = "none",
         });
