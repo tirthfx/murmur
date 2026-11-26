@@ -204,8 +204,12 @@ its own task, so pings are answered while it works.
   light and dark taskbars.
 - **Switching apps.** After a panel took the keyboard, and for Go back in Focus Mode, the helper
   brings the program forward (`apps.activate`). On a Mac main does it with `open -b`.
-- **Not on Windows:** converting HEIC, HEIF and GIF images (they are refused), and some interface
-  text still names Mac things.
+- **Wording.** The source says what a Mac calls things. A build for Windows rewrites those phrases
+  in the app's own source while it bundles (`packaging/windows-wording.ts`): this Mac is this PC,
+  the Keychain is Windows Credential Manager, the menu bar is the notification area. Dictated and
+  recorded text is never touched, and the Mac build is unchanged. A test fails when a text with a
+  Mac word has no Windows phrase, and CI searches the Windows package.
+- **Not on Windows:** converting HEIC, HEIF and GIF images (they are refused).
 
 ## Packaging on Windows (SW-13)
 
