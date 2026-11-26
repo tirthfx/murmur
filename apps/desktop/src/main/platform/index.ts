@@ -41,6 +41,7 @@ import {
   windowsKeyCode,
   windowsTriggerLabel,
 } from "./windows-keymap";
+import { squirrelStartup, WINDOWS_APP_USER_MODEL_ID } from "./windows-install";
 import { permissionSettingsUrl } from "./mac-settings-links";
 import {
   MAC_CAPS_LOCK,
@@ -154,6 +155,39 @@ export function appActivator(
   return async (appId) => {
     await helper.activateApp(appId).catch(() => false);
   };
+}
+
+/** Work an installer's start asks for before quitting, or null for an ordinary start. */
+export function installerStartup(
+  platform: NodeJS.Platform,
+  argv: readonly string[],
+  execPath: string,
+): Promise<void> | null {
+  return platform === "win32" ? squirrelStartup(argv, execPath) : null;
+}
+
+/** Whether a second start must be refused, and the id the OS files notifications under. */
+export function appIdentity(platform: NodeJS.Platform): {
+  singleInstance: boolean;
+  userModelId: string | null;
+} {
+  // A Mac starts one copy of an app by itself; Windows starts as many as are asked for.
+  return platform === "win32"
+    ? { singleInstance: true, userModelId: WINDOWS_APP_USER_MODEL_ID }
+    : { singleInstance: false, userModelId: null };
+}
+
+/**
+ * The tray icon's colour. A Mac recolours a template image to suit the menu bar; Windows shows
+ * the image as drawn, so it gets a mid blue that shows on light and dark taskbars.
+ */
+export function trayIcon(platform: NodeJS.Platform): {
+  template: boolean;
+  rgb: readonly [number, number, number];
+} {
+  return platform === "darwin"
+    ? { template: true, rgb: [0, 0, 0] }
+    : { template: false, rgb: [59, 130, 246] };
 }
 
 /** The app that is always there, to switch to when there is no earlier one. */

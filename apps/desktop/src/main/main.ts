@@ -312,6 +312,8 @@ import { createIpcHandler } from "./ipc";
 import { createPermissionsService } from "./permissions";
 import {
   appActivator,
+  appIdentity,
+  installerStartup,
   createPlatformHelper,
   defaultHotkeyBindings,
   defaultCommandShortcut,
@@ -4683,7 +4685,27 @@ function registerIpc(): void {
   }
 }
 
+// SW-13: a start made by the installer only sets up or removes the shortcut. A second copy of
+// the app (where the OS would start one) hands over to the first and quits.
+const installing = installerStartup(hostPlatform(), process.argv, process.execPath);
+const identity = appIdentity(hostPlatform());
+if (identity.userModelId) app.setAppUserModelId(identity.userModelId);
+const alreadyRunning = !installing && identity.singleInstance && !app.requestSingleInstanceLock();
+if (installing) void installing.finally(() => app.exit(0));
+else if (alreadyRunning) app.exit(0);
+app.on("second-instance", () => {
+  if (!app.isReady()) return;
+  if (!hubWindow) {
+    createHubWindow();
+    return;
+  }
+  if (hubWindow.isMinimized()) hubWindow.restore();
+  hubWindow.show();
+  hubWindow.focus();
+});
+
 void app.whenReady().then(() => {
+  if (installing || alreadyRunning) return;
   void teamService.start();
   // HB-24: the weekly summary is checked at start and every hour.
   weeklySummary();

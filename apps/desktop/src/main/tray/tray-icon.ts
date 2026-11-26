@@ -49,8 +49,11 @@ function chunk(type: string, data: Buffer): Buffer {
   return out;
 }
 
-/** A PNG of the icon: black with the shape in the alpha channel (a macOS template image). */
-export function micPng(scale: number): Buffer {
+/**
+ * A PNG of the icon: one colour with the shape in the alpha channel. Black makes a macOS
+ * template image.
+ */
+export function micPng(scale: number, rgb: readonly [number, number, number] = [0, 0, 0]): Buffer {
   const { size, alpha } = micAlpha(scale);
   const header = Buffer.alloc(13);
   header.writeUInt32BE(size, 0);
@@ -60,7 +63,7 @@ export function micPng(scale: number): Buffer {
   const rows = Buffer.alloc(size * (size * 4 + 1));
   for (let y = 0; y < size; y++) {
     const row = y * (size * 4 + 1);
-    for (let x = 0; x < size; x++) rows[row + 1 + x * 4 + 3] = alpha[y * size + x]!;
+    for (let x = 0; x < size; x++) rows.set([...rgb, alpha[y * size + x]!], row + 1 + x * 4);
   }
   return Buffer.concat([
     Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),

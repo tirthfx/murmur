@@ -1,6 +1,6 @@
 import { Menu, nativeImage, Tray, type MenuItemConstructorOptions } from "electron";
 import type { TrayHost, TrayView } from "./tray-controller";
-import { hostPlatform, trayShowsTitle } from "../platform";
+import { hostPlatform, trayIcon, trayShowsTitle } from "../platform";
 import { micPng } from "./tray-icon";
 import type { TrayAction, TrayItem, TrayStatus } from "./tray-menu";
 
@@ -30,14 +30,15 @@ function template(
 }
 
 function micImage(): Electron.NativeImage {
+  const icon = trayIcon(hostPlatform());
   const image = nativeImage.createEmpty();
   for (const scaleFactor of [1, 2]) {
     image.addRepresentation({
       scaleFactor,
-      dataURL: `data:image/png;base64,${micPng(scaleFactor).toString("base64")}`,
+      dataURL: `data:image/png;base64,${micPng(scaleFactor, icon.rgb).toString("base64")}`,
     });
   }
-  image.setTemplateImage(true);
+  image.setTemplateImage(icon.template);
   return image;
 }
 

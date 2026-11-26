@@ -196,6 +196,10 @@ its own task, so pings are answered while it works.
 - **Apps.** The app tables (categories, browsers, terminals, AI editors, remote desktops) hold
   Windows program names in lower case, looked up with `appKey`. PuTTY and mintty are typed into,
   since Ctrl+V does not paste there; other terminals are pasted into with trailing newlines cut.
+- **Installing.** The installer starts the app with `--squirrel-…`; it makes or removes its Start
+  menu shortcut and quits (`windows-install.ts`; CI checks the shortcut after a silent install). A
+  second start hands over to the running copy. The tray icon is drawn in a colour that shows on
+  light and dark taskbars.
 - **Switching apps.** After a panel took the keyboard, and for Go back in Focus Mode, the helper
   brings the program forward (`apps.activate`). On a Mac main does it with `open -b`.
 - **Not on Windows:** converting HEIC, HEIF and GIF images (they are refused), and some interface

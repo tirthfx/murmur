@@ -220,4 +220,13 @@ jobs:
           $env:DOTNET_MULTILEVEL_LOOKUP = '0'
           & $helper --self-test
           if ($LASTEXITCODE -ne 0) { throw 'the installed helper failed its self-test' }
+          # The app answers the installer's start by asking for a Start menu shortcut.
+          $menu = Join-Path $env:APPDATA 'Microsoft/Windows/Start Menu/Programs'
+          $link = $null
+          for ($i = 0; $i -lt 30 -and -not $link; $i++) {
+            $link = Get-ChildItem $menu -Recurse -Filter 'Murmur.lnk' -ErrorAction SilentlyContinue | Select-Object -First 1
+            if (-not $link) { Start-Sleep -Seconds 2 }
+          }
+          if (-not $link) { throw 'the installed app made no Start menu shortcut' }
+          Write-Host "shortcut at $($link.FullName)"
           Get-Process Murmur -ErrorAction SilentlyContinue | Stop-Process -Force
