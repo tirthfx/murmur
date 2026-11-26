@@ -68,7 +68,8 @@ public sealed class WindowsInputHook : IDisposable
             if (down || up)
             {
                 var data = Marshal.PtrToStructure<Native.KbdLlHookStruct>(lParam);
-                _onKey((int)data.vkCode, down);
+                // Keys Murmur presses itself (paste, copy, a command) are not the person's.
+                if (data.dwExtraInfo != Native.OwnInput) _onKey((int)data.vkCode, down);
             }
         }
         return Native.CallNextHookEx(IntPtr.Zero, code, wParam, lParam);

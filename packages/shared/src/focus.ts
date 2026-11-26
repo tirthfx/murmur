@@ -101,13 +101,16 @@ export const focusRuleSchema = z.strictObject({
 });
 export type FocusRule = z.infer<typeof focusRuleSchema>;
 
+/** A dotted bundle id, or a Windows program file name, which may hold spaces and underscores. */
+const APP_ID = /^([A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+|[^\\/:*?"<>|]+\.[Ee][Xx][Ee])$/;
+
 export const focusAppInputSchema = z.strictObject({
   bundleId: z
     .string()
     .trim()
     .min(3)
     .max(255)
-    .regex(/^[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$/, "Use an app's bundle id, like com.example.App"),
+    .regex(APP_ID, "Use an app's bundle id, like com.example.App, or a program, like notepad.exe"),
   label: z.string().trim().min(1).max(200),
 });
 export type FocusAppInput = z.infer<typeof focusAppInputSchema>;

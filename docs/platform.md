@@ -143,10 +143,28 @@ its own task, so pings are answered while it works.
   clipboard was not fully restored. Over 64 MB the clipboard is not saved. `--self-test` saves and
   restores text, HTML, a DIB and a registered format on a Windows runner.
 
+### Selected text, key presses and apps
+
+- **Selection.** `selection.read` reads the focused element through UI Automation (text pattern); a
+  password field is never read. When an element does not say, the helper copies with **Ctrl+Insert**
+  and puts the clipboard back. Ctrl+C is not used: in a terminal it would stop the running program
+  when nothing is selected. A clipboard that cannot be saved is not copied over. Line ends are
+  reported as one character, as on the Mac.
+- **Keys.** `keys.press` takes the same list as the Mac and types the Windows shortcut: Command+B,
+  I, A and Z become Control; redo is Control+Y; browser back is Alt+Left; Delete is Backspace;
+  Command+arrow is Home or End (with Control for the document); Option+arrow moves by word. Held
+  modifier keys are let go first, with Control down so no menu opens. Keys Murmur types are marked,
+  and its own hooks ignore them.
+- **Apps.** An app's id on Windows is its program file name (`chrome.exe`). `focus.app` names the
+  app by its program's description, not the window title. `apps.list` reads the Start menu
+  shortcuts, so Store apps without one are not listed. `proc.foreground` walks the process table
+  under the front window; for `node` or `python` it reports the script or package that runs, never
+  the arguments.
+
 ### What it does not do yet
 
-- **Not announced, so refused:** selection read, focus context, accessibility inspect, edit
-  watching, typing counts, media pause, process list, installed apps list.
+- **Not announced, so refused:** focus context, accessibility inspect, edit watching, typing
+  counts, media pause, and the page address of a browser.
 - **Elevated programs** do not receive input from a program that is not elevated, so insertion and
   hotkeys do not reach them.
 

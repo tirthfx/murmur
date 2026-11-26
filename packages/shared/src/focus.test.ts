@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { focusTimeLeft, frontAppPayloadSchema, parseSiteEntry, siteMatches } from "./focus";
+import {
+  focusAppInputSchema,
+  focusTimeLeft,
+  frontAppPayloadSchema,
+  parseSiteEntry,
+  siteMatches,
+} from "./focus";
 
 describe("Focus sites", () => {
   it("stores a typed site as domain and path", () => {
@@ -58,5 +64,22 @@ describe("Focus sites", () => {
     expect(focusTimeLeft(65_000, 0)).toBe("1:05");
     expect(focusTimeLeft(90 * 60_000, 0)).toBe("1:30:00");
     expect(focusTimeLeft(0, 5000)).toBe("0:00");
+  });
+});
+
+describe("Blocked app ids", () => {
+  const accepts = (bundleId: string) =>
+    focusAppInputSchema.safeParse({ bundleId, label: "App" }).success;
+
+  it("takes a bundle id or a Windows program name", () => {
+    for (const id of ["com.example.App", "chrome.exe", "Notion Calendar.exe", "obs_64.EXE"]) {
+      expect(accepts(id), id).toBe(true);
+    }
+  });
+
+  it("refuses paths and plain words", () => {
+    for (const id of ["Safari", "/Applications/App.app", "C:\\Apps\\app.exe", ".exe", "a|b.exe"]) {
+      expect(accepts(id), id).toBe(false);
+    }
   });
 });

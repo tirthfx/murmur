@@ -60,13 +60,13 @@ public sealed class WindowsInsertion : IInsertionPlatform
 
     private static void Keys(ushort vk, bool down)
     {
-        var input = new Native.Input { type = Native.INPUT_KEYBOARD, ki = new Native.KeybdInput { wVk = vk, dwFlags = down ? 0 : Native.KEYEVENTF_KEYUP } };
+        var input = new Native.Input { type = Native.INPUT_KEYBOARD, ki = new Native.KeybdInput { wVk = vk, dwFlags = down ? 0 : Native.KEYEVENTF_KEYUP, dwExtraInfo = Native.OwnInput } };
         Native.SendInput(1, new[] { input }, Marshal.SizeOf<Native.Input>());
     }
 
     private static Native.Input Unicode(ushort unit, bool up) => new()
     {
         type = Native.INPUT_KEYBOARD,
-        ki = new Native.KeybdInput { wScan = unit, dwFlags = Native.KEYEVENTF_UNICODE | (up ? Native.KEYEVENTF_KEYUP : 0) },
+        ki = new Native.KeybdInput { wScan = unit, dwFlags = Native.KEYEVENTF_UNICODE | (up ? Native.KEYEVENTF_KEYUP : 0), dwExtraInfo = Native.OwnInput },
     };
 }

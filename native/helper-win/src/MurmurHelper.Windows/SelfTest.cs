@@ -110,6 +110,72 @@ public static class SelfTest
 
         Check("output mute reads", () => $"muted={new WindowsOutputMute().Muted?.ToString() ?? "no switch"}");
 
+        Check("selection through UI Automation", () =>
+        {
+            using var window = new TestWindow("murmur selects this text");
+            window.Select(7, 14);
+            var seen = WindowsSelection.ReadElement(Automation.Client.ElementFromHandle(window.Handle), SelectionController.MaxLength);
+            if (seen.Kind != SelectionKind.Selected) throw new InvalidOperationException($"the edit box answered {seen.Kind}");
+            if (seen.Text != "selects" || seen.Location != 7) throw new InvalidOperationException($"read \"{seen.Text}\" at {seen.Location}");
+            return $"\"{seen.Text}\" at {seen.Location}";
+        });
+
+        Check("a password field is not read", () =>
+        {
+            using var window = new TestWindow("hunter2", password: true);
+            window.Select(0, 7);
+            var seen = WindowsSelection.ReadElement(Automation.Client.ElementFromHandle(window.Handle), SelectionController.MaxLength);
+            if (seen.Kind != SelectionKind.Secure || seen.Text is not null) throw new InvalidOperationException($"it answered {seen.Kind}");
+            return null;
+        });
+
+        // Typing and copying need the test window in front, which a locked or service session refuses.
+        Check("keys and the copy fallback in the front window", () =>
+        {
+            using var window = new TestWindow("press and copy");
+            if (!window.Focus()) return "skipped: the test window could not take focus";
+            var keys = new WindowsKeys();
+            window.Select(0, 0);
+            // Shift+End, which every edit box handles (Ctrl+A is left to the app on some).
+            if (!keys.Press(KeyCombos.Translate("right", new HashSet<string> { "command", "shift" }))) throw new InvalidOperationException("the keys were refused");
+            Thread.Sleep(200);
+            var all = window.Selection();
+            if (all != (0, 14)) throw new InvalidOperationException($"selecting to the end gave {all}");
+            var selection = new WindowsSelection(keys);
+            var focused = selection.Read(SelectionController.MaxLength);
+            if (focused.Text != "press and copy") throw new InvalidOperationException($"the focused element read {focused.Kind} \"{focused.Text}\"");
+            // The copy fallback on its own: the text is copied and the clipboard comes back.
+            var insertion = new WindowsInsertion();
+            insertion.Copy("kept on the clipboard");
+            var answer = new SelectionController(selection).Read(new System.Text.Json.Nodes.JsonObject
+            {
+                ["clipboardFirstInApps"] = new System.Text.Json.Nodes.JsonArray(keys.FrontProcessName()),
+                ["copyWaitMs"] = 1000,
+            });
+            if (answer["status"]!.GetValue<string>() != "ok" || answer["text"]!.GetValue<string>() != "press and copy" || answer["source"]!.GetValue<string>() != "clipboard")
+                throw new InvalidOperationException($"the copy answered {answer.ToJsonString()}");
+            if (WindowsClipboard.Snapshot()?.Text != "kept on the clipboard") throw new InvalidOperationException("the clipboard was not put back");
+            return "select to the end, focused read and copy";
+        });
+
+        Check("processes under the front window", () =>
+        {
+            var table = new WindowsProcesses();
+            var rows = table.Rows();
+            if (!rows.Any(r => r.Pid == Environment.ProcessId)) throw new InvalidOperationException("this process is not in the table");
+            var line = table.CommandLine(Environment.ProcessId) ?? throw new InvalidOperationException("no command line for this process");
+            if (!line.Contains("--self-test")) throw new InvalidOperationException("the command line is not this process's");
+            var app = Windows.Front();
+            return $"{rows.Count} processes, front={app?.Name ?? "none"}";
+        });
+
+        Check("installed apps", () =>
+        {
+            var apps = AppCatalog.Result(new WindowsInstalledApps().List())["apps"]!.AsArray();
+            if (apps.Count == 0) throw new InvalidOperationException("no app was found in the Start menu");
+            return $"{apps.Count} apps";
+        });
+
         // The speech check needs a model folder, so it runs only when one is named (CI downloads a small one).
         var speechModel = Environment.GetEnvironmentVariable("MURMUR_SELFTEST_SPEECH_MODEL");
         if (!string.IsNullOrEmpty(speechModel))
