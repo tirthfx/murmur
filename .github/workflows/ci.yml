@@ -239,4 +239,5 @@ jobs:
           }
           if (-not $link) { throw 'the installed app made no Start menu shortcut' }
           Write-Host "shortcut at $($link.FullName)"
+          if ($link.Directory.Name -ne 'tirthfx') { throw "the shortcut is filed under $($link.Directory.Name)" }
           Get-Process Murmur -ErrorAction SilentlyContinue | Stop-Process -Force
