@@ -145,6 +145,11 @@ jobs:
           $actual = (Get-FileHash $helper -Algorithm SHA256).Hash.ToLower()
           if ($expected -ne $actual) { throw "the helper does not match its hash file ($expected, $actual)" }
           Write-Host "helper hash ok: $actual"
+          # The runner has .NET installed; a person's PC may not. Point the host at an empty
+          # folder so only a runtime inside the helper can start it.
+          $env:DOTNET_ROOT = Join-Path $env:RUNNER_TEMP 'no-dotnet'
+          New-Item -ItemType Directory -Force $env:DOTNET_ROOT | Out-Null
+          $env:DOTNET_MULTILEVEL_LOOKUP = '0'
           & $helper --self-test
           if ($LASTEXITCODE -ne 0) { throw 'the packaged helper failed its self-test' }
 
@@ -208,6 +213,11 @@ jobs:
           $actual = (Get-FileHash $helper -Algorithm SHA256).Hash.ToLower()
           if ($expected -ne $actual) { throw 'the installed helper does not match its hash file' }
           Write-Host "installed at $($app.FullName), helper hash ok"
+          # The runner has .NET installed; a person's PC may not. Point the host at an empty
+          # folder so only a runtime inside the helper can start it.
+          $env:DOTNET_ROOT = Join-Path $env:RUNNER_TEMP 'no-dotnet'
+          New-Item -ItemType Directory -Force $env:DOTNET_ROOT | Out-Null
+          $env:DOTNET_MULTILEVEL_LOOKUP = '0'
           & $helper --self-test
           if ($LASTEXITCODE -ne 0) { throw 'the installed helper failed its self-test' }
           Get-Process Murmur -ErrorAction SilentlyContinue | Stop-Process -Force
