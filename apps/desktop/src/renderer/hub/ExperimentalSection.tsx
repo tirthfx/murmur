@@ -163,9 +163,6 @@ export function ExperimentalSection({
           disabledMessage="Murmur does not learn from sent mail yet."
           onChange={() => {}}
         />
-        <Text size="sm" color="secondary">
-          Murmur does not learn from sent mail yet.
-        </Text>
         <Switch
           label="Bluetooth ring microphone"
           description="Start and stop dictation from a ring worn on a finger."
