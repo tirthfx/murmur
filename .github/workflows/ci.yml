@@ -158,6 +158,16 @@ jobs:
         run: |
           $dir = Get-ChildItem apps/desktop/out -Directory | Where-Object { $_.Name -like 'Murmur-win32-*' } | Select-Object -First 1
           $app = Join-Path $dir.FullName 'Murmur.exe'
+          # A Windows build says Windows things: the app's own text was reworded while bundling.
+          $bundle = [IO.File]::ReadAllText((Join-Path $dir.FullName 'resources/app.asar'))
+          # Texts from the pages, the shared package and main. (Comments in the database
+          # migrations still say Mac; they are never shown.)
+          foreach ($text in 'Kept only on this Mac', 'Nothing leaves this Mac', 'Next meeting in the menu bar', 'keep the token in the Keychain') {
+            if ($bundle.Contains($text)) { throw "the Windows package still says: $text" }
+          }
+          foreach ($text in 'Kept only on this PC', 'Nothing leaves this PC', 'keep the token in Windows Credential Manager') {
+            if (-not $bundle.Contains($text)) { throw "the Windows wording is not in the package: $text" }
+          }
           $llama = Join-Path $dir.FullName 'resources/llm-modules/node_modules/node-llama-cpp/dist/index.js'
           if (-not (Test-Path $llama)) { throw "the cleanup runtime is not packaged: $llama" }
           $binary = Get-ChildItem (Join-Path $dir.FullName 'resources/llm-modules/node_modules/@node-llama-cpp/win-x64') -Recurse -Filter '*.node' | Select-Object -First 1
