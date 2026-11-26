@@ -836,6 +836,7 @@ const settingsStore = createSettingsStore(database, {
   setupComplete: false,
   pressEnterCommand: true,
   sessionLimitMinutes: SESSION_LIMIT_DEFAULT,
+  smartFormatting: true,
   openHubOnLaunch: true,
   insights: { typingWpm: INSIGHTS_LIMITS.typingWpm.default },
   profile: { displayName: "", showOnHome: true },
@@ -1248,6 +1249,13 @@ const recorder = createRecorder({
     });
   },
   pressEnterCommand: () => settingsStore.get().pressEnterCommand,
+  formatting: () => {
+    const { cleanupLevel, smartFormatting } = settingsStore.get();
+    return {
+      lists: cleanupLevel === "standard" || cleanupLevel === "full",
+      smart: smartFormatting,
+    };
+  },
   sessionLimitMinutes: () => settingsStore.get().sessionLimitMinutes,
   copy: (text) => helper.copyText(text),
   onEvent: (event) => {

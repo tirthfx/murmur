@@ -33,6 +33,7 @@ const defaults: Settings = {
   sounds: { start: true, lock: true, success: true, error: true, cancel: false },
   muteWhileDictating: false,
   sessionLimitMinutes: 20,
+  smartFormatting: true,
   setupComplete: true,
   pressEnterCommand: true,
   openHubOnLaunch: true,

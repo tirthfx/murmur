@@ -13,6 +13,13 @@ What happens to the text between transcription and insertion.
 
 The model has 1.5 seconds, including loading. If it is slow, missing, crashes or its answer is refused, the rules' text is inserted. Insertion never waits on the model beyond the budget. The model starts loading when a recording starts and is stopped after 5 idle minutes to free its memory.
 
+## Lists and Smart Formatting
+
+After cleanup, in main, rules only (`cleanup/lists.ts`, `cleanup/smart-format.ts`). Neither runs in developer apps.
+
+- **Spoken lists** (Standard and Full): two or more cues in order make a list. "Number one … number two …" or "First, … Second, …" is numbered; "bullet", "bullet point" and "next item" make bullets. The words before the first cue and after the last item's sentence stay as text. A single cue, or "the first time", changes nothing.
+- **Smart Formatting** (a switch in Settings, System; on by default; English): times with am or pm, dollars, euros, rupees and percentages, month and day, numbers from ten up, spoken email addresses and links. Two numbers in a row ("twenty twenty six") stay as said, and "at" after an everyday word ("look at example dot com") is not read as an address.
+
 ## Levels
 
 `standard` is the default. `off` and `light` keep every word (spacing and capitals only; light lets the model add punctuation). `full` lets the model smooth run-on sentences with a few new words at most. A Settings switch comes with #13.
@@ -32,10 +39,6 @@ node scripts/bench-cleanup.mjs
 ```
 
 Runs a small corpus (including texts that try to make the model answer or follow instructions) and prints p50 and p90 latency against the budget, how often the model's answer was used, and checks that no final text contains prompt wording.
-
-## Packaged builds
-
-The packaged app does not include node-llama-cpp yet, so a packaged build cleans with rules only. Development (`npm run dev`) uses the model.
 
 ## Manual test
 

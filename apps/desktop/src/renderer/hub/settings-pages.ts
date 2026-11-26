@@ -48,6 +48,12 @@ export const SETTINGS_INDEX: readonly SettingEntry[] = [
     label: "Longest recording",
     words: "limit minutes length",
   },
+  {
+    id: "smart-formatting",
+    page: "system",
+    label: "Smart Formatting",
+    words: "numbers dates times money email links",
+  },
   { id: "context", page: "system", label: "Use the text around the cursor", words: "context" },
   { id: "typing-reminder", page: "system", label: "Suggest dictating after a lot of typing" },
   { id: "sounds", page: "system", label: "Sounds", words: "tones audio" },
