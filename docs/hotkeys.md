@@ -11,6 +11,17 @@ How Murmur notices the dictation key while another app is in front.
 
 Left Option is a different key and does nothing. There is no default chord; a hands-free shortcut can be set in Settings (see [settings.md](settings.md)).
 
+## Windows
+
+| Key                   | What it does                                     |
+| --------------------- | ------------------------------------------------ |
+| Hold Right Ctrl       | Dictate while held, stop on release              |
+| Double-tap Right Ctrl | Hands-free: recording continues after you let go |
+| Ctrl+Alt+R / C / I    | Rewrite panel, Command Mode, Instruct Mode       |
+| Ctrl+Alt+F / S        | Focus Mode, Scratchpad                           |
+
+Right Alt is not used because it is Alt Gr on many layouts. A binding on one side's modifier (Right Ctrl) ignores the other side; as the modifier of a shortcut either side counts. Windows' own shortcuts (Win+L, Alt+Tab and the like) are refused in Settings. Bindings: `apps/desktop/src/main/platform/windows-hotkeys.ts`; key names and reserved shortcuts: `windows-keymap.ts`. The low-level hook only listens, and an elevated program does not receive from it.
+
 ## Hands-free and cancel
 
 - A press shorter than 300 ms is a tap. A second press within 400 ms of the first locks recording (the Bar shows Hands-free); let go and keep talking.

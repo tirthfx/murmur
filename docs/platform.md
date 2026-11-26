@@ -188,6 +188,19 @@ its own task, so pings are answered while it works.
 - **Elevated programs** do not receive input from a program that is not elevated, so insertion and
   hotkeys do not reach them.
 
+## The app on Windows
+
+- **Shortcuts.** Default bindings, key names, reserved shortcuts and the settings link for the
+  microphone come from the adapter (`windows-hotkeys.ts`, `windows-keymap.ts`); see
+  [hotkeys.md](hotkeys.md).
+- **Apps.** The app tables (categories, browsers, terminals, AI editors, remote desktops) hold
+  Windows program names in lower case, looked up with `appKey`. PuTTY and mintty are typed into,
+  since Ctrl+V does not paste there; other terminals are pasted into with trailing newlines cut.
+- **Switching apps.** After a panel took the keyboard, and for Go back in Focus Mode, the helper
+  brings the program forward (`apps.activate`). On a Mac main does it with `open -b`.
+- **Not on Windows:** converting HEIC, HEIF and GIF images (they are refused), and some interface
+  text still names Mac things.
+
 ## Packaging on Windows (SW-13)
 
 - `npm run publish:helper:win` makes the helper as one self-contained file (the .NET runtime is
