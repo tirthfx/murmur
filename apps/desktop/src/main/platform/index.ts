@@ -19,6 +19,8 @@ import {
   MAC_DEFAULT_COMMAND_TRIGGER,
   MAC_DEFAULT_FOCUS_TRIGGER,
   MAC_DEFAULT_SCRATCHPAD_TRIGGER,
+  MAC_DEFAULT_COPY_LAST_TRIGGER,
+  MAC_DEFAULT_PASTE_LAST_TRIGGER,
   MAC_DEFAULT_HOTKEY_BINDINGS,
   MAC_DEFAULT_INSTRUCT_TRIGGER,
   MAC_DEFAULT_REWRITE_TRIGGER,
@@ -31,6 +33,8 @@ import {
   WINDOWS_DEFAULT_INSTRUCT_TRIGGER,
   WINDOWS_DEFAULT_REWRITE_TRIGGER,
   WINDOWS_DEFAULT_SCRATCHPAD_TRIGGER,
+  WINDOWS_DEFAULT_COPY_LAST_TRIGGER,
+  WINDOWS_DEFAULT_PASTE_LAST_TRIGGER,
   WINDOWS_KEY_ESCAPE,
 } from "./windows-hotkeys";
 import {
@@ -127,6 +131,16 @@ export function defaultFocusShortcut(platform: NodeJS.Platform): HotkeyTrigger |
 /** The default Scratchpad shortcut for this OS, or null when there is none. */
 export function defaultScratchpadShortcut(platform: NodeJS.Platform): HotkeyTrigger | null {
   return byOs(platform, MAC_DEFAULT_SCRATCHPAD_TRIGGER, WINDOWS_DEFAULT_SCRATCHPAD_TRIGGER);
+}
+
+/** The default Copy last transcript shortcut for this OS, or null when there is none. */
+export function defaultCopyLastShortcut(platform: NodeJS.Platform): HotkeyTrigger | null {
+  return byOs(platform, MAC_DEFAULT_COPY_LAST_TRIGGER, WINDOWS_DEFAULT_COPY_LAST_TRIGGER);
+}
+
+/** The default Paste last transcript shortcut for this OS, or null when there is none. */
+export function defaultPasteLastShortcut(platform: NodeJS.Platform): HotkeyTrigger | null {
+  return byOs(platform, MAC_DEFAULT_PASTE_LAST_TRIGGER, WINDOWS_DEFAULT_PASTE_LAST_TRIGGER);
 }
 
 /** The default Instruct key for this OS, or null when there is none. */

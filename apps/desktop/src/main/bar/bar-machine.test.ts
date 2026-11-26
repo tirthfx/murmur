@@ -7,6 +7,7 @@ import {
   WARNING_MS,
   transition,
   type BarEvent,
+  INITIAL_VIEW,
 } from "./bar-machine";
 
 function at(state: BarState, fields: Partial<BarView> = {}): BarView {
@@ -279,5 +280,19 @@ describe("bar state machine", () => {
         actions,
       }).changed,
     ).toBe(false);
+  });
+});
+
+describe("a note (DC-39)", () => {
+  it("shows at rest for a moment, then goes", () => {
+    const step = transition(INITIAL_VIEW, { type: "note", message: "Copied" });
+    expect(step.view).toMatchObject({ state: "done", message: "Copied" });
+    expect(step.timeoutMs).toBe(1500);
+    expect(transition(step.view, { type: "timeout" }).view.state).toBe("idle");
+  });
+
+  it("never covers a recording", () => {
+    const listening = transition(INITIAL_VIEW, { type: "start", at: 1 }).view;
+    expect(transition(listening, { type: "note", message: "Copied" }).changed).toBe(false);
   });
 });

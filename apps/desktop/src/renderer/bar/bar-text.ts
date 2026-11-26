@@ -16,6 +16,7 @@ export function describeView(view: BarView): { text: string; icon: BarIcon | nul
     case "processing":
       return { text: "Transcribing", icon: "spinner" };
     case "done": {
+      if (view.message !== null) return { text: view.message, icon: "check" };
       const words = view.words ?? 0;
       return { text: `${words} ${words === 1 ? "word" : "words"}`, icon: "check" };
     }
@@ -43,6 +44,7 @@ export function announcement(view: BarView): string {
     case "processing":
       return "Transcribing";
     case "done": {
+      if (view.message !== null) return view.message;
       const words = view.words ?? 0;
       return `Done, ${words} ${words === 1 ? "word" : "words"}`;
     }

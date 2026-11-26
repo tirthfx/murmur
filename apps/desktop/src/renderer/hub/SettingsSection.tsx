@@ -1113,6 +1113,28 @@ export function SettingsSection({
             onSaved={setView}
           />
         </Row>
+        <Row id="copy-last-shortcut">
+          <ShortcutField
+            slot="copyLast"
+            title="Copy last transcript"
+            description="Puts the last thing you dictated on the clipboard."
+            label={view.shortcutLabels.copyLast}
+            canClear={settings.copyLastShortcut !== null}
+            clear={{ label: "Turn off the copy last transcript shortcut", text: "Turn off" }}
+            onSaved={setView}
+          />
+        </Row>
+        <Row id="paste-last-shortcut">
+          <ShortcutField
+            slot="pasteLast"
+            title="Paste last transcript"
+            description="Inserts the last thing you dictated into the field you are in."
+            label={view.shortcutLabels.pasteLast}
+            canClear={settings.pasteLastShortcut !== null}
+            clear={{ label: "Turn off the paste last transcript shortcut", text: "Turn off" }}
+            onSaved={setView}
+          />
+        </Row>
         <Row id="mouse-hold">
           <MouseButtonField
             title="Push to talk (mouse)"

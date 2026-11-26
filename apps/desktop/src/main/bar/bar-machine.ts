@@ -22,6 +22,8 @@ export type BarEvent =
   /** Something to tell the user. While recording it stays until the recording ends. */
   | { type: "warn"; message: string }
   | { type: "timeout" }
+  /** A short good-news message, such as "Copied" (DC-39). Never over a recording. */
+  | { type: "note"; message: string }
   /**
    * Ask a question with Yes and No (PZ-19), or with the buttons given; it goes away after
    * `timeoutMs` (ASK_MS when not given).
@@ -48,6 +50,7 @@ export interface BarStep {
 export const DONE_MS = 800;
 export const CANCELLED_MS = 600;
 export const WARNING_MS = 3000;
+export const NOTE_MS = 1500;
 /** How long a question stays on the Bar (PZ-19: five minutes). */
 export const ASK_MS = 5 * 60_000;
 
@@ -131,6 +134,11 @@ export function transition(current: BarView, event: BarEvent): BarStep {
             }),
             event.timeoutMs ?? ASK_MS,
           );
+    case "note":
+      return ["idle", "done", "cancelled", "warning"].includes(current.state) &&
+        !isRecordingWarning(current)
+        ? to(view("done", { message: event.message }), NOTE_MS)
+        : same;
     case "answered":
       return current.state === "ask" ? to(view("idle")) : same;
     case "settle":

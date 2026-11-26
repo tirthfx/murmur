@@ -52,6 +52,18 @@ export const MAC_DEFAULT_INSTRUCT_TRIGGER: HotkeyTrigger = {
   modifiers: ["control", "option"],
 };
 
+/** Control+Option+C and Control+Option+V: copy and paste the last transcript (DC-39). */
+export const MAC_DEFAULT_COPY_LAST_TRIGGER: HotkeyTrigger = {
+  type: "key",
+  keyCode: 8,
+  modifiers: ["control", "option"],
+};
+export const MAC_DEFAULT_PASTE_LAST_TRIGGER: HotkeyTrigger = {
+  type: "key",
+  keyCode: 9,
+  modifiers: ["control", "option"],
+};
+
 export const MAC_DEFAULT_REWRITE_TRIGGER: HotkeyTrigger = {
   type: "key",
   keyCode: MAC_KEY_R,

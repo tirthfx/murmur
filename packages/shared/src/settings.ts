@@ -174,6 +174,9 @@ export const settingsSchema = z.strictObject({
   insights: z.strictObject({ typingWpm: z.number().int().min(10).max(150) }),
   /** HB-26: opens the Scratchpad window. Null means no shortcut. */
   scratchpadShortcut: hotkeyTriggerSchema.nullable(),
+  /** DC-39: copies the last transcript, and pastes it. Null means no shortcut. */
+  copyLastShortcut: hotkeyTriggerSchema.nullable(),
+  pasteLastShortcut: hotkeyTriggerSchema.nullable(),
   /** NT-03: starts a meeting recording, and stops it when pressed again. Null means none. */
   meetingShortcut: hotkeyTriggerSchema.nullable(),
   /** HB-26, HB-34: Scratchpad on or off, and whether a note opens in a new tab. */
@@ -297,6 +300,8 @@ export const SETTING_KEYS: Record<keyof Settings, string> = {
   profile: "profile.settings",
   scratchpadShortcut: "hotkey.scratchpad",
   meetingShortcut: "hotkey.meeting",
+  copyLastShortcut: "hotkey.copy_last",
+  pasteLastShortcut: "hotkey.paste_last",
   scratchpad: "scratchpad.settings",
   theme: "ui.theme",
   language: "ui.language",
@@ -376,6 +381,8 @@ export const SHORTCUT_SLOTS = [
   "focus",
   "scratchpad",
   "meeting",
+  "copyLast",
+  "pasteLast",
 ] as const;
 export type ShortcutSlot = (typeof SHORTCUT_SLOTS)[number];
 
@@ -399,6 +406,8 @@ export const settingsViewSchema = z.strictObject({
     focus: z.string(),
     scratchpad: z.string(),
     meeting: z.string(),
+    copyLast: z.string(),
+    pasteLast: z.string(),
   }),
   /** Null when the helper could not list devices. */
   devices: z.array(audioDeviceSchema).nullable(),

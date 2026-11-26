@@ -25,7 +25,19 @@ export const SLOT_NAMES: Record<ShortcutSlot, string> = {
   focus: "Focus Mode",
   scratchpad: "Scratchpad",
   meeting: "Meeting recording",
+  copyLast: "Copy last transcript",
+  pasteLast: "Paste last transcript",
 };
+
+/** Slots that act on a press: a modifier on its own would fire all the time. */
+const PRESS_SLOTS: ReadonlySet<ShortcutSlot> = new Set([
+  "rewrite",
+  "focus",
+  "scratchpad",
+  "meeting",
+  "copyLast",
+  "pasteLast",
+]);
 
 export function sameTrigger(a: HotkeyTrigger, b: HotkeyTrigger): boolean {
   return (
@@ -113,10 +125,5 @@ export function checkShortcut(
   ][]) {
     if (otherSlot !== slot && trigger) used.push({ use: SLOT_NAMES[otherSlot], trigger });
   }
-  return checkTrigger(
-    key,
-    [...used, ...extra],
-    platform,
-    slot === "rewrite" || slot === "focus" || slot === "scratchpad" || slot === "meeting",
-  );
+  return checkTrigger(key, [...used, ...extra], platform, PRESS_SLOTS.has(slot));
 }

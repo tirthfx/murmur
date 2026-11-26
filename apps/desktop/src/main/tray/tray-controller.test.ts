@@ -44,6 +44,8 @@ function setup() {
     insights: { typingWpm: 40 },
     profile: { displayName: "", showOnHome: true },
     scratchpadShortcut: null,
+    copyLastShortcut: null,
+    pasteLastShortcut: null,
     meetingShortcut: null,
     scratchpad: { enabled: true, newTab: true },
     theme: "system",

@@ -63,6 +63,8 @@ export const SAMPLE_SETTINGS: SettingsView = {
     profile: { displayName: "", showOnHome: true },
     scratchpadShortcut: null,
     meetingShortcut: null,
+    copyLastShortcut: null,
+    pasteLastShortcut: null,
     scratchpad: { enabled: true, newTab: true },
     theme: "system",
     language: "en",
@@ -123,6 +125,8 @@ export const SAMPLE_SETTINGS: SettingsView = {
     focus: "Off",
     scratchpad: "Off",
     meeting: "Off",
+    copyLast: "Off",
+    pasteLast: "Off",
   },
   devices: [
     {
