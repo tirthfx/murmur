@@ -1,6 +1,6 @@
 # The team backend on Supabase
 
-Murmur's optional Team mode can talk to a Supabase project instead of the local server (SW-01, milestone M8). This page covers the database side: the schema, the row-level security, the functions the app calls, how to apply the migrations and how to test them. The app side is `SupabaseTeamClient` in `apps/desktop/src/main/team/supabase-team-client.ts`. It is built and tested, but the app does not choose it yet: today every team uses the local server, and picking a backend per team comes with shadow mode and cutover.
+Murmur's optional Team mode can talk to a Supabase project instead of the local server (SW-01, milestone M8). This page covers the database side: the schema, the row-level security, the functions the app calls, how to apply the migrations and how to test them. The app side is `SupabaseTeamClient` in `apps/desktop/src/main/team/supabase-team-client.ts`. The backend is chosen when a team is connected; moving an existing team across is the migration tool's job (below).
 
 Nothing here is needed to use Murmur. Dictation and meeting notes work with no account. Sign-in exists only for Team mode.
 
@@ -142,4 +142,4 @@ These are set in the Supabase dashboard (Authentication), not in SQL:
 
 ## Not built yet
 
-Choosing the backend per team in the app, a run of the contract suite against a hosted Supabase project (it has passed on a local stack), departments and member management functions beyond what the contract needs, sync with an outbox, a password change in the app for a Supabase project, and SSO, SCIM and domain capture.
+A run of the contract suite against a hosted Supabase project (it has passed on a local stack), live shadow comparison, per-table change cursors with soft deletes and Realtime hints, share links, a leaderboard, and real SSO, SCIM and domain checks.
