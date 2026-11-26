@@ -17,6 +17,7 @@ internal static class Native
     public const uint CF_UNICODETEXT = 13, GMEM_MOVEABLE = 0x0002;
     public const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
     public const uint TH32CS_SNAPPROCESS = 0x2;
+    public const int SW_RESTORE = 9;
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     public struct ProcessEntry
@@ -50,6 +51,10 @@ internal static class Native
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr DispatchMessage(ref Msg message);
     [DllImport("user32.dll")] public static extern IntPtr SetFocus(IntPtr hwnd);
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] public static extern bool SetWindowText(IntPtr hwnd, string text);
+    [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] public static extern bool IsIconic(IntPtr hwnd);
+    [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] public static extern bool ShowWindow(IntPtr hwnd, int command);
+    [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] public static extern bool BringWindowToTop(IntPtr hwnd);
+    [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] public static extern bool AttachThreadInput(uint thread, uint other, bool attach);
     [DllImport("ntdll.dll")] public static extern int NtQueryInformationProcess(IntPtr process, int kind, IntPtr buffer, int length, out int needed);
 
     public delegate IntPtr HookProc(int code, IntPtr wParam, IntPtr lParam);

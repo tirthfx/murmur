@@ -114,6 +114,7 @@ public sealed class Backends
     public IKeyboardPlatform? Keyboard { get; init; }
     public IProcessTable? Processes { get; init; }
     public IInstalledApps? InstalledApps { get; init; }
+    public IAppActivator? Activator { get; init; }
     public IFocusReader? Focus { get; init; }
     public IWatchedFieldSource? WatchedFields { get; init; }
     public IInspectSource? Inspect { get; init; }

@@ -13,6 +13,11 @@ export const TAG_EDITORS: ReadonlySet<string> = new Set([
   "com.todesktop.230313mzl4w4u92",
   "com.exafunction.windsurf",
   "dev.zed.Zed",
+  "code.exe",
+  "code - insiders.exe",
+  "cursor.exe",
+  "windsurf.exe",
+  "zed.exe",
 ]);
 
 export const MAX_INDEXED_FILES = 50_000;

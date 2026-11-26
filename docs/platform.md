@@ -57,19 +57,19 @@ Windows 11.
 
 ## Platform differences (SW-11)
 
-| Area           | State                                                                                                            |
-| -------------- | ---------------------------------------------------------------------------------------------------------------- |
-| Permissions    | Handled: statuses and settings links come from the adapter; a Windows helper reports `granted` or `unknown`.     |
-| System audio   | Needs the Windows helper (WASAPI loopback). Limitation to state in release notes: loopback records all playback. |
-| Hotkeys        | Needs the Windows helper. Limitation: an elevated app does not receive input from a non-elevated hook.           |
-| Insertion      | Needs the Windows helper (UI Automation and paste); terminals that need Ctrl+Shift+V are a helper test target.   |
-| Remote desktop | Windows-only test target, after the helper exists.                                                               |
-| Secure storage | Needs the Windows helper (Credential Manager); same key shape as the Keychain calls.                             |
-| Window titles  | Handled in data: the `windows` matchers above.                                                                   |
-| Speech runtime | Done: whisper.cpp behind `ISpeechEngine`, with live text (above). GPU is open.                                   |
-| Paths          | Handled in the protocol (above); app data folders come from Electron.                                            |
-| Auto-start     | Handled by Electron's login item setting.                                                                        |
-| Packaging      | Installer, cleanup runtime and MCP command done and checked in CI. Signing and the update feed are open.         |
+| Area           | State                                                                                                        |
+| -------------- | ------------------------------------------------------------------------------------------------------------ |
+| Permissions    | Handled: statuses and settings links come from the adapter; a Windows helper reports `granted` or `unknown`. |
+| System audio   | Done: WASAPI loopback. Limitation to state in release notes: loopback records all playback.                  |
+| Hotkeys        | Done: low-level hooks. Limitation: an elevated app does not receive input from a non-elevated hook.          |
+| Insertion      | Done: paste and typed input. Terminals that do not take Ctrl+V are typed into; not tried in real apps.       |
+| Remote desktop | Remote desktop clients are typed into; not tried on a real remote session.                                   |
+| Secure storage | Done: Credential Manager, with the same key shape as the Keychain calls.                                     |
+| Window titles  | Handled in data: the `windows` matchers above.                                                               |
+| Speech runtime | Done: whisper.cpp behind `ISpeechEngine`, with live text (above). GPU is open.                               |
+| Paths          | Handled in the protocol (above); app data folders come from Electron.                                        |
+| Auto-start     | Handled by Electron's login item setting.                                                                    |
+| Packaging      | Installer, cleanup runtime and MCP command done and checked in CI. Signing and the update feed are open.     |
 
 ## The Windows helper (`native/helper-win`)
 
@@ -185,8 +185,27 @@ its own task, so pings are answered while it works.
 - **Microphones.** When inputs change the helper sends the new list; a recording whose device went
   away, or whose capture stopped, carries on into the same file on the chosen device or the default.
 
+### Limits
+
 - **Elevated programs** do not receive input from a program that is not elevated, so insertion and
   hotkeys do not reach them.
+
+## The app on Windows
+
+- **Shortcuts.** Default bindings, key names, reserved shortcuts and the settings link for the
+  microphone come from the adapter (`windows-hotkeys.ts`, `windows-keymap.ts`); see
+  [hotkeys.md](hotkeys.md).
+- **Apps.** The app tables (categories, browsers, terminals, AI editors, remote desktops) hold
+  Windows program names in lower case, looked up with `appKey`. PuTTY and mintty are typed into,
+  since Ctrl+V does not paste there; other terminals are pasted into with trailing newlines cut.
+- **Installing.** The installer starts the app with `--squirrel-…`; it makes or removes its Start
+  menu shortcut and quits (`windows-install.ts`; CI checks the shortcut after a silent install). A
+  second start hands over to the running copy. The tray icon is drawn in a colour that shows on
+  light and dark taskbars.
+- **Switching apps.** After a panel took the keyboard, and for Go back in Focus Mode, the helper
+  brings the program forward (`apps.activate`). On a Mac main does it with `open -b`.
+- **Not on Windows:** converting HEIC, HEIF and GIF images (they are refused), and some interface
+  text still names Mac things.
 
 ## Packaging on Windows (SW-13)
 

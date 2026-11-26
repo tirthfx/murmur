@@ -116,6 +116,12 @@ public sealed class ProcessController(IProcessTable table)
 /// <summary>An app: its program file name (<c>chrome.exe</c>), which is its id on Windows, and the name shown for it.</summary>
 public sealed record InstalledApp(string Id, string Name);
 
+public interface IAppActivator
+{
+    /// <summary>Brings a window of the program forward. False when it is not running or Windows refused.</summary>
+    bool Activate(string processName);
+}
+
 public interface IInstalledApps
 {
     /// <summary>Every shortcut found: the program it starts and the shortcut's name. Unsorted, with repeats.</summary>

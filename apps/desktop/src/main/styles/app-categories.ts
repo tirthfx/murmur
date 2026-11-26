@@ -1,7 +1,16 @@
 import type { AppCategory } from "@murmur/shared";
+import { appKey, WINDOWS_TERMINALS } from "../apps/app-id";
 
 // The default app table (PZ-13): which category an app's dictation belongs to. Murmur's own
-// list of common Mac apps, by bundle id. Anything not listed is Other unless the owner picks.
+// list of common apps: Mac bundle ids, and Windows program names in lower case (look them up with
+// `appKey`). Anything not listed is Other unless the owner picks.
+
+function windowsCategory(
+  category: AppCategory,
+  programs: readonly string[],
+): Record<string, AppCategory> {
+  return Object.fromEntries(programs.map((program) => [program, category]));
+}
 
 export const DEFAULT_APP_CATEGORIES: Readonly<Record<string, AppCategory>> = {
   // Email
@@ -81,6 +90,56 @@ export const DEFAULT_APP_CATEGORIES: Readonly<Record<string, AppCategory>> = {
   "net.kovidgoyal.kitty": "developer",
   "io.alacritty": "developer",
   "co.zeit.hyper": "developer",
+  ...windowsCategory("email", ["outlook.exe", "olk.exe", "hxoutlook.exe", "thunderbird.exe"]),
+  ...windowsCategory("personal", [
+    "whatsapp.exe",
+    "whatsapp.root.exe",
+    "telegram.exe",
+    "signal.exe",
+    "discord.exe",
+    "line.exe",
+    "weixin.exe",
+    "viber.exe",
+    "messenger.exe",
+  ]),
+  ...windowsCategory("work", [
+    "slack.exe",
+    "ms-teams.exe",
+    "teams.exe",
+    "zoom.exe",
+    "notion.exe",
+    "linear.exe",
+    "asana.exe",
+    "clickup.exe",
+    "winword.exe",
+    "excel.exe",
+    "powerpnt.exe",
+    "onenote.exe",
+    "figma.exe",
+    "loom.exe",
+    "obsidian.exe",
+    "todoist.exe",
+    "claude.exe",
+    "chatgpt.exe",
+  ]),
+  ...windowsCategory("developer", [
+    "code.exe",
+    "code - insiders.exe",
+    "cursor.exe",
+    "windsurf.exe",
+    "zed.exe",
+    "devenv.exe",
+    "idea64.exe",
+    "pycharm64.exe",
+    "webstorm64.exe",
+    "goland64.exe",
+    "rider64.exe",
+    "clion64.exe",
+    "sublime_text.exe",
+    "notepad++.exe",
+    ...WINDOWS_TERMINALS,
+  ]),
+  "notepad.exe": "other",
 };
 
 /** Browsers: their category comes from the page's title. */
@@ -95,6 +154,13 @@ export const BROWSERS: ReadonlySet<string> = new Set([
   "org.mozilla.firefox",
   "com.vivaldi.Vivaldi",
   "com.operasoftware.Opera",
+  "chrome.exe",
+  "msedge.exe",
+  "firefox.exe",
+  "brave.exe",
+  "arc.exe",
+  "vivaldi.exe",
+  "opera.exe",
 ]);
 
 /** Words in a browser window title that tell what the page is. First match wins. */
@@ -121,9 +187,9 @@ export function resolveCategory(
   if (bundleId) {
     const chosen = overrides.get(bundleId);
     if (chosen) return { category: chosen, source: "user" };
-    const known = DEFAULT_APP_CATEGORIES[bundleId];
+    const known = DEFAULT_APP_CATEGORIES[appKey(bundleId)];
     if (known) return { category: known, source: "default" };
-    if (BROWSERS.has(bundleId) && app.windowTitle) {
+    if (BROWSERS.has(appKey(bundleId)) && app.windowTitle) {
       for (const [pattern, category] of TITLE_KEYWORDS) {
         if (pattern.test(app.windowTitle)) return { category, source: "title" };
       }

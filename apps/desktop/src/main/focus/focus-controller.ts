@@ -1,3 +1,4 @@
+import { appKey } from "../apps/app-id";
 import {
   FOCUS_LIMITS,
   FOCUS_MESSAGES,
@@ -28,6 +29,8 @@ export interface FocusControllerDeps {
   /** Says something on the Bar ("Focus ended"). */
   say: (message: string) => void;
   activateApp: (bundleId: string) => Promise<void>;
+  /** Where Go back switches to when nothing else was used before the blocked app. */
+  fallbackApp: string;
   /** Presses the browser's Back shortcut (Command+[) in that app; false when it could not. */
   pressBack?: (bundleId: string) => Promise<boolean>;
   /** Murmur's own process: the overlay itself takes the front, and must not count. */
@@ -65,9 +68,6 @@ export interface FocusController {
 export const BACK_WAIT_MS = 1500;
 /** Time for the browser to take the keyboard back from the overlay. */
 const REFOCUS_MS = 150;
-
-/** When nothing else was used before the blocked app. */
-const FALLBACK_APP = "com.apple.finder";
 
 function minutes(duration: FocusDuration): number | null {
   return duration === "untilOff" ? null : duration * 60_000;
@@ -147,7 +147,9 @@ export function createFocusController(deps: FocusControllerDeps): FocusControlle
 
   function isBlocked(bundleId: string | null, rules = deps.rules()): FocusRule | null {
     if (!bundleId) return null;
-    return rules.find((rule) => rule.kind === "app" && rule.value === bundleId) ?? null;
+    if (bundleId === null) return null;
+    const key = appKey(bundleId);
+    return rules.find((rule) => rule.kind === "app" && appKey(rule.value) === key) ?? null;
   }
 
   function show(key: string, name: string, browser: string | null): void {
@@ -229,7 +231,7 @@ export function createFocusController(deps: FocusControllerDeps): FocusControlle
 
     async goBack() {
       const elsewhere = async () => {
-        const target = previous && !isBlocked(previous) ? previous : FALLBACK_APP;
+        const target = previous && !isBlocked(previous) ? previous : deps.fallbackApp;
         await deps.activateApp(target);
       };
       const browser = blocked?.browser ?? null;

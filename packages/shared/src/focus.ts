@@ -38,6 +38,10 @@ export const installedAppSchema = z.object({
   name: z.string().min(1).max(200),
 });
 export type InstalledApp = z.infer<typeof installedAppSchema>;
+/** Brings a running app forward. Windows only: a Mac does this without the helper. */
+export const appsActivatePayloadSchema = z.object({ bundleId: z.string().min(1).max(255) });
+/** False when the app is not running or the system kept another window in front. */
+export const appsActivateResultSchema = z.object({ activated: z.boolean() });
 export const appsListResultSchema = z.object({ apps: z.array(installedAppSchema).max(5000) });
 
 // ------------------------------------------------------------------ settings and state

@@ -24,6 +24,24 @@ import {
   MAC_DEFAULT_REWRITE_TRIGGER,
 } from "./mac-hotkeys";
 import { activateMacApp } from "./mac-apps";
+import {
+  WINDOWS_DEFAULT_COMMAND_TRIGGER,
+  WINDOWS_DEFAULT_FOCUS_TRIGGER,
+  WINDOWS_DEFAULT_HOTKEY_BINDINGS,
+  WINDOWS_DEFAULT_INSTRUCT_TRIGGER,
+  WINDOWS_DEFAULT_REWRITE_TRIGGER,
+  WINDOWS_DEFAULT_SCRATCHPAD_TRIGGER,
+  WINDOWS_KEY_ESCAPE,
+} from "./windows-hotkeys";
+import {
+  WINDOWS_CAPS_LOCK,
+  WINDOWS_FUNCTION_KEYS,
+  WINDOWS_MODIFIER_KEYS,
+  WINDOWS_RESERVED,
+  windowsKeyCode,
+  windowsTriggerLabel,
+} from "./windows-keymap";
+import { squirrelStartup, WINDOWS_APP_USER_MODEL_ID } from "./windows-install";
 import { permissionSettingsUrl } from "./mac-settings-links";
 import {
   MAC_CAPS_LOCK,
@@ -44,7 +62,22 @@ export function keyPlatform(platform: NodeJS.Platform): KeyPlatform {
       capsLock: MAC_CAPS_LOCK,
       functionKeys: MAC_FUNCTION_KEYS,
       reserved: MAC_RESERVED,
+      osName: "macOS",
+      modifierHint: "Command, Option, Control or Shift",
       cancelKeyCode: 53,
+    };
+  }
+  if (platform === "win32") {
+    return {
+      keyCode: windowsKeyCode,
+      label: windowsTriggerLabel,
+      modifierKeys: WINDOWS_MODIFIER_KEYS,
+      capsLock: WINDOWS_CAPS_LOCK,
+      functionKeys: WINDOWS_FUNCTION_KEYS,
+      reserved: WINDOWS_RESERVED,
+      osName: "Windows",
+      modifierHint: "Ctrl, Alt, Shift or Win",
+      cancelKeyCode: WINDOWS_KEY_ESCAPE,
     };
   }
   return {
@@ -54,38 +87,51 @@ export function keyPlatform(platform: NodeJS.Platform): KeyPlatform {
     capsLock: -1,
     functionKeys: new Set(),
     reserved: [],
+    osName: "the system",
+    modifierHint: "a modifier key",
     cancelKeyCode: null,
   };
 }
 
 /** Default hotkey bindings for this OS. Key codes are platform specific. */
 export function defaultHotkeyBindings(platform: NodeJS.Platform): HotkeyBinding[] {
-  return platform === "darwin" ? [...MAC_DEFAULT_HOTKEY_BINDINGS] : [];
+  if (platform === "darwin") return [...MAC_DEFAULT_HOTKEY_BINDINGS];
+  return platform === "win32" ? [...WINDOWS_DEFAULT_HOTKEY_BINDINGS] : [];
+}
+
+/** One default shortcut of an OS that has them. */
+function byOs(
+  platform: NodeJS.Platform,
+  mac: HotkeyTrigger,
+  windows: HotkeyTrigger,
+): HotkeyTrigger | null {
+  if (platform === "darwin") return mac;
+  return platform === "win32" ? windows : null;
 }
 
 /** The default Rewrite panel shortcut for this OS, or null when there is none. */
 export function defaultRewriteShortcut(platform: NodeJS.Platform): HotkeyTrigger | null {
-  return platform === "darwin" ? MAC_DEFAULT_REWRITE_TRIGGER : null;
+  return byOs(platform, MAC_DEFAULT_REWRITE_TRIGGER, WINDOWS_DEFAULT_REWRITE_TRIGGER);
 }
 
 /** The default Command Mode key for this OS, or null when there is none. */
 export function defaultCommandShortcut(platform: NodeJS.Platform): HotkeyTrigger | null {
-  return platform === "darwin" ? MAC_DEFAULT_COMMAND_TRIGGER : null;
+  return byOs(platform, MAC_DEFAULT_COMMAND_TRIGGER, WINDOWS_DEFAULT_COMMAND_TRIGGER);
 }
 
 /** The default Focus Mode shortcut for this OS, or null when there is none. */
 export function defaultFocusShortcut(platform: NodeJS.Platform): HotkeyTrigger | null {
-  return platform === "darwin" ? MAC_DEFAULT_FOCUS_TRIGGER : null;
+  return byOs(platform, MAC_DEFAULT_FOCUS_TRIGGER, WINDOWS_DEFAULT_FOCUS_TRIGGER);
 }
 
 /** The default Scratchpad shortcut for this OS, or null when there is none. */
 export function defaultScratchpadShortcut(platform: NodeJS.Platform): HotkeyTrigger | null {
-  return platform === "darwin" ? MAC_DEFAULT_SCRATCHPAD_TRIGGER : null;
+  return byOs(platform, MAC_DEFAULT_SCRATCHPAD_TRIGGER, WINDOWS_DEFAULT_SCRATCHPAD_TRIGGER);
 }
 
 /** The default Instruct key for this OS, or null when there is none. */
 export function defaultInstructShortcut(platform: NodeJS.Platform): HotkeyTrigger | null {
-  return platform === "darwin" ? MAC_DEFAULT_INSTRUCT_TRIGGER : null;
+  return byOs(platform, MAC_DEFAULT_INSTRUCT_TRIGGER, WINDOWS_DEFAULT_INSTRUCT_TRIGGER);
 }
 
 /** Brings an app back to the front by its id, so a paste reaches it. */
@@ -99,8 +145,54 @@ export function imageToPngConverter(
   return platform === "darwin" ? (input, output) => convertMacImageToPng(input, output) : null;
 }
 
-export function appActivator(platform: NodeJS.Platform): (appId: string) => Promise<void> {
-  return platform === "darwin" ? activateMacApp : async () => {};
+export function appActivator(
+  platform: NodeJS.Platform,
+  helper: Pick<PlatformHelper, "activateApp">,
+): (appId: string) => Promise<void> {
+  if (platform === "darwin") return activateMacApp;
+  if (platform !== "win32") return async () => {};
+  // Windows has no command that brings a program forward, so the helper does it.
+  return async (appId) => {
+    await helper.activateApp(appId).catch(() => false);
+  };
+}
+
+/** Work an installer's start asks for before quitting, or null for an ordinary start. */
+export function installerStartup(
+  platform: NodeJS.Platform,
+  argv: readonly string[],
+  execPath: string,
+): Promise<void> | null {
+  return platform === "win32" ? squirrelStartup(argv, execPath) : null;
+}
+
+/** Whether a second start must be refused, and the id the OS files notifications under. */
+export function appIdentity(platform: NodeJS.Platform): {
+  singleInstance: boolean;
+  userModelId: string | null;
+} {
+  // A Mac starts one copy of an app by itself; Windows starts as many as are asked for.
+  return platform === "win32"
+    ? { singleInstance: true, userModelId: WINDOWS_APP_USER_MODEL_ID }
+    : { singleInstance: false, userModelId: null };
+}
+
+/**
+ * The tray icon's colour. A Mac recolours a template image to suit the menu bar; Windows shows
+ * the image as drawn, so it gets a mid blue that shows on light and dark taskbars.
+ */
+export function trayIcon(platform: NodeJS.Platform): {
+  template: boolean;
+  rgb: readonly [number, number, number];
+} {
+  return platform === "darwin"
+    ? { template: true, rgb: [0, 0, 0] }
+    : { template: false, rgb: [59, 130, 246] };
+}
+
+/** The app that is always there, to switch to when there is no earlier one. */
+export function fileManagerAppId(platform: NodeJS.Platform): string {
+  return platform === "win32" ? "explorer.exe" : "com.apple.finder";
 }
 
 export type PlatformHelperDeps = MacHelperDeps & { platform: NodeJS.Platform };
@@ -135,7 +227,9 @@ export function permissionSettingsLink(
   platform: NodeJS.Platform,
   kind: PermissionKind,
 ): string | null {
-  return platform === "darwin" ? permissionSettingsUrl(kind) : null;
+  if (platform === "darwin") return permissionSettingsUrl(kind);
+  // Windows has a privacy switch for the microphone only.
+  return platform === "win32" && kind === "microphone" ? "ms-settings:privacy-microphone" : null;
 }
 
 /** Whether closing the last window ends the app. On a Mac the app stays in the menu bar. */

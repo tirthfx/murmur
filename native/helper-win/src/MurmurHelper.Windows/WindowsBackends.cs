@@ -12,7 +12,15 @@ public static class WindowsBackends
         var focus = new WindowsFocus();
         var front = new FrontAppWatch(Windows.Front, sink, focus);
         var detection = new MeetingDetection(Windows.VisibleWindows, sink);
-        var frontTimer = new Timer(_ => { try { front.Tick(); } catch { /* the window went away */ } }, null, 250, 250);
+        // Reading a browser's page can take longer than a tick; ticks must not pile up behind it.
+        var looking = 0;
+        var frontTimer = new Timer(_ =>
+        {
+            if (Interlocked.Exchange(ref looking, 1) == 1) return;
+            try { front.Tick(); }
+            catch { /* the window went away */ }
+            finally { Interlocked.Exchange(ref looking, 0); }
+        }, null, 250, 250);
         var detectTimer = new Timer(_ => { try { detection.Tick(); } catch { /* the window list changed */ } }, null, 2000, 2000);
 
         var keys = new WindowsKeys();
@@ -33,6 +41,7 @@ public static class WindowsBackends
             Keyboard = keys,
             Processes = new WindowsProcesses(),
             InstalledApps = new WindowsInstalledApps(),
+            Activator = new WindowsActivator(),
             Focus = focus,
             WatchedFields = focus,
             Inspect = focus,

@@ -54,6 +54,7 @@ public sealed class Router
         if (_keys is not null) list.Add("keys.press");
         if (_processes is not null) list.Add("proc.foreground");
         if (_backends.InstalledApps is not null) list.Add("apps.list");
+        if (_backends.Activator is not null) list.Add("apps.activate");
         if (_context is not null) list.Add("context.snapshot");
         if (_edits is not null) list.Add("edits.watch");
         if (_inspector is not null) list.Add("ax.inspect");
@@ -217,6 +218,8 @@ public sealed class Router
             case "keys.press": return Need(_keys).Press(p);
             case "proc.foreground": return Need(_processes).Foreground();
             case "apps.list": return AppCatalog.Result(Need(_backends.InstalledApps).List());
+            case "apps.activate":
+                return new JsonObject { ["activated"] = Need(_backends.Activator).Activate(Payload.Str(p, "bundleId")) };
             case "context.snapshot": return Need(_context).Snapshot(p);
             case "edits.watch": return Need(_edits).Watch(p);
             case "edits.cancel": return Need(_edits).Cancel();

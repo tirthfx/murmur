@@ -33,6 +33,7 @@ function setup(options: { enabled?: boolean; duration?: FocusDuration } = {}) {
     overlay,
     say,
     activateApp,
+    fallbackApp: "com.apple.finder",
     pressBack,
     ownPid: OWN_PID,
     clock,
