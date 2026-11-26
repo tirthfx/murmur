@@ -187,6 +187,15 @@ public static class SelfTest
             return "select to the end, focused read and copy";
         });
 
+        Check("bringing a window forward", () =>
+        {
+            using var first = new TestWindow("first");
+            using var second = new TestWindow("second");
+            if (!second.Focus()) return "skipped: the test window could not take focus";
+            if (!WindowsActivator.BringForward(first.Handle)) throw new InvalidOperationException("the first window stayed behind");
+            return null;
+        });
+
         Check("processes under the front window", () =>
         {
             var table = new WindowsProcesses();

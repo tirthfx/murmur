@@ -54,6 +54,47 @@ public sealed class WindowsProcesses : IProcessTable
     }
 }
 
+/// <summary>
+/// Brings a program's window forward. Windows lets only the program in front do that, so the
+/// helper joins its input to the front window's for the call.
+/// </summary>
+public sealed class WindowsActivator : IAppActivator
+{
+    public bool Activate(string processName)
+    {
+        var target = IntPtr.Zero;
+        // Windows are listed front to back, so the first match is the one used last.
+        Native.EnumWindows((hwnd, unused) =>
+        {
+            if (!Native.IsWindowVisible(hwnd) || Native.TitleOf(hwnd).Length == 0) return true;
+            if (!string.Equals(Native.ProcessNameOf(hwnd, out _), processName, StringComparison.OrdinalIgnoreCase)) return true;
+            target = hwnd;
+            return false;
+        }, IntPtr.Zero);
+        return target != IntPtr.Zero && BringForward(target);
+    }
+
+    internal static bool BringForward(IntPtr target)
+    {
+        if (Native.IsIconic(target)) Native.ShowWindow(target, Native.SW_RESTORE);
+        var front = Native.GetForegroundWindow();
+        if (front == target) return true;
+        var mine = Native.GetCurrentThreadId();
+        var theirs = front == IntPtr.Zero ? 0 : Native.GetWindowThreadProcessId(front, out _);
+        var joined = theirs != 0 && theirs != mine && Native.AttachThreadInput(mine, theirs, true);
+        try
+        {
+            Native.BringWindowToTop(target);
+            Native.SetForegroundWindow(target);
+        }
+        finally
+        {
+            if (joined) Native.AttachThreadInput(mine, theirs, false);
+        }
+        return Native.GetForegroundWindow() == target;
+    }
+}
+
 /// <summary>The programs the Start menu starts, for the person and for everyone on the PC.</summary>
 public sealed class WindowsInstalledApps : IInstalledApps
 {

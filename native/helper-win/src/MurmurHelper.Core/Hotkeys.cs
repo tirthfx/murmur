@@ -34,8 +34,9 @@ public sealed record HotkeyConfigureResult(IReadOnlyList<string> Registered, IRe
 
 /// <summary>
 /// Turns key presses into hotkey events (the Windows counterpart of the Mac event tap). It only
-/// listens: it never swallows a key. On Windows the key codes are virtual-key codes, and the
-/// left and right Shift, Control, Alt and Windows keys count as one key each.
+/// listens: it never swallows a key. On Windows the key codes are virtual-key codes. As a
+/// modifier of a shortcut, left and right Shift, Control, Alt and Windows count as one key each;
+/// a binding whose key is itself one side's code (Right Ctrl, 0xA3) means that side only.
 /// </summary>
 public sealed class HotkeyEngine : IHotkeyService
 {
@@ -58,7 +59,6 @@ public sealed class HotkeyEngine : IHotkeyService
     private readonly object _gate = new();
     private List<HotkeyBinding> _bindings = new();
     private readonly HashSet<int> _down = new();
-    private readonly HashSet<int> _modifiersDown = new();
     private readonly HashSet<string> _held = new();
     private readonly HashSet<int> _mouseDown = new();
     private TypingCounter? _typing;
@@ -86,6 +86,9 @@ public sealed class HotkeyEngine : IHotkeyService
     };
 
     private static bool IsModifier(int vk) => vk is Shift or Control or Alt or Windows;
+
+    /// <summary>Whether a key is the binding's: its own code, or the code both sides of a modifier share.</summary>
+    private static bool Is(HotkeyBinding binding, int rawVk) => binding.KeyCode == rawVk || binding.KeyCode == Normalize(rawVk);
 
     public HotkeyConfigureResult Configure(IReadOnlyList<HotkeyBinding> bindings)
     {
@@ -127,7 +130,7 @@ public sealed class HotkeyEngine : IHotkeyService
         }
         if (binding.TriggerType != "key")
             return ("UNSUPPORTED_TRIGGER", "The trigger must be a key or a mouse button.");
-        if (binding.KeyCode is < 0 or > 127)
+        if (binding.KeyCode is < 0 or > 255)
             return ("UNSUPPORTED_KEY", "This key code cannot be used.");
         foreach (var modifier in binding.Modifiers)
         {
@@ -171,7 +174,6 @@ public sealed class HotkeyEngine : IHotkeyService
             _bindings = new List<HotkeyBinding>();
             _held.Clear();
             _down.Clear();
-            _modifiersDown.Clear();
             _mouseDown.Clear();
         }
         _listening(false);
@@ -186,12 +188,11 @@ public sealed class HotkeyEngine : IHotkeyService
         {
             if (down)
             {
-                if (!_down.Add(vk)) return; // key repeat
-                if (IsModifier(vk)) _modifiersDown.Add(vk);
-                _typing?.KeyDown(vk, _modifiersDown.Contains(Control), _modifiersDown.Contains(Alt), _modifiersDown.Contains(Windows));
+                if (!_down.Add(rawVk)) return; // key repeat
+                _typing?.KeyDown(vk, Holding(Control), Holding(Alt), Holding(Windows));
                 foreach (var binding in _bindings)
                 {
-                    if (binding.TriggerType == "key" && binding.Exclusive && _held.Contains(binding.Id) && vk != binding.KeyCode
+                    if (binding.TriggerType == "key" && binding.Exclusive && _held.Contains(binding.Id) && !Is(binding, rawVk)
                         && !binding.Modifiers.Any(m => ModifierKeys[m] == vk))
                     {
                         _held.Remove(binding.Id);
@@ -200,7 +201,7 @@ public sealed class HotkeyEngine : IHotkeyService
                 }
                 foreach (var binding in _bindings)
                 {
-                    if (binding.TriggerType != "key" || binding.KeyCode != vk || !ModifiersMatch(binding, vk)) continue;
+                    if (binding.TriggerType != "key" || !Is(binding, rawVk) || !ModifiersMatch(binding, vk)) continue;
                     if (binding.Mode == "hold")
                     {
                         if (_held.Add(binding.Id)) events.Add((binding, "down"));
@@ -213,12 +214,12 @@ public sealed class HotkeyEngine : IHotkeyService
             }
             else
             {
-                _down.Remove(vk);
-                _modifiersDown.Remove(vk);
+                _down.Remove(rawVk);
                 foreach (var binding in _bindings)
                 {
                     if (binding.TriggerType != "key" || !_held.Contains(binding.Id)) continue;
-                    if (binding.KeyCode == vk || binding.Modifiers.Any(m => ModifierKeys[m] == vk))
+                    // A modifier of the shortcut is let go when neither side is held.
+                    if (Is(binding, rawVk) || (!Holding(vk) && binding.Modifiers.Any(m => ModifierKeys[m] == vk)))
                     {
                         _held.Remove(binding.Id);
                         events.Add((binding, "up"));
@@ -261,10 +262,12 @@ public sealed class HotkeyEngine : IHotkeyService
         foreach (var (binding, state) in events) Emit(binding, state);
     }
 
+    private bool Holding(int normalized) => _down.Any(raw => Normalize(raw) == normalized);
+
     private bool ModifiersMatch(HotkeyBinding binding, int triggerVk)
     {
         var wanted = binding.Modifiers.Select(m => ModifierKeys[m]).ToHashSet();
-        var current = _modifiersDown.Where(m => m != triggerVk).ToHashSet();
+        var current = _down.Select(Normalize).Where(m => IsModifier(m) && m != triggerVk).ToHashSet();
         return wanted.SetEquals(current);
     }
 

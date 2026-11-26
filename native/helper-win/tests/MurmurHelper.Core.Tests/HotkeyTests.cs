@@ -90,7 +90,7 @@ public class HotkeyTests
             Bind("ok", KeyA),
             Bind("fn", KeyA, mods: new[] { "fn" }),
             new HotkeyBinding("mouse", "dictate.hold", "mouse", 9, Array.Empty<string>(), "hold", null, false),
-            Bind("high", 200),
+            Bind("high", 300),
             Bind("rw", KeyB, action: "rewrite"),
             Bind("ex", KeyB, "press", exclusive: true),
         });
@@ -120,6 +120,29 @@ public class HotkeyTests
         Assert.Equal(122, binding.KeyCode);
         Assert.Equal(new[] { "shift" }, binding.Modifiers);
         Assert.True(binding.Exclusive);
+    }
+
+    [Fact]
+    public void ARightHandModifierBindingIgnoresTheLeftOne()
+    {
+        var (engine, events, _) = Make();
+        engine.Configure(new[] { Bind("d", 0xA3) }); // Right Ctrl
+        engine.OnKey(0xA2, true); engine.OnKey(0xA2, false);
+        Assert.Empty(events);
+        engine.OnKey(0xA3, true); engine.OnKey(0xA3, true); engine.OnKey(0xA3, false);
+        Assert.Equal(new[] { ("d", "down"), ("d", "up") }, events);
+    }
+
+    [Fact]
+    public void EitherSideModifierHoldsUntilBothAreLetGo()
+    {
+        var (engine, events, _) = Make();
+        engine.Configure(new[] { Bind("d", Space, mods: new[] { "control" }) });
+        engine.OnKey(0xA2, true); engine.OnKey(0xA3, true); engine.OnKey(Space, true);
+        engine.OnKey(0xA2, false);
+        Assert.Equal(new[] { ("d", "down") }, events);
+        engine.OnKey(0xA3, false);
+        Assert.Equal(new[] { ("d", "down"), ("d", "up") }, events);
     }
 
     private static HotkeyBinding Mouse(string id, int button, string mode = "hold", bool exclusive = false) =>

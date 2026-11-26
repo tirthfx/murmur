@@ -247,6 +247,8 @@ export function describePlatformHelperConformance(name: string, options: Conform
         expect(app.bundleId.length).toBeGreaterThan(0);
         expect(app.name.length).toBeGreaterThan(0);
       }
+      // Never a rejection: false when the app is not running, or the helper leaves it to main.
+      expect(await helper.activateApp("app.not.running")).toBe(false);
     });
 
     scenario("context", async ({ helper, setPermission, focusApp, focusTextField }) => {

@@ -21,7 +21,7 @@ describe("hotkey binding schema", () => {
     expect(
       hotkeyBindingSchema.safeParse(withTrigger({ modifiers: ["shift", "shift"] })).success,
     ).toBe(false);
-    expect(hotkeyBindingSchema.safeParse(withTrigger({ keyCode: 128 })).success).toBe(false);
+    expect(hotkeyBindingSchema.safeParse(withTrigger({ keyCode: 256 })).success).toBe(false);
     expect(hotkeyBindingSchema.safeParse({ ...binding, action: "open.everything" }).success).toBe(
       false,
     );

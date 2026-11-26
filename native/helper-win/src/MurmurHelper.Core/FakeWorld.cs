@@ -78,8 +78,16 @@ public sealed class FakeWorld
     }
 
     /// <summary>The selection in the fake text field, the clipboard, and the keys pressed.</summary>
-    public sealed class Desktop(FakeWorld world) : ISelectionPlatform, IKeyboardPlatform, IProcessTable, IInstalledApps
+    public sealed class Desktop(FakeWorld world) : ISelectionPlatform, IKeyboardPlatform, IProcessTable, IInstalledApps, IAppActivator
     {
+        /// <summary>Programs that are running and can be brought forward.</summary>
+        public readonly HashSet<string> Running = new(StringComparer.OrdinalIgnoreCase) { "notepad.exe", "app.one" };
+        public bool Activate(string processName)
+        {
+            if (!Running.Contains(processName)) return false;
+            world.FrontApp = new FrontAppInfo(processName, processName, 100);
+            return true;
+        }
         public string Selected = "";
         /// <summary>What UI Automation answers; null means the field's own selection.</summary>
         public FocusedSelection? Reads;
@@ -242,6 +250,7 @@ public sealed class FakeWorld
         Keyboard = DesktopState,
         Processes = DesktopState,
         InstalledApps = DesktopState,
+        Activator = DesktopState,
         Focus = ReaderState,
         WatchedFields = ReaderState,
         Inspect = ReaderState,

@@ -33,6 +33,7 @@ public static class WindowsBackends
             Keyboard = keys,
             Processes = new WindowsProcesses(),
             InstalledApps = new WindowsInstalledApps(),
+            Activator = new WindowsActivator(),
             Focus = focus,
             WatchedFields = focus,
             Inspect = focus,

@@ -331,3 +331,16 @@ public class AppCatalogTests
         Assert.Equal("Google Chrome", last["name"]!.GetValue<string>());
     }
 }
+
+public class ActivateTests
+{
+    [Theory]
+    [InlineData("NOTEPAD.EXE", true)]
+    [InlineData("missing.exe", false)]
+    public void BringsARunningProgramForward(string program, bool activated)
+    {
+        using var rig = new Rig();
+        Assert.Equal(activated, rig.Call("apps.activate", new JsonObject { ["bundleId"] = program })["activated"]!.GetValue<bool>());
+        Assert.Equal(ErrorCode.InvalidPayload, Rig.Error(rig.Send("apps.activate")));
+    }
+}

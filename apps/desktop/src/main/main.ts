@@ -287,6 +287,7 @@ import {
 } from "./rewrites/rewrite-shortcuts";
 import { createGenerationService, errorCode as generationErrorCode } from "./generation/service";
 import { createAutoRewriter } from "./rewrites/auto-apply";
+import { appKey } from "./apps/app-id";
 import { BROWSERS } from "./styles/app-categories";
 import { createPhraseLearner } from "./dictionary/phrases";
 import { createClipRecorder } from "./dictionary/clips";
@@ -318,6 +319,7 @@ import {
   defaultFocusShortcut,
   defaultRewriteShortcut,
   defaultScratchpadShortcut,
+  fileManagerAppId,
   imageToPngConverter,
   claudeDesktopFolder,
   hostPlatform,
@@ -792,7 +794,7 @@ const settingsStore = createSettingsStore(database, {
   holdShortcut:
     platformDefaults[0]?.trigger.type === "key"
       ? platformDefaults[0].trigger
-      : { type: "key", keyCode: 61, modifiers: [] },
+      : { type: "key", keyCode: 61, modifiers: [] }, // an OS with no defaults has no helper either
   handsFreeShortcut: null,
   rewriteShortcut: defaultRewriteShortcut(hostPlatform()),
   commandShortcut: defaultCommandShortcut(hostPlatform()),
@@ -1173,7 +1175,7 @@ async function workspaceFor(app: {
   windowTitle: string | null;
 }): Promise<string | null> {
   const tools = settingsStore.get().developerTools;
-  if (!tools.fileTags || !app.bundleId || !TAG_EDITORS.has(app.bundleId)) return null;
+  if (!tools.fileTags || !app.bundleId || !TAG_EDITORS.has(appKey(app.bundleId))) return null;
   return findWorkspace(app.windowTitle, tools.codeFolders);
 }
 // Jargon packs (PZ-27): rebuilt only when the pack switches change.
@@ -1277,7 +1279,8 @@ const recorder = createRecorder({
     },
     codingCli: async (app) => {
       const tools = settingsStore.get().developerTools;
-      if (!tools.cliDetection || !app.bundleId || !TERMINALS.has(app.bundleId)) return false;
+      if (!tools.cliDetection || !app.bundleId || !TERMINALS.has(appKey(app.bundleId)))
+        return false;
       const names = await Promise.race([
         helper.foregroundProcesses(),
         new Promise<string[]>((done) => setTimeout(() => done([]), 500)),
@@ -1485,7 +1488,7 @@ const qualityGeneration = createGenerationService({
   modelReady: () => qualityModel.isReady(),
   logger: createConsoleLogger("[generate]"),
 });
-const activateApp = appActivator(hostPlatform());
+const activateApp = appActivator(hostPlatform(), helper);
 const rewriteController = createRewriteController({
   helper,
   rewrites: {
@@ -1629,6 +1632,7 @@ const focus = createFocusController({
     if (message === FOCUS_MESSAGES.ended) notifier.focusEnded();
   },
   activateApp,
+  fallbackApp: fileManagerAppId(hostPlatform()),
   pressBack: async (bundleId) =>
     (await helper.pressKey({ key: "left_bracket", modifiers: ["command"], onlyInApp: bundleId }))
       .pressed,

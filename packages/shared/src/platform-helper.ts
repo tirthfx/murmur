@@ -168,6 +168,11 @@ export interface PlatformHelper {
   /** Installed apps by name, for the blocked list. Empty when they cannot be read. */
   listApps(): Promise<InstalledApp[]>;
   /**
+   * Brings a running app's window forward. False when it could not, and from a helper that does
+   * not do it (the Mac one: main opens the app itself).
+   */
+  activateApp(appId: string): Promise<boolean>;
+  /**
    * HB-56: the focused window of the app in front as rows, or null when the helper cannot
    * (not running, no Accessibility). Values only with `showValues`, never for secure fields.
    */

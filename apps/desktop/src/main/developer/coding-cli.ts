@@ -1,7 +1,9 @@
 // Coding CLI detection (PZ-28): a listed coding assistant running in the terminal in front
 // makes the dictation a Developer one. Checked once per dictation; names are never stored.
 
-/** Terminal apps where detection applies. */
+import { WINDOWS_TERMINALS } from "../apps/app-id";
+
+/** Terminal apps where detection applies; look them up with `appKey`. */
 export const TERMINALS: ReadonlySet<string> = new Set([
   "com.apple.Terminal",
   "com.googlecode.iterm2",
@@ -11,6 +13,7 @@ export const TERMINALS: ReadonlySet<string> = new Set([
   "net.kovidgoyal.kitty",
   "com.github.wez.wezterm",
   "co.zeit.hyper",
+  ...WINDOWS_TERMINALS,
 ]);
 
 /**

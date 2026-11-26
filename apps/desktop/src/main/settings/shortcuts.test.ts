@@ -17,6 +17,8 @@ const mac: KeyPlatform = {
   capsLock: MAC_CAPS_LOCK,
   functionKeys: MAC_FUNCTION_KEYS,
   reserved: MAC_RESERVED,
+  osName: "macOS",
+  modifierHint: "Command, Option, Control or Shift",
   cancelKeyCode: 53,
 };
 
