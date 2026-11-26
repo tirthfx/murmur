@@ -385,6 +385,7 @@ export interface IpcDeps {
   getSettings: () => Promise<SettingsView>;
   updateSettings: (patch: SettingsPatch) => Promise<SettingsView>;
   setShortcut: (slot: ShortcutSlot, key: CapturedKey | null) => Promise<ShortcutResult>;
+  resetShortcuts: (slot: ShortcutSlot | "all") => Promise<ShortcutResult>;
   captureShortcut: (active: boolean) => void;
   getSetupStatus: () => Promise<SetupStatus>;
   downloadSpeechModel: () => Promise<SetupStatus>;
@@ -579,6 +580,8 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.getSettings();
       case IPC_CHANNELS.updateSettings:
         return deps.updateSettings(request.args[0] as SettingsPatch);
+      case IPC_CHANNELS.resetShortcuts:
+        return deps.resetShortcuts(request.args[0] as ShortcutSlot | "all");
       case IPC_CHANNELS.setShortcut:
         return deps.setShortcut(
           request.args[0] as ShortcutSlot,

@@ -88,13 +88,19 @@ export const settingsSchema = z.strictObject({
       .regex(/^[\p{L}\p{N}' ,-]+$/u, "Letters, numbers and spaces only"),
     wakePhraseEnabled: z.boolean(),
   }),
-  /** Extra mouse buttons for push to talk and hands-free; null when unbound (DC-04). */
+  /** Extra mouse buttons and what each does; null when unbound (DC-04). */
   mouseButtons: z
-    .strictObject({ hold: mouseButtonSchema.nullable(), handsFree: mouseButtonSchema.nullable() })
-    .refine(
-      (buttons) => buttons.hold === null || buttons.hold !== buttons.handsFree,
-      "One mouse button cannot do both",
-    ),
+    .strictObject({
+      hold: mouseButtonSchema.nullable(),
+      handsFree: mouseButtonSchema.nullable(),
+      // Absent in values saved before these existed.
+      pressEnter: mouseButtonSchema.nullable().default(null),
+      copyLast: mouseButtonSchema.nullable().default(null),
+    })
+    .refine((buttons) => {
+      const used = Object.values(buttons).filter((button) => button !== null);
+      return new Set(used).size === used.length;
+    }, "One mouse button cannot do two things"),
   /** Suggest dictating after a lot of typing (DC-08). `snoozedUntil` is epoch ms. */
   typingReminder: z.strictObject({
     enabled: z.boolean(),
@@ -192,6 +198,8 @@ export const settingsSchema = z.strictObject({
   /** DC-39: copies the last transcript, and pastes it. Null means no shortcut. */
   copyLastShortcut: hotkeyTriggerSchema.nullable(),
   pasteLastShortcut: hotkeyTriggerSchema.nullable(),
+  /** DC-06: presses Return in the app in front. Null means no shortcut. */
+  pressEnterShortcut: hotkeyTriggerSchema.nullable(),
   /** NT-03: starts a meeting recording, and stops it when pressed again. Null means none. */
   meetingShortcut: hotkeyTriggerSchema.nullable(),
   /** HB-26, HB-34: Scratchpad on or off, and whether a note opens in a new tab. */
@@ -323,6 +331,7 @@ export const SETTING_KEYS: Record<keyof Settings, string> = {
   meetingShortcut: "hotkey.meeting",
   copyLastShortcut: "hotkey.copy_last",
   pasteLastShortcut: "hotkey.paste_last",
+  pressEnterShortcut: "hotkey.press_enter",
   scratchpad: "scratchpad.settings",
   theme: "ui.theme",
   language: "ui.language",
@@ -411,6 +420,7 @@ export const SHORTCUT_SLOTS = [
   "meeting",
   "copyLast",
   "pasteLast",
+  "pressEnter",
 ] as const;
 export type ShortcutSlot = (typeof SHORTCUT_SLOTS)[number];
 
@@ -436,7 +446,10 @@ export const settingsViewSchema = z.strictObject({
     meeting: z.string(),
     copyLast: z.string(),
     pasteLast: z.string(),
+    pressEnter: z.string(),
   }),
+  /** Shortcuts the helper refused to listen for (DC-06). */
+  unavailable: z.array(z.enum(SHORTCUT_SLOTS)),
   /** Null when the helper could not list devices. */
   devices: z.array(audioDeviceSchema).nullable(),
 });

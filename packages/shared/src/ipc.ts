@@ -413,6 +413,7 @@ export const IPC_CHANNELS = {
   getSettings: "settings:get",
   updateSettings: "settings:update",
   setShortcut: "settings:set-shortcut",
+  resetShortcuts: "settings:reset-shortcuts",
   captureShortcut: "settings:capture-shortcut",
   getSetupStatus: "setup:get-status",
   downloadSpeechModel: "setup:download-speech-model",
@@ -652,6 +653,10 @@ export const IPC_CONTRACT = {
   // A null key clears the slot (every slot but push to talk can be cleared).
   [IPC_CHANNELS.setShortcut]: {
     args: z.tuple([z.enum(SHORTCUT_SLOTS), capturedKeySchema.nullable()]),
+    result: shortcutResultSchema,
+  },
+  [IPC_CHANNELS.resetShortcuts]: {
+    args: z.tuple([z.enum([...SHORTCUT_SLOTS, "all"])]),
     result: shortcutResultSchema,
   },
   // Pauses the dictation key while the Hub records a new shortcut.
@@ -1434,6 +1439,7 @@ export interface MurmurApi {
   updateSettings(patch: SettingsPatch): Promise<SettingsView>;
   /** Checks and saves a captured shortcut; the result names the conflict when refused. */
   setShortcut(slot: ShortcutSlot, key: CapturedKey | null): Promise<ShortcutResult>;
+  resetShortcuts(slot: ShortcutSlot | "all"): Promise<ShortcutResult>;
   /** True while the Hub listens for a new shortcut, so the old one does not start dictation. */
   captureShortcut(active: boolean): Promise<void>;
   /** The speech model's state and whatever still blocks dictation. */

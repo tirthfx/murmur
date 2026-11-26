@@ -300,6 +300,7 @@ function setup() {
     downloadSpeechModel,
     getSettings,
     updateSettings,
+    resetShortcuts: vi.fn(),
     setShortcut,
     captureShortcut,
     handle,

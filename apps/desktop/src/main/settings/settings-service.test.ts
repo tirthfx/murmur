@@ -43,6 +43,7 @@ const defaults: Settings = {
   scratchpadShortcut: null,
   copyLastShortcut: null,
   pasteLastShortcut: null,
+  pressEnterShortcut: null,
   meetingShortcut: null,
   scratchpad: { enabled: true, newTab: true },
   theme: "system",
@@ -64,7 +65,7 @@ const defaults: Settings = {
   mcp: DEFAULT_MCP_SETTINGS,
   extensions: DEFAULT_EXTENSIONS_SETTINGS,
   contextAwareness: true,
-  mouseButtons: { hold: null, handsFree: null },
+  mouseButtons: { hold: null, handsFree: null, pressEnter: null, copyLast: null },
   typingReminder: { enabled: true, snoozedUntil: null },
   whisperMode: false,
   memory: { enabled: true, fromDictation: true },
@@ -129,6 +130,7 @@ describe("settings service", () => {
       meeting: "Off",
       copyLast: "Off",
       pasteLast: "Off",
+      pressEnter: "Off",
     });
     expect(view.devices?.[0]?.name).toBe("Desk Mic");
   });
@@ -288,7 +290,10 @@ describe("settings service", () => {
       action: "dictate.toggle",
       mode: "press",
     });
-    const withMouse = { ...defaults, mouseButtons: { hold: 3, handsFree: 4 } };
+    const withMouse = {
+      ...defaults,
+      mouseButtons: { hold: 3, handsFree: 4, pressEnter: null, copyLast: null },
+    };
     expect(bindingsFor(withMouse).slice(1)).toEqual([
       {
         id: "dictate-hold-mouse",
@@ -398,5 +403,22 @@ describe("copy and paste last transcript bindings (DC-39)", () => {
       ]),
     );
     expect(bindingsFor(defaults).map((binding) => binding.id)).not.toContain("paste-last");
+  });
+});
+
+describe("press Enter and the extra mouse buttons (DC-04, DC-06)", () => {
+  it("binds each as a press", () => {
+    const bindings = bindingsFor({
+      ...defaults,
+      pressEnterShortcut: { type: "key", keyCode: 105, modifiers: [] },
+      mouseButtons: { hold: null, handsFree: null, pressEnter: 3, copyLast: 4 },
+    });
+    expect(bindings.filter((binding) => binding.action === "press.enter")).toHaveLength(2);
+    expect(bindings).toContainEqual({
+      id: "copy-last-mouse",
+      action: "copy.last",
+      trigger: { type: "mouse", button: 4 },
+      mode: "press",
+    });
   });
 });

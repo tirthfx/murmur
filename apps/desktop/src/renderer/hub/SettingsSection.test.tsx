@@ -105,7 +105,9 @@ describe("Settings section", () => {
     fireEvent.mouseDown(window, { button: 2 });
     expect(api.updateSettings).not.toHaveBeenCalled();
     fireEvent.mouseDown(window, { button: 3 });
-    expect(api.updateSettings).toHaveBeenCalledWith({ mouseButtons: { hold: 3, handsFree: null } });
+    expect(api.updateSettings).toHaveBeenCalledWith({
+      mouseButtons: { hold: 3, handsFree: null, pressEnter: null, copyLast: null },
+    });
     expect(api.captureShortcut).toHaveBeenLastCalledWith(false);
   });
 

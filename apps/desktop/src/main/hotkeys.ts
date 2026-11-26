@@ -30,6 +30,8 @@ export interface HotkeyService {
   start(): void;
   stop(): void;
   getState(): HotkeyServiceState;
+  /** Binding ids the helper refused the last time it was configured. */
+  rejected(): string[];
   /** Retries after a missing permission once a status check shows it granted. */
   handlePermissions(statuses: PermissionSnapshot): void;
   /** Key events for the features that act on them. */
@@ -58,6 +60,7 @@ export function createHotkeyService(deps: HotkeyServiceDeps): HotkeyService {
   const { helper, logger } = deps;
   let bindings = [...deps.bindings];
   let paused = false;
+  let refused: string[] = [];
   const now = deps.now ?? Date.now;
   let state: HotkeyServiceState = "off";
   let generation = 0;
@@ -72,6 +75,8 @@ export function createHotkeyService(deps: HotkeyServiceDeps): HotkeyService {
     helper.configureHotkeys(active).then(
       (result) => {
         if (attempt !== generation) return;
+        // While paused nothing is sent, so the last real answer stands.
+        if (!paused) refused = result.rejected.map((rejection) => rejection.id);
         for (const rejection of result.rejected) {
           logger.warn(`binding ${rejection.id} rejected (${rejection.code}): ${rejection.message}`);
         }
@@ -141,6 +146,7 @@ export function createHotkeyService(deps: HotkeyServiceDeps): HotkeyService {
       state = "off";
     },
     getState: () => state,
+    rejected: () => [...refused],
     setBindings(next) {
       bindings = [...next];
       if (subscriptions.length > 0 && helper.getStatus().state === "ready") configure();

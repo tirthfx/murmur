@@ -802,7 +802,7 @@ const dataDeleter =
     : null;
 
 const platformDefaults = defaultHotkeyBindings(hostPlatform());
-const settingsStore = createSettingsStore(database, {
+const settingsDefaults: Settings = {
   holdShortcut:
     platformDefaults[0]?.trigger.type === "key"
       ? platformDefaults[0].trigger
@@ -820,6 +820,7 @@ const settingsStore = createSettingsStore(database, {
   meetingShortcut: null,
   copyLastShortcut: defaultCopyLastShortcut(hostPlatform()),
   pasteLastShortcut: defaultPasteLastShortcut(hostPlatform()),
+  pressEnterShortcut: null,
   scratchpad: { enabled: true, newTab: true },
   theme: "system",
   language: "en",
@@ -848,7 +849,7 @@ const settingsStore = createSettingsStore(database, {
   insights: { typingWpm: INSIGHTS_LIMITS.typingWpm.default },
   profile: { displayName: "", showOnHome: true },
   contextAwareness: true,
-  mouseButtons: { hold: null, handsFree: null },
+  mouseButtons: { hold: null, handsFree: null, pressEnter: null, copyLast: null },
   typingReminder: { enabled: true, snoozedUntil: null },
   whisperMode: false,
   memory: { enabled: true, fromDictation: true },
@@ -872,7 +873,8 @@ const settingsStore = createSettingsStore(database, {
     askConnectorActions: false,
     slackTagging: false,
   },
-});
+};
+const settingsStore = createSettingsStore(database, settingsDefaults);
 const keys = keyPlatform(hostPlatform());
 /** Plan gates (RW-22): read on every action, so a plan change applies at once. */
 const allows = (feature: PlanFeature) => planAllows(settingsStore.get().plan, feature);
@@ -928,6 +930,8 @@ const settingsService = createSettingsService({
   store: settingsStore,
   platform: keys,
   listDevices: () => helper.listAudioDevices(),
+  defaults: settingsDefaults,
+  rejected: () => hotkeys.rejected(),
   otherShortcuts: () => rewriteShortcutsInUse(rewrites?.list() ?? []),
 });
 const bindingsNow = () =>
@@ -1886,6 +1890,13 @@ hotkeys.onEvent((event) => {
   if (event.action === "copy.last" || event.action === "paste.last") {
     if (event.state === "up") return;
     void (event.action === "copy.last" ? lastTranscript.copy() : lastTranscript.paste());
+    return;
+  }
+  if (event.action === "press.enter") {
+    if (event.state !== "up")
+      void helper.pressKey({ key: "return", modifiers: [] }).catch((error: unknown) => {
+        console.warn(`[hotkeys] could not press Return: ${String(error)}`);
+      });
     return;
   }
   if (event.action === "focus.toggle") {
@@ -4533,6 +4544,7 @@ function registerIpc(): void {
     getSettings: () => settingsService.view(),
     updateSettings: (patch) => settingsService.update(patch),
     setShortcut: (slot, key) => settingsService.setShortcut(slot, key),
+    resetShortcuts: (slot) => settingsService.resetShortcuts(slot),
     captureShortcut: (active) => hotkeys.setPaused(active),
     getSetupStatus: async () => ({ model: modelDownload.status(), blockers: blockersNow() }),
     micCheckStart: () => micCheck.start(),
