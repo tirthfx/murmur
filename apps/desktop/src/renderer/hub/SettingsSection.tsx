@@ -2,7 +2,7 @@ import { microphoneChoices } from "./microphone-choices";
 import { RetentionLog } from "./RetentionLog";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { TextArea } from "@astryxdesign/core/TextArea";
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { Banner } from "@astryxdesign/core/Banner";
 import { Button } from "@astryxdesign/core/Button";
 import { Text } from "@astryxdesign/core/Text";
@@ -38,6 +38,7 @@ import {
   type Skill,
   type SettingsPatch,
   type SettingsView,
+  type ResettableSetting,
   type ShortcutSlot,
 } from "@murmur/shared";
 import { CommandModeSection } from "./CommandModeSection";
@@ -179,10 +180,54 @@ const CLEANUP_LABELS: Record<(typeof SETTINGS_CLEANUP_LEVELS)[number], string> =
 };
 
 /** One setting's row: search (HB-12) scrolls to it by its id. */
+/** How long "Saved" shows. */
+const SAVED_MS = 2000;
+
+/** HB-12: what a row can put back to default, by its id. */
+const ROW_SETTINGS: Partial<Record<string, ResettableSetting[]>> = {
+  "app-language": ["language"],
+  notifications: ["notifications"],
+  cleanup: ["cleanupLevel"],
+  "press-enter": ["pressEnterCommand"],
+  "session-limit": ["sessionLimitMinutes"],
+  "smart-formatting": ["smartFormatting"],
+  insertion: ["insertion"],
+  context: ["contextAwareness"],
+  "typing-reminder": ["typingReminder"],
+  "creator-mode": ["creatorMode"],
+  sounds: ["sounds", "soundVolume"],
+  mute: ["muteWhileDictating"],
+  scratchpad: ["scratchpad"],
+  languages: ["languages"],
+  microphone: ["inputDevice"],
+  "microphone-list": ["microphones"],
+  "silent-warning": ["silentWarning"],
+  whisper: ["whisperMode"],
+};
+
+const RowReset = createContext<{
+  changed: readonly string[];
+  reset: (keys: ResettableSetting[]) => void;
+}>({ changed: [], reset: () => undefined });
+
 function Row({ id, children }: { id: string; children: ReactNode }) {
+  const { changed, reset } = useContext(RowReset);
+  const keys = ROW_SETTINGS[id] ?? [];
   return (
     <div data-setting={id} className="hub-setting-row">
       {children}
+      {keys.some((key) => changed.includes(key)) ? (
+        <div>
+          <Button
+            size="sm"
+            variant="ghost"
+            label={`Put ${id.replace(/-/g, " ")} back to the default`}
+            onClick={() => reset(keys)}
+          >
+            Reset to default
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -210,6 +255,13 @@ export function SettingsSection({
     [onView],
   );
   const [problem, setProblem] = useState<string | null>(null);
+  // HB-12: "Saved" for a moment after a change.
+  const [savedAt, setSavedAt] = useState<number | null>(null);
+  useEffect(() => {
+    if (savedAt === null) return;
+    const timer = setTimeout(() => setSavedAt(null), SAVED_MS);
+    return () => clearTimeout(timer);
+  }, [savedAt]);
   const [skills, setSkills] = useState<Skill[]>([]);
   const [folders, setFolders] = useState<MeetingFolder[]>([]);
   const [retentionDue, setRetentionDue] = useState<MeetingRetentionDue | null>(null);
@@ -247,9 +299,25 @@ export function SettingsSection({
 
   const update = useCallback(
     (patch: SettingsPatch) => {
-      window.murmur
-        .updateSettings(patch)
-        .then(setView, () => setProblem("The setting could not be saved."));
+      window.murmur.updateSettings(patch).then(
+        (next) => {
+          setView(next);
+          setSavedAt(Date.now());
+        },
+        () => setProblem("The setting could not be saved."),
+      );
+    },
+    [setView],
+  );
+  const reset = useCallback(
+    (keys: ResettableSetting[]) => {
+      window.murmur.resetSettings(keys).then(
+        (next) => {
+          setView(next);
+          setSavedAt(Date.now());
+        },
+        () => setProblem("The setting could not be reset."),
+      );
     },
     [setView],
   );
@@ -1580,9 +1648,16 @@ export function SettingsSection({
   };
 
   return (
-    <VStack gap={4} className="hub-settings">
-      {pages[page]()}
-      {problem ? <Banner status="error" title={problem} /> : null}
-    </VStack>
+    <RowReset.Provider value={{ changed: view.changed, reset }}>
+      <VStack gap={4} className="hub-settings">
+        {pages[page]()}
+        {problem ? <Banner status="error" title={problem} /> : null}
+        {savedAt !== null ? (
+          <div className="hub-saved" role="status">
+            Saved
+          </div>
+        ) : null}
+      </VStack>
+    </RowReset.Provider>
   );
 }

@@ -135,6 +135,7 @@ export const SAMPLE_SETTINGS: SettingsView = {
     recap: "Off",
   },
   unavailable: [],
+  changed: [],
   devices: [
     {
       id: "BuiltIn",
@@ -623,6 +624,7 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
     openPermissionSettings: vi.fn().mockResolvedValue(undefined),
     getSettings: vi.fn().mockResolvedValue(SAMPLE_SETTINGS),
     updateSettings: vi.fn().mockResolvedValue(SAMPLE_SETTINGS),
+    resetSettings: vi.fn(),
     resetShortcuts: vi.fn(),
     setShortcut: vi.fn().mockResolvedValue({ ok: true, view: SAMPLE_SETTINGS }),
     captureShortcut: vi.fn().mockResolvedValue(undefined),

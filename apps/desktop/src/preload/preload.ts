@@ -87,6 +87,7 @@ const api: MurmurApi = {
   getSettings: () => ipcRenderer.invoke(IPC_CHANNELS.getSettings),
   updateSettings: (patch) => ipcRenderer.invoke(IPC_CHANNELS.updateSettings, patch),
   setShortcut: (slot, key) => ipcRenderer.invoke(IPC_CHANNELS.setShortcut, slot, key),
+  resetSettings: (keys) => ipcRenderer.invoke(IPC_CHANNELS.resetSettings, keys),
   resetShortcuts: (slot) => ipcRenderer.invoke(IPC_CHANNELS.resetShortcuts, slot),
   captureShortcut: (active) => ipcRenderer.invoke(IPC_CHANNELS.captureShortcut, active),
   getSetupStatus: () => ipcRenderer.invoke(IPC_CHANNELS.getSetupStatus),

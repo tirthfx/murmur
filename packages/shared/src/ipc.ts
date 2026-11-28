@@ -242,6 +242,8 @@ import {
   type ShortcutResult,
   type ShortcutSlot,
   SHORTCUT_SLOTS,
+  RESETTABLE_SETTINGS,
+  type ResettableSetting,
 } from "./settings";
 import {
   CONTACT_LIMITS,
@@ -404,6 +406,7 @@ export const IPC_CHANNELS = {
   updateSettings: "settings:update",
   setShortcut: "settings:set-shortcut",
   resetShortcuts: "settings:reset-shortcuts",
+  resetSettings: "settings:reset",
   captureShortcut: "settings:capture-shortcut",
   getSetupStatus: "setup:get-status",
   downloadSpeechModel: "setup:download-speech-model",
@@ -630,6 +633,10 @@ export const IPC_CONTRACT = {
   [IPC_CHANNELS.setShortcut]: {
     args: z.tuple([z.enum(SHORTCUT_SLOTS), capturedKeySchema.nullable()]),
     result: shortcutResultSchema,
+  },
+  [IPC_CHANNELS.resetSettings]: {
+    args: z.tuple([z.array(z.enum(RESETTABLE_SETTINGS)).min(1).max(RESETTABLE_SETTINGS.length)]),
+    result: settingsViewSchema,
   },
   [IPC_CHANNELS.resetShortcuts]: {
     args: z.tuple([z.enum([...SHORTCUT_SLOTS, "all"])]),
@@ -1391,6 +1398,8 @@ export interface MurmurApi {
   /** Checks and saves a captured shortcut; the result names the conflict when refused. */
   setShortcut(slot: ShortcutSlot, key: CapturedKey | null): Promise<ShortcutResult>;
   resetShortcuts(slot: ShortcutSlot | "all"): Promise<ShortcutResult>;
+  /** HB-12: puts these settings back to their defaults. */
+  resetSettings(keys: ResettableSetting[]): Promise<SettingsView>;
   /** True while the Hub listens for a new shortcut, so the old one does not start dictation. */
   captureShortcut(active: boolean): Promise<void>;
   /** The speech model's state and whatever still blocks dictation. */

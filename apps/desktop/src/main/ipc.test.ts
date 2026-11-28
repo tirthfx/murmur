@@ -200,6 +200,7 @@ function setup() {
     openPermissionSettings,
     getSettings,
     updateSettings,
+    resetSettings: vi.fn(),
     resetShortcuts: vi.fn(),
     setShortcut,
     captureShortcut,

@@ -36,6 +36,8 @@ export interface SettingsService {
   view(): Promise<SettingsView>;
   update(patch: SettingsPatch): Promise<SettingsView>;
   setShortcut(slot: ShortcutSlot, key: CapturedKey | null): Promise<ShortcutResult>;
+  /** HB-12: puts settings back to their defaults. */
+  reset(keys: readonly (keyof Settings)[]): Promise<SettingsView>;
   /** Back to the default for one shortcut, or for all of them (DC-06). */
   resetShortcuts(slot: ShortcutSlot | "all"): Promise<ShortcutResult>;
 }
@@ -237,6 +239,15 @@ export function wantsLatinHindi(settings: Settings): boolean {
 export function createSettingsService(deps: SettingsServiceDeps): SettingsService {
   const { store, platform } = deps;
 
+  /** The settings that differ from their defaults. */
+  const changed = (settings: Settings): string[] => {
+    const { defaults } = deps;
+    if (!defaults) return [];
+    return (Object.keys(defaults) as (keyof Settings)[]).filter(
+      (key) => JSON.stringify(settings[key]) !== JSON.stringify(defaults[key]),
+    );
+  };
+
   async function view(): Promise<SettingsView> {
     const settings = store.get();
     const hold = platform.label(settings.holdShortcut);
@@ -270,6 +281,7 @@ export function createSettingsService(deps: SettingsServiceDeps): SettingsServic
       },
       unavailable: (deps.rejected?.() ?? []).flatMap((id) => BINDING_SLOTS[id] ?? []),
       devices,
+      changed: changed(settings),
     };
   }
 
@@ -277,6 +289,14 @@ export function createSettingsService(deps: SettingsServiceDeps): SettingsServic
     view,
     async update(patch) {
       store.update(patch);
+      return view();
+    },
+    async reset(keys) {
+      const { defaults } = deps;
+      if (defaults) {
+        const patch = Object.fromEntries(keys.map((key) => [key, defaults[key]]));
+        store.update(patch as SettingsPatch);
+      }
       return view();
     },
     async resetShortcuts(slot) {

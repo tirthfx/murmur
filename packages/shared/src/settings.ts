@@ -491,6 +491,8 @@ export const settingsViewSchema = z.strictObject({
   unavailable: z.array(z.enum(SHORTCUT_SLOTS)),
   /** Null when the helper could not list devices. */
   devices: z.array(audioDeviceSchema).nullable(),
+  /** HB-12: the settings that are not at their default, which can be put back. */
+  changed: z.array(z.string()).default([]),
 });
 export type SettingsView = z.infer<typeof settingsViewSchema>;
 
@@ -499,3 +501,27 @@ export const shortcutResultSchema = z.discriminatedUnion("ok", [
   z.strictObject({ ok: z.literal(false), message: z.string() }),
 ]);
 export type ShortcutResult = z.infer<typeof shortcutResultSchema>;
+
+/** HB-12: the settings that a row of the Settings page can put back to their default. */
+export const RESETTABLE_SETTINGS = [
+  "language",
+  "notifications",
+  "cleanupLevel",
+  "pressEnterCommand",
+  "sessionLimitMinutes",
+  "smartFormatting",
+  "insertion",
+  "contextAwareness",
+  "typingReminder",
+  "creatorMode",
+  "sounds",
+  "soundVolume",
+  "muteWhileDictating",
+  "scratchpad",
+  "languages",
+  "inputDevice",
+  "microphones",
+  "silentWarning",
+  "whisperMode",
+] as const satisfies readonly (keyof Settings)[];
+export type ResettableSetting = (typeof RESETTABLE_SETTINGS)[number];

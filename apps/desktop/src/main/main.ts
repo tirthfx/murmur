@@ -4595,6 +4595,7 @@ function registerIpc(): void {
     getSettings: () => settingsService.view(),
     updateSettings: (patch) => settingsService.update(patch),
     setShortcut: (slot, key) => settingsService.setShortcut(slot, key),
+    resetSettings: (keys) => settingsService.reset(keys),
     resetShortcuts: (slot) => settingsService.resetShortcuts(slot),
     captureShortcut: (active) => hotkeys.setPaused(active),
     getSetupStatus: async () => ({ model: modelDownload.status(), blockers: blockersNow() }),
