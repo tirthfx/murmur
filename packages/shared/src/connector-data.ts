@@ -118,3 +118,9 @@ export interface ConnectorDataStatus {
   /** Milliseconds of the last read; null when never. */
   readAt: number | null;
 }
+
+/** CN-06: a Notion page that can be attached to a meeting as a link. */
+export interface LinkablePage {
+  title: string;
+  url: string;
+}

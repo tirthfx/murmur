@@ -1,3 +1,4 @@
+import { StyleInstructions } from "./StyleInstructions";
 import { useEffect, useState } from "react";
 import { Banner } from "@astryxdesign/core/Banner";
 import { Button } from "@astryxdesign/core/Button";
@@ -167,6 +168,7 @@ export function MyVoicePage() {
       ) : (
         <Banner status="error" title="The voice profile could not be read." />
       )}
+      <StyleInstructions />
     </VStack>
   );
 }

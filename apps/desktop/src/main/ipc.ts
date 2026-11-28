@@ -21,6 +21,7 @@ import {
   type MeetingFolder,
   type MeetingRecapResult,
   type MeetingRetentionDue,
+  type LinkablePage,
   type RetentionLogEntry,
   type TranscriptImportConfirmInput,
   type TranscriptImportConfirmResult,
@@ -102,6 +103,7 @@ import {
   type HelperStatus,
   type SettingsPatch,
   type SettingsView,
+  type ResettableSetting,
   type SetupStatus,
   type MicCheckResult,
   type MicCheckStartResult,
@@ -288,6 +290,7 @@ export interface IpcDeps {
   meetingCorrectionRevert: (meetingId: string, correctionId: number) => RevertResult;
   meetingDelete: (id: string) => void;
   meetingNotesSave: (id: string, body: string) => boolean;
+  notionPages: () => LinkablePage[];
   meetingDocAddLink: (id: string, url: string, title: string) => MeetingDocResult;
   meetingDocAddFile: (id: string) => Promise<MeetingDocResult>;
   meetingDocOpen: (docId: string) => Promise<void>;
@@ -357,6 +360,7 @@ export interface IpcDeps {
   getSettings: () => Promise<SettingsView>;
   updateSettings: (patch: SettingsPatch) => Promise<SettingsView>;
   setShortcut: (slot: ShortcutSlot, key: CapturedKey | null) => Promise<ShortcutResult>;
+  resetSettings: (keys: ResettableSetting[]) => Promise<SettingsView>;
   resetShortcuts: (slot: ShortcutSlot | "all") => Promise<ShortcutResult>;
   captureShortcut: (active: boolean) => void;
   getSetupStatus: () => Promise<SetupStatus>;
@@ -554,6 +558,8 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.getSettings();
       case IPC_CHANNELS.updateSettings:
         return deps.updateSettings(request.args[0] as SettingsPatch);
+      case IPC_CHANNELS.resetSettings:
+        return deps.resetSettings(request.args[0] as ResettableSetting[]);
       case IPC_CHANNELS.resetShortcuts:
         return deps.resetShortcuts(request.args[0] as ShortcutSlot | "all");
       case IPC_CHANNELS.setShortcut:
@@ -915,6 +921,8 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.meetingDelete(request.args[0] as string);
       case IPC_CHANNELS.meetingNotesSave:
         return deps.meetingNotesSave(request.args[0] as string, request.args[1] as string);
+      case IPC_CHANNELS.notionPages:
+        return deps.notionPages();
       case IPC_CHANNELS.meetingDocAddLink:
         return deps.meetingDocAddLink(
           request.args[0] as string,

@@ -28,7 +28,7 @@ import {
   type TranscriptImportPreviewResult,
 } from "./transcript-import";
 import type { ConnectorActionResult, ConnectorsView } from "./connectors";
-import type { ConnectorDataStatus, ConnectorOptionsResult } from "./connector-data";
+import type { ConnectorDataStatus, ConnectorOptionsResult, LinkablePage } from "./connector-data";
 import type { RecordingsResult } from "./connector-import";
 import type { AskActionResult } from "./ask-actions";
 import { askActionRequestSchema, type AskActionRequest } from "./ask-actions";
@@ -242,6 +242,8 @@ import {
   type ShortcutResult,
   type ShortcutSlot,
   SHORTCUT_SLOTS,
+  RESETTABLE_SETTINGS,
+  type ResettableSetting,
 } from "./settings";
 import {
   CONTACT_LIMITS,
@@ -404,6 +406,7 @@ export const IPC_CHANNELS = {
   updateSettings: "settings:update",
   setShortcut: "settings:set-shortcut",
   resetShortcuts: "settings:reset-shortcuts",
+  resetSettings: "settings:reset",
   captureShortcut: "settings:capture-shortcut",
   getSetupStatus: "setup:get-status",
   downloadSpeechModel: "setup:download-speech-model",
@@ -470,6 +473,7 @@ export const IPC_CHANNELS = {
   meetingDelete: "meetings:delete",
   meetingNotesSave: "meetings:notes-save",
   meetingDocAddLink: "meetings:doc-add-link",
+  notionPages: "meetings:notion-pages",
   meetingDocAddFile: "meetings:doc-add-file",
   meetingDocOpen: "meetings:doc-open",
   meetingDocRemove: "meetings:doc-remove",
@@ -629,6 +633,10 @@ export const IPC_CONTRACT = {
   [IPC_CHANNELS.setShortcut]: {
     args: z.tuple([z.enum(SHORTCUT_SLOTS), capturedKeySchema.nullable()]),
     result: shortcutResultSchema,
+  },
+  [IPC_CHANNELS.resetSettings]: {
+    args: z.tuple([z.array(z.enum(RESETTABLE_SETTINGS)).min(1).max(RESETTABLE_SETTINGS.length)]),
+    result: settingsViewSchema,
   },
   [IPC_CHANNELS.resetShortcuts]: {
     args: z.tuple([z.enum([...SHORTCUT_SLOTS, "all"])]),
@@ -1340,6 +1348,7 @@ export const IPC_CONTRACT = {
     args: z.tuple([meetingIdArg, z.string().max(200_000)]),
     result: z.boolean(),
   },
+  [IPC_CHANNELS.notionPages]: { args: z.tuple([]), result: z.custom<LinkablePage[]>() },
   [IPC_CHANNELS.meetingDocAddLink]: {
     args: z.tuple([meetingIdArg, z.string().max(2048), z.string().max(200)]),
     result: z.custom<MeetingDocResult>(),
@@ -1389,6 +1398,8 @@ export interface MurmurApi {
   /** Checks and saves a captured shortcut; the result names the conflict when refused. */
   setShortcut(slot: ShortcutSlot, key: CapturedKey | null): Promise<ShortcutResult>;
   resetShortcuts(slot: ShortcutSlot | "all"): Promise<ShortcutResult>;
+  /** HB-12: puts these settings back to their defaults. */
+  resetSettings(keys: ResettableSetting[]): Promise<SettingsView>;
   /** True while the Hub listens for a new shortcut, so the old one does not start dictation. */
   captureShortcut(active: boolean): Promise<void>;
   /** The speech model's state and whatever still blocks dictation. */
@@ -1772,6 +1783,8 @@ export interface MurmurApi {
   /** NT-10: saves My notes; false when they are too long. */
   meetingNotesSave(id: string, body: string): Promise<boolean>;
   meetingDocAddLink(id: string, url: string, title: string): Promise<MeetingDocResult>;
+  /** CN-06: the Notion pages read from the connected account, newest first. */
+  notionPages(): Promise<LinkablePage[]>;
   /** Asks for a file and copies it into the meeting. */
   meetingDocAddFile(id: string): Promise<MeetingDocResult>;
   meetingDocOpen(docId: string): Promise<void>;

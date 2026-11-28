@@ -126,8 +126,15 @@ export type Page = (typeof PAGES)[number];
 export type PageFeatures = Partial<Record<PageFeature, boolean>>;
 
 /** The pages shown in the sidebar. */
-export function visiblePages(features: PageFeatures): Page[] {
-  return PAGES.filter((page) => !("feature" in page) || features[page.feature] !== false);
+export function visiblePages(features: PageFeatures, creatorMode = false): Page[] {
+  const pages: Page[] = PAGES.filter(
+    (page) => !("feature" in page) || features[page.feature] !== false,
+  );
+  if (!creatorMode) return pages;
+  // HB-13: the writing pages come straight after Home.
+  const lead = ["scratchpad", "rewrites"].flatMap((id) => pages.filter((page) => page.id === id));
+  const rest = pages.filter((page) => !lead.includes(page));
+  return [...rest.slice(0, 1), ...lead, ...rest.slice(1)];
 }
 
 /** The page to show for a requested id: Home for an unknown or hidden page. */

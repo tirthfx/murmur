@@ -16,3 +16,13 @@ describe("pages", () => {
     expect(pageFromHash("")).toBeNull();
   });
 });
+
+describe("Creator mode (HB-13)", () => {
+  it("brings the writing pages to the top and changes nothing else", () => {
+    const usual = visiblePages({}).map((page) => page.id);
+    const creator = visiblePages({}, true).map((page) => page.id);
+    expect(creator.slice(0, 3)).toEqual(["home", "scratchpad", "rewrites"]);
+    expect([...creator].sort()).toEqual([...usual].sort());
+    expect(visiblePages({ scratchpad: false }, true)[1]!.id).toBe("rewrites");
+  });
+});

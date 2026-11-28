@@ -88,7 +88,7 @@ function setup(options: { reads?: (SelectionResult | Error)[] } = {}) {
     activateApp,
     context: () => ({ style: ["Casual."], memory: [], samples: [] }),
     clipboardFirstInApps: () => ["com.google.Chrome"],
-    insertRules: () => ({ typeInApps: [] }),
+    insertRules: () => ({ typeInApps: [], pasteInApps: [] }),
     logger: createTestLogger(),
     sleep: async () => {},
   });
@@ -207,6 +207,7 @@ describe("rewrite controller", () => {
       restoreClipboard: true,
       restoreDelayMs: 350,
       typeInApps: [],
+      pasteInApps: [],
     });
     expect(notify).toHaveBeenCalledWith("Replaced");
     expect(runs.recent(1)[0]).toMatchObject({

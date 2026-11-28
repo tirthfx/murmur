@@ -1,3 +1,4 @@
+import { NotionPagePicker } from "./NotionPagePicker";
 import { BulkSpeaker } from "./BulkSpeaker";
 import { RecordingLevels } from "./RecordingLevels";
 import { ContactsPanel } from "./ContactsPanel";
@@ -356,6 +357,7 @@ function Docs({ detail, onChange }: { detail: MeetingDetail; onChange: () => voi
 
   return (
     <VStack gap={3}>
+      <NotionPagePicker meetingId={id} onAdded={onChange} />
       {detail.docs.length === 0 ? (
         <Text color="secondary">
           Links and files for this meeting. Files are copied into the meeting, so they stay when the

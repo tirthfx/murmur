@@ -342,7 +342,7 @@ import {
   wantsLatinHindi,
 } from "./settings/settings-service";
 import { createSettingsStore } from "./settings/settings-store";
-import { createRecorder, type DictationRecord, type RecorderEvent } from "./recorder";
+import { CANCELLED, createRecorder, type DictationRecord, type RecorderEvent } from "./recorder";
 import { createSessionEffects } from "./media/session-effects";
 import { createSpeechService } from "./speech/speech-service";
 import { checkModel, downloadModel, modelLocation } from "./speech/model-store";
@@ -744,7 +744,7 @@ function checkMilestones(announce: boolean): void {
     console.log(`[milestones] reached: ${reached.join(", ")}`);
     if (!announce) return;
     bar.dispatch({ type: "warn", message: `Milestone: ${milestoneTitle(newest)}` });
-    effects.sound("success");
+    effects.sound("milestone");
     notifier.milestone(milestoneTitle(newest));
   } catch (error) {
     console.warn(`[milestones] could not check: ${String(error)}`);
@@ -822,7 +822,7 @@ const settingsDefaults: Settings = {
   privacy: DEFAULT_PRIVACY,
   planState: DEFAULT_PLAN_STATE,
   devMode: DEFAULT_DEVELOPER,
-  help: { tours: {} },
+  help: { tours: {}, offerTours: true },
   referral: { code: "", invites: 0 },
   notetaker: DEFAULT_NOTETAKER,
   connectors: DEFAULT_CONNECTOR_SETTINGS,
@@ -836,6 +836,8 @@ const settingsDefaults: Settings = {
   muteWhileDictating: false,
   setupComplete: false,
   pressEnterCommand: true,
+  creatorMode: false,
+  microphones: { showVirtual: true, routeFallback: true },
   sessionLimitMinutes: SESSION_LIMIT_DEFAULT,
   smartFormatting: true,
   bar: DEFAULT_BAR,
@@ -1065,7 +1067,8 @@ const effects = createSessionEffects({
   settings: () => settingsStore.get(),
   playSound: (name) => {
     smokeChecks?.handleSound(name);
-    barWindow.sound(name, settingsStore.get().soundVolume / 100);
+    const { soundVolume, sounds } = settingsStore.get();
+    barWindow.sound(name, soundVolume / 100, sounds.set);
   },
   helper,
   marker: {
@@ -1236,6 +1239,7 @@ const recorder = createRecorder({
   },
   pressEnterCommand: () => settingsStore.get().pressEnterCommand,
   silentWarning: () => settingsStore.get().silentWarning,
+  routeFallback: () => settingsStore.get().microphones.routeFallback,
   formatting: () => {
     const { cleanupLevel, smartFormatting } = nextSession.settings();
     return {
@@ -1302,6 +1306,8 @@ const recorder = createRecorder({
     // HB-48: with Store history off, no dictation row is written; Insights keep counts only.
     const storeHistory = settingsStore.get().privacy.storeHistory;
     const id = storeHistory ? (history?.add(dictation) ?? null) : null;
+    // A cancelled dictation is listed, and counts for nothing else.
+    if (dictation.errorCode === CANCELLED) return id;
     try {
       insights?.record({
         createdAt: dictation.createdAt,
@@ -3126,6 +3132,14 @@ function createTray(): void {
     listDevices: () => helper.listAudioDevices(),
     lastTranscript: () => lastTranscript.read(),
     pasteLast: () => void lastTranscript.paste(),
+    draftFromLast: () => {
+      const text = history?.lastText() ?? null;
+      if (!notes || text === null) {
+        bar.dispatch({ type: "warn", message: NOTE_MESSAGES.noDictation });
+        return;
+      }
+      openScratchpad(notes.create(text).id);
+    },
     openHub: () => openHubPage("home"),
     paused: () => dictationPaused,
     setPaused: (paused) => {
@@ -4332,6 +4346,12 @@ function registerIpc(): void {
     },
     meetingDelete: deleteMeeting,
     meetingNotesSave: (id, body) => meetingNotes?.saveNotes(id, body) ?? false,
+    notionPages: () =>
+      featureOn("notion-links")
+        ? (connectorData?.items({ connector: "notion" }) ?? []).flatMap((item) =>
+            item.url ? [{ title: item.title, url: item.url }] : [],
+          )
+        : [],
     meetingDocAddLink: (id, url, title) => {
       if (!meetingsStore?.get(id) || !meetingNotes) return { ok: false, message: "No meeting." };
       const result = meetingNotes.addLink(id, url, title);
@@ -4575,6 +4595,7 @@ function registerIpc(): void {
     getSettings: () => settingsService.view(),
     updateSettings: (patch) => settingsService.update(patch),
     setShortcut: (slot, key) => settingsService.setShortcut(slot, key),
+    resetSettings: (keys) => settingsService.reset(keys),
     resetShortcuts: (slot) => settingsService.resetShortcuts(slot),
     captureShortcut: (active) => hotkeys.setPaused(active),
     getSetupStatus: async () => ({ model: modelDownload.status(), blockers: blockersNow() }),

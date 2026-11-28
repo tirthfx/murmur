@@ -1,3 +1,4 @@
+import { Switch } from "@astryxdesign/core/Switch";
 import { useEffect, useState } from "react";
 import { Button } from "@astryxdesign/core/Button";
 import { Heading } from "@astryxdesign/core/Heading";
@@ -38,6 +39,17 @@ export function HelpPage({
           <Heading level={2} id="tours-heading">
             Guided tours
           </Heading>
+          {view ? (
+            <Switch
+              label="Offer a tour the first time a page is opened"
+              value={view.settings.help.offerTours}
+              onChange={(offerTours) =>
+                void window.murmur
+                  .updateSettings({ help: { ...view.settings.help, offerTours } })
+                  .then(setView)
+              }
+            />
+          ) : null}
           <ul className="hub-history-list" aria-label="Tours">
             {tours.map((tour) => {
               const saved = progress[tour.id];

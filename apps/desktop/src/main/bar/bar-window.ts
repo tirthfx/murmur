@@ -1,7 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { BrowserWindow, BrowserWindowConstructorOptions } from "electron";
-import { BAR_PUSH_CHANNELS, type BarView, type SoundName } from "@murmur/shared";
+import { BAR_PUSH_CHANNELS, type BarView, type SoundName, type SoundSet } from "@murmur/shared";
 import type { Logger } from "../helper/types";
 import type { BarPort } from "./bar-controller";
 import {
@@ -147,10 +147,10 @@ export class BarWindow implements BarPort {
     if (window && !window.isDestroyed()) window.webContents.send(BAR_PUSH_CHANNELS.level, rmsDb);
   }
 
-  sound(name: SoundName, volume = 0.5): void {
+  sound(name: SoundName, volume = 0.5, set: SoundSet = "subtle"): void {
     const window = this.window;
     if (window && !window.isDestroyed()) {
-      window.webContents.send(BAR_PUSH_CHANNELS.sound, { name, volume });
+      window.webContents.send(BAR_PUSH_CHANNELS.sound, { name, volume, set });
     }
   }
 

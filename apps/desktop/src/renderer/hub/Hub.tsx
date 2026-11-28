@@ -25,7 +25,8 @@ import { DictationPage } from "./DictationPage";
 import { InsightsPage } from "./InsightsPage";
 import { Onboarding } from "./Onboarding";
 import { SettingsPage } from "./SettingsPage";
-import type { Tour } from "@murmur/shared";
+import { TourOffer } from "./TourOffer";
+import { tourToOffer, type Tour } from "@murmur/shared";
 import {
   pageFromHash,
   resolvePage,
@@ -92,11 +93,19 @@ function HubPages({ onRunSetup }: { onRunSetup: () => void }) {
     () => resolvePage(pageFromHash(window.location.hash) ?? "home", {}).id,
   );
   const info = useAppInfo();
-  const pages = visiblePages(features);
+  const [creatorMode, setCreatorMode] = useState(false);
+  // HB-08: a tour offered the first time its page is opened.
+  const [offer, setOffer] = useState<Tour | null>(null);
+  const pages = visiblePages(features, creatorMode);
   useEffect(() => {
     let active = true;
     window.murmur.getSettings().then(
-      (view) => active && setFeatures({ scratchpad: view.settings.scratchpad.enabled }),
+      (view) => {
+        if (!active) return;
+        setFeatures({ scratchpad: view.settings.scratchpad.enabled });
+        setCreatorMode(view.settings.creatorMode);
+        setOffer(tourToOffer(pageId, view.settings.help, view.settings.experimental.commandMode));
+      },
       () => {},
     );
     return () => {
@@ -130,8 +139,9 @@ function HubPages({ onRunSetup }: { onRunSetup: () => void }) {
   const saveTour = useCallback(async (id: string, step: number, done: boolean) => {
     try {
       const view = await window.murmur.getSettings();
+      const { help } = view.settings;
       await window.murmur.updateSettings({
-        help: { tours: { ...view.settings.help.tours, [id]: { step, done } } },
+        help: { ...help, tours: { ...help.tours, [id]: { step, done } } },
       });
     } catch {
       // Progress is a help; the tour works without it.
@@ -232,6 +242,19 @@ function HubPages({ onRunSetup }: { onRunSetup: () => void }) {
           )}
         </div>
       </AppShell>
+      {offer && !tour ? (
+        <TourOffer
+          tour={offer}
+          onStart={() => {
+            setOffer(null);
+            startTour(offer, 0);
+          }}
+          onDismiss={() => {
+            setOffer(null);
+            void saveTour(offer.id, 0, true);
+          }}
+        />
+      ) : null}
       {tour ? (
         <TourCard
           tour={tour.tour}

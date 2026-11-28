@@ -46,6 +46,12 @@ export const COMMAND_WAKE_PHRASE_LIMITS = { min: 2, max: 40 } as const;
 
 export const INSERTION_METHODS = ["auto", "paste", "type"] as const;
 
+export const SOUND_NAMES = ["start", "lock", "success", "error", "cancel", "milestone"] as const;
+export type SoundName = (typeof SOUND_NAMES)[number];
+/** DC-40: the sound sets. */
+export const SOUND_SETS = ["subtle", "soft", "off"] as const;
+export type SoundSet = (typeof SOUND_SETS)[number];
+
 /** DC-21: the default length cap on one recording, and its range, in minutes. */
 export const SESSION_LIMIT_DEFAULT = 20;
 export const SESSION_LIMIT_MIN = 5;
@@ -123,6 +129,9 @@ export const settingsSchema = z.strictObject({
     success: z.boolean(),
     error: z.boolean(),
     cancel: z.boolean(),
+    milestone: z.boolean().default(true),
+    /** Which tones play: the usual ones, softer and lower ones, or none at all. */
+    set: z.enum(SOUND_SETS).default("subtle"),
   }),
   /** Experimental options, all off by default (HB-18). */
   experimental: z.strictObject({
@@ -192,6 +201,8 @@ export const settingsSchema = z.strictObject({
     pasteInRemoteDesktops: z.boolean(),
     /** More apps to type into, by their id. */
     typeInApps: z.array(z.string().trim().min(1).max(255)).max(50),
+    /** Apps of the built-in remote desktop list to paste into after all (DC-34). */
+    pasteInApps: z.array(z.string().trim().min(1).max(255)).max(50).default([]),
   }),
   /** How loud the feedback sounds are, in percent (DC-40). */
   soundVolume: z.number().int().min(0).max(100),
@@ -199,6 +210,13 @@ export const settingsSchema = z.strictObject({
   silentWarning: z.boolean(),
   /** Saying "press enter" at the end of a dictation presses Return (DC-36). */
   pressEnterCommand: z.boolean(),
+  /** DC-16, HB-16: the microphone list and what happens when the input goes away. */
+  microphones: z.strictObject({
+    showVirtual: z.boolean(),
+    routeFallback: z.boolean(),
+  }),
+  /** HB-13: writing first. Scratchpad and Rewrites lead the Hub, and the menu drafts notes. */
+  creatorMode: z.boolean(),
   /** The local plan tier (RW-22, TM-25): unlocks features for testing; nothing is charged. */
   plan: planTierSchema,
   /** True once first-run setup was finished (DC-44). */
@@ -268,6 +286,8 @@ export const settingsPatchSchema = settingsSchema
     muteWhileDictating: true,
     setupComplete: true,
     pressEnterCommand: true,
+    creatorMode: true,
+    microphones: true,
     insertion: true,
     soundVolume: true,
     silentWarning: true,
@@ -329,6 +349,8 @@ export const SETTING_KEYS: Record<keyof Settings, string> = {
   muteWhileDictating: "media.mute_while_dictating",
   setupComplete: "onboarding.complete",
   pressEnterCommand: "press_enter.enabled",
+  creatorMode: "ui.creator_mode",
+  microphones: "audio.microphones",
   insertion: "insert.settings",
   soundVolume: "sounds.volume",
   silentWarning: "audio.silent_warning",
@@ -375,6 +397,7 @@ export const DEFAULT_INSERTION: Settings["insertion"] = {
   method: "auto",
   pasteInRemoteDesktops: false,
   typeInApps: [],
+  pasteInApps: [],
 };
 export const SOUND_VOLUME_DEFAULT = 50;
 
@@ -412,9 +435,6 @@ export const DEFAULT_COMMAND_MODE: Settings["commandMode"] = {
   wakePhraseEnabled: true,
 };
 
-export const SOUND_NAMES = ["start", "lock", "success", "error", "cancel"] as const;
-export type SoundName = (typeof SOUND_NAMES)[number];
-
 /** DC-40 defaults: every sound on except cancel. */
 export const DEFAULT_SOUNDS: Settings["sounds"] = {
   start: true,
@@ -422,6 +442,8 @@ export const DEFAULT_SOUNDS: Settings["sounds"] = {
   success: true,
   error: true,
   cancel: false,
+  milestone: true,
+  set: "subtle",
 };
 
 export const SHORTCUT_SLOTS = [
@@ -469,6 +491,8 @@ export const settingsViewSchema = z.strictObject({
   unavailable: z.array(z.enum(SHORTCUT_SLOTS)),
   /** Null when the helper could not list devices. */
   devices: z.array(audioDeviceSchema).nullable(),
+  /** HB-12: the settings that are not at their default, which can be put back. */
+  changed: z.array(z.string()).default([]),
 });
 export type SettingsView = z.infer<typeof settingsViewSchema>;
 
@@ -477,3 +501,27 @@ export const shortcutResultSchema = z.discriminatedUnion("ok", [
   z.strictObject({ ok: z.literal(false), message: z.string() }),
 ]);
 export type ShortcutResult = z.infer<typeof shortcutResultSchema>;
+
+/** HB-12: the settings that a row of the Settings page can put back to their default. */
+export const RESETTABLE_SETTINGS = [
+  "language",
+  "notifications",
+  "cleanupLevel",
+  "pressEnterCommand",
+  "sessionLimitMinutes",
+  "smartFormatting",
+  "insertion",
+  "contextAwareness",
+  "typingReminder",
+  "creatorMode",
+  "sounds",
+  "soundVolume",
+  "muteWhileDictating",
+  "scratchpad",
+  "languages",
+  "inputDevice",
+  "microphones",
+  "silentWarning",
+  "whisperMode",
+] as const satisfies readonly (keyof Settings)[];
+export type ResettableSetting = (typeof RESETTABLE_SETTINGS)[number];

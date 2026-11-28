@@ -33,6 +33,7 @@ const en = {
   "barMenu.off": "Off",
   "tray.retryLast": "Retry last dictation",
   "tray.pasteLast": "Paste last transcript",
+  "tray.draftLast": "Draft from last dictation",
   "tray.pause": "Pause dictation",
   "tray.resume": "Resume dictation",
   "tray.bar.show": "Show Bar",

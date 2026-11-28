@@ -151,11 +151,11 @@ describe("a feature that needs a connector (CN-15)", () => {
       slack: { accounts: [{ id: "s", status: "connected" } as never] },
       gmail: { accounts: [{ id: "g", status: "connected" } as never] },
     });
-    for (const id of ["notion-links"])
-      expect(connectorFeatureState(feature(id), connected)).toMatchObject({
-        enabled: false,
-        reason: "Not built yet. Connecting an account does not turn it on.",
-      });
+    const unbuilt = { ...feature("email-drafts"), built: false };
+    expect(connectorFeatureState(unbuilt, connected)).toMatchObject({
+      enabled: false,
+      reason: "Not built yet. Connecting an account does not turn it on.",
+    });
   });
 
   it("says when the connectors it needs are not built yet", () => {

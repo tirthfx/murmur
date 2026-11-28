@@ -87,6 +87,7 @@ const api: MurmurApi = {
   getSettings: () => ipcRenderer.invoke(IPC_CHANNELS.getSettings),
   updateSettings: (patch) => ipcRenderer.invoke(IPC_CHANNELS.updateSettings, patch),
   setShortcut: (slot, key) => ipcRenderer.invoke(IPC_CHANNELS.setShortcut, slot, key),
+  resetSettings: (keys) => ipcRenderer.invoke(IPC_CHANNELS.resetSettings, keys),
   resetShortcuts: (slot) => ipcRenderer.invoke(IPC_CHANNELS.resetShortcuts, slot),
   captureShortcut: (active) => ipcRenderer.invoke(IPC_CHANNELS.captureShortcut, active),
   getSetupStatus: () => ipcRenderer.invoke(IPC_CHANNELS.getSetupStatus),
@@ -270,6 +271,7 @@ const api: MurmurApi = {
     ipcRenderer.invoke(IPC_CHANNELS.meetingCorrectionRevert, meetingId, correctionId),
   meetingDelete: (id) => ipcRenderer.invoke(IPC_CHANNELS.meetingDelete, id),
   meetingNotesSave: (id, body) => ipcRenderer.invoke(IPC_CHANNELS.meetingNotesSave, id, body),
+  notionPages: () => ipcRenderer.invoke(IPC_CHANNELS.notionPages),
   meetingDocAddLink: (id, url, title) =>
     ipcRenderer.invoke(IPC_CHANNELS.meetingDocAddLink, id, url, title),
   meetingDocAddFile: (id) => ipcRenderer.invoke(IPC_CHANNELS.meetingDocAddFile, id),

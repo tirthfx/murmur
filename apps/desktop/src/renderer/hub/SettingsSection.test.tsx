@@ -116,11 +116,34 @@ describe("Settings section", () => {
     expect(await screen.findByText("Settings could not be read.")).toBeTruthy();
   });
 
+  it("offers to put a changed setting back, and says when it saved (HB-12)", async () => {
+    const view = structuredClone(SAMPLE_SETTINGS);
+    view.changed = ["muteWhileDictating"];
+    const resetSettings = vi.fn().mockResolvedValue({ ...view, changed: [] });
+    window.murmur = createMockApi({
+      getSettings: vi.fn().mockResolvedValue(view),
+      resetSettings,
+    });
+    render(<SettingsSection page="system" onRunSetup={() => undefined} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Put mute back to the default" }));
+    expect(await screen.findByText("Saved")).toBeTruthy();
+    expect(resetSettings).toHaveBeenCalledWith(["muteWhileDictating"]);
+    expect(screen.queryByRole("button", { name: "Put mute back to the default" })).toBeNull();
+  });
+
   it("turns a sound off and mute while dictating on", async () => {
     const api = mount({}, "system");
     await userEvent.click(await screen.findByRole("switch", { name: "Done sound" }));
     expect(api.updateSettings).toHaveBeenCalledWith({
-      sounds: { start: true, lock: true, success: false, error: true, cancel: false },
+      sounds: {
+        start: true,
+        lock: true,
+        success: false,
+        error: true,
+        cancel: false,
+        milestone: true,
+        set: "subtle",
+      },
     });
     await userEvent.click(screen.getByRole("switch", { name: "Mute other audio while dictating" }));
     expect(api.updateSettings).toHaveBeenCalledWith({ muteWhileDictating: true });

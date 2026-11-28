@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { SoundName } from "./settings";
+import type { SoundName, SoundSet } from "./settings";
 
 /**
  * The Bar: a small floating pill that shows the dictation state. Main owns the state and
@@ -106,7 +106,7 @@ export interface MurmurBarApi {
   /** Input level while listening, in dBFS. */
   onLevel(handler: (rmsDb: number) => void): () => void;
   /** A feedback sound to play now, with its volume from 0 to 1. */
-  onSound(handler: (sound: { name: SoundName; volume: number }) => void): () => void;
+  onSound(handler: (sound: { name: SoundName; volume: number; set: SoundSet }) => void): () => void;
   dragStart(): void;
   /** Total movement since `dragStart`, in screen points. */
   drag(dx: number, dy: number): void;

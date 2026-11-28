@@ -147,7 +147,28 @@ export function availableTours(commandMode: boolean): Tour[] {
 export const helpSettingsSchema = z.strictObject({
   /** Where each tour got to; `done` once finished. */
   tours: z.record(z.string(), z.strictObject({ step: z.number().int().min(0), done: z.boolean() })),
+  /** Whether a tour is offered the first time its page is opened. */
+  offerTours: z.boolean().default(true),
 });
+
+/** The pages that have a tour of their own to offer on first use. */
+const FIRST_USE: Readonly<Record<string, string>> = {
+  home: "first-dictation",
+  dictionary: "dictionary-snippets",
+  snippets: "dictionary-snippets",
+  rewrites: "rewrites-commands",
+};
+
+/** HB-08: the tour to offer on a page, or null: one not yet started, with offers on. */
+export function tourToOffer(
+  page: string,
+  help: z.infer<typeof helpSettingsSchema>,
+  commandMode: boolean,
+): Tour | null {
+  const id = FIRST_USE[page];
+  if (!help.offerTours || !id || help.tours[id]) return null;
+  return availableTours(commandMode).find((tour) => tour.id === id) ?? null;
+}
 
 /** HB-43: a code made here, and invitations counted by hand. Nothing is sent. */
 export const referralSettingsSchema = z.strictObject({

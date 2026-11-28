@@ -1,7 +1,8 @@
+import { microphoneChoices } from "./microphone-choices";
 import { RetentionLog } from "./RetentionLog";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { TextArea } from "@astryxdesign/core/TextArea";
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { Banner } from "@astryxdesign/core/Banner";
 import { Button } from "@astryxdesign/core/Button";
 import { Text } from "@astryxdesign/core/Text";
@@ -30,12 +31,14 @@ import {
   APP_LANGUAGES,
   APP_LANGUAGE_NAMES,
   SETTINGS_CLEANUP_LEVELS,
+  REMOTE_DESKTOP_APPS,
   SOUND_NAMES,
   type MeetingFolder,
   type MeetingRetentionDue,
   type Skill,
   type SettingsPatch,
   type SettingsView,
+  type ResettableSetting,
   type ShortcutSlot,
 } from "@murmur/shared";
 import { CommandModeSection } from "./CommandModeSection";
@@ -158,6 +161,7 @@ const SOUND_LABELS: Record<(typeof SOUND_NAMES)[number], string> = {
   success: "Done sound",
   error: "Error sound",
   cancel: "Cancel sound",
+  milestone: "Milestone sound",
 };
 
 const NOTIFICATION_SWITCHES: [keyof SettingsView["settings"]["notifications"], string][] = [
@@ -176,10 +180,54 @@ const CLEANUP_LABELS: Record<(typeof SETTINGS_CLEANUP_LEVELS)[number], string> =
 };
 
 /** One setting's row: search (HB-12) scrolls to it by its id. */
+/** How long "Saved" shows. */
+const SAVED_MS = 2000;
+
+/** HB-12: what a row can put back to default, by its id. */
+const ROW_SETTINGS: Partial<Record<string, ResettableSetting[]>> = {
+  "app-language": ["language"],
+  notifications: ["notifications"],
+  cleanup: ["cleanupLevel"],
+  "press-enter": ["pressEnterCommand"],
+  "session-limit": ["sessionLimitMinutes"],
+  "smart-formatting": ["smartFormatting"],
+  insertion: ["insertion"],
+  context: ["contextAwareness"],
+  "typing-reminder": ["typingReminder"],
+  "creator-mode": ["creatorMode"],
+  sounds: ["sounds", "soundVolume"],
+  mute: ["muteWhileDictating"],
+  scratchpad: ["scratchpad"],
+  languages: ["languages"],
+  microphone: ["inputDevice"],
+  "microphone-list": ["microphones"],
+  "silent-warning": ["silentWarning"],
+  whisper: ["whisperMode"],
+};
+
+const RowReset = createContext<{
+  changed: readonly string[];
+  reset: (keys: ResettableSetting[]) => void;
+}>({ changed: [], reset: () => undefined });
+
 function Row({ id, children }: { id: string; children: ReactNode }) {
+  const { changed, reset } = useContext(RowReset);
+  const keys = ROW_SETTINGS[id] ?? [];
   return (
     <div data-setting={id} className="hub-setting-row">
       {children}
+      {keys.some((key) => changed.includes(key)) ? (
+        <div>
+          <Button
+            size="sm"
+            variant="ghost"
+            label={`Put ${id.replace(/-/g, " ")} back to the default`}
+            onClick={() => reset(keys)}
+          >
+            Reset to default
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -207,6 +255,13 @@ export function SettingsSection({
     [onView],
   );
   const [problem, setProblem] = useState<string | null>(null);
+  // HB-12: "Saved" for a moment after a change.
+  const [savedAt, setSavedAt] = useState<number | null>(null);
+  useEffect(() => {
+    if (savedAt === null) return;
+    const timer = setTimeout(() => setSavedAt(null), SAVED_MS);
+    return () => clearTimeout(timer);
+  }, [savedAt]);
   const [skills, setSkills] = useState<Skill[]>([]);
   const [folders, setFolders] = useState<MeetingFolder[]>([]);
   const [retentionDue, setRetentionDue] = useState<MeetingRetentionDue | null>(null);
@@ -244,9 +299,25 @@ export function SettingsSection({
 
   const update = useCallback(
     (patch: SettingsPatch) => {
-      window.murmur
-        .updateSettings(patch)
-        .then(setView, () => setProblem("The setting could not be saved."));
+      window.murmur.updateSettings(patch).then(
+        (next) => {
+          setView(next);
+          setSavedAt(Date.now());
+        },
+        () => setProblem("The setting could not be saved."),
+      );
+    },
+    [setView],
+  );
+  const reset = useCallback(
+    (keys: ResettableSetting[]) => {
+      window.murmur.resetSettings(keys).then(
+        (next) => {
+          setView(next);
+          setSavedAt(Date.now());
+        },
+        () => setProblem("The setting could not be reset."),
+      );
     },
     [setView],
   );
@@ -259,7 +330,7 @@ export function SettingsSection({
   const known = devices.some((device) => device.id === settings.inputDevice);
   const microphoneOptions = [
     { value: "auto", label: "Automatic" },
-    ...devices.map((device) => ({ value: device.id, label: device.name })),
+    ...microphoneChoices(devices, settings.microphones.showVirtual, settings.inputDevice),
     ...(settings.inputDevice !== "auto" && !known
       ? [{ value: settings.inputDevice, label: "Saved microphone (not connected)" }]
       : []),
@@ -437,6 +508,30 @@ export function SettingsSection({
                 update({ insertion: { ...settings.insertion, pasteInRemoteDesktops } })
               }
             />
+            {settings.insertion.pasteInRemoteDesktops ? null : (
+              <VStack gap={1}>
+                <Text size="sm" color="secondary">
+                  These remote desktop apps are typed into. Switch one off to paste into it.
+                </Text>
+                {REMOTE_DESKTOP_APPS.map((app) => (
+                  <Switch
+                    key={app.id}
+                    label={`Type into ${app.name}`}
+                    value={!settings.insertion.pasteInApps.includes(app.id)}
+                    onChange={(typed) =>
+                      update({
+                        insertion: {
+                          ...settings.insertion,
+                          pasteInApps: typed
+                            ? settings.insertion.pasteInApps.filter((id) => id !== app.id)
+                            : [...settings.insertion.pasteInApps, app.id],
+                        },
+                      })
+                    }
+                  />
+                ))}
+              </VStack>
+            )}
             <TypedAppsField
               apps={settings.insertion.typeInApps}
               onChange={(typeInApps) =>
@@ -461,9 +556,31 @@ export function SettingsSection({
             onChange={(enabled) => update({ typingReminder: { enabled, snoozedUntil: null } })}
           />
         </Row>
+        <Row id="creator-mode">
+          <Switch
+            label="Creator mode"
+            description="Puts Scratchpad and Rewrites at the top of the sidebar, and adds “Draft from last dictation” to the menu."
+            value={settings.creatorMode}
+            onChange={(creatorMode) => update({ creatorMode })}
+          />
+        </Row>
         <Row id="sounds">
           <VStack gap={2}>
             <Heading level={3}>Sounds</Heading>
+            <Selector
+              label="Sound set"
+              options={[
+                { value: "subtle", label: "Subtle" },
+                { value: "soft", label: "Soft" },
+                { value: "off", label: "Off" },
+              ]}
+              value={settings.sounds.set}
+              onChange={(set) =>
+                update({
+                  sounds: { ...settings.sounds, set: set as typeof settings.sounds.set },
+                })
+              }
+            />
             <Selector
               label="Volume"
               options={VOLUME_OPTIONS}
@@ -1455,6 +1572,26 @@ export function SettingsSection({
             onChange={(inputDevice) => update({ inputDevice })}
           />
         </Row>
+        <Row id="microphone-list">
+          <VStack gap={2}>
+            <Switch
+              label="Show virtual microphones"
+              description="Inputs made by software, such as loopback and meeting apps."
+              value={settings.microphones.showVirtual}
+              onChange={(showVirtual) =>
+                update({ microphones: { ...settings.microphones, showVirtual } })
+              }
+            />
+            <Switch
+              label="Carry on with another microphone if this one goes away"
+              description="When off, the recording ends there and what was heard is used."
+              value={settings.microphones.routeFallback}
+              onChange={(routeFallback) =>
+                update({ microphones: { ...settings.microphones, routeFallback } })
+              }
+            />
+          </VStack>
+        </Row>
         <Row id="silent-warning">
           <Switch
             label="Warn when the microphone is silent"
@@ -1511,9 +1648,16 @@ export function SettingsSection({
   };
 
   return (
-    <VStack gap={4} className="hub-settings">
-      {pages[page]()}
-      {problem ? <Banner status="error" title={problem} /> : null}
-    </VStack>
+    <RowReset.Provider value={{ changed: view.changed, reset }}>
+      <VStack gap={4} className="hub-settings">
+        {pages[page]()}
+        {problem ? <Banner status="error" title={problem} /> : null}
+        {savedAt !== null ? (
+          <div className="hub-saved" role="status">
+            Saved
+          </div>
+        ) : null}
+      </VStack>
+    </RowReset.Provider>
   );
 }

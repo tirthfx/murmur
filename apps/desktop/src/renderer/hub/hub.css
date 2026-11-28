@@ -847,3 +847,27 @@ body {
   max-width: 480px;
   z-index: 100;
 }
+
+/* HB-12: a setting was saved. */
+.hub-saved {
+  position: sticky;
+  bottom: var(--spacing-3);
+  align-self: flex-end;
+  padding: var(--spacing-1) var(--spacing-3);
+  border-radius: var(--spacing-1);
+  background: var(--color-background-surface);
+  border: 1px solid var(--color-border);
+}
+
+/* HB-08: a tour offered on a page's first use. */
+.hub-tour-offer {
+  position: fixed;
+  right: var(--spacing-4);
+  bottom: var(--spacing-4);
+  max-width: 320px;
+  padding: var(--spacing-3);
+  border-radius: var(--spacing-2);
+  background: var(--color-background-surface);
+  border: 1px solid var(--color-border-emphasized);
+  z-index: 90;
+}
