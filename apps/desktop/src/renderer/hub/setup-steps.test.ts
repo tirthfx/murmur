@@ -6,6 +6,7 @@ import {
   isPermissionStep,
   modelProgress,
 } from "./setup-steps";
+import { sampleModel } from "./test-api";
 
 describe("setup steps", () => {
   it("runs in the agreed order", () => {
@@ -32,7 +33,7 @@ describe("setup steps", () => {
   it("formats sizes and progress", () => {
     expect(formatBytes(648_000_000)).toBe("648 MB");
     expect(formatBytes(2_497_281_120)).toBe("2.5 GB");
-    const model = { state: "downloading" as const, label: "x", message: null };
+    const model = sampleModel({ state: "downloading" });
     expect(modelProgress({ ...model, totalBytes: 1000, downloadedBytes: 255 })).toBe(25);
     expect(modelProgress({ ...model, totalBytes: 1000, downloadedBytes: 1000 })).toBe(100);
     expect(modelProgress({ ...model, totalBytes: 0, downloadedBytes: 0 })).toBe(0);

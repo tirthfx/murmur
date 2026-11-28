@@ -1,4 +1,4 @@
-import type { DictationBlocker, PermissionKind, SpeechModelStatus } from "@murmur/shared";
+import type { DictationBlocker, PermissionKind, ModelStatus } from "@murmur/shared";
 
 /** First-run setup, in order (DC-44). */
 export const SETUP_STEPS = [
@@ -37,7 +37,7 @@ export function formatBytes(bytes: number): string {
 }
 
 /** Download progress from 0 to 100. */
-export function modelProgress(status: SpeechModelStatus): number {
+export function modelProgress(status: ModelStatus): number {
   if (status.totalBytes === 0) return 0;
   return Math.min(100, Math.floor((status.downloadedBytes / status.totalBytes) * 100));
 }

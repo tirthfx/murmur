@@ -27,7 +27,7 @@ function setup() {
   const setShortcut = vi.fn(() => Promise.resolve({ ok: true as const, view: SAMPLE_SETTINGS }));
   const captureShortcut = vi.fn();
   const getSetupStatus = vi.fn(() => Promise.resolve(SAMPLE_SETUP));
-  const downloadSpeechModel = vi.fn(() => Promise.resolve(SAMPLE_SETUP));
+  const modelDownload = vi.fn();
   const micCheckStart = vi.fn(() => Promise.resolve({ ok: true as const, deviceName: "Desk Mic" }));
   const micCheckStop = vi.fn(() => Promise.resolve(null));
   const getMediaPlayback = vi.fn(() => Promise.resolve(null));
@@ -205,7 +205,7 @@ function setup() {
     setShortcut,
     captureShortcut,
     getSetupStatus,
-    downloadSpeechModel,
+    modelDownload,
     micCheckStart,
     micCheckStop,
     getMediaPlayback,
@@ -241,9 +241,9 @@ function setup() {
     instructDelete: vi.fn(),
     instructDeleteAll: vi.fn(),
     instructReuse: vi.fn(() => true),
-    instructModelStatus: vi.fn(),
-    instructModelDownload: vi.fn(),
-    instructModelRemove: vi.fn(),
+    modelsList: vi.fn(),
+    modelCancel: vi.fn(),
+    modelRemove: vi.fn(),
     focusState: vi.fn(),
     focusStart: vi.fn(),
     focusStop: vi.fn(),
@@ -285,7 +285,7 @@ function setup() {
   });
   return {
     getSetupStatus,
-    downloadSpeechModel,
+    modelDownload,
     getSettings,
     updateSettings,
     setShortcut,
@@ -425,14 +425,12 @@ describe("settings IPC", () => {
     expect(context.captureShortcut).toHaveBeenCalledWith(true);
   });
 
-  it("serves the setup status and starts the model download", async () => {
+  it("serves the setup status and passes a model download on", async () => {
     const context = setup();
     expect(await context.handle(IPC_CHANNELS.getSetupStatus, sender, [])).toEqual(SAMPLE_SETUP);
-    expect(await context.handle(IPC_CHANNELS.downloadSpeechModel, sender, [])).toEqual(
-      SAMPLE_SETUP,
-    );
-    expect(context.downloadSpeechModel).toHaveBeenCalledOnce();
-    expect(() => context.handle(IPC_CHANNELS.downloadSpeechModel, sender, ["x"])).toThrow(
+    await context.handle(IPC_CHANNELS.modelDownload, sender, ["fast"]);
+    expect(context.modelDownload).toHaveBeenCalledWith("fast");
+    expect(() => context.handle(IPC_CHANNELS.modelDownload, sender, ["other"])).toThrow(
       "invalid-args",
     );
   });

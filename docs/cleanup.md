@@ -30,7 +30,7 @@ After cleanup, in main, rules only (`cleanup/lists.ts`, `cleanup/smart-format.ts
 npm run model:download -- cleanup
 ```
 
-2.5 GB, checked by SHA-256 like the speech model. Without it, cleanup is rules only and the log says so.
+2.5 GB, checked by SHA-256 like the speech model. Settings, Languages downloads and deletes it too. Without it, cleanup is rules only and the log says so.
 
 ## Measuring
 

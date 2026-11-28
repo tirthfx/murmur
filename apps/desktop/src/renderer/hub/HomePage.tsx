@@ -65,7 +65,8 @@ export function HomePage() {
 
   async function download() {
     try {
-      setSetup(await window.murmur.downloadSpeechModel());
+      await window.murmur.modelDownload("speech");
+      await loadSetup();
     } catch {
       setProblem("The download could not start.");
     }
@@ -84,7 +85,7 @@ export function HomePage() {
         {name ? `${greeting(new Date())}, ${name}` : greeting(new Date())}
       </Heading>
 
-      {model && (model.state === "missing" || model.state === "failed") ? (
+      {model && ["missing", "corrupt", "failed"].includes(model.state) ? (
         <Banner
           status="warning"
           title="The speech model is not on this Mac yet"

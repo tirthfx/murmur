@@ -16,7 +16,11 @@ npm run model:download -- speech
 
 Downloads over HTTPS from huggingface.co only, hashes every file while writing, and moves the folder into place only when every file matches the manifest. Files already correct are kept, so the same command repairs a copy that fails its check.
 
-A dropped connection, a body that ends early, or a temporary server error (408, 425, 429, 5xx) is tried again up to 5 times, waiting 1, 3, 10, 30 and 60 seconds. Each new try asks only for the missing bytes with a range request. A size, checksum or address problem stops at once. If every try fails, the bytes stay in the `.partial` folder and running the command again continues from them. The same applies to downloads started from the app (the speech model and Instruct Mode's Quality model). It needs Node 22.18 or later, because it runs the app's own TypeScript directly.
+A dropped connection, a body that ends early, or a temporary server error (408, 425, 429, 5xx) is tried again up to 5 times, waiting 1, 3, 10, 30 and 60 seconds. Each new try asks only for the missing bytes with a range request. A size, checksum or address problem stops at once. If every try fails, the bytes stay in the `.partial` folder and running the command again continues from them. The same applies to downloads started from the app. It needs Node 22.18 or later, because it runs the app's own TypeScript directly.
+
+## Models in Settings
+
+Settings, **Languages**, **Models on this Mac** lists the speech model, the Fast language model (cleanup) and the Quality language model. Each row shows the download size, the space used on disk, the state and the host a download comes from. Download shows progress and can be cancelled (the bytes already there are kept); Delete asks first and removes the model and any part-downloaded files. `apps/desktop/src/main/setup/managed-model.ts` handles one model; the download goes on in main when the Hub is closed. Strict local mode refuses downloads.
 
 ## Loading and checking
 
@@ -37,7 +41,7 @@ A dropped connection, a body that ends early, or a temporary server error (408, 
 1. `npm run model:download`, `npm run build:helper`, then `MURMUR_LOG_TRANSCRIPTS=1 npm run dev`. Wait for `[speech] speech model ready`.
 2. Hold Right Option, say a sentence, release. The terminal shows `[speech]`-ready timings and `[audio] transcribed … words` followed by `text: …`.
 3. Turn off Wi-Fi and repeat: it still works.
-4. Change one byte of a model file (for example `model/config.json`) and restart: the log says the model failed its checksum check and it is not loaded. `npm run model:download` repairs it.
+4. Change one byte of a model file (for example `model/config.json`) and restart: the log says the model failed its checksum check and it is not loaded. `npm run model:download`, or Download in Settings, repairs it.
 
 ## Languages
 

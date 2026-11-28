@@ -31,7 +31,7 @@ export type ModelCheck =
 // Plain fields, not constructor parameter properties: Node's own TypeScript support (used by
 // the download script) only strips types and cannot run parameter properties.
 export class ModelDownloadError extends Error {
-  readonly reason: "address" | "http" | "size" | "checksum";
+  readonly reason: "address" | "http" | "size" | "checksum" | "cancelled";
   readonly file: string;
   /** True for a cut-off body or a temporary server error: worth trying again. */
   readonly retryable: boolean;
@@ -94,6 +94,8 @@ export async function checkModel(root: string, model: SpeechModel): Promise<Mode
 
 export interface DownloadOptions {
   fetch?: typeof globalThis.fetch;
+  /** Cancels the download; the bytes already here are kept for the next one. */
+  signal?: AbortSignal;
   onProgress?: (doneBytes: number, totalBytes: number) => void;
   /** Called before each new try after a dropped connection (1-based). */
   onRetry?: (attempt: number, of: number, error: unknown) => void;
@@ -125,6 +127,45 @@ function checkAddress(file: SpeechModelFile): void {
       file.path,
       `${file.path}: not an https://${MODEL_HOST} address`,
     );
+  }
+}
+
+/** Bytes of this model on disk now, a part-finished download included. */
+export async function modelBytesOnDisk(root: string, model: SpeechModel): Promise<number> {
+  const { dir } = modelLocation(root, model);
+  let bytes = 0;
+  for (const file of model.files) {
+    for (const base of [dir, `${dir}.partial`]) {
+      const target = safeJoin(base, file.path);
+      bytes += (await sizeOf(target)) ?? (await sizeOf(`${target}.download`)) ?? 0;
+    }
+  }
+  return bytes;
+}
+
+/** Deletes the model's folder and anything part-downloaded. */
+export async function removeModel(root: string, model: SpeechModel): Promise<void> {
+  const { dir } = modelLocation(root, model);
+  await rm(dir, { recursive: true, force: true });
+  await rm(`${dir}.partial`, { recursive: true, force: true });
+}
+
+/** Waits `ms`, or less if the download is cancelled. */
+async function pause(
+  ms: number,
+  sleep: (ms: number) => Promise<void>,
+  signal: AbortSignal | undefined,
+): Promise<void> {
+  if (!signal) return sleep(ms);
+  let stop = () => {};
+  const cancelled = new Promise<void>((resolve) => {
+    stop = resolve;
+    signal.addEventListener("abort", stop, { once: true });
+  });
+  try {
+    await Promise.race([sleep(ms), cancelled]);
+  } finally {
+    signal.removeEventListener("abort", stop);
   }
 }
 
@@ -171,6 +212,7 @@ export async function downloadModel(
     const resumeFrom = existing > 0 && existing < file.size ? existing : 0;
     const response = await fetchFile(file.url, {
       redirect: "follow",
+      ...(options.signal ? { signal: options.signal } : {}),
       ...(resumeFrom > 0 ? { headers: { Range: `bytes=${resumeFrom}-` } } : {}),
     });
     if (!response.ok || !response.body) {
@@ -208,6 +250,7 @@ export async function downloadModel(
       Readable.fromWeb(response.body as Parameters<typeof Readable.fromWeb>[0]),
       meter,
       createWriteStream(partial, { flags: resumed ? "a" : "w" }),
+      options.signal ? { signal: options.signal } : {},
     );
     if (bytes < file.size) {
       // Cut off early: keep what arrived so the next try continues from it.
@@ -237,7 +280,14 @@ export async function downloadModel(
     return fetched;
   }
 
+  const stopIfCancelled = (file: SpeechModelFile): void => {
+    if (options.signal?.aborted) {
+      throw new ModelDownloadError("cancelled", file.path, "The download was cancelled.");
+    }
+  };
+
   for (const file of model.files) {
+    stopIfCancelled(file);
     if ((await checkFile(staging, file)).ok) {
       done += file.size;
       report();
@@ -254,9 +304,12 @@ export async function downloadModel(
         downloaded += await fetchInto(file, partial);
         break;
       } catch (error) {
+        stopIfCancelled(file);
         if (!isRetryable(error) || attempt >= retries) throw error;
         options.onRetry?.(attempt + 1, retries, error);
-        await sleep(RETRY_DELAYS_MS[Math.min(attempt, RETRY_DELAYS_MS.length - 1)]!);
+        const delay = RETRY_DELAYS_MS[Math.min(attempt, RETRY_DELAYS_MS.length - 1)]!;
+        await pause(delay, sleep, options.signal);
+        stopIfCancelled(file);
       }
     }
     await rename(partial, target);

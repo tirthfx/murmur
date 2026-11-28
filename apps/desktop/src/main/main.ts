@@ -134,6 +134,10 @@ import {
   DEFAULT_INSERTION,
   SOUND_VOLUME_DEFAULT,
   UNDO_MESSAGES,
+  MODEL_IDS,
+  type ModelId,
+  type ModelManifest,
+  type SetupStatus,
 } from "@murmur/shared";
 import {
   createNavigationGuard,
@@ -276,7 +280,6 @@ import { createInstructController } from "./instruct/instruct-controller";
 import { createInstructPanelIpcHandler } from "./instruct/panel-ipc";
 import { createInstructThreadStore } from "./instruct/thread-store";
 import { createUndoService } from "./undo/undo-service";
-import { createQualityModel } from "./instruct/quality-model";
 import { createFocusController } from "./focus/focus-controller";
 import {
   boundRewriteShortcuts,
@@ -345,8 +348,18 @@ import { createSettingsStore } from "./settings/settings-store";
 import { CANCELLED, createRecorder, type DictationRecord, type RecorderEvent } from "./recorder";
 import { createSessionEffects } from "./media/session-effects";
 import { createSpeechService } from "./speech/speech-service";
-import { checkModel, downloadModel, modelLocation } from "./speech/model-store";
-import { createModelDownload } from "./setup/model-download";
+import {
+  checkModel,
+  downloadModel,
+  modelBytesOnDisk,
+  modelLocation,
+  removeModel,
+} from "./speech/model-store";
+import {
+  createCheckedFiles,
+  createManagedModel,
+  type ManagedModelDeps,
+} from "./setup/managed-model";
 import { dictationBlockers, hasPermissionBlocker } from "./setup/readiness";
 import { cleanupModelRoot, speechModelRoot } from "./speech/paths";
 import { insertionRules, insertionMethod } from "./insertion/app-rules";
@@ -919,23 +932,51 @@ const speech = createSpeechService({
   languages: () => languagesFor(nextSession.settings()),
 });
 
-// First-run setup: the model download behind the setup screen, and what blocks dictation.
-const modelDownload = createModelDownload({
-  model: SPEECH_MODEL,
-  download: (onProgress) =>
-    Promise.resolve().then(() => {
-      networkGuard.check("speech model download");
-      return downloadModel(speechModelRoot(profile.modelsAppData), SPEECH_MODEL, {
-        onProgress,
-      });
-    }),
-  speechState: () => speech.getState(),
-  onDownloaded: () => {
-    speech.recheck();
-    notifier.modelDownload(true);
+/** The download, check and delete of one model under `root` (HB-15). */
+const managedModel = (
+  id: ModelId,
+  model: ModelManifest,
+  root: string,
+  rest: Pick<ManagedModelDeps, "inspect" | "changed" | "onDownload"> & {
+    /** Frees the files before they are deleted. */
+    release?: () => void;
   },
-  onFailed: () => notifier.modelDownload(false),
-  logger: createConsoleLogger("[setup]"),
+) =>
+  createManagedModel({
+    id,
+    model,
+    inspect: rest.inspect,
+    changed: rest.changed,
+    ...(rest.onDownload ? { onDownload: rest.onDownload } : {}),
+    download: (onProgress, signal) =>
+      Promise.resolve().then(() => {
+        networkGuard.check(`${model.label} download`);
+        return downloadModel(root, model, { onProgress, signal });
+      }),
+    remove: () => {
+      rest.release?.();
+      return removeModel(root, model);
+    },
+    diskBytes: () => modelBytesOnDisk(root, model),
+    logger: createConsoleLogger("[models]"),
+  });
+
+const speechModel = managedModel("speech", SPEECH_MODEL, speechModelRoot(profile.modelsAppData), {
+  inspect: () => {
+    const state = speech.getState();
+    if (state === "ready" || state === "missing" || state === "corrupt" || state === "failed") {
+      return state;
+    }
+    // idle, checking or loading: the files are being looked at, or the helper is starting.
+    return "preparing";
+  },
+  changed: () => speech.recheck(),
+  onDownload: (ok) => notifier.modelDownload(ok),
+});
+// First-run setup: the speech model and what blocks dictation.
+const setupStatus = async (): Promise<SetupStatus> => ({
+  model: await speechModel.status(),
+  blockers: blockersNow(),
 });
 let lastPermissions: PermissionSnapshot | null = null;
 permissions.onChecked((statuses) => {
@@ -1097,7 +1138,6 @@ const cleanupModelFile = path.join(
   modelLocation(cleanupRoot, DEFAULT_CLEANUP_MODEL).dir,
   DEFAULT_CLEANUP_MODEL.files[0]!.path,
 );
-let cleanupModelCheck: Promise<boolean> | null = null;
 const cleanupLogger = createConsoleLogger("[cleanup]");
 const llm = createLlmClient({
   spawn: () => {
@@ -1116,19 +1156,23 @@ const llm = createLlmClient({
   logger: cleanupLogger,
 });
 // Every byte is checked once per run (about 2 s for 2.5 GB), then remembered.
-const cleanupModelReady = (): Promise<boolean> => {
-  cleanupModelCheck ??= checkModel(cleanupRoot, DEFAULT_CLEANUP_MODEL).then((result) => {
-    if (!result.ok) {
-      cleanupLogger.warn(
-        result.reason === "missing"
-          ? "The cleanup model is not downloaded; using rules only. Run `npm run model:download`."
-          : `The cleanup model failed its ${result.reason} check (${result.file}); using rules only.`,
-      );
-    }
-    return result.ok;
-  });
-  return cleanupModelCheck;
-};
+const cleanupFiles = createCheckedFiles(
+  () => checkModel(cleanupRoot, DEFAULT_CLEANUP_MODEL),
+  (result) => {
+    if (result.ok) return;
+    cleanupLogger.warn(
+      result.reason === "missing"
+        ? "The cleanup model is not downloaded; using rules only. Download it under Settings, Languages."
+        : `The cleanup model failed its ${result.reason} check (${result.file}); using rules only.`,
+    );
+  },
+);
+const fastModel = managedModel("fast", DEFAULT_CLEANUP_MODEL, cleanupRoot, {
+  inspect: () => cleanupFiles.inspect(),
+  changed: () => cleanupFiles.forget(),
+  release: () => llm.stop(),
+});
+const cleanupModelReady = (): Promise<boolean> => fastModel.isReady();
 const cleanup = createCleanupService({
   llm,
   modelReady: cleanupModelReady,
@@ -1454,29 +1498,26 @@ const qualityFile = path.join(
   QUALITY_INSTRUCT_MODEL.files[0]!.path,
 );
 let qualityReadyNow = false;
-const qualityModel = createQualityModel({
-  model: QUALITY_INSTRUCT_MODEL,
-  check: () => checkModel(cleanupRoot, QUALITY_INSTRUCT_MODEL),
-  download: (onProgress) =>
-    Promise.resolve().then(() => {
-      networkGuard.check("Quality model download");
-      return downloadModel(cleanupRoot, QUALITY_INSTRUCT_MODEL, { onProgress });
-    }),
-  remove: async () => {
-    qualityLlm.stop();
-    await rm(modelLocation(cleanupRoot, QUALITY_INSTRUCT_MODEL).dir, {
-      recursive: true,
-      force: true,
-    });
+const qualityFiles = createCheckedFiles(
+  () => checkModel(cleanupRoot, QUALITY_INSTRUCT_MODEL),
+  (result) => {
+    qualityReadyNow = result.ok;
+    if (!result.ok && result.reason !== "missing") {
+      cleanupLogger.warn(`the Quality model failed its ${result.reason} check`);
+    }
   },
-  onChange: (ready) => {
-    qualityReadyNow = ready;
+);
+const qualityModel = managedModel("quality", QUALITY_INSTRUCT_MODEL, cleanupRoot, {
+  inspect: () => qualityFiles.inspect(),
+  changed: () => {
+    qualityReadyNow = false;
+    qualityFiles.forget();
+    void qualityFiles.inspect();
   },
-  logger: createConsoleLogger("[instruct]"),
+  release: () => qualityLlm.stop(),
 });
-void qualityModel.isReady().then((ready) => {
-  qualityReadyNow = ready;
-});
+const models = { speech: speechModel, fast: fastModel, quality: qualityModel };
+void qualityFiles.inspect();
 const qualityLlm = createLlmClient({
   spawn: () => {
     const child = utilityProcess.fork(path.join(__dirname, "llm-worker.cjs"), [], {
@@ -4598,7 +4639,11 @@ function registerIpc(): void {
     resetSettings: (keys) => settingsService.reset(keys),
     resetShortcuts: (slot) => settingsService.resetShortcuts(slot),
     captureShortcut: (active) => hotkeys.setPaused(active),
-    getSetupStatus: async () => ({ model: modelDownload.status(), blockers: blockersNow() }),
+    getSetupStatus: setupStatus,
+    modelsList: () => Promise.all(MODEL_IDS.map((id) => models[id].status())),
+    modelDownload: (id) => models[id].download(),
+    modelCancel: (id) => models[id].cancel(),
+    modelRemove: (id) => models[id].remove(),
     micCheckStart: () => micCheck.start(),
     micCheckStop: () => micCheck.stop(),
     getMediaPlayback: () => helper.getPlayback().catch(() => null),
@@ -4700,9 +4745,6 @@ function registerIpc(): void {
     instructDelete: (id) => instructThreads?.delete(id),
     instructDeleteAll: () => instructThreads?.deleteAll(),
     instructReuse: (id) => instructController.reuse(id),
-    instructModelStatus: () => qualityModel.status(),
-    instructModelDownload: () => qualityModel.download(),
-    instructModelRemove: () => qualityModel.remove(),
     focusState: () => focus.state(),
     focusStart: (duration) => {
       focus.start(duration);
@@ -4758,10 +4800,6 @@ function registerIpc(): void {
     stylesClearOverride: (bundleId) => {
       styles?.clearOverride(bundleId);
       return styles?.view() ?? { styles: [], overrides: [], recentApps: [] };
-    },
-    downloadSpeechModel: async () => {
-      modelDownload.start();
-      return { model: modelDownload.status(), blockers: blockersNow() };
     },
   });
   for (const channel of Object.values(IPC_CHANNELS)) {

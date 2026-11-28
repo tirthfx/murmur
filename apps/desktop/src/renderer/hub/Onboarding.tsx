@@ -121,8 +121,8 @@ export function Onboarding({ isRevisit, onFinished }: OnboardingProps) {
   };
 
   const download = () => {
-    window.murmur.downloadSpeechModel().then(
-      (value) => mounted.current && setStatus(value),
+    window.murmur.modelDownload("speech").then(
+      () => refresh(),
       () => mounted.current && setProblem("The download could not start."),
     );
   };
@@ -240,7 +240,7 @@ export function Onboarding({ isRevisit, onFinished }: OnboardingProps) {
             description={model.message ?? undefined}
           />
         ) : null}
-        {model?.state === "missing" || model?.state === "failed" ? (
+        {model && ["missing", "corrupt", "failed"].includes(model.state) ? (
           <HStack gap={2}>
             <Button variant="primary" label="Download the speech model" onClick={download}>
               {model.state === "failed" ? "Try again" : "Download"}

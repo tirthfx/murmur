@@ -5,9 +5,16 @@ import { z } from "zod";
  * anything that still blocks dictation.
  */
 
-export const SPEECH_MODEL_STATES = [
-  /** Not on disk, or a file failed its check. */
+/** The models Murmur keeps on this Mac (HB-15). */
+export const MODEL_IDS = ["speech", "fast", "quality"] as const;
+export const modelIdSchema = z.enum(MODEL_IDS);
+export type ModelId = z.infer<typeof modelIdSchema>;
+
+export const MODEL_STATES = [
+  /** Not on disk, or only part of it. */
   "missing",
+  /** On disk, but a file failed its size or checksum test. */
+  "corrupt",
   "downloading",
   /** On disk; being checked or loaded. */
   "preparing",
@@ -15,16 +22,22 @@ export const SPEECH_MODEL_STATES = [
   /** The download or the load failed; `message` says why. */
   "failed",
 ] as const;
+export type ModelState = (typeof MODEL_STATES)[number];
 
-export const speechModelStatusSchema = z.strictObject({
-  state: z.enum(SPEECH_MODEL_STATES),
+export const modelStatusSchema = z.strictObject({
+  id: modelIdSchema,
+  state: z.enum(MODEL_STATES),
   label: z.string(),
+  /** Where a download comes from. */
+  host: z.string(),
   totalBytes: z.number().int().nonnegative(),
+  /** Bytes it takes on disk now, a part-finished download included. */
+  diskBytes: z.number().int().nonnegative(),
   /** Bytes present so far while downloading; 0 otherwise. */
   downloadedBytes: z.number().int().nonnegative(),
   message: z.string().nullable(),
 });
-export type SpeechModelStatus = z.infer<typeof speechModelStatusSchema>;
+export type ModelStatus = z.infer<typeof modelStatusSchema>;
 
 /** A missing piece without which dictation does not start. */
 export const DICTATION_BLOCKERS = [
@@ -37,7 +50,8 @@ export const DICTATION_BLOCKERS = [
 export type DictationBlocker = (typeof DICTATION_BLOCKERS)[number];
 
 export const setupStatusSchema = z.strictObject({
-  model: speechModelStatusSchema,
+  /** The speech model. */
+  model: modelStatusSchema,
   blockers: z.array(z.enum(DICTATION_BLOCKERS)),
 });
 export type SetupStatus = z.infer<typeof setupStatusSchema>;

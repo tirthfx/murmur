@@ -213,6 +213,12 @@ export const SETTINGS_INDEX: readonly SettingEntry[] = [
   { id: "mouse-hold", page: "shortcuts", label: "Push to talk (mouse)", words: "button" },
   { id: "mouse-hands-free", page: "shortcuts", label: "Hands-free (mouse)", words: "button" },
   { id: "languages", page: "languages", label: "Dictation languages", words: "language" },
+  {
+    id: "models",
+    page: "languages",
+    label: "Speech and language models",
+    words: "download delete cancel size memory checksum",
+  },
   { id: "microphone", page: "microphone", label: "Microphone", words: "input device" },
   { id: "whisper", page: "microphone", label: "Whisper mode", words: "quiet" },
   { id: "mic-check", page: "microphone", label: "Microphone check", words: "level test" },

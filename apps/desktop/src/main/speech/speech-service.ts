@@ -115,7 +115,7 @@ export function createSpeechService(deps: SpeechServiceDeps): SpeechService {
         if (result.reason === "missing") {
           state = "missing";
           logger.warn(
-            `The speech model is not downloaded (${(model.totalBytes / 1e6).toFixed(0)} MB). Run \`npm run model:download\`.`,
+            `The speech model is not downloaded (${(model.totalBytes / 1e6).toFixed(0)} MB). Download it in Murmur, or run \`npm run model:download\`.`,
           );
         } else {
           state = "corrupt";

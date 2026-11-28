@@ -255,7 +255,14 @@ import {
   type ContactDraft,
   type ContactResult,
 } from "./contacts";
-import { setupStatusSchema, type SetupStatus } from "./setup";
+import {
+  modelIdSchema,
+  modelStatusSchema,
+  setupStatusSchema,
+  type ModelId,
+  type ModelStatus,
+  type SetupStatus,
+} from "./setup";
 import { mediaPlaybackResultSchema, type MediaPlayback } from "./media";
 import {
   micCheckResultSchema,
@@ -319,10 +326,8 @@ import {
   type RewriteShortcutResult,
 } from "./rewrites";
 import {
-  instructModelStatusSchema,
   instructThreadSchema,
   instructThreadSummarySchema,
-  type InstructModelStatus,
   type InstructThread,
   type InstructThreadSummary,
 } from "./instruct";
@@ -409,7 +414,10 @@ export const IPC_CHANNELS = {
   resetSettings: "settings:reset",
   captureShortcut: "settings:capture-shortcut",
   getSetupStatus: "setup:get-status",
-  downloadSpeechModel: "setup:download-speech-model",
+  modelsList: "models:list",
+  modelDownload: "models:download",
+  modelCancel: "models:cancel",
+  modelRemove: "models:remove",
   micCheckStart: "mic-check:start",
   micCheckStop: "mic-check:stop",
   getMediaPlayback: "experimental:media-playback",
@@ -452,9 +460,6 @@ export const IPC_CHANNELS = {
   instructDelete: "instruct:delete",
   instructDeleteAll: "instruct:delete-all",
   instructReuse: "instruct:reuse",
-  instructModelStatus: "instruct:model-status",
-  instructModelDownload: "instruct:model-download",
-  instructModelRemove: "instruct:model-remove",
   focusState: "focus:state",
   focusStart: "focus:start",
   focusStop: "focus:stop",
@@ -651,11 +656,10 @@ export const IPC_CONTRACT = {
     args: z.tuple([]),
     result: setupStatusSchema,
   },
-  // Starts the download if none is running. Progress is read with getSetupStatus.
-  [IPC_CHANNELS.downloadSpeechModel]: {
-    args: z.tuple([]),
-    result: setupStatusSchema,
-  },
+  [IPC_CHANNELS.modelsList]: { args: z.tuple([]), result: z.array(modelStatusSchema) },
+  [IPC_CHANNELS.modelDownload]: { args: z.tuple([modelIdSchema]), result: modelStatusSchema },
+  [IPC_CHANNELS.modelCancel]: { args: z.tuple([modelIdSchema]), result: modelStatusSchema },
+  [IPC_CHANNELS.modelRemove]: { args: z.tuple([modelIdSchema]), result: modelStatusSchema },
   [IPC_CHANNELS.micCheckStart]: {
     args: z.tuple([]),
     result: micCheckStartResultSchema,
@@ -835,9 +839,6 @@ export const IPC_CONTRACT = {
     result: z.boolean(),
   },
   // The Quality model (RW-15): downloaded only when the owner asks, from Settings.
-  [IPC_CHANNELS.instructModelStatus]: { args: z.tuple([]), result: instructModelStatusSchema },
-  [IPC_CHANNELS.instructModelDownload]: { args: z.tuple([]), result: instructModelStatusSchema },
-  [IPC_CHANNELS.instructModelRemove]: { args: z.tuple([]), result: instructModelStatusSchema },
   // Focus Mode (RW-18, RW-19).
   [IPC_CHANNELS.focusState]: { args: z.tuple([]), result: focusStateSchema },
   [IPC_CHANNELS.focusStart]: { args: z.tuple([focusDurationSchema]), result: focusStateSchema },
@@ -1404,8 +1405,14 @@ export interface MurmurApi {
   captureShortcut(active: boolean): Promise<void>;
   /** The speech model's state and whatever still blocks dictation. */
   getSetupStatus(): Promise<SetupStatus>;
-  /** Starts the speech model download (once); poll getSetupStatus for progress. */
-  downloadSpeechModel(): Promise<SetupStatus>;
+  /** The models on this Mac (HB-15); poll it while one is downloading or being checked. */
+  modelsList(): Promise<ModelStatus[]>;
+  /** Starts a download (once) and returns at once. */
+  modelDownload(id: ModelId): Promise<ModelStatus>;
+  /** Stops a download; what arrived is kept for the next one. */
+  modelCancel(id: ModelId): Promise<ModelStatus>;
+  /** Deletes a model's files. */
+  modelRemove(id: ModelId): Promise<ModelStatus>;
   /** Starts a microphone check: nothing is recorded to disk. */
   micCheckStart(): Promise<MicCheckStartResult>;
   micCheckStop(): Promise<MicCheckResult | null>;
@@ -1463,12 +1470,6 @@ export interface MurmurApi {
   instructDeleteAll(): Promise<void>;
   /** Opens the Instruct panel with this thread's last draft as a new thread. False if gone. */
   instructReuse(id: string): Promise<boolean>;
-  /** The Quality model's state; poll it while it downloads. */
-  instructModelStatus(): Promise<InstructModelStatus>;
-  /** Starts the Quality model download (5 GB) and returns at once. */
-  instructModelDownload(): Promise<InstructModelStatus>;
-  /** Deletes the Quality model's files; Instruct goes back to Fast. */
-  instructModelRemove(): Promise<InstructModelStatus>;
   /** Focus Mode now (RW-18). */
   focusState(): Promise<FocusState>;
   /** Turns Focus on for this long; the duration is remembered for the shortcut. */
