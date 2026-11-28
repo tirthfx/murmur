@@ -82,7 +82,7 @@ export const SAMPLE_SETTINGS: SettingsView = {
     },
     planState: { trial: null, student: false, log: [] },
     devMode: { enabled: false, disableCleanup: false, forceTyped: false, disableContext: false },
-    help: { tours: {} },
+    help: { tours: {}, offerTours: false },
     referral: { code: "ABCD2345", invites: 0 },
     notetaker: DEFAULT_NOTETAKER,
     connectors: DEFAULT_CONNECTOR_SETTINGS,

@@ -25,7 +25,7 @@ describe("Help page (HB-08)", () => {
 
   it("resumes a tour at the step it stopped at", async () => {
     const settings = structuredClone(SAMPLE_SETTINGS);
-    settings.settings.help = { tours: { shortcuts: { step: 2, done: false } } };
+    settings.settings.help = { tours: { shortcuts: { step: 2, done: false } }, offerTours: false };
     window.murmur = createMockApi({ getSettings: vi.fn().mockResolvedValue(settings) });
     const onStartTour = vi.fn();
     const user = userEvent.setup();

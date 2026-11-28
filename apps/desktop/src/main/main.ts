@@ -822,7 +822,7 @@ const settingsDefaults: Settings = {
   privacy: DEFAULT_PRIVACY,
   planState: DEFAULT_PLAN_STATE,
   devMode: DEFAULT_DEVELOPER,
-  help: { tours: {} },
+  help: { tours: {}, offerTours: true },
   referral: { code: "", invites: 0 },
   notetaker: DEFAULT_NOTETAKER,
   connectors: DEFAULT_CONNECTOR_SETTINGS,
