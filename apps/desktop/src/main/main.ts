@@ -324,7 +324,9 @@ import {
   LlmPreemptedError,
   type LlmReply,
 } from "./cleanup/llm-client";
+import { ignoreClosedPipes } from "./helper/closed-pipes";
 import { createConsoleLogger, systemClock } from "./helper/node-runtime";
+import { createHubPage } from "./hub/hub-page";
 import { HelperError } from "./helper/types";
 import { createHotkeyService } from "./hotkeys";
 import { createIpcHandler } from "./ipc";
@@ -383,6 +385,8 @@ import { createElectronTray, menuTemplate } from "./tray/tray-electron";
 import { reminderStatus } from "./tray/tray-menu";
 
 const isDevelopment = !app.isPackaged;
+// Started from a terminal that has since closed, a log line must not stop the app.
+ignoreClosedPipes([process.stdout, process.stderr]);
 
 // A separate profile for a clean first run or a test; see `profilePaths`.
 const profile = profilePaths(process.env, {
@@ -1098,7 +1102,7 @@ function trackDictationWindow(before: DictationState, after: DictationState): vo
   }
 }
 /** The Hub's web contents for pushed events; set when the Hub opens (it may not exist yet). */
-let hubEvents: Electron.WebContents | null = null;
+const hubPage = createHubPage();
 const barPort = {
   render: (view: BarView) => {
     barWindow.render({ ...view, focus: focusBadge, meeting: meetingBadge });
@@ -1107,7 +1111,7 @@ const barPort = {
     const before = hubDictationState;
     hubDictationState = state;
     trackDictationWindow(before, state);
-    if (hubEvents && !hubEvents.isDestroyed()) hubEvents.send(IPC_EVENTS.dictationState, state);
+    hubPage.send(IPC_EVENTS.dictationState, state);
   },
   level: (rmsDb: number) => barWindow.level(rmsDb),
 };
@@ -2236,11 +2240,11 @@ const summaryRunner =
     : null;
 // NT-04: the recording's level meter in the Hub.
 helper.onCaptureLevel((level) => {
-  if (hubEvents && !hubEvents.isDestroyed()) hubEvents.send(IPC_EVENTS.meetingLevel, level);
+  hubPage.send(IPC_EVENTS.meetingLevel, level);
 });
 /** Tells the Hub a meeting changed (null: the list or the recording). */
 function notifyMeetings(meetingId: string | null): void {
-  if (hubEvents && !hubEvents.isDestroyed()) hubEvents.send(IPC_EVENTS.meetingsChanged, meetingId);
+  hubPage.send(IPC_EVENTS.meetingsChanged, meetingId);
 }
 // NT-26: tasks suggested from meetings, and My Tasks.
 const tasksService = database
@@ -2878,7 +2882,7 @@ const liveTranscriber = createLiveTranscriber({
     meetingTranscripts?.isTranscribed(meetingId, channel, seq) ?? false,
   wait: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   onPartial: (partial) => {
-    if (hubEvents && !hubEvents.isDestroyed()) hubEvents.send(IPC_EVENTS.meetingLive, partial);
+    hubPage.send(IPC_EVENTS.meetingLive, partial);
   },
   logger: createConsoleLogger("[meetings]"),
 });
@@ -3743,10 +3747,9 @@ function createHubWindow(): BrowserWindow {
     );
   }
   window.once("ready-to-show", () => window.show());
-  hubEvents = window.webContents;
+  hubPage.follow(window);
   window.on("closed", () => {
     if (hubWindow === window) hubWindow = null;
-    if (hubEvents === window.webContents) hubEvents = null;
   });
   void window.loadURL(hubEntryUrl);
   hubWindow = window;
