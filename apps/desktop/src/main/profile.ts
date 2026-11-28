@@ -7,8 +7,10 @@ export interface ProfilePaths {
   userData: string;
   /** Parent of the `Murmur/models` folder. */
   modelsAppData: string;
-  /** True when `MURMUR_PROFILE_DIR` replaced the normal folders. */
+  /** True when `MURMUR_PROFILE_DIR` or the sandbox replaced the normal folders. */
   isOverridden: boolean;
+  /** HB-55: running on demo data in a folder of its own. */
+  isSandbox: boolean;
 }
 
 /**
@@ -20,14 +22,32 @@ export interface ProfilePaths {
 export function profilePaths(
   env: Record<string, string | undefined>,
   defaults: { appData: string; userData: string },
+  sandbox = false,
 ): ProfilePaths {
   const dir = env.MURMUR_PROFILE_DIR?.trim();
-  if (!dir) return { ...defaults, modelsAppData: defaults.appData, isOverridden: false };
-  const root = path.resolve(dir);
+  const root = dir ? path.resolve(dir) : null;
+  const own: ProfilePaths = root
+    ? {
+        appData: root,
+        userData: path.join(root, "electron"),
+        modelsAppData: env.MURMUR_SHARE_MODELS === "1" ? defaults.appData : root,
+        isOverridden: true,
+        isSandbox: false,
+      }
+    : { ...defaults, modelsAppData: defaults.appData, isOverridden: false, isSandbox: false };
+  if (!sandbox) return own;
+  // The sandbox keeps everything under this profile's own folder, and shares the models.
+  const demo = sandboxDir(own.userData);
   return {
-    appData: root,
-    userData: path.join(root, "electron"),
-    modelsAppData: env.MURMUR_SHARE_MODELS === "1" ? defaults.appData : root,
+    appData: demo,
+    userData: path.join(demo, "electron"),
+    modelsAppData: own.modelsAppData,
     isOverridden: true,
+    isSandbox: true,
   };
+}
+
+/** Where a profile's demo data is kept. */
+export function sandboxDir(userData: string): string {
+  return path.join(userData, "sandbox");
 }

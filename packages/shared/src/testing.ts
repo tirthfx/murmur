@@ -42,6 +42,10 @@ export const developerSettingsSchema = z.strictObject({
   forceTyped: z.boolean(),
   /** No text around the cursor is read. */
   disableContext: z.boolean(),
+  /** The Bar says how long each stage of a dictation took (HB-57). */
+  showTimings: z.boolean().default(false),
+  /** The shortcut listener is off, to test without Murmur taking keys (HB-57). */
+  disableKeys: z.boolean().default(false),
 });
 export type DeveloperSettings = z.infer<typeof developerSettingsSchema>;
 
@@ -50,6 +54,8 @@ export const DEFAULT_DEVELOPER: DeveloperSettings = {
   disableCleanup: false,
   forceTyped: false,
   disableContext: false,
+  showTimings: false,
+  disableKeys: false,
 };
 
 /** HB-20: clicks on the version number that turn developer mode on. */
@@ -153,6 +159,7 @@ export const TESTING_TOOLS = [
   "restartOnboarding",
   "resetPersonalisation",
   "testNotification",
+  "sandbox",
   "cycleBar",
   "diagnostics",
 ] as const;

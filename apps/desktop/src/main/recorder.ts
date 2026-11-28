@@ -203,6 +203,8 @@ export interface RecorderDeps {
   routeFallback?: () => boolean;
   /** DC-17: the language detected in a dictation with words, or nothing when none was. */
   onHeard?: (detected: Transcript["heard"]) => void;
+  /** HB-57: whether to say on the Bar how long each stage took. */
+  showTimings?: () => boolean;
   /** Whether to warn when the microphone stays silent (DC-11). On when missing. */
   silentWarning?: () => boolean;
   /** Whether "press enter" at the end of a dictation presses Return. Off when missing. */
@@ -348,6 +350,8 @@ export type RecorderEvent =
   | { type: "stop-failed" }
   /** `note` is said instead of the word count: why the recording ended. */
   | { type: "transcribed"; words: number; note?: string }
+  /** HB-57: how long each stage of the dictation took. */
+  | { type: "timings"; message: string }
   /** The length cap is close (DC-21); recording goes on. */
   | { type: "limit-warning"; seconds: number }
   | { type: "transcription-failed" }
@@ -1113,10 +1117,21 @@ export function createRecorder(deps: RecorderDeps): Recorder {
         ? { type: "no-speech" }
         : transcribed(take, finalWords),
     );
+    const insertStarted = now();
     const outcome =
       final === "" && !spoken.pressEnter
         ? { insertStatus: "empty" as const }
         : await insert(final, spoken.pressEnter);
+    if (deps.showTimings?.()) {
+      const ended = now();
+      const stages = [
+        `speech ${transcript.decodeMs} ms`,
+        ...(cleanup?.source === "model" ? [`cleanup ${cleanup.modelMs} ms`] : []),
+        `insert ${ended - insertStarted} ms`,
+        `total ${ended - take.releasedAt} ms`,
+      ];
+      emit({ type: "timings", message: stages.join(" · ") });
+    }
     record(take, {
       ...outcome,
       language: transcript.language || null,

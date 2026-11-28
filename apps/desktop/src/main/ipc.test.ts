@@ -4,7 +4,7 @@ import { createIpcHandler } from "./ipc";
 import { SAMPLE_SETTINGS, SAMPLE_SETUP } from "../renderer/hub/test-api";
 
 const entryUrl = "file:///app/.vite/renderer/main_window/index.html";
-const info = { name: "Murmur", version: "0.0.0", platform: "darwin" };
+const info = { name: "Murmur", version: "0.0.0", platform: "darwin", sandbox: false };
 const helperStatus = { state: "ready", helperVersion: "0.1.0", message: null } as const;
 
 function setup() {
