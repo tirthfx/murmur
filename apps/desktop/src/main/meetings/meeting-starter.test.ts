@@ -125,13 +125,13 @@ describe("meeting starter", () => {
   });
 });
 
-describe("a refused start (TM-14, TM-25)", () => {
+describe("a refused start (TM-25)", () => {
   it("sends no capture.start and shows no notice, from the hotkey or any other start", async () => {
-    const t = setup({ notice: "always", seen: false }, true, () => "Notetaker is off.");
-    expect(await t.starter.toggle()).toEqual({ ok: false, message: "Notetaker is off." });
+    const t = setup({ notice: "always", seen: false }, true, () => "Free is used up.");
+    expect(await t.starter.toggle()).toEqual({ ok: false, message: "Free is used up." });
     expect(await t.starter.start("calendar", { eventId: "e", title: "t", attendees: [] })).toEqual({
       ok: false,
-      message: "Notetaker is off.",
+      message: "Free is used up.",
     });
     expect(t.recorder.start).not.toHaveBeenCalled();
     expect(t.confirmNotice).not.toHaveBeenCalled();
@@ -149,7 +149,7 @@ describe("a refused start (TM-14, TM-25)", () => {
     let refusal: string | null = null;
     const t = setup({ notice: "off", seen: false }, true, () => refusal);
     await t.starter.toggle();
-    refusal = "Notetaker is off.";
+    refusal = "Free is used up.";
     expect(await t.starter.toggle()).toEqual({ ok: true, action: "stopped" });
   });
 });

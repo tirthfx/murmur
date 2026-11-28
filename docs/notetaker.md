@@ -273,7 +273,7 @@ Settings, System, Meeting recordings and transcripts (`notetaker.retention`): **
 - **Audio.** The chunk files are removed, then `audio_deleted_at` is set. The meeting's folder and the documents attached to it stay. Rerun, and playing a speaker, are then unavailable and say why.
 - **After processing.** The audio goes when the final summary has been written (a quick summary does not count), straight after it and also by the daily job; with automatic summaries off, when the transcript is done and no summary is waiting.
 - **Transcript.** The lines are deleted 500 at a time, each batch in its own transaction, then in one transaction the corrections, the saved earlier transcripts (reruns), the summaries (only if chosen) and the marker `transcript_deleted_at`. The meeting keeps its row, title, date and folder. The page shows "Audio deleted by retention" and "Transcript deleted by retention" with the day, and the Transcript tab says so. Tasks stay (their source says "Source removed"); the Ask index forgets the lines at the next question. A rerun clears the marker (the new transcript is kept for the period again).
-- **Not built:** the audit log of deletions and the admin override (M7, TM-12 and TM-15).
+- **Not built:** a log of deletions.
 
 Manual check: set the audio to 7 days and the transcript to 30 days, wait for (or edit the dates of) an old meeting and press Run now on the Data and Privacy page; check the files in `Murmur/meetings/<id>/` are gone, the meeting shows the marker, Rerun is disabled with the reason, and Settings counts what is due; set "Delete after processing", record a short meeting and check its audio is gone once the summary appears; give a folder its own period and check it wins.
 

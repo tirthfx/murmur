@@ -8,7 +8,6 @@ import {
   MCP_STATUS_OFF,
 } from "@murmur/shared";
 import { vi } from "vitest";
-import { EMPTY_POLICY_VIEW } from "@murmur/shared";
 import type {
   HistoryPage,
   InsightsView,
@@ -17,27 +16,8 @@ import type {
   SettingsView,
   SetupStatus,
   StylesView,
-  TeamView,
   VoiceProfileView,
 } from "@murmur/shared";
-
-/** Team mode off: what the Hub sees until a server is connected. */
-export const SAMPLE_TEAM_VIEW: TeamView = {
-  enabled: false,
-  backend: "local",
-  serverUrl: "",
-  state: "off",
-  serverSetUp: null,
-  user: null,
-  teams: [],
-  idleLockMinutes: 15,
-  lastSyncAt: null,
-  syncProblem: "",
-  sharedCounts: { dictionary: 0, snippets: 0 },
-  outbox: 0,
-  notices: [],
-  shared: { skills: [], folders: [] },
-};
 
 export const SAMPLE_SETTINGS: SettingsView = {
   settings: {
@@ -47,7 +27,7 @@ export const SAMPLE_SETTINGS: SettingsView = {
     instructShortcut: null,
     focusShortcut: null,
     focus: { duration: 25 },
-    plan: "enterprise",
+    plan: "pro",
     instruct: { fieldContext: true, memory: true, samples: true, saveThreads: true, model: "fast" },
     commandShortcut: null,
     commandMode: { wakePhrase: "Hey Murmur", wakePhraseEnabled: true },
@@ -274,11 +254,6 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
     hubSetPage: vi.fn().mockResolvedValue(undefined),
     insightsView: vi.fn().mockResolvedValue(SAMPLE_INSIGHTS),
     helperRetry: vi.fn(async () => true),
-    teamLeaderboard: vi.fn(async () => ({
-      ok: false as const,
-      message: "Sign in to a team to see its leaderboard.",
-    })),
-    teamLeaderboardShow: vi.fn(async () => true),
     openGuide: vi.fn(async () => true),
     reportProblem: vi.fn().mockResolvedValue({ ok: true, message: "Saved to /tmp/x." }),
     testingTool: vi.fn().mockResolvedValue({ ok: true, message: "Done." }),
@@ -527,31 +502,6 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
     slackPostPrepare: vi.fn().mockResolvedValue({ ok: false, message: "Not available." }),
     slackPostSend: vi.fn().mockResolvedValue({ ok: false, message: "Not available." }),
     extensionsView: vi.fn().mockResolvedValue({ enabled: true, actions: [], planned: [] }),
-    teamView: vi.fn().mockResolvedValue(SAMPLE_TEAM_VIEW),
-    teamConnect: vi.fn().mockResolvedValue({ ok: true, view: SAMPLE_TEAM_VIEW }),
-    teamSetup: vi.fn().mockResolvedValue({ ok: true, view: SAMPLE_TEAM_VIEW }),
-    teamSignIn: vi.fn().mockResolvedValue({ ok: true, view: SAMPLE_TEAM_VIEW }),
-    teamSignOut: vi.fn().mockResolvedValue({ ok: true, view: SAMPLE_TEAM_VIEW }),
-    teamLock: vi.fn().mockResolvedValue({ ok: true, view: SAMPLE_TEAM_VIEW }),
-    teamUnlock: vi.fn().mockResolvedValue({ ok: true, view: SAMPLE_TEAM_VIEW }),
-    teamRedeem: vi
-      .fn()
-      .mockResolvedValue({ ok: true, status: "joined", teamName: "", view: SAMPLE_TEAM_VIEW }),
-    teamSyncNow: vi.fn().mockResolvedValue({ ok: true, view: SAMPLE_TEAM_VIEW }),
-    teamSetIdleLock: vi.fn().mockResolvedValue({ ok: true, view: SAMPLE_TEAM_VIEW }),
-    teamDisconnect: vi.fn().mockResolvedValue({ ok: true, view: SAMPLE_TEAM_VIEW }),
-    teamNoticesSeen: vi.fn().mockResolvedValue({ ok: true, view: SAMPLE_TEAM_VIEW }),
-    teamOpenAdmin: vi.fn().mockResolvedValue({ ok: true }),
-    teamPropose: vi.fn().mockResolvedValue({ ok: true, status: "pending", teamName: "Acme" }),
-    teamChangePassword: vi.fn().mockResolvedValue({ ok: true, value: null }),
-    teamPeople: vi.fn().mockResolvedValue({ ok: true, value: [] }),
-    teamFolderCreate: vi.fn().mockResolvedValue({ ok: false, message: "No team." }),
-    teamNoteRead: vi.fn().mockResolvedValue({ ok: false, message: "No team." }),
-    teamSkillAdd: vi.fn().mockResolvedValue({ ok: false, message: "No team.", line: null }),
-    teamShareMeeting: vi.fn().mockResolvedValue({ ok: false, message: "No team." }),
-    onTeamChanged: vi.fn(() => () => {}),
-    onPolicyChanged: vi.fn(() => () => {}),
-    policyView: vi.fn().mockResolvedValue(EMPTY_POLICY_VIEW),
     briefOverview: vi.fn().mockResolvedValue({
       calendarConnected: false,
       events: [],

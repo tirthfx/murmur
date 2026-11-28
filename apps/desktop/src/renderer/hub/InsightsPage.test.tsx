@@ -86,14 +86,6 @@ describe("Insights page", () => {
     expect(await screen.findByText(/Voice Profile is off/)).toBeTruthy();
   });
 
-  it("says why there is no leaderboard without a team", async () => {
-    const user = userEvent.setup();
-    render(<InsightsPage />);
-    await user.click(screen.getByRole("button", { name: "Leaderboard" }));
-    expect(await screen.findByText("Sign in to a team to see its leaderboard.")).toBeTruthy();
-    expect(screen.queryByRole("table")).toBeNull();
-  });
-
   it("lists milestones, marks the new ones seen, and makes a progress card", async () => {
     const user = userEvent.setup();
     render(<InsightsPage />);

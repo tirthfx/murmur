@@ -10,14 +10,10 @@ import { describe, expect, it } from "vitest";
 const root = new URL("../../../", import.meta.url).pathname;
 
 const tracked = (): string[] =>
-  execFileSync(
-    "git",
-    ["ls-files", "-z", "apps", "packages", "services", "scripts", "native", "package.json"],
-    {
-      cwd: root,
-      encoding: "utf8",
-    },
-  )
+  execFileSync("git", ["ls-files", "-z", "apps", "packages", "scripts", "native", "package.json"], {
+    cwd: root,
+    encoding: "utf8",
+  })
     .split("\0")
     .filter(Boolean);
 
@@ -32,7 +28,7 @@ describe("no payments", () => {
 
   it("has no payment library in any package.json", () => {
     const manifests = files.filter((file) => file.endsWith("package.json"));
-    expect(manifests.length).toBeGreaterThan(3);
+    expect(manifests.length).toBeGreaterThanOrEqual(3);
     for (const file of manifests) {
       const json = JSON.parse(readFileSync(root + file, "utf8")) as Record<
         string,

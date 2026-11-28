@@ -51,7 +51,7 @@ export function RewriteAutoApplyControl({
         value={rewrite.autoApply}
         onChange={(enabled) => void save({ enabled })}
         {...(locked && !rewrite.autoApply
-          ? { isDisabled: true, disabledMessage: lockedText("autoApply") }
+          ? { isDisabled: true, disabledMessage: lockedText() }
           : {})}
       />
       {rewrite.autoApply ? (

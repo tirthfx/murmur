@@ -25,7 +25,7 @@ export const RING_SEARCH_SECONDS = 30;
 export function ExperimentalSection({
   experimental,
   onChange,
-  plan = "enterprise",
+  plan = "pro",
 }: ExperimentalSectionProps) {
   const commandLocked = !planAllows(plan, "commandMode");
   const focusLocked = !planAllows(plan, "focusMode");
@@ -126,9 +126,7 @@ export function ExperimentalSection({
           description="Say a command to change selected text: hold the Command Mode key, or start a dictation with the wake phrase. With nothing selected it acts on your last dictation."
           value={experimental.commandMode}
           onChange={(commandMode) => set({ commandMode })}
-          {...(commandLocked
-            ? { isDisabled: true, disabledMessage: lockedText("commandMode") }
-            : {})}
+          {...(commandLocked ? { isDisabled: true, disabledMessage: lockedText() } : {})}
         />
         <Switch
           label="Offer Instruct Mode"
@@ -141,7 +139,7 @@ export function ExperimentalSection({
           description="Cover chosen apps with a notice for 25, 50 or 90 minutes, or until you turn it off. Apps are never quit."
           value={experimental.focusMode}
           onChange={(focusMode) => set({ focusMode })}
-          {...(focusLocked ? { isDisabled: true, disabledMessage: lockedText("focusMode") } : {})}
+          {...(focusLocked ? { isDisabled: true, disabledMessage: lockedText() } : {})}
         />
         <Switch
           label="Ask can propose connector actions"

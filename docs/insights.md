@@ -30,7 +30,6 @@ Speaking time is the recording length. Murmur does not keep how much of a record
   - the daily and weekly streaks.
 - **Top apps:** the 10 apps with the most words, then Other. The percentages add up to 100. An app with no saved name shows its bundle id.
 - **Your voice:** the Voice Profile summary and top phrases, with a link to My Voice. If Voice Profile is off, the tab says how to turn it on.
-- **Leaderboard:** says that there is none, since Murmur has no team.
 
 ## Streaks
 

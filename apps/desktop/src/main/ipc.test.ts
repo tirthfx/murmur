@@ -4,8 +4,6 @@ import { createIpcHandler } from "./ipc";
 import { SAMPLE_SETTINGS, SAMPLE_SETUP } from "../renderer/hub/test-api";
 
 const entryUrl = "file:///app/.vite/renderer/main_window/index.html";
-/** Whether the pretend app is locked (team mode). */
-let lockedNow = false;
 const info = { name: "Murmur", version: "0.0.0", platform: "darwin" };
 const helperStatus = { state: "ready", helperVersion: "0.1.0", message: null } as const;
 
@@ -37,8 +35,6 @@ function setup() {
     entryUrl,
     hubSetPage: vi.fn(),
     openGuide: vi.fn(),
-    teamLeaderboard: vi.fn(),
-    teamLeaderboardShow: vi.fn(),
     helperRetry: vi.fn(),
     reportProblem: vi.fn(() => Promise.resolve({ ok: true, message: "" })),
     testingTool: vi.fn(() => Promise.resolve({ ok: true, message: "" })),
@@ -110,28 +106,6 @@ function setup() {
     slackPostPrepare: vi.fn(),
     slackPostSend: vi.fn(),
     extensionsView: vi.fn(),
-    isLocked: () => lockedNow,
-    policyView: vi.fn(),
-    teamView: vi.fn(),
-    teamConnect: vi.fn(),
-    teamSetup: vi.fn(),
-    teamSignIn: vi.fn(),
-    teamSignOut: vi.fn(),
-    teamLock: vi.fn(),
-    teamUnlock: vi.fn(),
-    teamRedeem: vi.fn(),
-    teamSyncNow: vi.fn(),
-    teamSetIdleLock: vi.fn(),
-    teamDisconnect: vi.fn(),
-    teamNoticesSeen: vi.fn(),
-    teamOpenAdmin: vi.fn(),
-    teamPropose: vi.fn(),
-    teamChangePassword: vi.fn(),
-    teamPeople: vi.fn(),
-    teamFolderCreate: vi.fn(),
-    teamNoteRead: vi.fn(),
-    teamSkillAdd: vi.fn(),
-    teamShareMeeting: vi.fn(),
     briefOverview: vi.fn(),
     briefGet: vi.fn(),
     briefBuild: vi.fn(),
@@ -344,32 +318,6 @@ describe("createIpcHandler", () => {
       handle(IPC_CHANNELS.getHelperStatus, { senderFrame: { url: "https://example.com/" } }, []),
     ).toThrow(/untrusted sender/);
     expect(getHelperStatus).not.toHaveBeenCalled();
-  });
-
-  it("refuses meetings, notes' meetings, questions, briefs and tasks while locked, and keeps the rest and Stop working", () => {
-    const { handle } = setup();
-    const call = (channel: string, args: unknown[] = []) =>
-      handle(channel, { senderFrame: { url: entryUrl } }, args);
-    lockedNow = true;
-    try {
-      for (const channel of [
-        IPC_CHANNELS.meetingsList,
-        IPC_CHANNELS.meetingDetail,
-        IPC_CHANNELS.askThreads,
-        IPC_CHANNELS.briefOverview,
-      ])
-        expect(
-          () => call(channel, channel === IPC_CHANNELS.meetingDetail ? ["m1"] : []),
-          channel,
-        ).toThrow(/locked/);
-      // A recording in progress can still be stopped, and the lock screen itself can talk.
-      expect(() => call(IPC_CHANNELS.meetingStop)).not.toThrow();
-      expect(() => call(IPC_CHANNELS.teamUnlock, ["pw"])).not.toThrow();
-      expect(() => call(IPC_CHANNELS.getAppInfo)).not.toThrow();
-    } finally {
-      lockedNow = false;
-    }
-    expect(() => call(IPC_CHANNELS.meetingsList)).not.toThrow();
   });
 
   it("rejects an unknown channel", () => {

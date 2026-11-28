@@ -152,7 +152,7 @@ export function InstructSection({ view, onSaved, update }: InstructSectionProps)
         />
         {planAllows(view.settings.plan, "qualityModel") ? null : (
           <Text size="sm" color="secondary">
-            Quality: {lockedText("qualityModel")}
+            Quality: {lockedText()}
           </Text>
         )}
         <QualityModelField />

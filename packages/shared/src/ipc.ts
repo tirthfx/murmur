@@ -32,31 +32,6 @@ import type { RecordingsResult } from "./connector-import";
 import type { AskActionResult } from "./ask-actions";
 import { askActionRequestSchema, type AskActionRequest } from "./ask-actions";
 import type { ExtensionsView } from "./extensions";
-import type { PolicyView } from "./policy";
-import type { SharedFolder, SharedNote, TeamPerson } from "./team-content";
-import {
-  teamConnectSchema,
-  teamFolderCreateSchema,
-  teamNoteReadSchema,
-  teamPasswordChangeSchema,
-  teamProposeSchema,
-  teamRedeemSchema,
-  teamSetupSchema,
-  teamShareMeetingSchema,
-  teamSignInSchema,
-  teamSkillAddSchema,
-  type TeamContentResult,
-  type TeamFolderCreateInput,
-  type TeamNoteReadInput,
-  type TeamPasswordChangeInput,
-  type TeamProposeInput,
-  type TeamShareMeetingInput,
-  type TeamSkillAddInput,
-  type TeamProposeResult,
-  type TeamRedeemResult,
-  type TeamResult,
-  type TeamView,
-} from "./team";
 import {
   slackPostSourceSchema,
   slackPrepareInputSchema,
@@ -267,11 +242,6 @@ import {
   SHORTCUT_SLOTS,
 } from "./settings";
 import {
-  LEADERBOARD_PERIODS,
-  type LeaderboardPeriod,
-  type TeamLeaderboardAnswer,
-} from "./team-client";
-import {
   CONTACT_LIMITS,
   contactCardSchema,
   contactResultSchema,
@@ -383,8 +353,6 @@ export const IPC_CHANNELS = {
   testingTool: "testing:tool",
   reportProblem: "help:report-problem",
   openGuide: "help:open-guide",
-  teamLeaderboard: "team:leaderboard",
-  teamLeaderboardShow: "team:leaderboard-show",
   helperRetry: "helper:retry",
   axInspect: "testing:ax-inspect",
   planAct: "plan:act",
@@ -553,27 +521,6 @@ export const IPC_CHANNELS = {
   connectorImportPrepare: "connectors:import-prepare",
   connectorDataStatus: "connectors:data-status",
   extensionsView: "extensions:view",
-  policyView: "policy:view",
-  teamView: "team:view",
-  teamConnect: "team:connect",
-  teamSetup: "team:setup",
-  teamSignIn: "team:sign-in",
-  teamSignOut: "team:sign-out",
-  teamLock: "team:lock",
-  teamUnlock: "team:unlock",
-  teamRedeem: "team:redeem",
-  teamSyncNow: "team:sync-now",
-  teamSetIdleLock: "team:set-idle-lock",
-  teamDisconnect: "team:disconnect",
-  teamNoticesSeen: "team:notices-seen",
-  teamOpenAdmin: "team:open-admin",
-  teamPropose: "team:propose",
-  teamPeople: "team:people",
-  teamChangePassword: "team:change-password",
-  teamFolderCreate: "team:folder-create",
-  teamNoteRead: "team:note-read",
-  teamSkillAdd: "team:skill-add",
-  teamShareMeeting: "team:share-meeting",
   askActionPropose: "ask:action-propose",
   slackPostState: "slack-post:state",
   slackPostStart: "slack-post:start",
@@ -892,11 +839,6 @@ export const IPC_CONTRACT = {
   // HB-08.
   [IPC_CHANNELS.reportProblem]: { args: z.tuple([]), result: testingToolResultSchema },
   [IPC_CHANNELS.openGuide]: { args: z.tuple([]), result: z.boolean() },
-  [IPC_CHANNELS.teamLeaderboard]: {
-    args: z.tuple([z.enum(LEADERBOARD_PERIODS)]),
-    result: z.custom<TeamLeaderboardAnswer>(),
-  },
-  [IPC_CHANNELS.teamLeaderboardShow]: { args: z.tuple([z.boolean()]), result: z.boolean() },
   [IPC_CHANNELS.helperRetry]: { args: z.tuple([]), result: z.boolean() },
   // HB-55, HB-56.
   [IPC_CHANNELS.testingTool]: {
@@ -1222,63 +1164,6 @@ export const IPC_CONTRACT = {
     result: z.custom<SlackSendResult>(),
   },
   [IPC_CHANNELS.extensionsView]: { args: z.tuple([]), result: z.custom<ExtensionsView>() },
-  [IPC_CHANNELS.policyView]: { args: z.tuple([]), result: z.custom<PolicyView>() },
-  [IPC_CHANNELS.teamView]: { args: z.tuple([]), result: z.custom<TeamView>() },
-  [IPC_CHANNELS.teamConnect]: {
-    args: z.tuple([teamConnectSchema]),
-    result: z.custom<TeamResult>(),
-  },
-  [IPC_CHANNELS.teamSetup]: { args: z.tuple([teamSetupSchema]), result: z.custom<TeamResult>() },
-  [IPC_CHANNELS.teamSignIn]: { args: z.tuple([teamSignInSchema]), result: z.custom<TeamResult>() },
-  [IPC_CHANNELS.teamSignOut]: { args: z.tuple([]), result: z.custom<TeamResult>() },
-  [IPC_CHANNELS.teamLock]: { args: z.tuple([]), result: z.custom<TeamResult>() },
-  [IPC_CHANNELS.teamUnlock]: {
-    args: z.tuple([z.string().min(1).max(200)]),
-    result: z.custom<TeamResult>(),
-  },
-  [IPC_CHANNELS.teamRedeem]: {
-    args: z.tuple([teamRedeemSchema]),
-    result: z.custom<TeamRedeemResult>(),
-  },
-  [IPC_CHANNELS.teamSyncNow]: { args: z.tuple([]), result: z.custom<TeamResult>() },
-  [IPC_CHANNELS.teamSetIdleLock]: {
-    args: z.tuple([z.number().int().min(1).max(240)]),
-    result: z.custom<TeamResult>(),
-  },
-  [IPC_CHANNELS.teamDisconnect]: { args: z.tuple([]), result: z.custom<TeamResult>() },
-  [IPC_CHANNELS.teamNoticesSeen]: { args: z.tuple([]), result: z.custom<TeamResult>() },
-  [IPC_CHANNELS.teamPropose]: {
-    args: z.tuple([teamProposeSchema]),
-    result: z.custom<TeamProposeResult>(),
-  },
-  [IPC_CHANNELS.teamChangePassword]: {
-    args: z.tuple([teamPasswordChangeSchema]),
-    result: z.custom<TeamContentResult<null>>(),
-  },
-  [IPC_CHANNELS.teamPeople]: {
-    args: z.tuple([z.string().min(1).max(64)]),
-    result: z.custom<TeamContentResult<TeamPerson[]>>(),
-  },
-  [IPC_CHANNELS.teamFolderCreate]: {
-    args: z.tuple([teamFolderCreateSchema]),
-    result: z.custom<TeamContentResult<SharedFolder>>(),
-  },
-  [IPC_CHANNELS.teamNoteRead]: {
-    args: z.tuple([teamNoteReadSchema]),
-    result: z.custom<TeamContentResult<SharedNote>>(),
-  },
-  [IPC_CHANNELS.teamSkillAdd]: {
-    args: z.tuple([teamSkillAddSchema]),
-    result: z.custom<SkillImportResult>(),
-  },
-  [IPC_CHANNELS.teamShareMeeting]: {
-    args: z.tuple([teamShareMeetingSchema]),
-    result: z.custom<TeamContentResult<{ id: string }>>(),
-  },
-  [IPC_CHANNELS.teamOpenAdmin]: {
-    args: z.tuple([]),
-    result: z.custom<{ ok: boolean; message?: string }>(),
-  },
   [IPC_CHANNELS.briefOverview]: { args: z.tuple([]), result: z.custom<BriefOverview>() },
   [IPC_CHANNELS.briefGet]: {
     args: z.tuple([z.string().min(1).max(300)]),
@@ -1583,9 +1468,6 @@ export interface MurmurApi {
   reportProblem(): Promise<TestingToolResult>;
   /** Opens the bundled guide in the default text viewer; false when that failed. */
   openGuide(): Promise<boolean>;
-  teamLeaderboard(period: LeaderboardPeriod): Promise<TeamLeaderboardAnswer>;
-  /** Whether this person is listed; false when the choice could not be saved. */
-  teamLeaderboardShow(visible: boolean): Promise<boolean>;
   /** Starts the helper again after it gave up; false when there is nothing to retry. */
   helperRetry(): Promise<boolean>;
   /** A Testing page tool (HB-55); developer mode only. */
@@ -1800,45 +1682,6 @@ export interface MurmurApi {
   slackPostSend(input: SlackSendInput): Promise<SlackSendResult>;
   /** CN-12: the built-in actions connected apps can do, with their state. They are switched in settings. */
   extensionsView(): Promise<ExtensionsView>;
-  /** Team mode (TM-01, TM-06). */
-  /** TM-13 to TM-16, TM-21: what the managed file and the team policy set (shown, not changed). */
-  policyView(): Promise<PolicyView>;
-  teamView(): Promise<TeamView>;
-  teamConnect(input: { serverUrl: string; projectKey?: string }): Promise<TeamResult>;
-  teamSetup(input: { name: string; email: string; password: string }): Promise<TeamResult>;
-  teamSignIn(input: { email: string; password: string }): Promise<TeamResult>;
-  teamSignOut(): Promise<TeamResult>;
-  teamLock(): Promise<TeamResult>;
-  teamUnlock(password: string): Promise<TeamResult>;
-  teamRedeem(input: {
-    code: string;
-    name?: string;
-    email?: string;
-    password?: string;
-  }): Promise<TeamRedeemResult>;
-  teamSyncNow(): Promise<TeamResult>;
-  teamSetIdleLock(minutes: number): Promise<TeamResult>;
-  teamDisconnect(): Promise<TeamResult>;
-  teamNoticesSeen(): Promise<TeamResult>;
-  /** TM-11: opens the team server's admin console in the browser (for admins; the server decides). */
-  teamOpenAdmin(): Promise<{ ok: boolean; message?: string }>;
-  /** TM-06, TM-07: proposes a dictionary entry or snippet to the person's team. */
-  teamPropose(input: TeamProposeInput): Promise<TeamProposeResult>;
-  /** Changes the signed-in person's own password on the team backend. */
-  teamChangePassword(input: TeamPasswordChangeInput): Promise<TeamContentResult<null>>;
-  /** NT-17: the people in a team, to choose who is in a shared folder. */
-  teamPeople(teamId: string): Promise<TeamContentResult<TeamPerson[]>>;
-  /** NT-17: makes a shared folder for named people. */
-  teamFolderCreate(input: TeamFolderCreateInput): Promise<TeamContentResult<SharedFolder>>;
-  /** NT-17: one shared note, with its text. */
-  teamNoteRead(input: TeamNoteReadInput): Promise<TeamContentResult<SharedNote>>;
-  /** NT-16: copies a team's Skill into the person's own Skills. */
-  teamSkillAdd(input: TeamSkillAddInput): Promise<SkillImportResult>;
-  /** NT-17: shares a meeting's summary and tasks (text, never audio) into a team folder. */
-  teamShareMeeting(input: TeamShareMeetingInput): Promise<TeamContentResult<{ id: string }>>;
-  /** The team state changed: locked, signed in or out, or a sync finished. */
-  onTeamChanged(handler: (view: TeamView) => void): () => void;
-  onPolicyChanged(handler: (view: PolicyView) => void): () => void;
   /** NT-11: the meetings that are coming, whether each has a brief, and each source's state. */
   briefOverview(): Promise<BriefOverview>;
   /** NT-11: the brief last built for a meeting, or null. */
@@ -1934,6 +1777,4 @@ export const IPC_EVENTS = {
   openPage: "hub:open-page",
   meetingsChanged: "meetings:changed",
   meetingLive: "meetings:live",
-  teamChanged: "team:changed",
-  policyChanged: "policy:changed",
 } as const;

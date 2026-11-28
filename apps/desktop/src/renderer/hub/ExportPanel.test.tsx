@@ -12,10 +12,9 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("export (NT-18)", () => {
-  it("says the audio is not included and that links need the team server", () => {
+  it("says the audio is not included", () => {
     render(<ExportPanel meetingId="m-1" onClose={() => undefined} />);
     expect(screen.getByText(/The audio is not included/)).toBeTruthy();
-    expect(screen.getByText(/needs the team server/)).toBeTruthy();
   });
 
   it("exports the summary, transcript and tasks by default, not the notes", async () => {

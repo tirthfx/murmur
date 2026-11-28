@@ -525,7 +525,7 @@ export function createInstructController(deps: InstructControllerDeps): Instruct
     async setModel(model) {
       const current = thread;
       if (model === "quality" && deps.qualityLocked?.()) {
-        deps.notify(lockedText("qualityModel"));
+        deps.notify(lockedText());
         return;
       }
       if (model === "quality" && !deps.qualityReady()) {

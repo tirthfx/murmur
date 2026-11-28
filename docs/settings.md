@@ -62,7 +62,7 @@ Settings, Plans says plainly that nothing is charged and no payment is ever made
 - **Tier:** the switch is the same local tier as before (`plan.tier`).
 - **Free's weekly limit:** 2,000 dictated words a week, with the week starting Monday, counted from Insights' daily counts.
   - A dictation that would start at or past the limit does not start, and the Bar says "Weekly limit reached. Resets Monday."
-  - History stays open, and every other tier has no limit.
+  - History stays open, and Pro has no limit.
   - The check happens when a dictation starts, so the dictation that crosses the limit finishes.
 - **Trial:** "Start trial" puts the tier on Pro for 14 days and remembers the tier before; it can be extended once by 7 days. When it ends, early or on time, that tier comes back. The end is checked at start and every hour.
 - **Student:** a label only; it changes nothing else.
@@ -71,9 +71,8 @@ Settings, Plans says plainly that nothing is charged and no payment is ever made
 ## Plan (RW-22)
 
 A local switch for testing what each plan unlocks, stored as `plan.tier`. There is no payment,
-billing or subscription of any kind, and nothing is sent anywhere. The tiers are Free, Pro,
-Team, Growth and Enterprise (TM-25). The owner's build defaults to Enterprise, so every feature
-can be tried.
+billing or subscription of any kind, and nothing is sent anywhere. The tiers are Free and Pro.
+The owner's build defaults to Pro, so every feature can be tried.
 
 Free keeps:
 
@@ -90,7 +89,7 @@ Free locks:
 - the Quality model;
 - Focus Mode.
 
-Pro and every tier above it have everything. Locked controls say "Available on Pro".
+Pro has everything. Locked controls say "Available on Pro".
 
 Main checks the gates on every action, not only at start (`apps/desktop/src/main/plans/gates.ts` and `planAllows` in `packages/shared/src/plans.ts`):
 

@@ -61,7 +61,7 @@ function ModelSwitch({ api, state }: { api: MurmurInstructApi; state: InThread }
       </SegmentedControl>
       {state.qualityAvailable ? null : (
         <Text size="sm" color="secondary">
-          {state.qualityLocked ? lockedText("qualityModel") : INSTRUCT_MESSAGES.downloadQuality}
+          {state.qualityLocked ? lockedText() : INSTRUCT_MESSAGES.downloadQuality}
         </Text>
       )}
     </HStack>

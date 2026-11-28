@@ -1,5 +1,4 @@
 import { TextArea } from "@astryxdesign/core/TextArea";
-import { RetentionPolicyNote } from "./PolicyNotice";
 import { useEffect, useState } from "react";
 import { Button } from "@astryxdesign/core/Button";
 import { Heading } from "@astryxdesign/core/Heading";
@@ -245,7 +244,6 @@ export function DataPrivacySection({
       <section data-setting="retention" className="hub-setting-row">
         <VStack gap={2}>
           <Heading level={3}>Retention</Heading>
-          <RetentionPolicyNote />
           <Choice
             label="Keep dictation text"
             options={HISTORY_CHOICES}

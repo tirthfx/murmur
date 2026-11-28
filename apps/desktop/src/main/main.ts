@@ -158,21 +158,6 @@ import { createCleanupService } from "./cleanup/cleanup-service";
 import { databasePath, openDatabase } from "./db/database";
 import { createHistoryStore, type HistoryStore } from "./history/history-store";
 import { createInsightsStore } from "./insights/insights-store";
-import { createSharedVocabulary } from "./team/shared-vocabulary";
-import { loadManagedConfig } from "./managed/managed-config";
-import { blockedAppRefusal, meetingStartRefusal, planRefusal } from "./policy/gates";
-import {
-  DICTATION_AUDIO,
-  HISTORY_TEXT,
-  MEETING_AUDIO,
-  MEETING_TRANSCRIPT,
-  effectivePeriod,
-  retentionReport,
-} from "./policy/retention";
-import { createPolicyService } from "./policy/policy-service";
-import { createTeamService } from "./team/team-service";
-import { meetingShare } from "./meetings/meeting-share";
-import { createUsageCounts } from "./team/usage-counts";
 import { createMilestonesStore } from "./milestones/milestones-store";
 import { createNotifier } from "./notifications/notifier";
 import { createNetworkGuard } from "./privacy/network-guard";
@@ -286,7 +271,13 @@ import { createInstructThreadStore } from "./instruct/thread-store";
 import { createUndoService } from "./undo/undo-service";
 import { createQualityModel } from "./instruct/quality-model";
 import { createFocusController } from "./focus/focus-controller";
-import { boundRewriteShortcuts, refuseNewRewrite, refuseRewriteShortcut } from "./plans/gates";
+import {
+  boundRewriteShortcuts,
+  meetingStartRefusal,
+  planRefusal,
+  refuseNewRewrite,
+  refuseRewriteShortcut,
+} from "./plans/gates";
 import { createFocusStore } from "./focus/focus-store";
 import { createFocusOverlayIpcHandler } from "./focus/overlay-ipc";
 import { FocusOverlayWindow } from "./focus/overlay-window";
@@ -470,8 +461,6 @@ const learner = database && dictionary ? createCorrectionLearner(database, dicti
 let lastInserted: string | null = null;
 // Snippets (PZ-08).
 const snippets = database ? createSnippetStore(database) : null;
-// TM-06: the team's shared dictionary and snippets, laid over the personal ones for dictation.
-const sharedVocabulary = createSharedVocabulary();
 // Styles per context and the owner's app categories (PZ-11, PZ-13).
 const styles = database ? createStyleStore(database) : null;
 // Memory (PZ-18, PZ-19), and the one "remember that" fact waiting on the Bar.
@@ -673,11 +662,7 @@ const DAY_MS = 24 * 60 * 60_000;
 const retention = database
   ? createRetentionJob(database, {
       historyText: (now) => {
-        const days = effectivePeriod(
-          HISTORY_TEXT,
-          settingsStore.get().privacy.historyDays,
-          policy.current().retention.transcript,
-        );
+        const days = settingsStore.get().privacy.historyDays;
         return days && history ? history.removeOlderThan(now - days * DAY_MS).rows : 0;
       },
       audio: (now) => history?.pruneAudio(now) ?? 0,
@@ -693,18 +678,11 @@ const retention = database
     })
   : null;
 
-/** TM-15: tells the team servers (counts only) that a run removed data under a policy limit. */
-function reportRetention(removed: Record<string, number>): void {
-  const counts = retentionReport(removed, policy.current().retention);
-  if (counts) void teamService.reportRetention(counts);
-}
-
 function runRetention(): void {
   try {
     const removed = retention?.runIfDue(Date.now());
     if (removed) {
       console.log(`[retention] ${JSON.stringify(removed)}`);
-      reportRetention(removed);
     }
   } catch (error) {
     console.warn(`[retention] could not run: ${String(error)}`);
@@ -772,9 +750,7 @@ const history: HistoryStore | null = database
       // HB-48, HB-52: what is kept of a successful recording; nothing in strict local mode.
       audioPolicy: () => {
         const privacy = settingsStore.get().privacy;
-        return privacy.strictLocal
-          ? "never"
-          : effectivePeriod(DICTATION_AUDIO, privacy.audio, policy.current().retention.audio);
+        return privacy.strictLocal ? "never" : privacy.audio;
       },
     })
   : null;
@@ -891,50 +867,8 @@ const settingsStore = createSettingsStore(database, settingsDefaults);
 const keys = MAC_KEYS;
 /** Plan gates (RW-22): read on every action, so a plan change applies at once. */
 const allows = (feature: PlanFeature) => planAllows(settingsStore.get().plan, feature);
-// TM-13 to TM-16, TM-21: the policy in force, from the managed file and the team's policy. Every
-// feature below asks it before it runs; the Hub only shows it.
-const policy = createPolicyService({
-  managed: () =>
-    loadManagedConfig({
-      read: (file) => {
-        try {
-          return readFileSync(file, "utf8");
-        } catch (error) {
-          if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
-          throw error;
-        }
-      },
-      log: (line) => console.log(line),
-      ...(process.env["MURMUR_MANAGED_PATH"] ? { path: process.env["MURMUR_MANAGED_PATH"] } : {}),
-    }),
-  onChange: (view) => {
-    if (hubEvents && !hubEvents.isDestroyed()) hubEvents.send(IPC_EVENTS.policyChanged, view);
-    // Rewrite shortcuts are bound only while Rewrites are on.
-    refreshBindings();
-  },
-});
-/** TM-16: true (after saying why) when the organization blocks the address's host. */
-function addressRefused(url: string): boolean {
-  const refusal = policy.urlRefusal(url);
-  if (refusal === null) return false;
-  bar.dispatch({ type: "warn", message: refusal });
-  return true;
-}
-/** Why a connector may not be used: the plan, the policy, or the policy's blocked addresses. */
-function connectorRefusal(id: string): string | null {
-  const provider = connectorRegistry.get(id);
-  return (
-    planRefusal(settingsStore.get().plan, "connectors") ??
-    policy.featureRefusal("connectors", id) ??
-    (provider ? policy.urlRefusal(provider.authorizeUrl) : null)
-  );
-}
-/** Tells the owner why an export was refused (those channels have no message of their own). */
-function exportRefusal(feature: "exportToFile" | "skillSharing" = "exportToFile"): string | null {
-  const refusal = policy.featureRefusal(feature) ?? policy.featureRefusal("exportToFile");
-  if (refusal !== null) bar.dispatch({ type: "warn", message: refusal });
-  return refusal;
-}
+/** Why a connector may not be used on this plan, or null. */
+const connectorRefusal = () => planRefusal(settingsStore.get().plan, "connectors");
 const nextSession = createNextSession(
   () => settingsStore.get(),
   (change) => settingsStore.update(change),
@@ -949,7 +883,7 @@ const settingsService = createSettingsService({
 });
 const bindingsNow = () => [
   ...bindingsFor(settingsStore.get(), keys.cancelKeyCode),
-  ...rewriteBindings(policy.featureRefusal("transforms") ? [] : (rewrites?.list() ?? [])).slice(
+  ...rewriteBindings(rewrites?.list() ?? []).slice(
     0,
     boundRewriteShortcuts(settingsStore.get().plan),
   ),
@@ -1016,13 +950,7 @@ async function dictationBlocked(): Promise<string | null> {
     await permissions.check("dictation start");
     blockers = blockersNow();
   }
-  const blocker = blockerMessage(blockers);
-  if (blocker !== null) return blocker;
-  // TM-13: in an app the organization has blocked, nothing is captured at all.
-  return blockedAppRefusal(
-    { policy, focus: () => helper.focusContext({ maxBefore: 0, maxAfter: 0 }) },
-    "dictation",
-  );
+  return blockerMessage(blockers);
 }
 
 const displayArea = (display: Electron.Display) => ({ id: display.id, workArea: display.workArea });
@@ -1423,19 +1351,16 @@ const recorder = createRecorder({
   ...(dictionary
     ? {
         dictionary: {
-          rules: () => sharedVocabulary.rules(dictionary.rules()),
-          recordUses: (ids: string[]) =>
-            dictionary.recordUses(ids.filter((id) => !id.startsWith("team:"))),
+          rules: () => dictionary.rules(),
+          recordUses: (ids: string[]) => dictionary.recordUses(ids),
         },
       }
     : {}),
   ...(snippets
     ? {
         snippets: {
-          list: () => sharedVocabulary.snippets(snippets.list()),
-          recordUse: (id: string) => {
-            if (!id.startsWith("team:")) snippets.recordUse(id);
-          },
+          list: () => snippets.list(),
+          recordUse: (id: string) => snippets.recordUse(id),
         },
       }
     : {}),
@@ -1563,9 +1488,8 @@ const activateApp = activateMacApp;
 const rewriteController = createRewriteController({
   helper,
   rewrites: {
-    // TM-14: with Rewrites turned off by the organization, none can be run.
-    enabled: () => (policy.featureRefusal("transforms") ? [] : (rewrites?.enabled() ?? [])),
-    get: (id) => (policy.featureRefusal("transforms") ? null : (rewrites?.get(id) ?? null)),
+    enabled: () => rewrites?.enabled() ?? [],
+    get: (id) => rewrites?.get(id) ?? null,
     markUsed: (id) => rewrites?.markUsed(id),
   },
   runs: rewriteRuns,
@@ -1599,8 +1523,7 @@ function rewriteContext(appId: string | null, text: string) {
 const autoRewrite = createAutoRewriter({
   // Free has no auto-apply (RW-22): no Rewrite counts as auto-applying.
   rewrites: {
-    list: () =>
-      allows("autoApply") && !policy.featureRefusal("transforms") ? (rewrites?.list() ?? []) : [],
+    list: () => (allows("autoApply") ? (rewrites?.list() ?? []) : []),
     markUsed: (id) => rewrites?.markUsed(id),
   },
   generation,
@@ -2002,11 +1925,6 @@ const meetingRetention = database
         const notetaker = settingsStore.get().notetaker;
         return { ...notetaker.retention, summaryAuto: notetaker.summary.auto };
       },
-      // TM-15: a folder's own period, and the setting, stay inside what the organization allows.
-      limitAudio: (period) =>
-        effectivePeriod(MEETING_AUDIO, period, policy.current().retention.audio),
-      limitTranscript: (period) =>
-        effectivePeriod(MEETING_TRANSCRIPT, period, policy.current().retention.transcript),
       removeFile: (file) => rmSync(file, { force: true }),
       logger: createConsoleLogger("[retention]"),
     })
@@ -2045,42 +1963,6 @@ const skillsService = meetingSkills
 // has only the accounts and a cache. The providers (Google Calendar, ...) are added to this
 // list one by one in M6.
 const connectorKeychain = createHelperKeychain(helper);
-const usageCounts = database ? createUsageCounts(database) : null;
-// TM-01, TM-06, TM-09: team mode. Off until the owner connects to a team server; the session is a
-// Keychain item, and what is kept on disk has no token and no password.
-const teamFile = path.join(profile.appData, "Murmur", "team.json");
-const teamService = createTeamService({
-  readFile: () => {
-    try {
-      return readFileSync(teamFile, "utf8");
-    } catch {
-      return null;
-    }
-  },
-  writeFile: (text) => {
-    mkdirSync(path.dirname(teamFile), { recursive: true });
-    writeFileSync(teamFile, text, { mode: 0o600 });
-  },
-  keychain: connectorKeychain,
-  fetch: (url, init) => fetch(url, init),
-  now: () => Date.now(),
-  idleSeconds: () => powerMonitor.getSystemIdleTime(),
-  networkCheck: (url) => {
-    // A server on this Mac is not the network; any other address is refused in strict local mode.
-    const host = new URL(url).hostname;
-    if (host === "127.0.0.1" || host === "localhost" || host === "[::1]") return;
-    networkGuard.check("team server");
-  },
-  vocabulary: sharedVocabulary,
-  policy,
-  insights: { days: (first) => insights?.days(first) ?? [] },
-  counts: () => usageCounts?.daily() ?? [],
-  meetings: { list: (limit) => meetingsStore?.list(limit) ?? [] },
-  onChange: (view) => {
-    if (hubEvents && !hubEvents.isDestroyed()) hubEvents.send(IPC_EVENTS.teamChanged, view);
-  },
-  log: (line) => console.log(line),
-});
 const connectorStore = database ? createConnectorStore(database) : null;
 const connectorsFile = path.join(profile.appData, "Murmur", "connectors.json");
 const connectorConfig = createConnectorConfig({
@@ -2117,9 +1999,6 @@ const connectorService = connectorStore
       // Strict local mode (HB-52): no sign-in and no request to a provider.
       http: (url, init) => {
         networkGuard.check("connector request");
-        // TM-16: a provider whose address the organization blocks is not called.
-        const refusal = policy.urlRefusal(String(url));
-        if (refusal !== null) throw new Error(refusal);
         return fetch(url, init);
       },
       openExternal: (url) => shell.openExternal(url),
@@ -2483,10 +2362,10 @@ const mcpService =
   foldersStore &&
   meetingNotes
     ? createMcpService({
-        // TM-14: off for the organization, or on a plan without it, the server answers nothing.
+        // On Free the server answers nothing.
         settings: () => {
           const mcp = settingsStore.get().mcp;
-          return policy.featureRefusal("mcp") || !allows("mcp") ? { ...mcp, enabled: false } : mcp;
+          return allows("mcp") ? mcp : { ...mcp, enabled: false };
         },
         db: database,
         newId: randomUUID,
@@ -2960,11 +2839,10 @@ const meetingStarter =
           return result.response === 0;
         },
         now: () => Date.now(),
-        // TM-14, TM-25: Notetaker off by policy, or Free's five meetings a month used.
+        // TM-25: Free records five meetings a month.
         refuse: () =>
           meetingStartRefusal({
             plan: () => settingsStore.get().plan,
-            policy,
             meetings: () => meetingsStore?.list(500) ?? [],
             now: () => Date.now(),
           }),
@@ -3047,15 +2925,7 @@ if (meetings && meetingStarter) {
     matchers: () => meetingMatchers,
     settings: () => settingsStore.get().notetaker.detect,
     recording: () => meetings.state(),
-    showPrompt: ({ id, name }) => {
-      // TM-13, TM-14: no prompt when Notetaker is off, or in an app the organization has blocked.
-      const bundleIds =
-        meetingMatchers.find((matcher) => matcher.id === id)?.native?.bundleIds ?? [];
-      if (
-        policy.featureRefusal("notetaker") ||
-        bundleIds.some((bundleId) => policy.appRefusal({ bundleId }, "notetaker"))
-      )
-        return false;
+    showPrompt: ({ name }) => {
       bar.dispatch({
         type: "ask",
         message: "Record this meeting?",
@@ -3186,7 +3056,6 @@ function createTray(): void {
     joinMeeting: (key) => {
       const event = eventByKey(key);
       if (!event?.joinUrl || !/^https?:\/\//i.test(event.joinUrl)) return;
-      if (addressRefused(event.joinUrl)) return;
       void shell.openExternal(event.joinUrl);
       // With auto record on, joining also starts the recording (NT-03).
       if (settingsStore.get().notetaker.detect.autoRecord && meetings?.state().status === "idle")
@@ -3592,9 +3461,7 @@ let scratchpadWindow: BrowserWindow | null = null;
  * it shares the Hub's preload, CSP and IPC checks. Opens or brings it forward.
  */
 function openScratchpad(noteId?: string): void {
-  // TM-14: the Scratchpad can be turned off for the organization; notes already written stay.
-  if (isSmokeRun || !settingsStore.get().scratchpad.enabled || policy.featureRefusal("scratchpad"))
-    return;
+  if (isSmokeRun || !settingsStore.get().scratchpad.enabled) return;
   const existing = scratchpadWindow;
   if (existing && !existing.isDestroyed()) {
     if (noteId) existing.webContents.send(IPC_EVENTS.scratchpadOpenNote, noteId);
@@ -3639,10 +3506,6 @@ function registerIpc(): void {
   const handle = createIpcHandler({
     entryUrl: hubEntryUrl,
     helperRetry: () => helper.retry(),
-    teamLeaderboard: async (period) =>
-      teamService?.leaderboard(period) ?? { ok: false, message: "Team mode is not set up." },
-    teamLeaderboardShow: async (visible) =>
-      (await teamService?.showOnLeaderboard(visible)) ?? false,
     openGuide: async () => {
       // HB-08: written beside the data, so any text viewer can open it.
       const file = path.join(profile.appData, "Murmur", "Murmur guide.md");
@@ -3778,8 +3641,7 @@ function registerIpc(): void {
     },
     retentionView: () => retention?.view() ?? { lastRunAt: null, nextRunAt: null, removed: {} },
     retentionRun: () => {
-      const removed = retention?.run(Date.now());
-      if (removed) reportRetention(removed);
+      retention?.run(Date.now());
       return retention?.view() ?? { lastRunAt: null, nextRunAt: null, removed: {} };
     },
     notesList: (query) => notes?.list(query) ?? [],
@@ -3952,7 +3814,7 @@ function registerIpc(): void {
       }),
     connectorConnect: async (id, loginHint) => {
       if (!connectorService) return { ok: false, message: "Connectors are not available." };
-      const refusal = connectorRefusal(id);
+      const refusal = connectorRefusal();
       if (refusal !== null) return { ok: false, message: refusal };
       const outcome = await connectorService.connect(
         id,
@@ -3994,7 +3856,7 @@ function registerIpc(): void {
     connectorSetEnabled: (accountId, enabled) => connectorService?.setEnabled(accountId, enabled),
     connectorConnectKey: async (id, key) => {
       if (!connectorService) return { ok: false, message: "Connectors are not available." };
-      const refusal = connectorRefusal(id);
+      const refusal = connectorRefusal();
       if (refusal !== null) return { ok: false, message: refusal };
       const outcome = await connectorService.connectWithKey(id, key);
       return outcome.ok
@@ -4012,9 +3874,7 @@ function registerIpc(): void {
       connectorData?.options(accountId) ?? { ok: false, message: "Connectors are not available." },
     connectorDataStatus: () => connectorData?.status() ?? [],
     connectorSync: async (accountId) => {
-      const refusal = connectorRefusal(
-        connectorService?.list().find((a) => a.id === accountId)?.connector ?? "",
-      );
+      const refusal = connectorRefusal();
       if (refusal !== null) return { ok: false, message: refusal };
       // A Slack, Notion, Linear or GitHub account is read by the connector data; a calendar by the calendar sync.
       const account = connectorService?.list().find((entry) => entry.id === accountId);
@@ -4045,7 +3905,6 @@ function registerIpc(): void {
       // Only an address from a connected service's own reads is opened.
       if (!/^https:\/\/(github\.com|linear\.app|(www\.)?notion\.so)\//i.test(url))
         return { ok: false };
-      if (addressRefused(url)) return { ok: false };
       await shell.openExternal(url);
       return { ok: true };
     },
@@ -4074,70 +3933,6 @@ function registerIpc(): void {
         : { ok: false, message: result.message };
     },
     extensionsView: () => actionRunner.view(),
-    policyView: () => policy.view(),
-    teamView: () => teamService.view(),
-    teamConnect: (input) => teamService.connect(input),
-    teamSetup: (input) => teamService.setup(input),
-    teamSignIn: (input) => teamService.signIn(input),
-    teamSignOut: () => teamService.signOut(),
-    teamLock: () => teamService.lock(),
-    teamUnlock: (password) => teamService.unlock(password),
-    teamRedeem: (input) => teamService.redeem(input),
-    teamSyncNow: () => teamService.syncNow(),
-    teamSetIdleLock: (minutes) => teamService.setIdleLock(minutes),
-    teamDisconnect: () => teamService.disconnect(),
-    teamNoticesSeen: () => teamService.noticesSeen(),
-    teamPropose: (input) => teamService.propose(input),
-    teamChangePassword: (input) => teamService.changePassword(input),
-    teamPeople: (teamId) => teamService.people(teamId),
-    teamFolderCreate: (input) => teamService.createFolder(input),
-    teamNoteRead: (input) => teamService.readNote(input),
-    teamSkillAdd: async (input) => {
-      if (!skillsService) return { ...noSkills, line: null };
-      const text = teamService.skillText(input.teamId, input.skillId);
-      if (!text) return { ok: false, message: "That Skill is no longer shared.", line: null };
-      return skillsService.importFile(text);
-    },
-    teamShareMeeting: async (input) => {
-      const meeting = meetingsStore?.get(input.meetingId);
-      if (!meeting) return { ok: false, message: "That meeting is not there any more." };
-      const summary = (meetingSummaries?.list(input.meetingId) ?? [])
-        .filter((entry) => !entry.quick)
-        .at(-1);
-      const shared = meetingShare({
-        title: meeting.title,
-        startedAt: meeting.startedAt,
-        durationMs: meeting.durationMs,
-        summary: summary ? { markdown: summary.markdown, skillName: summary.skillName } : null,
-        tasks: (tasksService?.list({ meetingId: input.meetingId }).tasks ?? []).map((task) => ({
-          title: task.title,
-          status: task.status,
-          owner: task.owner,
-          ownerIsMe: task.ownerIsMe,
-          dueOn: task.dueOn,
-        })),
-      });
-      if (!shared)
-        return { ok: false, message: "This meeting has no summary yet. Make one first." };
-      return teamService.shareNote({
-        teamId: input.teamId,
-        folderId: input.folderId,
-        title: shared.title,
-        body: shared.body,
-        sourceRef: `meeting:${input.meetingId}`,
-      });
-    },
-    teamOpenAdmin: async () => {
-      const server = teamService.view().serverUrl;
-      if (!/^https?:\/\//i.test(server))
-        return { ok: false, message: "Connect to a team server first." };
-      const address = new URL("admin/", server).toString();
-      if (addressRefused(address))
-        return { ok: false, message: "Your organization does not allow this address." };
-      await shell.openExternal(address);
-      return { ok: true };
-    },
-    isLocked: () => teamService.isLocked(),
     emailDraftState: () => draftState("draft_email"),
     emailDraftPropose: async (source) => {
       const state = draftState("draft_email");
@@ -4168,14 +3963,13 @@ function registerIpc(): void {
     calendarEventList: (source) => eventCreate?.list(source) ?? [],
     calendarEventOpen: async (url) => {
       // Only an event's address at the calendar service is opened, never another address.
-      if (!isCalendarOpenUrl(url) || addressRefused(url)) return { ok: false };
+      if (!isCalendarOpenUrl(url)) return { ok: false };
       await shell.openExternal(url);
       return { ok: true };
     },
     emailDraftOpen: async (url) => {
       // Only a draft in Gmail is opened, never another address.
-      if (!url.startsWith("https://mail.google.com/mail/u/") || addressRefused(url))
-        return { ok: false };
+      if (!url.startsWith("https://mail.google.com/mail/u/")) return { ok: false };
       await shell.openExternal(url);
       return { ok: true };
     },
@@ -4216,8 +4010,6 @@ function registerIpc(): void {
       notifyMeetings(meetingId);
     },
     meetingExport: async (meetingId, options) => {
-      const blocked = exportRefusal();
-      if (blocked !== null) return { ok: false, message: blocked };
       const file = buildMeetingExport(meetingId, options);
       if (!file) return { ok: false, message: "That meeting is gone." };
       const dialogOptions = {
@@ -4357,8 +4149,6 @@ function registerIpc(): void {
     skillVersions: (id) => skillsService?.versions(id) ?? [],
     skillRestore: (id, version) => skillsService?.restore(id, version) ?? noSkills,
     skillExport: async (id) => {
-      const blocked = exportRefusal("skillSharing");
-      if (blocked !== null) return { ok: false, message: blocked };
       const file = skillsService?.exportFile(id);
       if (!file) return { ok: false, message: "That Skill was not found." };
       const options = {
@@ -4429,7 +4219,7 @@ function registerIpc(): void {
       if (!target) return;
       // Links were checked to be http or https when they were added.
       if (target.kind === "link") {
-        if (!addressRefused(target.value)) await shell.openExternal(target.value);
+        await shell.openExternal(target.value);
       } else await shell.openPath(target.value);
     },
     meetingDocRemove: (docId) => meetingNotes?.removeDoc(docId),
@@ -4505,7 +4295,6 @@ function registerIpc(): void {
       checkMilestones(true);
     },
     noteExport: async ({ noteId, format }) => {
-      if (exportRefusal() !== null) return { saved: false };
       const note = notes?.get(noteId) ?? null;
       if (!note || !noteImages) return { saved: false };
       const extension = format === "markdown" ? "md" : "html";
@@ -4595,7 +4384,6 @@ function registerIpc(): void {
         settingsStore.get().insights.typingWpm,
       ),
     insightsExport: async (range) => {
-      if (exportRefusal() !== null) return { saved: false, rows: 0 };
       const days = insights?.days(rangeFirstDay(range, localDate(Date.now()))) ?? [];
       const options = {
         title: "Save Insights",
@@ -4909,7 +4697,6 @@ function registerIpc(): void {
 }
 
 void app.whenReady().then(() => {
-  void teamService.start();
   // HB-24: the weekly summary is checked at start and every hour.
   weeklySummary();
   setInterval(weeklySummary, 60 * 60_000).unref();

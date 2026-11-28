@@ -33,7 +33,7 @@ export function RewritesPage() {
   const [items, setItems] = useState<Rewrite[] | null>(null);
   const [draft, setDraft] = useState<Draft>(EMPTY);
   const [problem, setProblem] = useState<string | null>(null);
-  const [plan, setPlan] = useState<PlanTier>("enterprise");
+  const [plan, setPlan] = useState<PlanTier>("pro");
 
   const reload = useCallback(async () => {
     try {

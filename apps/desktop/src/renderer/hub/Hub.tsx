@@ -5,14 +5,12 @@ import { EmptyState } from "@astryxdesign/core/EmptyState";
 import { Heading } from "@astryxdesign/core/Heading";
 import { SideNav, SideNavHeading, SideNavItem, SideNavSection } from "@astryxdesign/core/SideNav";
 import { Text } from "@astryxdesign/core/Text";
-import { MANAGED_MESSAGES, type AppInfo } from "@murmur/shared";
+import type { AppInfo } from "@murmur/shared";
 import { DictionaryPage } from "./DictionaryPage";
 import { SnippetsPage } from "./SnippetsPage";
 import { StylesPage } from "./StylesPage";
 import { InstructPage } from "./InstructPage";
 import { ExtensionsPage } from "./ExtensionsPage";
-import { TeamLock } from "./TeamLock";
-import { TeamPage } from "./TeamPage";
 import { ConnectorsPage } from "./ConnectorsPage";
 import { NotetakerPage } from "./NotetakerPage";
 import { MemoryPage } from "./MemoryPage";
@@ -26,7 +24,6 @@ import { TourCard } from "./TourCard";
 import { DictationPage } from "./DictationPage";
 import { InsightsPage } from "./InsightsPage";
 import { Onboarding } from "./Onboarding";
-import { usePolicy } from "./usePolicy";
 import { SettingsPage } from "./SettingsPage";
 import type { Tour } from "@murmur/shared";
 import {
@@ -95,20 +92,7 @@ function HubPages({ onRunSetup }: { onRunSetup: () => void }) {
     () => resolvePage(pageFromHash(window.location.hash) ?? "home", {}).id,
   );
   const info = useAppInfo();
-  // TM-14: a page the organization has turned off is not listed.
-  const policy = usePolicy();
-  const policyFeatures: PageFeatures = {
-    scratchpad: !policy.featuresOff.includes("scratchpad"),
-    rewrites: !policy.featuresOff.includes("transforms"),
-    connectors: !policy.featuresOff.includes("connectors"),
-  };
-  const allFeatures: PageFeatures = {
-    ...features,
-    ...(Object.fromEntries(
-      Object.entries(policyFeatures).filter(([, on]) => on === false),
-    ) as PageFeatures),
-  };
-  const pages = visiblePages(allFeatures);
+  const pages = visiblePages(features);
   useEffect(() => {
     let active = true;
     window.murmur.getSettings().then(
@@ -119,8 +103,8 @@ function HubPages({ onRunSetup }: { onRunSetup: () => void }) {
       active = false;
     };
   }, [pageId]);
-  const featuresRef = useRef(allFeatures);
-  featuresRef.current = allFeatures;
+  const featuresRef = useRef(features);
+  featuresRef.current = features;
 
   // HB-01: the hash names the page; main remembers it for the next start.
   const setPageId = useCallback((id: string) => {
@@ -163,22 +147,7 @@ function HubPages({ onRunSetup }: { onRunSetup: () => void }) {
 
   // Main can ask for a page: the last one at start, or one after a Bar prompt.
   useEffect(() => window.murmur.onOpenPage(setPageId), [setPageId]);
-  const page = resolvePage(pageId, allFeatures);
-
-  // TM-01: while Murmur is locked, no page is shown, only the password.
-  const [teamLocked, setTeamLocked] = useState(false);
-  useEffect(() => {
-    let active = true;
-    void window.murmur
-      .teamView()
-      .then((view) => active && setTeamLocked(view.state === "locked"))
-      .catch(() => undefined);
-    const off = window.murmur.onTeamChanged((view) => setTeamLocked(view.state === "locked"));
-    return () => {
-      active = false;
-      off();
-    };
-  }, []);
+  const page = resolvePage(pageId, features);
 
   const sideNav = (
     <SideNav
@@ -190,24 +159,10 @@ function HubPages({ onRunSetup }: { onRunSetup: () => void }) {
         </>
       }
       footer={
-        info || policy.managed ? (
-          <>
-            {policy.managed ? (
-              <Text size="xsm" color="secondary" data-testid="managed-badge">
-                {MANAGED_MESSAGES.badge}
-              </Text>
-            ) : null}
-            {policy.updates.managed ? (
-              <Text size="xsm" color="secondary" data-testid="updates-managed">
-                {MANAGED_MESSAGES.updates}
-              </Text>
-            ) : null}
-            {info ? (
-              <Text size="xsm" color="secondary" data-testid="app-version">
-                Version {info.version}
-              </Text>
-            ) : null}
-          </>
+        info ? (
+          <Text size="xsm" color="secondary" data-testid="app-version">
+            Version {info.version}
+          </Text>
         ) : undefined
       }
     >
@@ -230,12 +185,8 @@ function HubPages({ onRunSetup }: { onRunSetup: () => void }) {
       <AppShell sideNav={sideNav} contentPadding={0}>
         <div className="hub-page">
           <HelperBanner />
-          <Heading level={1}>{teamLocked ? "Locked" : page.title}</Heading>
-          {teamLocked ? (
-            <TeamLock />
-          ) : page.id === "team" ? (
-            <TeamPage />
-          ) : page.id === "settings" ? (
+          <Heading level={1}>{page.title}</Heading>
+          {page.id === "settings" ? (
             <SettingsPage onRunSetup={onRunSetup} />
           ) : page.id === "dictionary" ? (
             <DictionaryPage />
