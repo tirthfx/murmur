@@ -2060,12 +2060,11 @@ function folderResult(
 const noTasks = { ok: false as const, message: "Tasks cannot be saved without the database." };
 const noSkills = { ok: false as const, message: "Skills cannot be saved without the database." };
 // One call of the local model for the Notetaker's background work (summaries, tasks).
-async function meetingGenerate(request: {
-  system: string;
-  prompt: string;
-  maxTokens: number;
-}): Promise<string> {
-  const job = llm.generate(request, { timeoutMs: 180_000, onChunk: () => {} });
+async function meetingGenerate(
+  request: { system: string; prompt: string; maxTokens: number },
+  model: Pick<typeof llm, "generate"> = llm,
+): Promise<string> {
+  const job = model.generate(request, { timeoutMs: 180_000, onChunk: () => {} });
   try {
     return await job.result;
   } catch (error) {
@@ -2102,6 +2101,11 @@ const summaryRunner =
         modelId: DEFAULT_CLEANUP_MODEL.id,
         modelReady: cleanupModelReady,
         generate: meetingGenerate,
+        quality: {
+          modelId: QUALITY_INSTRUCT_MODEL.id,
+          ready: async () => allows("qualityModel") && (await qualityModel.isReady()),
+          generate: (request) => meetingGenerate(request, qualityLlm),
+        },
         dictating: () => hubDictationState !== "idle",
         generating: () => llm.isGenerating(),
         wait: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),

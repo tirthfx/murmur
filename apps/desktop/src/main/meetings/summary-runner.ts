@@ -46,6 +46,12 @@ export interface SummaryRunnerDeps {
   folderSkill?(meetingId: string): string | null;
   modelId: string;
   modelReady(): Promise<boolean>;
+  /** NT-15: the larger model, for a Skill that asks for it; used only while it can be. */
+  quality?: {
+    modelId: string;
+    ready(): Promise<boolean>;
+    generate(request: { system: string; prompt: string; maxTokens: number }): Promise<string>;
+  };
   /** One call of the local model. A cancelled or preempted call rejects with `retry: true`. */
   generate(request: { system: string; prompt: string; maxTokens: number }): Promise<string>;
   /** True while a dictation is recording or being transcribed. */
@@ -129,12 +135,15 @@ export function createSummaryRunner(deps: SummaryRunnerDeps): SummaryRunner {
           "model-missing",
           "The language model is not downloaded. Get it in Settings.",
         );
+      // Without the larger model, or on a plan without it, the fast one writes the Skill.
+      const better =
+        skill.model === "quality" && (await deps.quality?.ready()) ? deps.quality! : null;
       running = meetingId;
       set(meetingId, { state: "running", done: 0, total: 1 });
       try {
         const markdown = await summarizeMeeting(
           {
-            generate: ask,
+            generate: better ? createModelAsk({ ...deps, generate: better.generate }) : ask,
             onProgress: (done, total) => set(meetingId, { state: "running", done, total }),
           },
           {
@@ -149,7 +158,7 @@ export function createSummaryRunner(deps: SummaryRunnerDeps): SummaryRunner {
           id: deps.newId(),
           meetingId,
           skill,
-          modelId: deps.modelId,
+          modelId: better?.modelId ?? deps.modelId,
           quick: options.quick === true,
           markdown,
           at: deps.now(),

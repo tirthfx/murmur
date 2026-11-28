@@ -28,6 +28,7 @@ const draft = {
   description: "d",
   sections: ["Good", "Bad"],
   length: "short",
+  model: "fast" as const,
   prompt: "Write.",
 };
 

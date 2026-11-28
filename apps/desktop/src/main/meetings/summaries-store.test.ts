@@ -93,6 +93,7 @@ const draft = (over: Partial<SkillDraft> = {}): SkillDraft => ({
   description: "What went well.",
   sections: ["Went well", "To change"],
   length: "short",
+  model: "fast",
   prompt: "Write a retro.",
   ...over,
 });
