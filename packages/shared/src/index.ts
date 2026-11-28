@@ -12,6 +12,7 @@ export * from "./speech-models";
 export * from "./llm-models";
 export * from "./insert";
 export * from "./bar";
+export * from "./remote-desktops";
 export * from "./settings";
 export * from "./mcp";
 export * from "./media";

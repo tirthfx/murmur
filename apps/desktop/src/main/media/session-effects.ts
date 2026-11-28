@@ -40,8 +40,14 @@ export function createSessionEffects(deps: SessionEffectsDeps): SessionEffects {
   let mutedByUs = false;
   let pausedByUs = false;
 
+  /** Whether this sound is wanted: its own switch, and a sound set other than "off". */
+  const wanted = (name: SoundName) => {
+    const { sounds } = deps.settings();
+    return sounds.set !== "off" && sounds[name];
+  };
+
   function sound(name: SoundName): void {
-    if (!deps.settings().sounds[name]) return;
+    if (!wanted(name)) return;
     // While the output is muted a sound would be silent anyway.
     if (mutedByUs && name === "lock") return;
     deps.playSound(name);
@@ -61,7 +67,7 @@ export function createSessionEffects(deps: SessionEffectsDeps): SessionEffects {
     sound,
     async beforeStart() {
       const settings = deps.settings();
-      if (settings.sounds.start) {
+      if (wanted("start")) {
         deps.playSound("start");
         await deps.sleep(START_SOUND_WAIT_MS);
       }

@@ -41,7 +41,7 @@ function setup() {
     sessionLimitMinutes: 20,
     smartFormatting: true,
     bar: { visible: true, allSpaces: true, aboveFullScreen: false },
-    insertion: { method: "auto", pasteInRemoteDesktops: false, typeInApps: [] },
+    insertion: { method: "auto", pasteInRemoteDesktops: false, typeInApps: [], pasteInApps: [] },
     soundVolume: 50,
     silentWarning: true,
     setupComplete: true,

@@ -744,7 +744,7 @@ function checkMilestones(announce: boolean): void {
     console.log(`[milestones] reached: ${reached.join(", ")}`);
     if (!announce) return;
     bar.dispatch({ type: "warn", message: `Milestone: ${milestoneTitle(newest)}` });
-    effects.sound("success");
+    effects.sound("milestone");
     notifier.milestone(milestoneTitle(newest));
   } catch (error) {
     console.warn(`[milestones] could not check: ${String(error)}`);
@@ -1065,7 +1065,8 @@ const effects = createSessionEffects({
   settings: () => settingsStore.get(),
   playSound: (name) => {
     smokeChecks?.handleSound(name);
-    barWindow.sound(name, settingsStore.get().soundVolume / 100);
+    const { soundVolume, sounds } = settingsStore.get();
+    barWindow.sound(name, soundVolume / 100, sounds.set);
   },
   helper,
   marker: {

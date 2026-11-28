@@ -15,4 +15,14 @@ describe("the chosen insertion method (DC-32, DC-34)", () => {
     expect(rules.typeInApps).not.toContain("com.microsoft.rdc.macos");
     expect(rules.typeInApps).toContain("a.viewer");
   });
+
+  it("pastes into a remote desktop the person took off the typed list", () => {
+    const rules = insertionRules({
+      pasteInRemoteDesktops: false,
+      typeInApps: [],
+      pasteInApps: ["com.apple.ScreenSharing"],
+    });
+    expect(rules.typeInApps).not.toContain("com.apple.ScreenSharing");
+    expect(rules.typeInApps).toContain("com.microsoft.rdc.macos");
+  });
 });

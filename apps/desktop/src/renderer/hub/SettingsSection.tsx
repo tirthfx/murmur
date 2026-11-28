@@ -30,6 +30,7 @@ import {
   APP_LANGUAGES,
   APP_LANGUAGE_NAMES,
   SETTINGS_CLEANUP_LEVELS,
+  REMOTE_DESKTOP_APPS,
   SOUND_NAMES,
   type MeetingFolder,
   type MeetingRetentionDue,
@@ -158,6 +159,7 @@ const SOUND_LABELS: Record<(typeof SOUND_NAMES)[number], string> = {
   success: "Done sound",
   error: "Error sound",
   cancel: "Cancel sound",
+  milestone: "Milestone sound",
 };
 
 const NOTIFICATION_SWITCHES: [keyof SettingsView["settings"]["notifications"], string][] = [
@@ -437,6 +439,30 @@ export function SettingsSection({
                 update({ insertion: { ...settings.insertion, pasteInRemoteDesktops } })
               }
             />
+            {settings.insertion.pasteInRemoteDesktops ? null : (
+              <VStack gap={1}>
+                <Text size="sm" color="secondary">
+                  These remote desktop apps are typed into. Switch one off to paste into it.
+                </Text>
+                {REMOTE_DESKTOP_APPS.map((app) => (
+                  <Switch
+                    key={app.id}
+                    label={`Type into ${app.name}`}
+                    value={!settings.insertion.pasteInApps.includes(app.id)}
+                    onChange={(typed) =>
+                      update({
+                        insertion: {
+                          ...settings.insertion,
+                          pasteInApps: typed
+                            ? settings.insertion.pasteInApps.filter((id) => id !== app.id)
+                            : [...settings.insertion.pasteInApps, app.id],
+                        },
+                      })
+                    }
+                  />
+                ))}
+              </VStack>
+            )}
             <TypedAppsField
               apps={settings.insertion.typeInApps}
               onChange={(typeInApps) =>
@@ -464,6 +490,20 @@ export function SettingsSection({
         <Row id="sounds">
           <VStack gap={2}>
             <Heading level={3}>Sounds</Heading>
+            <Selector
+              label="Sound set"
+              options={[
+                { value: "subtle", label: "Subtle" },
+                { value: "soft", label: "Soft" },
+                { value: "off", label: "Off" },
+              ]}
+              value={settings.sounds.set}
+              onChange={(set) =>
+                update({
+                  sounds: { ...settings.sounds, set: set as typeof settings.sounds.set },
+                })
+              }
+            />
             <Selector
               label="Volume"
               options={VOLUME_OPTIONS}

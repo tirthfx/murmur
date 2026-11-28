@@ -46,6 +46,12 @@ export const COMMAND_WAKE_PHRASE_LIMITS = { min: 2, max: 40 } as const;
 
 export const INSERTION_METHODS = ["auto", "paste", "type"] as const;
 
+export const SOUND_NAMES = ["start", "lock", "success", "error", "cancel", "milestone"] as const;
+export type SoundName = (typeof SOUND_NAMES)[number];
+/** DC-40: the sound sets. */
+export const SOUND_SETS = ["subtle", "soft", "off"] as const;
+export type SoundSet = (typeof SOUND_SETS)[number];
+
 /** DC-21: the default length cap on one recording, and its range, in minutes. */
 export const SESSION_LIMIT_DEFAULT = 20;
 export const SESSION_LIMIT_MIN = 5;
@@ -123,6 +129,9 @@ export const settingsSchema = z.strictObject({
     success: z.boolean(),
     error: z.boolean(),
     cancel: z.boolean(),
+    milestone: z.boolean().default(true),
+    /** Which tones play: the usual ones, softer and lower ones, or none at all. */
+    set: z.enum(SOUND_SETS).default("subtle"),
   }),
   /** Experimental options, all off by default (HB-18). */
   experimental: z.strictObject({
@@ -192,6 +201,8 @@ export const settingsSchema = z.strictObject({
     pasteInRemoteDesktops: z.boolean(),
     /** More apps to type into, by their id. */
     typeInApps: z.array(z.string().trim().min(1).max(255)).max(50),
+    /** Apps of the built-in remote desktop list to paste into after all (DC-34). */
+    pasteInApps: z.array(z.string().trim().min(1).max(255)).max(50).default([]),
   }),
   /** How loud the feedback sounds are, in percent (DC-40). */
   soundVolume: z.number().int().min(0).max(100),
@@ -375,6 +386,7 @@ export const DEFAULT_INSERTION: Settings["insertion"] = {
   method: "auto",
   pasteInRemoteDesktops: false,
   typeInApps: [],
+  pasteInApps: [],
 };
 export const SOUND_VOLUME_DEFAULT = 50;
 
@@ -412,9 +424,6 @@ export const DEFAULT_COMMAND_MODE: Settings["commandMode"] = {
   wakePhraseEnabled: true,
 };
 
-export const SOUND_NAMES = ["start", "lock", "success", "error", "cancel"] as const;
-export type SoundName = (typeof SOUND_NAMES)[number];
-
 /** DC-40 defaults: every sound on except cancel. */
 export const DEFAULT_SOUNDS: Settings["sounds"] = {
   start: true,
@@ -422,6 +431,8 @@ export const DEFAULT_SOUNDS: Settings["sounds"] = {
   success: true,
   error: true,
   cancel: false,
+  milestone: true,
+  set: "subtle",
 };
 
 export const SHORTCUT_SLOTS = [

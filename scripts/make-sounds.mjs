@@ -31,9 +31,20 @@ const SOUNDS = {
     [987.77, 0, 60],
     [659.25, 55, 80],
   ],
+  milestone: [
+    [783.99, 0, 120],
+    [1046.5, 100, 120],
+    [1318.51, 200, 260],
+  ],
 };
 
-function render(notes) {
+/** The soft set: the same notes an octave down, quieter and with a slower start. */
+const SETS = {
+  "": { pitch: 1, level: 0.25, attack: 0.005 },
+  "soft-": { pitch: 0.5, level: 0.16, attack: 0.02 },
+};
+
+function render(notes, { pitch, level, attack: rise }) {
   const end = Math.max(...notes.map(([, start, length]) => start + length));
   const samples = new Float32Array(Math.ceil((end / 1000) * RATE));
   for (const [frequency, start, length] of notes) {
@@ -41,9 +52,9 @@ function render(notes) {
     const count = Math.floor((length / 1000) * RATE);
     for (let i = 0; i < count && from + i < samples.length; i++) {
       const t = i / RATE;
-      const attack = Math.min(1, t / 0.005);
+      const attack = Math.min(1, t / rise);
       const decay = Math.exp((-4 * i) / count);
-      samples[from + i] += 0.25 * attack * decay * Math.sin(2 * Math.PI * frequency * t);
+      samples[from + i] += level * attack * decay * Math.sin(2 * Math.PI * frequency * pitch * t);
     }
   }
   return samples;
@@ -75,8 +86,10 @@ const out = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
   "../apps/desktop/src/renderer/bar/sounds",
 );
-for (const [name, notes] of Object.entries(SOUNDS)) {
-  const samples = render(notes);
-  await writeFile(path.join(out, `${name}.wav`), wav(samples));
-  console.log(`${name}.wav ${((samples.length / RATE) * 1000).toFixed(0)} ms`);
+for (const [prefix, set] of Object.entries(SETS)) {
+  for (const [name, notes] of Object.entries(SOUNDS)) {
+    const samples = render(notes, set);
+    await writeFile(path.join(out, `${prefix}${name}.wav`), wav(samples));
+    console.log(`${prefix}${name}.wav ${((samples.length / RATE) * 1000).toFixed(0)} ms`);
+  }
 }

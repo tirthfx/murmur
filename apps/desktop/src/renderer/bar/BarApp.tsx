@@ -20,7 +20,7 @@ export function BarApp({ api }: { api: MurmurBarApi }) {
       if (next.state !== "listening" && next.state !== "locked") setLevel(null);
     });
     const offLevel = api.onLevel(setLevel);
-    const offSound = api.onSound(({ name, volume }) => playSound(name, volume));
+    const offSound = api.onSound(({ name, volume, set }) => playSound(name, volume, set));
     return () => {
       alive = false;
       offView();

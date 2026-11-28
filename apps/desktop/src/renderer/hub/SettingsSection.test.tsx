@@ -120,7 +120,15 @@ describe("Settings section", () => {
     const api = mount({}, "system");
     await userEvent.click(await screen.findByRole("switch", { name: "Done sound" }));
     expect(api.updateSettings).toHaveBeenCalledWith({
-      sounds: { start: true, lock: true, success: false, error: true, cancel: false },
+      sounds: {
+        start: true,
+        lock: true,
+        success: false,
+        error: true,
+        cancel: false,
+        milestone: true,
+        set: "subtle",
+      },
     });
     await userEvent.click(screen.getByRole("switch", { name: "Mute other audio while dictating" }));
     expect(api.updateSettings).toHaveBeenCalledWith({ muteWhileDictating: true });
