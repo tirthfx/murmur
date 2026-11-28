@@ -21,6 +21,8 @@ export interface DataDeleterDeps {
   clipsRoot: string | null;
   /** `<data>/meetings`: one folder of audio chunks per meeting (NT-04). */
   meetingsRoot: string;
+  /** The copies of custom Skills kept as files (NT-16). */
+  skillsRoot: string;
 }
 
 export interface DataDeleter {
@@ -168,13 +170,17 @@ export function createDataDeleter(deps: DataDeleterDeps): DataDeleter {
         };
       case "meetings": {
         // Chunks, segments, summaries, notes and the Ask index go with their meeting (ON DELETE
-        // CASCADE). Tasks taken from meetings and the Ask conversations about them are removed
-        // here too; tasks the owner wrote by hand stay.
+        // CASCADE). Tasks taken from meetings, the Ask conversations about them, the briefs, the
+        // record of drafts and events made from them and the retention log are removed here
+        // too; tasks the owner wrote by hand stay.
         const rows = inTransaction([
           "DELETE FROM meetings",
           "DELETE FROM tasks WHERE source = 'meeting'",
           "DELETE FROM ask_threads",
           "DELETE FROM contacts",
+          "DELETE FROM meeting_briefs",
+          "DELETE FROM automations",
+          "DELETE FROM retention_log",
         ]);
         return { rows, files: emptyFolder(deps.meetingsRoot), failedFiles: failed.size };
       }
@@ -230,6 +236,17 @@ export function createDataDeleter(deps: DataDeleterDeps): DataDeleter {
       }
       total.rows += inTransaction([
         "DELETE FROM rewrites WHERE builtin_key IS NULL",
+        "DELETE FROM skill_versions",
+        "DELETE FROM skills",
+        "DELETE FROM folder_suggestion_dismissals",
+        "DELETE FROM folders",
+        // The sign-ins are removed first (their tokens are in the Keychain); these are what is
+        // left if one could not be.
+        "DELETE FROM calendar_events",
+        "DELETE FROM connector_cache",
+        "DELETE FROM connector_accounts",
+        "DELETE FROM mcp_audit",
+        "DELETE FROM mcp_clients",
         "DELETE FROM focus_rules",
         "DELETE FROM focus_sessions",
         "DELETE FROM retention_jobs",
@@ -237,6 +254,7 @@ export function createDataDeleter(deps: DataDeleterDeps): DataDeleter {
         "DELETE FROM settings",
       ]);
       total.files += emptyFolder(deps.audioRoot);
+      total.files += emptyFolder(deps.skillsRoot);
       total.failedFiles = failed.size;
       return total;
     },

@@ -20,7 +20,7 @@ import {
   type SpeakerClipResult,
   type SpeakerRenameResult,
 } from "./meetings";
-import type { MeetingRetentionDue } from "./meeting-retention";
+import type { MeetingRetentionDue, RetentionLogEntry } from "./meeting-retention";
 import {
   transcriptImportConfirmSchema,
   type TranscriptImportConfirmInput,
@@ -557,6 +557,7 @@ export const IPC_CHANNELS = {
   meetingFolderDismiss: "meetings:folder-dismiss",
   meetingExport: "meetings:export",
   meetingRetentionDue: "meetings:retention-due",
+  meetingRetentionLog: "meetings:retention-log",
   meetingImportPreview: "meetings:import-preview",
   meetingRecap: "meetings:recap",
   meetingImportConfirm: "meetings:import-confirm",
@@ -1269,6 +1270,10 @@ export const IPC_CONTRACT = {
     args: z.tuple([z.string().min(1).max(64)]),
     result: z.void(),
   },
+  [IPC_CHANNELS.meetingRetentionLog]: {
+    args: z.tuple([]),
+    result: z.custom<RetentionLogEntry[]>(),
+  },
   [IPC_CHANNELS.meetingRetentionDue]: {
     args: z.tuple([]),
     result: z.custom<MeetingRetentionDue>(),
@@ -1742,6 +1747,8 @@ export interface MurmurApi {
   meetingExport(meetingId: string, options: MeetingExportOptions): Promise<MeetingExportResult>;
   /** NT-22: how many recordings and transcripts the next 24 hours will delete. */
   meetingRetentionDue(): Promise<MeetingRetentionDue>;
+  /** NT-22: what the retention rules deleted, newest first. */
+  meetingRetentionLog(): Promise<RetentionLogEntry[]>;
   /** NT-21: asks for a transcript file and says what is in it, without creating anything. */
   meetingImportPreview(): Promise<TranscriptImportPreviewResult>;
   /** NT-13: writes a short recap of the last minutes of a meeting (a few seconds). */

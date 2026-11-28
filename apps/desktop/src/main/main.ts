@@ -788,6 +788,7 @@ const dataDeleter =
         audioRoot: path.join(profile.appData, "Murmur", "audio"),
         clipsRoot: path.join(profile.appData, "Murmur", "clips"),
         meetingsRoot: path.join(profile.appData, "Murmur", "meetings"),
+        skillsRoot: path.join(profile.appData, "Murmur", "Skills"),
       })
     : null;
 
@@ -4141,6 +4142,7 @@ function registerIpc(): void {
     },
     meetingImportCancel: (token) => transcriptImport?.discard(token),
     meetingRetentionDue: () => meetingRetention?.due(Date.now()) ?? { audio: 0, transcripts: 0 },
+    meetingRetentionLog: () => meetingRetention?.log() ?? [],
     meetingSetLanguage: (meetingId, input) =>
       meetingRerun?.setLanguage(meetingId, input) ?? {
         ok: false,

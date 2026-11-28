@@ -89,6 +89,7 @@ describe("migrations", () => {
       "phrase_counts",
       "recaps",
       "retention_jobs",
+      "retention_log",
       "rewrite_runs",
       "rewrites",
       "schema_migrations",

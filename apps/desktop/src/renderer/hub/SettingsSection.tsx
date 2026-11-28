@@ -1,3 +1,4 @@
+import { RetentionLog } from "./RetentionLog";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { TextArea } from "@astryxdesign/core/TextArea";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
@@ -1122,6 +1123,7 @@ export function SettingsSection({
                   ? "Nothing is due in the next 24 hours."
                   : `In the next 24 hours: ${retentionDue.audio} ${retentionDue.audio === 1 ? "recording" : "recordings"} and ${retentionDue.transcripts} ${retentionDue.transcripts === 1 ? "transcript" : "transcripts"} will be deleted.`}
             </Text>
+            <RetentionLog />
           </VStack>
         </Row>
         <Row id="meeting-folders">

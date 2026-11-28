@@ -338,3 +338,17 @@ describe("what is due in the next 24 hours", () => {
     expect(t.retention.due(NOW)).toEqual({ audio: 1, transcripts: 0 });
   });
 });
+
+describe("the retention log (NT-22)", () => {
+  it("records each deletion once, with the title, newest first", () => {
+    const t = setup({ audio: "30d", transcript: "30d" });
+    t.meeting("old", 40);
+    t.retention.runAudio(NOW);
+    t.retention.runAudio(NOW + 1);
+    t.retention.runTranscripts(NOW + 2);
+    expect(t.retention.log()).toEqual([
+      { meetingId: "old", title: "old", kind: "transcript", at: NOW + 2 },
+      { meetingId: "old", title: "old", kind: "audio", at: NOW },
+    ]);
+  });
+});

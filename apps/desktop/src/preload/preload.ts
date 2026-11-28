@@ -254,6 +254,7 @@ const api: MurmurApi = {
   meetingImportConfirm: (input) => ipcRenderer.invoke(IPC_CHANNELS.meetingImportConfirm, input),
   meetingImportCancel: (token) => ipcRenderer.invoke(IPC_CHANNELS.meetingImportCancel, token),
   meetingRetentionDue: () => ipcRenderer.invoke(IPC_CHANNELS.meetingRetentionDue),
+  meetingRetentionLog: () => ipcRenderer.invoke(IPC_CHANNELS.meetingRetentionLog),
   meetingExport: (meetingId, options) =>
     ipcRenderer.invoke(IPC_CHANNELS.meetingExport, meetingId, options),
   meetingSetLanguage: (meetingId, input) =>
