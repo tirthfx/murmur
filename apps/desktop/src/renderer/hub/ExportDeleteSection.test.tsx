@@ -28,6 +28,28 @@ describe("export and delete (HB-46, HB-47)", () => {
     expect(await screen.findByText(/Exported 43 items to/)).toBeTruthy();
   });
 
+  it("shows the progress of an export already running, and holds a second one back", async () => {
+    window.murmur = createMockApi({
+      dataExportStatus: vi
+        .fn()
+        .mockResolvedValue({ state: "running", done: 1, total: 4, category: "notes" }),
+    });
+    render(<ExportDeleteSection />);
+    expect(await screen.findByText(/Writing Scratchpad notes/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Export the chosen data" })).toHaveProperty(
+      "disabled",
+      true,
+    );
+  });
+
+  it("says why an export failed", async () => {
+    window.murmur = createMockApi({
+      dataExportStatus: vi.fn().mockResolvedValue({ state: "failed", message: "Disk full." }),
+    });
+    render(<ExportDeleteSection />);
+    expect(await screen.findByText("Disk full.")).toBeTruthy();
+  });
+
   it("shows counts and sizes, and asks before deleting a category", async () => {
     const user = userEvent.setup();
     render(<ExportDeleteSection />);

@@ -82,6 +82,8 @@ Tick categories and choose a folder. Murmur writes a new `Murmur export <date ti
 
 **The index:** a generated `README.md` lists each category's files, its count and a format version (1), so a later import can read them.
 
+**In the background:** after the folder is chosen the export runs in main (`privacy/export-job.ts`), one at a time. It gives the app a turn between categories and items, so Murmur stays usable, and the page shows how far it is, also after it was closed and opened again. The README is written last, so a folder that has one is whole.
+
 **Never exported:** models, keys and settings.
 
 ## Delete by category (HB-47)

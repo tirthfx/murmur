@@ -175,6 +175,7 @@ import { createDataDeleter } from "./privacy/data-delete";
 import { createPlanController } from "./plans/plan-controller";
 import { diagnosticsReport } from "./testing/diagnostics";
 import { writeExport } from "./privacy/data-export";
+import { createExportJob } from "./privacy/export-job";
 import { createNotesStore } from "./notes/notes-store";
 import { createContactsStore } from "./contacts/contacts-store";
 import { createPrivateFocus } from "./privacy/private-focus";
@@ -3596,6 +3597,52 @@ function learnVoice(dictation: DictationRecord, historyId: string | null): void 
   }
 }
 
+/** HB-46: the export that runs in the background. Each category's data is read as it is written. */
+const exportJob = createExportJob({
+  write: (folder, categories, onProgress) =>
+    writeExport(
+      folder,
+      categories,
+      {
+        dictations: () => history?.allRows() ?? [],
+        dictionary: () => dictionary?.list() ?? [],
+        snippets: () => snippets?.list() ?? [],
+        styles: () => styles?.view() ?? { styles: [], overrides: [], recentApps: [] },
+        customRewrites: () =>
+          (rewrites?.list() ?? []).filter((rewrite) => rewrite.builtinKey === null),
+        memory: () => memory?.list() ?? [],
+        notes: () =>
+          (notes?.list() ?? []).flatMap((item) => {
+            const note = notes?.get(item.id);
+            return note ? [note] : [];
+          }),
+        noteImages: noteImages ?? { file: () => null, dataUrl: () => null },
+        instructThreads: () =>
+          (instructThreads?.list("", 1000) ?? []).flatMap((item) => {
+            const thread = instructThreads?.get(item.id);
+            return thread ? [thread] : [];
+          }),
+        insights: () => insights?.days(null) ?? [],
+        meetings: () =>
+          (meetingsStore?.list(100_000) ?? []).map((meeting) => ({
+            title: meeting.title,
+            startedAt: meeting.startedAt,
+            endedAt: meeting.endedAt,
+            attendees: meeting.attendees ?? [],
+            notes: meetingNotes?.notes(meeting.id).body ?? "",
+            summaries: meetingSummaries?.list(meeting.id) ?? [],
+            transcript: meetingTranscripts?.segments(meeting.id) ?? [],
+          })),
+        tasks: () => tasksService?.list().tasks ?? [],
+        contacts: () => contactsStore?.list() ?? [],
+        audioFiles: () => history?.audioFiles() ?? [],
+      },
+      Date.now(),
+      onProgress,
+    ),
+  logger: createConsoleLogger("[export]"),
+});
+
 function profileView() {
   const now = Date.now();
   return voiceProfile && database
@@ -3735,6 +3782,8 @@ function registerIpc(): void {
       return planView();
     },
     dataExport: async ({ categories }) => {
+      if (exportJob.status().state === "running")
+        return { ok: false, message: "An export is already running.", canceled: false };
       if (!history || !database) {
         return {
           ok: false,
@@ -3755,56 +3804,11 @@ function registerIpc(): void {
       if (choice.canceled || !parent) return { ok: false, message: "", canceled: true };
       const stamp = new Date().toISOString().slice(0, 16).replace("T", " ").replace(":", "-");
       const folder = path.join(parent, `Murmur export ${stamp}`);
-      try {
-        const counts = writeExport(
-          folder,
-          categories,
-          {
-            dictations: () => history.allRows(),
-            dictionary: () => dictionary?.list() ?? [],
-            snippets: () => snippets?.list() ?? [],
-            styles: () => styles?.view() ?? { styles: [], overrides: [], recentApps: [] },
-            customRewrites: () =>
-              (rewrites?.list() ?? []).filter((rewrite) => rewrite.builtinKey === null),
-            memory: () => memory?.list() ?? [],
-            notes: () =>
-              (notes?.list() ?? []).flatMap((item) => {
-                const note = notes?.get(item.id);
-                return note ? [note] : [];
-              }),
-            noteImages: noteImages ?? { file: () => null, dataUrl: () => null },
-            instructThreads: () =>
-              (instructThreads?.list("", 1000) ?? []).flatMap((item) => {
-                const thread = instructThreads?.get(item.id);
-                return thread ? [thread] : [];
-              }),
-            insights: () => insights?.days(null) ?? [],
-            meetings: () =>
-              (meetingsStore?.list(100_000) ?? []).map((meeting) => ({
-                title: meeting.title,
-                startedAt: meeting.startedAt,
-                endedAt: meeting.endedAt,
-                attendees: meeting.attendees ?? [],
-                notes: meetingNotes?.notes(meeting.id).body ?? "",
-                summaries: meetingSummaries?.list(meeting.id) ?? [],
-                transcript: meetingTranscripts?.segments(meeting.id) ?? [],
-              })),
-            tasks: () => tasksService?.list().tasks ?? [],
-            contacts: () => contactsStore?.list() ?? [],
-            audioFiles: () => history.audioFiles(),
-          },
-          Date.now(),
-        );
-        console.log(`[export] wrote ${JSON.stringify(counts)}`);
-        return { ok: true, folder, counts };
-      } catch (error) {
-        return {
-          ok: false,
-          message: `The export could not be written: ${error instanceof Error ? error.message : String(error)}`,
-          canceled: false,
-        };
-      }
+      return exportJob.start(folder, categories)
+        ? { ok: true }
+        : { ok: false, message: "An export is already running.", canceled: false };
     },
+    dataExportStatus: () => exportJob.status(),
     dataCounts: () => dataDeleter?.counts() ?? { categories: [], failedFiles: 0 },
     dataDelete: (category) => {
       const result = dataDeleter?.delete(category) ?? { rows: 0, files: 0, failedFiles: 0 };

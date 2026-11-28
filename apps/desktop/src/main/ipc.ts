@@ -69,6 +69,7 @@ import {
   type DeleteResult,
   type ExportRequest,
   type ExportResult,
+  type ExportStatus,
   type ResetRequest,
   type StorageView,
   type Note,
@@ -306,6 +307,7 @@ export interface IpcDeps {
   planView: () => PlanView;
   planAct: (action: PlanAction) => PlanView;
   dataExport: (request: ExportRequest) => Promise<ExportResult>;
+  dataExportStatus: () => ExportStatus;
   dataCounts: () => DataCounts;
   dataDelete: (category: DeleteCategory) => DeleteResult;
   dataReset: (request: ResetRequest) => Promise<DeleteResult>;
@@ -459,6 +461,8 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.planAct(request.args[0] as PlanAction);
       case IPC_CHANNELS.dataExport:
         return deps.dataExport(request.args[0] as ExportRequest);
+      case IPC_CHANNELS.dataExportStatus:
+        return deps.dataExportStatus();
       case IPC_CHANNELS.dataCounts:
         return deps.dataCounts();
       case IPC_CHANNELS.dataDelete:

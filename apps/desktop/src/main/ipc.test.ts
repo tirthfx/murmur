@@ -42,6 +42,7 @@ function setup() {
     planView: vi.fn(),
     planAct: vi.fn(),
     dataExport: vi.fn(() => Promise.resolve({ ok: false as const, message: "no", canceled: true })),
+    dataExportStatus: vi.fn(),
     dataCounts: vi.fn(() => ({ categories: [], failedFiles: 0 })),
     dataDelete: vi.fn(() => ({ rows: 0, files: 0, failedFiles: 0 })),
     dataReset: vi.fn(() => Promise.resolve({ rows: 0, files: 0, failedFiles: 0 })),

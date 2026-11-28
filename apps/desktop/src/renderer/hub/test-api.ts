@@ -339,11 +339,16 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
         log: [{ at: Date.UTC(2026, 10, 19), text: "Trial of Pro started for 14 days" }],
       },
     }),
-    dataExport: vi.fn().mockResolvedValue({
-      ok: true,
-      folder: "/Users/you/Documents/Murmur export 2026-11-19 10-00",
-      counts: { dictations: 40, dictionary: 3 },
-    }),
+    dataExport: vi.fn().mockResolvedValue({ ok: true }),
+    // Nothing until an export has been started; then it is done at once.
+    dataExportStatus: vi
+      .fn()
+      .mockResolvedValueOnce({ state: "idle" })
+      .mockResolvedValue({
+        state: "done",
+        folder: "/Users/you/Documents/Murmur export 2026-11-19 10-00",
+        counts: { dictations: 40, dictionary: 3 },
+      }),
     dataCounts: vi.fn().mockResolvedValue({
       categories: [
         { category: "dictations", count: 40, bytes: 0 },

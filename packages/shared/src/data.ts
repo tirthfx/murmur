@@ -40,15 +40,32 @@ export const exportRequestSchema = z.strictObject({
 });
 export type ExportRequest = z.infer<typeof exportRequestSchema>;
 
+/** Whether an export started; its progress and outcome are read with the status. */
 export const exportResultSchema = z.discriminatedUnion("ok", [
-  z.strictObject({
-    ok: z.literal(true),
-    folder: z.string(),
-    counts: z.record(z.string(), z.number()),
-  }),
+  z.strictObject({ ok: z.literal(true) }),
   z.strictObject({ ok: z.literal(false), message: z.string(), canceled: z.boolean() }),
 ]);
 export type ExportResult = z.infer<typeof exportResultSchema>;
+
+/** The export that is running, or how the last one of this run ended (HB-46). */
+export const exportStatusSchema = z.discriminatedUnion("state", [
+  z.strictObject({ state: z.literal("idle") }),
+  z.strictObject({
+    state: z.literal("running"),
+    /** Categories finished, of `total`. */
+    done: z.number().int().nonnegative(),
+    total: z.number().int().positive(),
+    /** The category being written. */
+    category: z.enum(EXPORT_CATEGORIES),
+  }),
+  z.strictObject({
+    state: z.literal("done"),
+    folder: z.string(),
+    counts: z.record(z.string(), z.number()),
+  }),
+  z.strictObject({ state: z.literal("failed"), message: z.string() }),
+]);
+export type ExportStatus = z.infer<typeof exportStatusSchema>;
 
 export const DELETE_CATEGORIES = [
   "dictations",

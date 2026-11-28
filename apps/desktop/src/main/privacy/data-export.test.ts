@@ -87,8 +87,8 @@ function sources(audio: string[] = []): ExportSources {
 }
 
 describe("data export (HB-46)", () => {
-  it("writes the ticked categories and an index whose counts match", () => {
-    const counts = writeExport(
+  it("writes the ticked categories and an index whose counts match", async () => {
+    const counts = await writeExport(
       dir,
       ["dictations", "dictionary", "snippets", "notes"],
       sources(),
@@ -103,20 +103,20 @@ describe("data export (HB-46)", () => {
     expect(existsSync(path.join(dir, "memory.json"))).toBe(false);
   });
 
-  it("leaves audio out unless ticked", () => {
+  it("leaves audio out unless ticked", async () => {
     const recording = path.join(dir, "rec.pcm");
     writeFileSync(recording, "pcm");
     const out = path.join(dir, "out");
-    writeExport(out, ["dictionary"], sources([recording]), 0);
+    await writeExport(out, ["dictionary"], sources([recording]), 0);
     expect(existsSync(path.join(out, "audio"))).toBe(false);
     const withAudio = path.join(dir, "with");
-    expect(writeExport(withAudio, ["audio"], sources([recording]), 0)).toEqual({ audio: 1 });
+    expect(await writeExport(withAudio, ["audio"], sources([recording]), 0)).toEqual({ audio: 1 });
     expect(existsSync(path.join(withAudio, "audio", "rec.pcm"))).toBe(true);
   });
 });
 
 describe("exporting meetings (HB-46)", () => {
-  it("writes one file per meeting, with tasks and contacts, never mixing up names", () => {
+  it("writes one file per meeting, with tasks and contacts, never mixing up names", async () => {
     const folder = mkdtempSync(path.join(os.tmpdir(), "export-meetings-"));
     const meeting = {
       title: "Plan: Q1/Q2",
@@ -127,7 +127,7 @@ describe("exporting meetings (HB-46)", () => {
       summaries: [],
       transcript: [],
     };
-    const counts = writeExport(
+    const counts = await writeExport(
       folder,
       ["meetings"],
       { ...sources(), meetings: () => [meeting, meeting], tasks: () => [{ title: "t" }] },

@@ -1,4 +1,6 @@
-import { copyFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
+import { copyFile, writeFile } from "node:fs/promises";
+import { setImmediate as breathe } from "node:timers/promises";
 import path from "node:path";
 import {
   csvCell,
@@ -59,27 +61,35 @@ function unique(name: string, used: Set<string>): string {
   return candidate;
 }
 
+/** So many items are written before the app gets a turn. */
+const BATCH = 20;
+
 /**
  * HB-46: writes the ticked categories into `folder` and a generated `README.md` index with
  * each category's files, count and format version. Never writes model files or keys.
  * Returns the count per category.
  */
-export function writeExport(
+export async function writeExport(
   folder: string,
   categories: readonly ExportCategory[],
   sources: ExportSources,
   now: number,
-): Record<string, number> {
+  /** Called before each category, with how many are finished. */
+  onProgress: (done: number, category: ExportCategory) => void = () => {},
+): Promise<Record<string, number>> {
   mkdirSync(folder, { recursive: true });
   const counts: Record<string, number> = {};
   const files: Record<string, string> = {};
-  const write = (name: string, text: string) => writeFileSync(path.join(folder, name), text);
+  const write = (name: string, text: string) => writeFile(path.join(folder, name), text);
 
-  for (const category of categories) {
+  for (const [done, category] of categories.entries()) {
+    onProgress(done, category);
+    // The app stays usable while a large export runs.
+    await breathe();
     switch (category) {
       case "dictations": {
         const rows = sources.dictations();
-        write(
+        await write(
           "dictations.json",
           `${JSON.stringify(
             rows.map((row) => ({
@@ -118,7 +128,7 @@ export function writeExport(
               .join(","),
           );
         }
-        write("dictionary.csv", `${lines.join("\n")}\n`);
+        await write("dictionary.csv", `${lines.join("\n")}\n`);
         counts.dictionary = rows.length;
         files.dictionary = "dictionary.csv";
         break;
@@ -129,7 +139,7 @@ export function writeExport(
           (snippet) =>
             `## ${snippet.trigger}\n\n${(snippet.rich ? richToMarkdown(snippet.rich) : `${snippet.plain}\n`).trim()}\n`,
         );
-        write("snippets.md", `# Snippets\n\n${parts.join("\n")}`);
+        await write("snippets.md", `# Snippets\n\n${parts.join("\n")}`);
         counts.snippets = rows.length;
         files.snippets = "snippets.md";
         break;
@@ -137,7 +147,7 @@ export function writeExport(
       case "stylesRewrites": {
         const styles = sources.styles();
         const rewrites = sources.customRewrites();
-        write(
+        await write(
           "styles-and-rewrites.json",
           `${JSON.stringify(
             {
@@ -160,7 +170,7 @@ export function writeExport(
       }
       case "memory": {
         const rows = sources.memory();
-        write(
+        await write(
           "memory.json",
           `${JSON.stringify(
             rows.map((item) => ({
@@ -183,9 +193,10 @@ export function writeExport(
         mkdirSync(notesFolder, { recursive: true });
         const used = new Set<string>();
         const rows = sources.notes();
-        for (const note of rows) {
+        for (const [index, note] of rows.entries()) {
           const name = unique(noteFileName(note), used);
           writeNoteMarkdown(note, path.join(notesFolder, `${name}.md`), sources.noteImages);
+          if (index % BATCH === BATCH - 1) await breathe();
         }
         counts.notes = rows.length;
         files.notes = "notes/ (one Markdown file per note, images in a folder beside each)";
@@ -202,14 +213,14 @@ export function writeExport(
             .join("\n");
           return `## ${thread.title || "(text removed after 30 days)"}\n\n${iso(thread.createdAt)} · ${thread.outcome}\n\n${turns}`;
         });
-        write("instruct.md", `# Instruct threads\n\n${parts.join("\n")}`);
+        await write("instruct.md", `# Instruct threads\n\n${parts.join("\n")}`);
         counts.instruct = rows.length;
         files.instruct = "instruct.md";
         break;
       }
       case "insights": {
         const days = sources.insights();
-        write("insights.csv", insightsCsv(days));
+        await write("insights.csv", insightsCsv(days));
         counts.insights = days.length;
         files.insights = "insights.csv";
         break;
@@ -228,7 +239,7 @@ export function writeExport(
               .slice(0, 80) || "Meeting",
             used,
           );
-          write(
+          await write(
             path.join(folderName, `${base}.json`),
             `${JSON.stringify(
               {
@@ -241,8 +252,8 @@ export function writeExport(
             )}\n`,
           );
         }
-        write("tasks.json", `${JSON.stringify(sources.tasks(), null, 2)}\n`);
-        write("contacts.json", `${JSON.stringify(sources.contacts(), null, 2)}\n`);
+        await write("tasks.json", `${JSON.stringify(sources.tasks(), null, 2)}\n`);
+        await write("contacts.json", `${JSON.stringify(sources.contacts(), null, 2)}\n`);
         counts[category] = meetings.length;
         files[category] = "meetings/, tasks.json, contacts.json";
         break;
@@ -253,7 +264,7 @@ export function writeExport(
         for (const file of sources.audioFiles()) {
           if (!existsSync(file)) continue;
           mkdirSync(audioFolder, { recursive: true });
-          copyFileSync(file, path.join(audioFolder, path.basename(file)));
+          await copyFile(file, path.join(audioFolder, path.basename(file)));
           copied += 1;
         }
         counts.audio = copied;
@@ -278,6 +289,7 @@ export function writeExport(
     "Models, keys and settings are not included.",
     "",
   ];
-  write("README.md", lines.join("\n"));
+  // Written last, so a folder with a README is a whole one.
+  await write("README.md", lines.join("\n"));
   return counts;
 }

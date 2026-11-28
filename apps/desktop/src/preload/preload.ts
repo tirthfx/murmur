@@ -20,6 +20,7 @@ const api: MurmurApi = {
   planView: () => ipcRenderer.invoke(IPC_CHANNELS.planView),
   planAct: (action) => ipcRenderer.invoke(IPC_CHANNELS.planAct, action),
   dataExport: (request) => ipcRenderer.invoke(IPC_CHANNELS.dataExport, request),
+  dataExportStatus: () => ipcRenderer.invoke(IPC_CHANNELS.dataExportStatus),
   dataCounts: () => ipcRenderer.invoke(IPC_CHANNELS.dataCounts),
   dataDelete: (category) => ipcRenderer.invoke(IPC_CHANNELS.dataDelete, category),
   dataReset: (request) => ipcRenderer.invoke(IPC_CHANNELS.dataReset, request),
