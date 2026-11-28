@@ -35,7 +35,6 @@ export interface ConnectorStore {
   ): void;
   /** The cached text while it is fresh, else null (an old row is left for `cachePrune`). */
   cacheGet(accountId: string, kind: string, key: string, now: number): string | null;
-  cacheClear(accountId: string): void;
   /** Deletes what is older than its time to live. Returns how many rows went. */
   cachePrune(now: number): number;
 }
@@ -128,9 +127,6 @@ export function createConnectorStore(db: DatabaseSync): ConnectorStore {
         .get(accountId, kind, key) as
         { json: string; fetched_at: number; ttl_ms: number } | undefined;
       return row && now - row.fetched_at < row.ttl_ms ? row.json : null;
-    },
-    cacheClear(accountId) {
-      db.prepare("DELETE FROM connector_cache WHERE account_id = ?").run(accountId);
     },
     cachePrune(now) {
       return Number(

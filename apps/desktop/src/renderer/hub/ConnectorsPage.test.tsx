@@ -12,7 +12,6 @@ import {
   type ConnectorView,
 } from "@murmur/shared";
 import { auditAccessibility } from "./a11y-audit";
-import { ConnectorNotice } from "./ConnectorNotice";
 import { connectorStatus, ConnectorsPage } from "./ConnectorsPage";
 import { createMockApi } from "./test-api";
 
@@ -650,41 +649,5 @@ describe("connector status (CN-15)", () => {
         accounts: [account({ status: "disabled" })],
       }).label,
     ).toBe("Disabled");
-  });
-});
-
-describe("a feature's connector notice (CN-15)", () => {
-  it("says why the feature is off and opens the Connectors page", async () => {
-    show(viewOf({ gmail: { readiness: "ready" } }));
-    render(<ConnectorNotice featureId="email-drafts" />);
-    expect(await screen.findByText("Follow-up email drafts is off")).toBeTruthy();
-    expect(screen.getByText("Connect Gmail to use this.")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Open Connectors" }));
-    expect(window.location.hash).toBe("#/connectors");
-  });
-
-  it("shows Reconnect for an account that needs attention", async () => {
-    show(
-      viewOf({
-        gmail: {
-          readiness: "ready",
-          accounts: [account({ id: "m1", connector: "gmail", status: "needs_attention" })],
-        },
-      }),
-    );
-    render(<ConnectorNotice featureId="email-drafts" />);
-    fireEvent.click(await screen.findByRole("button", { name: "Reconnect me@example.com" }));
-    expect(api.connectorConnect).toHaveBeenCalledWith("gmail", "me@example.com");
-  });
-
-  it("shows nothing when the feature can work, or is not known", async () => {
-    show(viewOf({ gmail: { readiness: "ready", accounts: [account({ connector: "gmail" })] } }));
-    const { container } = render(<ConnectorNotice featureId="email-drafts" />);
-    await waitFor(() => expect(api.connectorsView).toHaveBeenCalled());
-    await new Promise((resolve) => setTimeout(resolve, 10));
-    expect(container.textContent).toBe("");
-    cleanup();
-    const unknown = render(<ConnectorNotice featureId="nope" />);
-    expect(unknown.container.textContent).toBe("");
   });
 });

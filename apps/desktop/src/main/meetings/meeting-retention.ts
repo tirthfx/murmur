@@ -113,7 +113,7 @@ export function createMeetingRetention(
         deps.removeFile(chunk.path);
       } catch (error) {
         deps.logger.warn(
-          `could not remove ${chunk.path}: ${error instanceof Error ? error.message : error}`,
+          `could not remove ${chunk.path}: ${error instanceof Error ? error.message : String(error)}`,
         );
       }
     }

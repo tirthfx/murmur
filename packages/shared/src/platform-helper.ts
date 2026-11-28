@@ -53,7 +53,6 @@ import type { PermissionKind, PermissionRequestResult, PermissionSnapshot } from
 
 /** Lifecycle of the helper as the app sees it. */
 export const HELPER_STATES = ["stopped", "starting", "ready", "error", "unavailable"] as const;
-export type HelperState = (typeof HELPER_STATES)[number];
 
 /** `unavailable` means there is no helper to run (binary missing, unsupported platform). */
 export const helperStatusSchema = z.strictObject({

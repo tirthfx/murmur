@@ -148,14 +148,12 @@ export const helpSettingsSchema = z.strictObject({
   /** Where each tour got to; `done` once finished. */
   tours: z.record(z.string(), z.strictObject({ step: z.number().int().min(0), done: z.boolean() })),
 });
-export type HelpSettings = z.infer<typeof helpSettingsSchema>;
 
 /** HB-43: a code made here, and invitations counted by hand. Nothing is sent. */
 export const referralSettingsSchema = z.strictObject({
   code: z.string().regex(/^([A-HJ-NP-Z2-9]{8})?$/),
   invites: z.number().int().min(0).max(10_000),
 });
-export type ReferralSettings = z.infer<typeof referralSettingsSchema>;
 
 /** Letters and digits that cannot be mistaken for each other (no I, O, 0 or 1). */
 export const REFERRAL_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";

@@ -36,7 +36,7 @@ export function createAutoExport(deps: AutoExportDeps): { run(meetingId: string)
         return target;
       } catch (error) {
         deps.logger.warn(
-          `exporting meeting ${meetingId} failed: ${error instanceof Error ? error.message : error}`,
+          `exporting meeting ${meetingId} failed: ${error instanceof Error ? error.message : String(error)}`,
         );
         return null;
       }

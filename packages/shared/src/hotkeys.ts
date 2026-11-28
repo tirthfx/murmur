@@ -11,7 +11,6 @@ import { z } from "zod";
  */
 
 export const HOTKEY_MODES = ["hold", "toggle", "press"] as const;
-export type HotkeyMode = (typeof HOTKEY_MODES)[number];
 
 export const HOTKEY_MODIFIERS = ["command", "option", "control", "shift", "fn"] as const;
 export type HotkeyModifier = (typeof HOTKEY_MODIFIERS)[number];
@@ -32,7 +31,6 @@ export const HOTKEY_ACTIONS = [
   "press.enter",
   "focus.toggle",
 ] as const;
-export type HotkeyAction = (typeof HOTKEY_ACTIONS)[number];
 
 export const MAX_HOTKEY_BINDINGS = 64;
 
@@ -57,14 +55,12 @@ export const mouseTriggerSchema = z.object({
   type: z.literal("mouse"),
   button: mouseButtonSchema,
 });
-export type MouseTrigger = z.infer<typeof mouseTriggerSchema>;
 
 /** What a binding listens for: a key (with modifiers) or an extra mouse button. */
 export const bindingTriggerSchema = z.discriminatedUnion("type", [
   hotkeyTriggerSchema,
   mouseTriggerSchema,
 ]);
-export type BindingTrigger = z.infer<typeof bindingTriggerSchema>;
 
 export const hotkeyBindingSchema = z.object({
   id: z.string().min(1).max(64),
@@ -91,7 +87,6 @@ export const hotkeyRejectionSchema = z.object({
   code: z.string().min(1),
   message: z.string(),
 });
-export type HotkeyRejection = z.infer<typeof hotkeyRejectionSchema>;
 
 export const hotkeyConfigureResultSchema = z.object({
   registered: z.array(z.string()),

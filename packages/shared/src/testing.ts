@@ -20,7 +20,6 @@ export const inspectedNodeSchema = z.object({
   selectedRange: z.tuple([z.number(), z.number()]).nullable(),
   value: z.string().max(200).nullable(),
 });
-export type InspectedNode = z.infer<typeof inspectedNodeSchema>;
 
 export const axInspectResultSchema = z.object({
   app: z.string().nullable(),

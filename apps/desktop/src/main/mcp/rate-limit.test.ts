@@ -22,7 +22,5 @@ describe("rate limiter (CN-11)", () => {
     expect(limiter.check("a").ok).toBe(false);
     limit = 2;
     expect(limiter.check("a")).toEqual({ ok: true });
-    limiter.forget("a");
-    expect(limiter.check("a")).toEqual({ ok: true });
   });
 });

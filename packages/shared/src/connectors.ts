@@ -33,7 +33,6 @@ export const keychainGetPayloadSchema = z.object({
   service: keychainName,
   account: keychainName,
 });
-export type KeychainGetInput = z.infer<typeof keychainGetPayloadSchema>;
 
 export const keychainGetResultSchema = z.object({
   found: z.boolean(),
@@ -47,7 +46,6 @@ export const keychainSetPayloadSchema = z.object({
   account: keychainName,
   value: z.string().min(1).max(KEYCHAIN_LIMITS.value),
 });
-export type KeychainSetInput = z.infer<typeof keychainSetPayloadSchema>;
 
 export const keychainSetResultSchema = z.object({ ok: z.literal(true) });
 
@@ -55,7 +53,6 @@ export const keychainDeletePayloadSchema = z.object({
   service: keychainName,
   account: keychainName,
 });
-export type KeychainDeleteInput = z.infer<typeof keychainDeletePayloadSchema>;
 
 export const keychainDeleteResultSchema = z.object({
   /** False when there was no such item; deleting twice is not an error. */

@@ -4,7 +4,7 @@ import type { ConnectorConfig } from "./connector-service";
 
 const fileSchema = z.record(
   z.string(),
-  z.object({ clientId: z.string().trim().min(1).max(300) }).passthrough(),
+  z.looseObject({ clientId: z.string().trim().min(1).max(300) }),
 );
 
 /** The Keychain item that holds a provider's client secret, for providers that need one. */

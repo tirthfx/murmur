@@ -1,68 +1,19 @@
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { z } from "zod";
+import { z } from "zod";
 import { describe, expect, it } from "vitest";
 import {
   PROTOCOL_VERSION,
-  audioCancelRequestSchema,
-  audioDevicesRequestSchema,
-  audioLevelEventSchema,
-  audioSilentEventSchema,
-  audioDevicesChangedEventSchema,
-  audioRouteChangedEventSchema,
-  audioStartRequestSchema,
-  audioStopRequestSchema,
   envelopeSchema,
   formatRequestId,
-  helloAckRequestSchema,
-  helloEventSchema,
-  helperErrorEventSchema,
-  insertCopyRequestSchema,
-  mediaMuteRequestSchema,
-  contextSnapshotRequestSchema,
-  editsCancelRequestSchema,
-  editsChangedEventSchema,
-  procForegroundRequestSchema,
-  selectionReadRequestSchema,
-  keysPressRequestSchema,
-  focusWatchRequestSchema,
-  focusAppEventSchema,
-  appsListRequestSchema,
-  axInspectRequestSchema,
-  captureStartRequestSchema,
-  captureStopRequestSchema,
-  transcribeLiveRequestSchema,
-  captureChunkEventSchema,
-  detectSubscribeRequestSchema,
-  keychainDeleteRequestSchema,
-  keychainGetRequestSchema,
-  keychainSetRequestSchema,
-  detectEventSchema,
-  captureLevelEventSchema,
-  captureErrorEventSchema,
-  editsWatchRequestSchema,
-  typingWatchRequestSchema,
-  mediaPlaybackRequestSchema,
-  mediaPauseRequestSchema,
-  mediaResumeRequestSchema,
-  typingActivityEventSchema,
-  mediaStatusRequestSchema,
-  insertTextRequestSchema,
-  hotkeyConfigureRequestSchema,
-  hotkeyEventSchema,
-  hotkeyTapStatusEventSchema,
   isHelperEventType,
-  pingRequestSchema,
-  permissionsRequestRequestSchema,
-  permissionsStatusRequestSchema,
-  responseSchema,
-  shutdownRequestSchema,
-  transcribeFileRequestSchema,
-  transcribeLoadRequestSchema,
-  transcribeUnloadRequestSchema,
   HELPER_REQUESTS,
+  helloPayloadSchema,
+  helperErrorEventPayloadSchema,
+  responsePayloadSchema,
   NdjsonDecoder,
+  HELPER_EVENTS,
 } from "./index";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -85,126 +36,40 @@ function loadFixture(name: string): Fixture {
 const requestResultSchemas = (requestType: string): z.ZodType | undefined =>
   (HELPER_REQUESTS as Record<string, { result: z.ZodType } | undefined>)[requestType]?.result;
 
-/** Picks the whole-message schema for a fixture message, the way main would. */
+const shape = (type: string, id: z.ZodType, payload: z.ZodType) =>
+  z.strictObject({ id, type: z.literal(type), payload });
+const helloEventSchema = shape("hello", z.null(), helloPayloadSchema);
+const helperErrorEventSchema = shape("helper.error", z.null(), helperErrorEventPayloadSchema);
+const responseSchema = z.strictObject({
+  id: z.string(),
+  type: z.literal("response"),
+  payload: responsePayloadSchema,
+});
+
+/** A whole message of a request main sends, or of an event the helper raises. */
+function messageSchema(type: string): z.ZodType | undefined {
+  const request = (HELPER_REQUESTS as Record<string, { payload: z.ZodType } | undefined>)[type];
+  if (request) return shape(type, z.string(), request.payload);
+  const event = (HELPER_EVENTS as Record<string, z.ZodType | undefined>)[type];
+  return event ? shape(type, z.null(), event) : undefined;
+}
+
+/** Checks a fixture message against its whole-message schema, the way main would. */
 function validateMessage(message: unknown): boolean {
   const envelope = envelopeSchema.safeParse(message);
   if (!envelope.success) return false;
-  switch (envelope.data.type) {
-    case "hello":
-      return helloEventSchema.safeParse(message).success;
-    case "helper.error":
-      return helperErrorEventSchema.safeParse(message).success;
-    case "hello.ack":
-      return helloAckRequestSchema.safeParse(message).success;
-    case "ping":
-      return pingRequestSchema.safeParse(message).success;
-    case "shutdown":
-      return shutdownRequestSchema.safeParse(message).success;
-    case "permissions.status":
-      return permissionsStatusRequestSchema.safeParse(message).success;
-    case "permissions.request":
-      return permissionsRequestRequestSchema.safeParse(message).success;
-    case "hotkey.configure":
-      return hotkeyConfigureRequestSchema.safeParse(message).success;
-    case "hotkey.event":
-      return hotkeyEventSchema.safeParse(message).success;
-    case "hotkey.tap.status":
-      return hotkeyTapStatusEventSchema.safeParse(message).success;
-    case "audio.devices":
-      return audioDevicesRequestSchema.safeParse(message).success;
-    case "audio.start":
-      return audioStartRequestSchema.safeParse(message).success;
-    case "audio.stop":
-      return audioStopRequestSchema.safeParse(message).success;
-    case "audio.cancel":
-      return audioCancelRequestSchema.safeParse(message).success;
-    case "audio.level":
-      return audioLevelEventSchema.safeParse(message).success;
-    case "audio.silent":
-      return audioSilentEventSchema.safeParse(message).success;
-    case "audio.devices.changed":
-      return audioDevicesChangedEventSchema.safeParse(message).success;
-    case "audio.route.changed":
-      return audioRouteChangedEventSchema.safeParse(message).success;
-    case "transcribe.load":
-      return transcribeLoadRequestSchema.safeParse(message).success;
-    case "transcribe.unload":
-      return transcribeUnloadRequestSchema.safeParse(message).success;
-    case "transcribe.file":
-      return transcribeFileRequestSchema.safeParse(message).success;
-    case "insert.text":
-      return insertTextRequestSchema.safeParse(message).success;
-    case "insert.copy":
-      return insertCopyRequestSchema.safeParse(message).success;
-    case "media.status":
-      return mediaStatusRequestSchema.safeParse(message).success;
-    case "media.mute":
-      return mediaMuteRequestSchema.safeParse(message).success;
-    case "media.playback":
-      return mediaPlaybackRequestSchema.safeParse(message).success;
-    case "media.pause":
-      return mediaPauseRequestSchema.safeParse(message).success;
-    case "media.resume":
-      return mediaResumeRequestSchema.safeParse(message).success;
-    case "typing.watch":
-      return typingWatchRequestSchema.safeParse(message).success;
-    case "typing.activity":
-      return typingActivityEventSchema.safeParse(message).success;
-    case "context.snapshot":
-      return contextSnapshotRequestSchema.safeParse(message).success;
-    case "edits.watch":
-      return editsWatchRequestSchema.safeParse(message).success;
-    case "edits.cancel":
-      return editsCancelRequestSchema.safeParse(message).success;
-    case "edits.changed":
-      return editsChangedEventSchema.safeParse(message).success;
-    case "proc.foreground":
-      return procForegroundRequestSchema.safeParse(message).success;
-    case "selection.read":
-      return selectionReadRequestSchema.safeParse(message).success;
-    case "keys.press":
-      return keysPressRequestSchema.safeParse(message).success;
-    case "focus.watch":
-      return focusWatchRequestSchema.safeParse(message).success;
-    case "focus.app":
-      return focusAppEventSchema.safeParse(message).success;
-    case "apps.list":
-      return appsListRequestSchema.safeParse(message).success;
-    case "ax.inspect":
-      return axInspectRequestSchema.safeParse(message).success;
-    case "keychain.get":
-      return keychainGetRequestSchema.safeParse(message).success;
-    case "keychain.set":
-      return keychainSetRequestSchema.safeParse(message).success;
-    case "keychain.delete":
-      return keychainDeleteRequestSchema.safeParse(message).success;
-    case "capture.start":
-      return captureStartRequestSchema.safeParse(message).success;
-    case "capture.stop":
-      return captureStopRequestSchema.safeParse(message).success;
-    case "transcribe.live":
-      return transcribeLiveRequestSchema.safeParse(message).success;
-    case "detect.subscribe":
-      return detectSubscribeRequestSchema.safeParse(message).success;
-    case "detect.event":
-      return detectEventSchema.safeParse(message).success;
-    case "capture.chunk":
-      return captureChunkEventSchema.safeParse(message).success;
-    case "capture.level":
-      return captureLevelEventSchema.safeParse(message).success;
-    case "capture.error":
-      return captureErrorEventSchema.safeParse(message).success;
-    case "response": {
-      const response = responseSchema.safeParse(message);
-      if (!response.success) return false;
-      const payload = response.data.payload;
-      if (!payload.ok) return true;
-      return requestResultSchemas(payload.requestType)?.safeParse(payload.result).success ?? false;
-    }
-    default:
-      // Requests this side does not model yet: the envelope shape is all that can be checked.
-      return true;
+  const { type } = envelope.data;
+  if (type === "hello") return helloEventSchema.safeParse(message).success;
+  if (type === "helper.error") return helperErrorEventSchema.safeParse(message).success;
+  if (type === "response") {
+    const response = responseSchema.safeParse(message);
+    if (!response.success) return false;
+    const payload = response.data.payload;
+    if (!payload.ok) return true;
+    return requestResultSchemas(payload.requestType)?.safeParse(payload.result).success ?? false;
   }
+  // A type this side does not model: the envelope shape is all that can be checked.
+  return messageSchema(type)?.safeParse(message).success ?? true;
 }
 
 describe("protocol fixtures", () => {

@@ -4,7 +4,6 @@
  */
 export interface RateLimiter {
   check(client: string): { ok: true } | { ok: false; retryAfterMs: number };
-  forget(client: string): void;
 }
 
 export function createRateLimiter(deps: {
@@ -25,9 +24,6 @@ export function createRateLimiter(deps: {
       recent.push(now);
       calls.set(client, recent);
       return { ok: true };
-    },
-    forget(client) {
-      calls.delete(client);
     },
   };
 }

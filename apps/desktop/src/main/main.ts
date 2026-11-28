@@ -3020,7 +3020,7 @@ function createTray(): void {
     canRetry: () => recorder.canRetry(),
     retryLast: () => void recorder.retryLast(),
     snoozeReminder: (choice) => typingReminder.snooze(choice),
-    copy: (text) => clipboard.writeText(text),
+    copy: (text) => void clipboard.writeText(text),
     quit: () => app.quit(),
     focusState: () => focus.state(),
     startFocus: (duration) => focus.start(duration),
@@ -4347,7 +4347,7 @@ function registerIpc(): void {
     historyCopyAudioPath: (id) => {
       // DC-38: where a failed dictation's recording is, for the person to find it.
       const file = history?.retrySource(id)?.audioPath;
-      if (file) clipboard.writeText(file);
+      if (file) void clipboard.writeText(file);
       return file !== undefined;
     },
     dictationState: () => hubDictationState,

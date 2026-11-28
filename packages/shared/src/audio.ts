@@ -61,7 +61,6 @@ export const audioFileSchema = z.object({
   codec: z.enum(AUDIO_CODECS),
   bytes: z.number().int().nonnegative(),
 });
-export type AudioFile = z.infer<typeof audioFileSchema>;
 
 export const audioStopResultSchema = z.object({
   durationMs: z.number().int().nonnegative(),

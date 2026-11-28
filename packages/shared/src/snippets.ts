@@ -43,7 +43,6 @@ export const richDocSchema = z.strictObject({ blocks: z.array(richBlockSchema) }
 export type RichDoc = z.infer<typeof richDocSchema>;
 
 export const SNIPPET_FORMATS = ["plain", "rich_json"] as const;
-export type SnippetFormat = (typeof SNIPPET_FORMATS)[number];
 
 export const snippetSchema = z.strictObject({
   id: z.string().min(1),

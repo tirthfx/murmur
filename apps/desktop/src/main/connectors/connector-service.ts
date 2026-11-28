@@ -35,16 +35,7 @@ export interface ConnectorConfig {
   clientSecret(providerId: string): Promise<string | null>;
 }
 
-export interface ConnectorProviderInfo {
-  id: string;
-  name: string;
-  scopes: string[];
-  /** False until the owner has added the OAuth client id for it. */
-  configured: boolean;
-}
-
 export interface ConnectorService {
-  providers(): ConnectorProviderInfo[];
   list(): ConnectorAccount[];
   /**
    * Signs in: opens the provider's page in the system browser, catches the redirect on 127.0.0.1,
@@ -372,13 +363,6 @@ export function createConnectorService(deps: ConnectorServiceDeps): ConnectorSer
   };
 
   return {
-    providers: () =>
-      registry.list().map((provider) => ({
-        id: provider.id,
-        name: provider.name,
-        scopes: [...provider.scopes],
-        configured: provider.apiKey !== undefined || config.clientId(provider.id) !== null,
-      })),
     list: () => store.list(),
 
     async connect(providerId, options = {}) {

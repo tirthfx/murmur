@@ -58,7 +58,6 @@ export const DICTIONARY_REFUSALS = [
   "too-many-starred",
   "not-found",
 ] as const;
-export type DictionaryRefusal = (typeof DICTIONARY_REFUSALS)[number];
 
 export const dictionarySaveResultSchema = z.discriminatedUnion("ok", [
   z.strictObject({ ok: z.literal(true), entry: dictionaryEntrySchema }),

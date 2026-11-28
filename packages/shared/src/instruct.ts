@@ -169,7 +169,6 @@ export const instructTurnSchema = z.object({
   instruction: z.string(),
   draft: z.string().nullable(),
 });
-export type InstructTurn = z.infer<typeof instructTurnSchema>;
 
 export const instructThreadSchema = instructThreadSummarySchema.extend({
   turns: z.array(instructTurnSchema),

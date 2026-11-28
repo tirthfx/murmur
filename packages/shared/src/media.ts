@@ -6,7 +6,6 @@ export const mediaStatusResultSchema = z.object({
   /** Null when the output device has no mute switch. */
   outputMuted: z.boolean().nullable(),
 });
-export type MediaStatus = z.infer<typeof mediaStatusResultSchema>;
 
 export const mediaMutePayloadSchema = z.object({ muted: z.boolean() });
 export const mediaMuteResultSchema = z.object({ previousMuted: z.boolean() });

@@ -29,13 +29,20 @@ export default tseslint.config(
     },
   },
   {
-    // The `murmur-mcp` command is a plain CommonJS script that clients start.
-    files: ["apps/desktop/packaging/**/*.cjs"],
+    // A promise nobody waits for loses its error. These two rules need type information.
+    files: ["apps/*/src/**/*.{ts,tsx}", "packages/*/src/**/*.{ts,tsx}"],
+    ignores: ["**/*.test.{ts,tsx}"],
     languageOptions: {
-      sourceType: "commonjs",
-      globals: { process: "readonly", require: "readonly" },
+      parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
     },
-    rules: { "@typescript-eslint/no-require-imports": "off" },
+    rules: {
+      "@typescript-eslint/no-floating-promises": "error",
+      // A button's `onClick` may be async: the window shows what it did not catch.
+      "@typescript-eslint/no-misused-promises": [
+        "error",
+        { checksVoidReturn: { attributes: false } },
+      ],
+    },
   },
   prettier,
 );

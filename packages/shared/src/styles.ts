@@ -73,13 +73,6 @@ export const PRESETS: Record<StylePreset, PresetInfo> = {
   custom: { label: "Custom", flags: STANDARD, instruction: null },
 };
 
-export const DEFAULT_PRESETS: Record<StyleCategory, StylePreset> = {
-  personal: "no-caps-less",
-  work: "caps",
-  email: "formal",
-  other: "caps",
-};
-
 export const STYLE_INSTRUCTIONS_MAX = 500;
 
 /** The sentence every preset's example is made from. */

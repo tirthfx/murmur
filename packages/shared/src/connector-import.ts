@@ -9,7 +9,6 @@ import { z } from "zod";
 export const ZOOM_ID = "zoom";
 export const FIREFLIES_ID = "fireflies";
 export const IMPORT_CONNECTOR_IDS = [ZOOM_ID, FIREFLIES_ID] as const;
-export type ImportConnectorId = (typeof IMPORT_CONNECTOR_IDS)[number];
 
 /** Zoom: the permission to read cloud recordings, set in the owner's Zoom app. */
 export const ZOOM_SCOPES = ["recording:read"] as const;

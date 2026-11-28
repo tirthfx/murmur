@@ -61,10 +61,6 @@ const MENTION = /@\[contact:([A-Za-z0-9-]{1,64})\|([^[\]|\n]{1,120})\]/g;
 export const mentionToken = (contact: Pick<Contact, "id" | "name">): string =>
   `@[contact:${contact.id}|${contact.name}]`;
 
-export function mentionedIds(text: string): string[] {
-  return [...new Set([...text.matchAll(MENTION)].map((match) => match[1]!))];
-}
-
 /** The text with every mention of this contact showing the new name. */
 export function renameMentions(text: string, id: string, name: string): string {
   return text.replace(MENTION, (whole, found: string) =>

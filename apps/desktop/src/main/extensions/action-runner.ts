@@ -4,7 +4,6 @@ import {
   calendarEventInputSchema,
   emailDraftInputSchema,
   slackSendInputSchema,
-  type ActionProposal,
   type ConnectorAccount,
   type ExtensionAction,
   type ExtensionActionId,
@@ -20,8 +19,7 @@ import type { z } from "zod";
  * with its own connector and a confirmation that is always required: the runner never gets a
  * token or the connector service, only the two things an action offers, whether it can be used
  * and the call that does it. An action runs only for a click: the window's click handler asks for
- * it with `fromUserClick()`, and a model's output can only become a proposal (`parseProposal`),
- * which nothing runs.
+ * it with `fromUserClick()`, so nothing a model writes can run an action.
  */
 const CLICK = Symbol("user-click");
 
@@ -61,11 +59,6 @@ export interface ActionRunner {
   stateOf(id: ExtensionActionId): ExtensionActionState;
   /** The actions that task and summary screens may offer: turned on, and their connector is connected. */
   visible(): ExtensionActionId[];
-  /**
-   * A model's answer as a proposal, or null. It only describes an action and what it would be
-   * given; nothing is run and no provider is called. The owner has to click to run it.
-   */
-  parseProposal(text: string): ActionProposal | null;
   /** Runs an action the owner confirmed with a click. Refused without one, and when it is not ready. */
   run(id: ExtensionActionId, input: unknown, click: UserClick): Promise<ActionRunResult>;
 }
@@ -136,25 +129,6 @@ export function createActionRunner(deps: ActionRunnerDeps): ActionRunner {
 
     visible: () =>
       EXTENSION_ACTIONS.filter((action) => !stateOf(action.id).hidden).map((action) => action.id),
-
-    parseProposal(text) {
-      const start = text.indexOf("{");
-      const end = text.lastIndexOf("}");
-      if (start === -1 || end <= start) return null;
-      let value: unknown;
-      try {
-        value = JSON.parse(text.slice(start, end + 1));
-      } catch {
-        return null;
-      }
-      if (typeof value !== "object" || value === null) return null;
-      const { action, input } = value as { action?: unknown; input?: unknown };
-      const found = EXTENSION_ACTIONS.find((candidate) => candidate.id === action);
-      if (!found) return null;
-      // The proposal has to be something the action would accept, or it is dropped.
-      if (!INPUT_SCHEMAS[found.id].safeParse(input).success) return null;
-      return { actionId: found.id, input };
-    },
 
     async run(id, input, click) {
       // A model's text, a task's words or a page cannot make this: only a click does.

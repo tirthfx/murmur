@@ -394,22 +394,6 @@ export const DEFAULT_NOTIFICATIONS: Settings["notifications"] = {
   weeklySummary: false,
 };
 
-export const DEFAULT_EXPERIMENTAL: Settings["experimental"] = {
-  splitMessages: false,
-  pauseMedia: false,
-  headsetWear: false,
-  ringMicrophone: false,
-  bulkImport: false,
-  phraseLearning: false,
-  styleDetection: false,
-  pronunciationClips: false,
-  commandMode: false,
-  autoInstruct: false,
-  focusMode: false,
-  askConnectorActions: false,
-  slackTagging: false,
-};
-
 /** RW-18 defaults. */
 export const DEFAULT_FOCUS: Settings["focus"] = { duration: 25 };
 
