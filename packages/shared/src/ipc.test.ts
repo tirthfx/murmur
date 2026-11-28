@@ -39,18 +39,20 @@ describe("parseIpcRequest", () => {
 describe("appInfoSchema", () => {
   it("accepts a well-formed value", () => {
     expect(
-      appInfoSchema.safeParse({ name: "Murmur", version: "0.0.0", platform: "darwin" }).success,
+      appInfoSchema.safeParse({
+        name: "Murmur",
+        version: "0.0.0",
+        platform: "darwin",
+        sandbox: false,
+      }).success,
     ).toBe(true);
   });
 
   it("rejects missing, empty and extra fields", () => {
-    expect(appInfoSchema.safeParse({ name: "Murmur", version: "0.0.0" }).success).toBe(false);
-    expect(
-      appInfoSchema.safeParse({ name: "", version: "0.0.0", platform: "darwin" }).success,
-    ).toBe(false);
-    expect(
-      appInfoSchema.safeParse({ name: "M", version: "1", platform: "darwin", extra: true }).success,
-    ).toBe(false);
+    const info = { name: "Murmur", version: "0.0.0", platform: "darwin", sandbox: false };
+    expect(appInfoSchema.safeParse({ ...info, platform: undefined }).success).toBe(false);
+    expect(appInfoSchema.safeParse({ ...info, name: "" }).success).toBe(false);
+    expect(appInfoSchema.safeParse({ ...info, extra: true }).success).toBe(false);
   });
 });
 

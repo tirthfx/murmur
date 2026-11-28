@@ -215,6 +215,23 @@ describe("recorder", () => {
     expect(logger.lines.join("\n")).not.toContain("Thursday");
   });
 
+  it("says how long the stages took when the Testing page asks (HB-57)", async () => {
+    const transcribe = vi.fn().mockResolvedValue({ ...transcript, text: "Hi.", decodeMs: 7 });
+    const events: unknown[] = [];
+    const { recorder } = setup({
+      transcribe,
+      showTimings: () => true,
+      onEvent: (event) => events.push(event),
+    });
+    recorder.handleHotkey(key("down"));
+    recorder.handleHotkey(key("up"));
+    await recorder.idle();
+    expect(events).toContainEqual({
+      type: "timings",
+      message: expect.stringMatching(/^speech 7 ms · insert \d+ ms · total \d+ ms$/),
+    });
+  });
+
   it("passes on the detected language of a dictation with words (DC-17)", async () => {
     const heard = { language: "de", confidence: 0.97 };
     const transcribe = vi

@@ -592,6 +592,8 @@ export const appInfoSchema = z.strictObject({
   name: z.string().min(1),
   version: z.string().min(1),
   platform: z.string().min(1),
+  /** HB-55: running on demo data. */
+  sandbox: z.boolean(),
 });
 
 export type AppInfo = z.infer<typeof appInfoSchema>;

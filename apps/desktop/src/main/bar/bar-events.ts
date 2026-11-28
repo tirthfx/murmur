@@ -27,6 +27,8 @@ export function barEventFor(event: RecorderEvent): BarEvent {
         words: event.words,
         ...(event.note ? { note: event.note } : {}),
       };
+    case "timings":
+      return { type: "note", message: event.message };
     case "tap-ignored":
       return { type: "settle" };
     case "no-field":

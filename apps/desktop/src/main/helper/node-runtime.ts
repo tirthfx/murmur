@@ -43,10 +43,21 @@ export const spawnHelperProcess: SpawnHelper = (binaryPath) => {
   return helperProcess;
 };
 
+/** Where every logger's lines also go, such as the log file; nowhere until one is set. */
+let sink: ((level: "info" | "warn" | "error", line: string) => void) | null = null;
+export function setLogSink(next: typeof sink): void {
+  sink = next;
+}
+
 export function createConsoleLogger(prefix: string): Logger {
+  const log = (level: "info" | "warn" | "error", message: string) => {
+    const line = `${prefix} ${message}`;
+    console[level === "info" ? "log" : level](line);
+    sink?.(level, line);
+  };
   return {
-    info: (message) => console.log(`${prefix} ${message}`),
-    warn: (message) => console.warn(`${prefix} ${message}`),
-    error: (message) => console.error(`${prefix} ${message}`),
+    info: (message) => log("info", message),
+    warn: (message) => log("warn", message),
+    error: (message) => log("error", message),
   };
 }

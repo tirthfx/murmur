@@ -82,7 +82,14 @@ export const SAMPLE_SETTINGS: SettingsView = {
       contextExcludedApps: [],
     },
     planState: { trial: null, student: false, log: [] },
-    devMode: { enabled: false, disableCleanup: false, forceTyped: false, disableContext: false },
+    devMode: {
+      enabled: false,
+      disableCleanup: false,
+      forceTyped: false,
+      disableContext: false,
+      showTimings: false,
+      disableKeys: false,
+    },
     help: { tours: {}, offerTours: false },
     referral: { code: "ABCD2345", invites: 0 },
     notetaker: DEFAULT_NOTETAKER,
@@ -646,7 +653,9 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
     historyDelete: vi.fn().mockResolvedValue({ rows: 1, files: 0 }),
     loginItemGet: vi.fn().mockResolvedValue({ available: true, enabled: false }),
     loginItemSet: vi.fn((enabled: boolean) => Promise.resolve({ available: true, enabled })),
-    getAppInfo: vi.fn().mockResolvedValue({ name: "Murmur", version: "1.2.3", platform: "darwin" }),
+    getAppInfo: vi
+      .fn()
+      .mockResolvedValue({ name: "Murmur", version: "1.2.3", platform: "darwin", sandbox: false }),
     getHelperStatus: vi
       .fn()
       .mockResolvedValue({ state: "ready", helperVersion: "0.1.0", message: null }),

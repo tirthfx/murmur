@@ -18,19 +18,24 @@ The Testing page lists them all:
 
 ## Tools (HB-55)
 
-| Tool                  | What it does                                                                                                                                         |
-| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Restart onboarding    | Clears the setup flag and opens setup                                                                                                                |
-| Reset personalisation | Deletes the Dictionary, Snippets, Styles overrides, Memory, Voice Profile and learned suggestions, after a confirmation that names how many items go |
-| Test notification     | Sends one notification, whatever the switches say                                                                                                    |
-| Cycle Bar states      | Shows listening, locked, processing, done, warning, error and cancelled on the Bar, two seconds each (not while dictating)                           |
-| Diagnostics bundle    | Writes a `Murmur diagnostics <date>` folder where you choose, holding `diagnostics.json`: versions, OS, helper status, settings and counts           |
+| Tool                   | What it does                                                                                                                                          |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Restart onboarding     | Clears the setup flag and opens setup                                                                                                                 |
+| Reset personalisation  | Deletes the Dictionary, Snippets, Styles overrides, Memory, Voice Profile and learned suggestions, after a confirmation that names how many items go  |
+| Test notification      | Sends one notification, whatever the switches say                                                                                                     |
+| Cycle Bar states       | Shows listening, locked, processing, done, warning, error and cancelled on the Bar, two seconds each (not while dictating)                            |
+| Sandbox with demo data | Starts Murmur again on made-up data in its own folder; the same button leaves it                                                                      |
+| Diagnostics bundle     | Writes a `Murmur diagnostics <date>` folder where you choose, holding `diagnostics.json` (versions, OS, helper status, settings, counts) and the logs |
 
 **What the diagnostics bundle leaves out:** the display name, the email signature and the wake phrase are replaced by "(set)", and no dictated or written text is ever in it. Nothing is sent.
 
 The tools refuse to run while developer mode is off.
 
-**Not built:** the sandbox demo database and the helper log level. Murmur writes no log files, so the bundle has no log file to include.
+**Sandbox:** Murmur is started again with `--murmur-sandbox`. `profilePaths` then puts the database, recordings, notes, logs and window state in a `sandbox` folder inside the profile, so the real database is never opened; the models are shared, and cannot be deleted from the sandbox. It is emptied on each visit and seeded with three weeks of made-up dictations (`testing/sandbox-data.ts`). The Hub shows a banner. Quitting, or the same button, leaves it. Under `npm run dev` the restart ends the dev server; use it in a packaged build.
+
+## Log files (HB-49)
+
+What Murmur's loggers say also goes to `logs/murmur-<date>.log` in the data folder, seven days kept (`logs/log-file.ts`). Loggers never include dictated text; with `MURMUR_LOG_TRANSCRIPTS=1` no file is written at all. The Data page shows the folder's size, the full reset removes it, and the diagnostics bundle copies it.
 
 ## Engine switches (HB-57)
 
@@ -40,7 +45,10 @@ These are in `dev.settings` and all off by default:
 - **Force typed insertion:** the text is typed instead of pasted.
 - **Turn off context reading:** no text around the cursor is read, whatever Settings says.
 
-The model path overrides are not built.
+- **Show timings on the Bar:** after a dictation, how long speech, cleanup (when the model ran), insertion and the whole took.
+- **Turn off the shortcut listener:** no shortcut is registered with the helper.
+
+**Not built:** model path overrides (only files with a known checksum could be allowed, and those are the three models Murmur already switches between) and a helper log level (the helper has one).
 
 ## Accessibility inspector (HB-56)
 

@@ -1,3 +1,4 @@
+import { Banner } from "@astryxdesign/core/Banner";
 import { HelperBanner } from "./HelperBanner";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppShell } from "@astryxdesign/core/AppShell";
@@ -194,6 +195,13 @@ function HubPages({ onRunSetup }: { onRunSetup: () => void }) {
       <div className="hub-drag-region" aria-hidden="true" />
       <AppShell sideNav={sideNav} contentPadding={0}>
         <div className="hub-page">
+          {info?.sandbox ? (
+            <Banner
+              status="info"
+              title="Sandbox: demo data"
+              description="Your own data is not open. Leave from Settings, Testing, or quit Murmur."
+            />
+          ) : null}
           <HelperBanner />
           <Heading level={1}>{page.title}</Heading>
           {page.id === "settings" ? (

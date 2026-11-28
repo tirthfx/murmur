@@ -1,6 +1,7 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import {
   copyFileSync,
+  cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -325,7 +326,7 @@ import {
   type LlmReply,
 } from "./cleanup/llm-client";
 import { ignoreClosedPipes } from "./helper/closed-pipes";
-import { createConsoleLogger, systemClock } from "./helper/node-runtime";
+import { createConsoleLogger, setLogSink, systemClock } from "./helper/node-runtime";
 import { createHubPage } from "./hub/hub-page";
 import { HelperError } from "./helper/types";
 import { createHotkeyService } from "./hotkeys";
@@ -377,7 +378,9 @@ import { createLastTranscript } from "./insertion/last-transcript";
 import { createTypingReminder } from "./reminder/typing-reminder";
 import { createMicCheck } from "./mic-check/mic-check";
 import { toLatinHindi } from "./speech/latin-hindi";
-import { profilePaths } from "./profile";
+import { createLogFile } from "./logs/log-file";
+import { profilePaths, sandboxDir } from "./profile";
+import { demoDictations, restartArgs, SANDBOX_SWITCH } from "./testing/sandbox-data";
 import { createSmokeRun, SMOKE_PAGE, type SmokeRun } from "./smoke";
 import { createSmokeChecks, type SmokeChecks } from "./smoke-checks";
 import { createTrayController, type TrayController } from "./tray/tray-controller";
@@ -389,14 +392,19 @@ const isDevelopment = !app.isPackaged;
 ignoreClosedPipes([process.stdout, process.stderr]);
 
 // A separate profile for a clean first run or a test; see `profilePaths`.
-const profile = profilePaths(process.env, {
-  appData: app.getPath("appData"),
-  userData: app.getPath("userData"),
-});
+const defaultPaths = { appData: app.getPath("appData"), userData: app.getPath("userData") };
+const profile = profilePaths(process.env, defaultPaths, process.argv.includes(SANDBOX_SWITCH));
 if (profile.isOverridden) {
   mkdirSync(profile.userData, { recursive: true });
   app.setPath("userData", profile.userData);
   console.log(`[profile] using ${profile.appData}`);
+}
+
+// HB-49: a week of log files. Not while transcripts are logged, which they must never hold.
+const logDir = path.join(profile.appData, "Murmur", "logs");
+if (process.env.MURMUR_LOG_TRANSCRIPTS !== "1") {
+  const logFile = createLogFile({ dir: logDir, now: Date.now });
+  setLogSink((level, line) => logFile.write(level, line));
 }
 
 /** URL of the Hub page: the Vite dev server in development, the bundled file otherwise. */
@@ -952,13 +960,17 @@ const settingsService = createSettingsService({
   rejected: () => hotkeys.rejected(),
   otherShortcuts: () => rewriteShortcutsInUse(rewrites?.list() ?? []),
 });
-const bindingsNow = () => [
-  ...bindingsFor(settingsStore.get(), keys.cancelKeyCode),
-  ...rewriteBindings(rewrites?.list() ?? []).slice(
-    0,
-    boundRewriteShortcuts(settingsStore.get().plan),
-  ),
-];
+const bindingsNow = () => {
+  // HB-57: the Testing page can turn the listener off.
+  if (settingsStore.get().devMode.disableKeys) return [];
+  return [
+    ...bindingsFor(settingsStore.get(), keys.cancelKeyCode),
+    ...rewriteBindings(rewrites?.list() ?? []).slice(
+      0,
+      boundRewriteShortcuts(settingsStore.get().plan),
+    ),
+  ];
+};
 
 const hotkeys = createHotkeyService({
   helper,
@@ -1335,6 +1347,7 @@ const recorder = createRecorder({
     if (language) offerLanguage(language);
   },
   silentWarning: () => settingsStore.get().silentWarning,
+  showTimings: () => settingsStore.get().devMode.showTimings,
   routeFallback: () => settingsStore.get().microphones.routeFallback,
   formatting: () => {
     const { cleanupLevel, smartFormatting } = nextSession.settings();
@@ -1864,6 +1877,8 @@ async function writeDiagnostics(): Promise<TestingToolResult> {
     now: Date.now(),
   });
   writeFileSync(path.join(folder, "diagnostics.json"), `${JSON.stringify(report, null, 2)}\n`);
+  // HB-55: the log files, which hold no dictated text.
+  if (existsSync(logDir)) cpSync(logDir, path.join(folder, "logs"), { recursive: true });
   return { ok: true, message: `Saved to ${folder}.` };
 }
 
@@ -1889,6 +1904,18 @@ async function runTestingTool(tool: TestingTool): Promise<TestingToolResult> {
         rows += dataDeleter?.delete(category).rows ?? 0;
       }
       return { ok: true, message: `Personalisation reset: ${rows} items deleted.` };
+    }
+    case "sandbox": {
+      if (hubDictationState !== "idle" || meetings?.state().status === "recording")
+        return { ok: false, message: "Stop dictating and recording first." };
+      const enter = !profile.isSandbox;
+      // Each visit starts from the same demo data.
+      if (enter) rmSync(sandboxDir(profile.userData), { recursive: true, force: true });
+      setTimeout(() => {
+        app.relaunch({ args: restartArgs(process.argv, enter) });
+        app.exit(0);
+      }, 300);
+      return { ok: true, message: "Murmur is starting again." };
     }
     case "testNotification":
       notifier.test();
@@ -3686,6 +3713,27 @@ const exportJob = createExportJob({
   logger: createConsoleLogger("[export]"),
 });
 
+/** HB-55: made-up dictations for a sandbox that has none, so its pages have content. */
+function seedSandbox(): void {
+  if (!profile.isSandbox || !history || history.list(1).length > 0) return;
+  for (const record of demoDictations(Date.now())) {
+    history.add(record);
+    insights?.record({
+      createdAt: record.createdAt,
+      words: record.wordCount,
+      durationMs: record.durationMs,
+      insertStatus: record.insertStatus,
+      appBundleId: record.appBundleId ?? null,
+      appName: record.appName ?? null,
+    });
+  }
+  settingsStore.update({
+    setupComplete: true,
+    openHubOnLaunch: true,
+    devMode: { ...settingsStore.get().devMode, enabled: true },
+  });
+}
+
 function profileView() {
   const now = Date.now();
   return voiceProfile && database
@@ -3869,7 +3917,9 @@ function registerIpc(): void {
         console.warn(`[connectors] reset: ${connectors.kept} sign-in(s) could not be removed`);
       rmSync(connectorsFile, { force: true });
       const result = dataDeleter?.deleteAll() ?? { rows: 0, files: 0, failedFiles: 0 };
-      if (includeModels) {
+      rmSync(logDir, { recursive: true, force: true });
+      // The sandbox shares the real models, so it never deletes them.
+      if (includeModels && !profile.isSandbox) {
         await rm(speechModelRoot(profile.modelsAppData), { recursive: true, force: true });
         await rm(cleanupRoot, { recursive: true, force: true });
       }
@@ -3891,6 +3941,7 @@ function registerIpc(): void {
           { name: "Database", bytes: sizeOf(db) + sizeOf(`${db}-wal`) + sizeOf(`${db}-shm`) },
           { name: "Recordings", bytes: sizeOf(path.join(root, "audio")) },
           { name: "Scratchpad images", bytes: sizeOf(path.join(root, "notes")) },
+          { name: "Logs", bytes: sizeOf(logDir) },
           {
             name: "Models",
             bytes: sizeOf(speechModelRoot(profile.modelsAppData)) + sizeOf(cleanupRoot),
@@ -4727,6 +4778,7 @@ function registerIpc(): void {
       name: app.getName(),
       version: app.getVersion(),
       platform: process.platform,
+      sandbox: profile.isSandbox,
     }),
     getHelperStatus: () => helper.getStatus(),
     getPermissions: () => permissions.check("hub refresh"),
@@ -4742,7 +4794,8 @@ function registerIpc(): void {
     modelsList: () => Promise.all(MODEL_IDS.map((id) => models[id].status())),
     modelDownload: (id) => models[id].download(),
     modelCancel: (id) => models[id].cancel(),
-    modelRemove: (id) => models[id].remove(),
+    // The sandbox shares the real models, so it never deletes them.
+    modelRemove: (id) => (profile.isSandbox ? models[id].status() : models[id].remove()),
     micCheckStart: () => micCheck.start(),
     micCheckStop: () => micCheck.stop(),
     getMediaPlayback: () => helper.getPlayback().catch(() => null),
@@ -5021,6 +5074,7 @@ void app.whenReady().then(() => {
   // Configures the dictation key whenever the helper becomes ready, restarts included.
   hotkeys.start();
   recorder.start();
+  seedSandbox();
   speech.start();
   // NT-05: sleep closes the recording cleanly (ADR-0076); on wake a new one is offered.
   let stoppedBySleep = false;

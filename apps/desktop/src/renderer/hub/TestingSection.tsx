@@ -122,6 +122,14 @@ export function TestingSection({
   const [message, setMessage] = useState<string | null>(null);
   const [confirmReset, setConfirmReset] = useState<number | null>(null);
   const dev = settings.devMode;
+  const [sandbox, setSandbox] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    void window.murmur.getAppInfo().then((info) => alive && setSandbox(info.sandbox));
+    return () => {
+      alive = false;
+    };
+  }, []);
   const experimental = settings.experimental as Record<string, boolean>;
 
   async function tool(name: TestingTool) {
@@ -234,6 +242,14 @@ export function TestingSection({
             <Button
               size="sm"
               variant="secondary"
+              label={sandbox ? "Leave the sandbox" : "Start the sandbox with demo data"}
+              onClick={() => void tool("sandbox")}
+            >
+              {sandbox ? "Leave the sandbox" : "Sandbox with demo data"}
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
               label="Create a diagnostics bundle"
               onClick={() => void tool("diagnostics")}
             >
@@ -256,8 +272,10 @@ export function TestingSection({
           </HStack>
           <Text size="sm" color="secondary">
             Reset personalisation deletes the Dictionary, Snippets, Styles overrides, Memory, Voice
-            Profile and learned suggestions. The diagnostics bundle holds versions, settings and
-            counts, never dictated text, and is only saved where you choose.
+            Profile and learned suggestions. The diagnostics bundle holds versions, settings, counts
+            and the log files, never dictated text, and is only saved where you choose. The sandbox
+            starts Murmur again on made-up data in a folder of its own; your data is not opened, and
+            quitting leaves it.
           </Text>
           {message ? (
             <Text size="sm" role="status">
@@ -283,6 +301,18 @@ export function TestingSection({
             description="Types the text instead of pasting it."
             value={dev.forceTyped}
             onChange={(forceTyped) => setDev({ forceTyped })}
+          />
+          <Switch
+            label="Show timings on the Bar"
+            description="After a dictation: how long speech, cleanup and insertion took."
+            value={dev.showTimings}
+            onChange={(showTimings) => setDev({ showTimings })}
+          />
+          <Switch
+            label="Turn off the shortcut listener"
+            description="No Murmur shortcut works until this is off again."
+            value={dev.disableKeys}
+            onChange={(disableKeys) => setDev({ disableKeys })}
           />
           <Switch
             label="Turn off context reading"
