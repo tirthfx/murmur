@@ -21,6 +21,7 @@ describe("parseSkillFile", () => {
         name: "Customer call notes",
         description: "Problems, asks and commitments.",
         length: "long",
+        model: "fast",
         sections: ["Problems raised", "What they asked for"],
         prompt: "Write notes of a call with a customer.",
       },
@@ -35,6 +36,7 @@ describe("parseSkillFile", () => {
         name: "Plan: next week",
         sections: ["One", "Two", "Three"],
         length: "medium",
+        model: "fast",
         description: "",
         prompt: "Do it.",
       },
@@ -86,6 +88,7 @@ describe("formatSkillFile", () => {
           sections: skill.sections,
           length: skill.length,
           prompt: skill.prompt,
+          model: skill.model,
         },
       });
     }
@@ -97,13 +100,19 @@ describe("formatSkillFile", () => {
       description: "# not a comment",
       sections: ["- dash", "[bracket]", "plain"],
       length: "short" as const,
+      model: "quality" as const,
       prompt: "---\nthree dashes inside the prompt are fine after the front matter",
       version: 2,
     };
     const parsed = parseSkillFile(formatSkillFile(skill));
     expect(parsed).toMatchObject({
       ok: true,
-      draft: { name: skill.name, description: skill.description, sections: skill.sections },
+      draft: {
+        name: skill.name,
+        description: skill.description,
+        sections: skill.sections,
+        model: "quality",
+      },
     });
   });
 });

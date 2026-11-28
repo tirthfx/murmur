@@ -863,6 +863,14 @@ export function SettingsSection({
               }
             />
             <Switch
+              label="Show private events as “Busy”"
+              description="An event your calendar marks private keeps its time, and Murmur shows neither its title nor its place."
+              value={settings.connectors.privateTitlesAsBusy}
+              onChange={(privateTitlesAsBusy) =>
+                update({ connectors: { ...settings.connectors, privateTitlesAsBusy } })
+              }
+            />
+            <Switch
               label="Skip events I declined"
               value={settings.notetaker.calendar.skipDeclined}
               onChange={(skipDeclined) =>

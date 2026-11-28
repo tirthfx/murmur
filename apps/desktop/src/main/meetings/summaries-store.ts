@@ -163,13 +163,14 @@ interface SkillRow {
   sections_json: string;
   length: Skill["length"];
   prompt: string;
+  model: Skill["model"];
   version: number;
   based_on: string | null;
   based_on_version: number | null;
 }
 
 const SKILL_COLUMNS =
-  "id, name, description, sections_json, length, prompt, version, based_on, based_on_version";
+  "id, name, description, sections_json, length, prompt, model, version, based_on, based_on_version";
 
 const toSkill = (row: SkillRow): Skill => ({
   id: row.id,
@@ -178,6 +179,7 @@ const toSkill = (row: SkillRow): Skill => ({
   sections: JSON.parse(row.sections_json) as string[],
   length: row.length,
   prompt: row.prompt,
+  model: row.model,
   builtIn: false,
   version: row.version,
   basedOn: row.based_on,
@@ -189,6 +191,7 @@ const sameDraft = (a: SkillDraft, b: SkillDraft) =>
   a.description === b.description &&
   a.length === b.length &&
   a.prompt === b.prompt &&
+  a.model === b.model &&
   a.sections.length === b.sections.length &&
   a.sections.every((section, i) => section === b.sections[i]);
 
@@ -212,8 +215,8 @@ export function createSkillsStore(db: DatabaseSync): SkillsStore {
   ) =>
     db
       .prepare(
-        `INSERT INTO skills (id, name, description, sections_json, length, prompt, based_on, based_on_version, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO skills (id, name, description, sections_json, length, prompt, model, based_on, based_on_version, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         id,
@@ -222,6 +225,7 @@ export function createSkillsStore(db: DatabaseSync): SkillsStore {
         JSON.stringify(draft.sections),
         draft.length,
         draft.prompt,
+        draft.model,
         basedOn?.id ?? null,
         basedOn?.version ?? null,
         at,
@@ -236,8 +240,8 @@ export function createSkillsStore(db: DatabaseSync): SkillsStore {
     db.exec("BEGIN");
     try {
       db.prepare(
-        `INSERT INTO skill_versions (skill_id, version, name, description, sections_json, length, prompt, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO skill_versions (skill_id, version, name, description, sections_json, length, prompt, model, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         id,
         before.version,
@@ -246,17 +250,19 @@ export function createSkillsStore(db: DatabaseSync): SkillsStore {
         current.sections_json,
         before.length,
         before.prompt,
+        before.model,
         at,
       );
       db.prepare(
         `UPDATE skills SET name = ?, description = ?, sections_json = ?, length = ?, prompt = ?,
-           version = version + 1, updated_at = ? WHERE id = ?`,
+           model = ?, version = version + 1, updated_at = ? WHERE id = ?`,
       ).run(
         draft.name,
         draft.description,
         JSON.stringify(draft.sections),
         draft.length,
         draft.prompt,
+        draft.model,
         at,
         id,
       );
@@ -283,6 +289,7 @@ export function createSkillsStore(db: DatabaseSync): SkillsStore {
         sections: source.sections,
         length: source.length,
         prompt: source.prompt,
+        model: source.model,
       };
       // A copy of a built-in remembers its version; a copy of a copy stays tied to the built-in.
       const basedOn = source.builtIn
@@ -298,7 +305,7 @@ export function createSkillsStore(db: DatabaseSync): SkillsStore {
       return (
         db
           .prepare(
-            `SELECT skill_id, version, name, description, sections_json, length, prompt, created_at
+            `SELECT skill_id, version, name, description, sections_json, length, prompt, model, created_at
              FROM skill_versions WHERE skill_id = ? ORDER BY version DESC`,
           )
           .all(id) as unknown as {
@@ -309,6 +316,7 @@ export function createSkillsStore(db: DatabaseSync): SkillsStore {
           sections_json: string;
           length: Skill["length"];
           prompt: string;
+          model: Skill["model"];
           created_at: number;
         }[]
       ).map((row) => ({
@@ -319,17 +327,19 @@ export function createSkillsStore(db: DatabaseSync): SkillsStore {
         sections: JSON.parse(row.sections_json) as string[],
         length: row.length,
         prompt: row.prompt,
+        model: row.model,
         createdAt: row.created_at,
       }));
     },
     restore(id, version, at) {
       const row = db
         .prepare(
-          `SELECT name, description, sections_json, length, prompt FROM skill_versions
+          `SELECT name, description, sections_json, length, prompt, model FROM skill_versions
            WHERE skill_id = ? AND version = ?`,
         )
         .get(id, version) as
-        Pick<SkillRow, "name" | "description" | "sections_json" | "length" | "prompt"> | undefined;
+        | Pick<SkillRow, "name" | "description" | "sections_json" | "length" | "prompt" | "model">
+        | undefined;
       if (!row) return null;
       return update(
         id,
@@ -339,6 +349,7 @@ export function createSkillsStore(db: DatabaseSync): SkillsStore {
           sections: JSON.parse(row.sections_json) as string[],
           length: row.length,
           prompt: row.prompt,
+          model: row.model,
         },
         at,
       );

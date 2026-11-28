@@ -9,17 +9,37 @@ import {
   type Note,
   type NoteRewriteChoice,
   type Rewrite,
+  type Skill,
 } from "@murmur/shared";
 
 /** HB-32: enabled Rewrites for a note, Clarify, Tighten and Structure first. */
-export function noteRewriteChoices(enabled: readonly Rewrite[]): NoteRewriteChoice[] {
+export function noteRewriteChoices(
+  enabled: readonly Rewrite[],
+  skills: readonly Pick<Skill, "id" | "name">[] = [],
+): NoteRewriteChoice[] {
   const rank = (rewrite: Rewrite) => {
     const index = (NOTE_REWRITE_FIRST as readonly string[]).indexOf(rewrite.builtinKey ?? "");
     return index === -1 ? NOTE_REWRITE_FIRST.length : index;
   };
-  return [...enabled]
-    .sort((a, b) => rank(a) - rank(b) || a.sortOrder - b.sortOrder)
-    .map((rewrite) => ({ id: rewrite.id, name: rewrite.name }));
+  return [
+    ...[...enabled]
+      .sort((a, b) => rank(a) - rank(b) || a.sortOrder - b.sortOrder)
+      .map((rewrite) => ({ id: rewrite.id, name: rewrite.name })),
+    // NT-16: a Skill rewrites a note too, after the Rewrites.
+    ...skills.map((skill) => ({ id: `${SKILL_CHOICE}${skill.id}`, name: `Skill: ${skill.name}` })),
+  ];
+}
+
+/** The start of a note rewrite's id when it is a Skill. */
+export const SKILL_CHOICE = "skill:";
+
+/** What the model is asked when a Skill rewrites a note (NT-16). */
+export function skillInstruction(skill: Pick<Skill, "prompt" | "sections">): string {
+  return [
+    skill.prompt,
+    `Write these sections as headings, in this order: ${skill.sections.join(", ")}.`,
+    'A section the text says nothing about reads "Not discussed".',
+  ].join("\n");
 }
 
 /** A file name from a note's title, safe on every file system. */

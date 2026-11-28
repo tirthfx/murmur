@@ -89,8 +89,10 @@ describe("connector settings", () => {
       notion: { maxCharsPerPage: 10_000 },
       linear: { teams: [], assignedOnly: true },
       github: { repos: [] },
-      zoom: { rangeDays: 30 },
-      fireflies: { rangeDays: 30, importProviderSummary: true },
+      zoom: { rangeDays: 30, autoImport: false },
+      fireflies: { rangeDays: 30, importProviderSummary: true, autoImport: false },
+      featuresOff: [],
+      privateTitlesAsBusy: false,
     });
     const calendar = CONNECTOR_CATALOGUE[0]!;
     const notion = CONNECTOR_CATALOGUE.find((c) => c.id === "notion")!;

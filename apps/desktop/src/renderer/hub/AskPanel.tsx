@@ -10,6 +10,7 @@ import { VStack } from "@astryxdesign/core/VStack";
 import { CalendarEventEditor } from "./CalendarEventCreate";
 import { EmailDraftEditor } from "./EmailDraft";
 import { SlackComposer } from "./SlackPost";
+import { SkillQuestion } from "./SkillQuestion";
 import {
   ASK_LIMITS,
   ASK_SOURCE_TEXT,
@@ -502,6 +503,7 @@ export function AskPanel({
             </Text>
           ) : null}
           <VStack gap={2}>
+            <SkillQuestion onPick={setQuestion} />
             <MentionField
               label="Your question"
               rows={3}

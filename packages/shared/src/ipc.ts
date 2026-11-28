@@ -106,6 +106,7 @@ import {
   type SkillDraft,
   type SkillExportResult,
   type SkillImportResult,
+  type SkillFolderResult,
   type SkillResult,
   type SkillVersion,
   type SummaryFeedback,
@@ -482,6 +483,7 @@ export const IPC_CHANNELS = {
   skillRestore: "skills:restore",
   skillExport: "skills:export",
   skillImport: "skills:import",
+  skillImportFolder: "skills:import-folder",
   tasksList: "tasks:list",
   taskAdd: "tasks:add",
   taskUpdate: "tasks:update",
@@ -1044,6 +1046,7 @@ export const IPC_CONTRACT = {
     result: z.custom<SkillExportResult>(),
   },
   [IPC_CHANNELS.skillImport]: { args: z.tuple([]), result: z.custom<SkillImportResult>() },
+  [IPC_CHANNELS.skillImportFolder]: { args: z.tuple([]), result: z.custom<SkillFolderResult>() },
   [IPC_CHANNELS.tasksList]: {
     args: z.tuple([taskFilterSchema]),
     result: z.custom<TasksView>(),
@@ -1605,6 +1608,8 @@ export interface MurmurApi {
   skillExport(id: string): Promise<SkillExportResult>;
   /** Asks for a `.md` file and makes a custom Skill of it; a bad file names the line. */
   skillImport(): Promise<SkillImportResult>;
+  /** NT-16: imports every Skill file of a folder the owner chooses. */
+  skillImportFolder(): Promise<SkillFolderResult>;
   /** NT-26: tasks across meetings, in the owner's order, and what Undo would take back. */
   tasksList(filter: TaskFilter): Promise<TasksView>;
   taskAdd(draft: TaskDraft): Promise<TaskResult>;

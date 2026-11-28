@@ -165,6 +165,7 @@ const api: MurmurApi = {
   skillRestore: (id, version) => ipcRenderer.invoke(IPC_CHANNELS.skillRestore, id, version),
   skillExport: (id) => ipcRenderer.invoke(IPC_CHANNELS.skillExport, id),
   skillImport: () => ipcRenderer.invoke(IPC_CHANNELS.skillImport),
+  skillImportFolder: () => ipcRenderer.invoke(IPC_CHANNELS.skillImportFolder),
   tasksList: (filter) => ipcRenderer.invoke(IPC_CHANNELS.tasksList, filter),
   taskAdd: (draft) => ipcRenderer.invoke(IPC_CHANNELS.taskAdd, draft),
   taskUpdate: (id, draft) => ipcRenderer.invoke(IPC_CHANNELS.taskUpdate, id, draft),

@@ -91,6 +91,8 @@ export interface McpServerDeps {
    * asked for each call and each listing, so a switch counts at once.
    */
   writeAllowed?(tool: McpTool): boolean;
+  /** A tool the owner switched off: it is not listed and not run. */
+  toolOff?(name: string): boolean;
 }
 
 export interface McpServer {
@@ -114,7 +116,8 @@ const textResult = (text: string, isError: boolean) => ({
 export function createMcpServer(deps: McpServerDeps): McpServer {
   const byName = new Map(deps.tools.map((tool) => [tool.name, tool]));
 
-  const allowed = (tool: McpTool) => tool.readOnly || (deps.writeAllowed?.(tool) ?? false);
+  const allowed = (tool: McpTool) =>
+    !deps.toolOff?.(tool.name) && (tool.readOnly || (deps.writeAllowed?.(tool) ?? false));
 
   const toolList = () =>
     deps.tools.filter(allowed).map((tool) => ({

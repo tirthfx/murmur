@@ -179,7 +179,9 @@ describe("importing from Zoom or Fireflies (CN-09, CN-10)", () => {
     expect(await screen.findByText("No meetings in the last 30 days.")).toBeTruthy();
     fireEvent.click(screen.getByRole("combobox", { name: "Look back" }));
     fireEvent.click(await screen.findByRole("option", { name: "7 days" }));
-    await waitFor(() => expect(save).toHaveBeenCalledWith({ zoom: { rangeDays: 7 } }));
+    await waitFor(() =>
+      expect(save).toHaveBeenCalledWith({ zoom: { rangeDays: 7, autoImport: false } }),
+    );
   });
 
   it("lets Fireflies' summary be kept or not", async () => {
@@ -189,7 +191,7 @@ describe("importing from Zoom or Fireflies (CN-09, CN-10)", () => {
     fireEvent.click(toggle);
     await waitFor(() =>
       expect(save).toHaveBeenCalledWith({
-        fireflies: { rangeDays: 30, importProviderSummary: false },
+        fireflies: { rangeDays: 30, importProviderSummary: false, autoImport: false },
       }),
     );
     expect(screen.getByText(/speakers and times/)).toBeTruthy();

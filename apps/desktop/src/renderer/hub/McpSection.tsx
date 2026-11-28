@@ -6,7 +6,7 @@ import { Switch } from "@astryxdesign/core/Switch";
 import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { VStack } from "@astryxdesign/core/VStack";
-import { type McpSettings, type McpStatus } from "@murmur/shared";
+import { MCP_READ_TOOLS, type McpSettings, type McpStatus } from "@murmur/shared";
 import { McpApps } from "./McpApps";
 
 const validPort = (text: string) =>
@@ -107,6 +107,20 @@ export function McpSection() {
               <Banner key={text} status="warning" title={text} />
             ))}
             {problem ? <Banner status="error" title={problem} /> : null}
+            {MCP_READ_TOOLS.map((tool) => (
+              <Switch
+                key={tool.name}
+                label={tool.label}
+                value={!settings.toolsOff.includes(tool.name)}
+                onChange={(on) =>
+                  void change({
+                    toolsOff: on
+                      ? settings.toolsOff.filter((name) => name !== tool.name)
+                      : [...settings.toolsOff, tool.name],
+                  })
+                }
+              />
+            ))}
             <Switch
               label="Let apps suggest tasks"
               description="The create_task tool adds a suggested task. You accept or dismiss it in My Tasks."

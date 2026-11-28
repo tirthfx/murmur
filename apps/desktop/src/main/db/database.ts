@@ -49,6 +49,7 @@ import m0045 from "./migrations/0045_meeting_briefs.sql?raw";
 import m0046 from "./migrations/0046_meeting_external_ref.sql?raw";
 import m0047 from "./migrations/0047_contacts.sql?raw";
 import m0048 from "./migrations/0048_retention_log.sql?raw";
+import m0049 from "./migrations/0049_skill_model.sql?raw";
 import { migrateUp, parseMigration, type Migration } from "./migrate";
 
 /** Every migration, in the order the files are numbered. */
@@ -101,6 +102,7 @@ export const MIGRATIONS: Migration[] = [
   parseMigration("0046_meeting_external_ref.sql", m0046),
   parseMigration("0047_contacts.sql", m0047),
   parseMigration("0048_retention_log.sql", m0048),
+  parseMigration("0049_skill_model.sql", m0049),
 ];
 
 /** `<appData>/Murmur/murmur.db`, shared by the dev build and the packaged app. */

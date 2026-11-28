@@ -159,7 +159,10 @@ describe("importing from Zoom (CN-09)", () => {
   });
 
   it("follows the range in settings", async () => {
-    const t = setup({ answer: zoomAnswer, settings: { zoom: { rangeDays: 7 } } });
+    const t = setup({
+      answer: zoomAnswer,
+      settings: { zoom: { rangeDays: 7, autoImport: false } },
+    });
     await t.service.list("a-zoom");
     expect(t.requests[0]!.url.searchParams.get("from")).toBe("2026-11-15");
   });
@@ -291,7 +294,9 @@ describe("importing from Fireflies (CN-10)", () => {
   it("leaves the summary out when the owner turned that off", async () => {
     const t = setup({
       answer: firefliesAnswer,
-      settings: { fireflies: { rangeDays: 30, importProviderSummary: false } },
+      settings: {
+        fireflies: { rangeDays: 30, importProviderSummary: false, autoImport: false },
+      },
     });
     const prepared = await t.service.prepare("a-fireflies", "ff1");
     if (!prepared.ok || !("preview" in prepared)) throw new Error("not prepared");
@@ -351,5 +356,28 @@ describe("failures", () => {
     const result = await t.service.prepare("a-zoom", "abc==");
     expect(result).toEqual({ ok: false, message: "Zoom answered 500 for the transcript." });
     expect(t.db.prepare("SELECT COUNT(*) AS n FROM meetings").get()).toEqual({ n: 0 });
+  });
+});
+
+describe("automatic import (CN-09, CN-10)", () => {
+  const on = { zoom: { rangeDays: 30, autoImport: true } };
+
+  it("brings in a new recording once, and nothing while it is off", async () => {
+    const off = setup({ answer: zoomAnswer });
+    await expect(off.service.importNew()).resolves.toEqual([]);
+    expect(off.requests).toEqual([]);
+
+    const t = setup({ answer: zoomAnswer, settings: on });
+    const first = await t.service.importNew();
+    expect(first.length).toBeGreaterThan(0);
+    await expect(t.service.importNew()).resolves.toEqual([]);
+  });
+
+  it("skips an account whose service cannot be read", async () => {
+    const t = setup({
+      answer: () => new Response("{}", { status: 500 }),
+      settings: on,
+    });
+    await expect(t.service.importNew()).resolves.toEqual([]);
   });
 });

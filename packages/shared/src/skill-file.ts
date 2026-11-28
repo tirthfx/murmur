@@ -14,7 +14,8 @@ import { SKILL_LENGTHS, skillDraftSchema, type Skill, type SkillDraft } from "./
  *     ---
  *     Write notes of a call with a customer...
  *
- * `version` and `model` may be present (the spec lists them); they are read and not used.
+ * `model: quality` asks for the larger local model; anything else means the fast one. `version`
+ * may be present (the spec lists it); it is read and not used.
  * Anything wrong is reported with the number of the line it is on.
  */
 
@@ -129,6 +130,8 @@ export function parseSkillFile(input: string): SkillFileResult {
     sections: sections.map((section) => section.text),
     length: (length?.value ?? "medium") as Skill["length"],
     prompt,
+    // A file may name some other tool's model; only "quality" asks for the larger one here.
+    model: values.get("model")?.value === "quality" ? ("quality" as const) : ("fast" as const),
   };
   const checked = skillDraftSchema.safeParse(draft);
   if (checked.success) return { ok: true, draft: checked.data };
@@ -161,7 +164,10 @@ const needsQuotes = (text: string) =>
 const word = (text: string) => (needsQuotes(text) ? JSON.stringify(text) : text);
 
 export function formatSkillFile(
-  skill: Pick<Skill, "name" | "description" | "sections" | "length" | "prompt" | "version">,
+  skill: Pick<
+    Skill,
+    "name" | "description" | "sections" | "length" | "prompt" | "version" | "model"
+  >,
 ): string {
   return [
     "---",
@@ -169,6 +175,7 @@ export function formatSkillFile(
     `description: ${word(skill.description.replace(/\s*\n\s*/g, " "))}`,
     `length: ${skill.length}`,
     `version: ${skill.version}`,
+    `model: ${skill.model}`,
     "sections:",
     ...skill.sections.map((section) => `  - ${word(section)}`),
     "---",

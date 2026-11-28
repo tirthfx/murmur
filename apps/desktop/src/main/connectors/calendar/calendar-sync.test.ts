@@ -15,7 +15,17 @@ import { googleCalendarProvider } from "./google-calendar";
 import { outlookCalendarProvider } from "./outlook-calendar";
 
 const { gmail, slack, notion, linear, github, zoom, fireflies } = DEFAULT_CONNECTOR_SETTINGS;
-const DEFAULT_CONNECTOR_SETTINGS_EXTRAS = { gmail, slack, notion, linear, github, zoom, fireflies };
+const DEFAULT_CONNECTOR_SETTINGS_EXTRAS = {
+  gmail,
+  slack,
+  notion,
+  linear,
+  github,
+  zoom,
+  fireflies,
+  featuresOff: [],
+  privateTitlesAsBusy: false,
+};
 
 const MIN = 60_000;
 const NOW = Date.UTC(2026, 10, 21, 9, 0);

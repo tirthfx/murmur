@@ -21,7 +21,14 @@ const segment = (id: string, startMs: number, isDictated = false): MeetingSegmen
 
 const ANSWER = "## Overview\n- We met [0:02]\n## Key points\n- Roadmap [0:02]";
 
-function setup(options: { segments?: MeetingSegment[]; ready?: boolean; naming?: boolean } = {}) {
+function setup(
+  options: {
+    quality?: boolean;
+    segments?: MeetingSegment[];
+    ready?: boolean;
+    naming?: boolean;
+  } = {},
+) {
   const db = openDatabase(":memory:");
   const meetings = createMeetingsStore(db);
   meetings.create({ id: "m-1", title: "Sync", startedAt: 1, source: "ad_hoc", folder: "/f" });
@@ -35,7 +42,17 @@ function setup(options: { segments?: MeetingSegment[]; ready?: boolean; naming?:
   const generate = vi.fn(
     async (_request: { system: string; prompt: string; maxTokens: number }) => ANSWER,
   );
+  const better = vi.fn(async () => ANSWER);
   const runner = createSummaryRunner({
+    ...(options.quality === undefined
+      ? {}
+      : {
+          quality: {
+            modelId: "model-big",
+            ready: async () => options.quality!,
+            generate: better,
+          },
+        }),
     hasMeeting: (meetingId) => meetings.get(meetingId) !== null,
     segments: () => options.segments ?? [segment("s1", 2000), segment("d1", 3000, true)],
     notes: () => "my notes",
@@ -69,6 +86,8 @@ function setup(options: { segments?: MeetingSegment[]; ready?: boolean; naming?:
   return {
     runner,
     meetings,
+    skills,
+    better,
     summaries,
     generate,
     changes,
@@ -81,6 +100,29 @@ function setup(options: { segments?: MeetingSegment[]; ready?: boolean; naming?:
 }
 
 describe("summary runner", () => {
+  it.each([true, false])(
+    "writes a Skill that asks for the quality model with it when it is there (%s)",
+    async (available) => {
+      const t = setup({ quality: available });
+      t.skills.create(
+        "mine",
+        {
+          name: "Mine",
+          description: "",
+          sections: ["Overview"],
+          length: "short",
+          prompt: "Write it.",
+          model: "quality",
+        },
+        1,
+      );
+      const summary = await t.runner.run("m-1", { skillId: "mine" });
+      expect(summary.modelId).toBe(available ? "model-big" : "model-1");
+      expect(t.better.mock.calls.length > 0).toBe(available);
+      expect(t.generate.mock.calls.length > 0).toBe(!available);
+    },
+  );
+
   it("names the meeting from its summary, and never over a name the owner gave", async () => {
     const t = setup({ naming: true });
     t.generate.mockResolvedValueOnce(ANSWER).mockResolvedValueOnce("Roadmap review");

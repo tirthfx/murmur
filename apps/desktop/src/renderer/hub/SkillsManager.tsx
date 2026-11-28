@@ -27,7 +27,14 @@ const whenOf = (at: number) =>
     minute: "2-digit",
   });
 
-const BLANK: SkillDraft = { name: "", description: "", sections: [], length: "medium", prompt: "" };
+const BLANK: SkillDraft = {
+  name: "",
+  description: "",
+  sections: [],
+  length: "medium",
+  prompt: "",
+  model: "fast",
+};
 
 const toDraft = (skill: Skill): SkillDraft => ({
   name: skill.name,
@@ -35,6 +42,7 @@ const toDraft = (skill: Skill): SkillDraft => ({
   sections: skill.sections,
   length: skill.length,
   prompt: skill.prompt,
+  model: skill.model,
 });
 
 /** A Skill you can read, copy and export; the built-in ones cannot be changed. */
@@ -94,6 +102,7 @@ function Editor({
   const [name, setName] = useState(start.name);
   const [description, setDescription] = useState(start.description);
   const [length, setLength] = useState(start.length);
+  const [model, setModel] = useState(start.model);
   const [sections, setSections] = useState(start.sections.join("\n"));
   const [prompt, setPrompt] = useState(start.prompt);
   const [message, setMessage] = useState<string | null>(null);
@@ -120,6 +129,7 @@ function Editor({
       description,
       length,
       prompt,
+      model,
       sections: sections
         .split("\n")
         .map((line) => line.trim())
@@ -177,6 +187,16 @@ function Editor({
         value={length}
         options={SKILL_LENGTHS.map((value) => ({ value, label: LENGTH_LABELS[value] }))}
         onChange={(value) => setLength(value as SkillDraft["length"])}
+      />
+      <Selector
+        label="Model"
+        description="The quality model is slower and needs its download. Without it the fast one writes this Skill."
+        value={model}
+        options={[
+          { value: "fast", label: "Fast" },
+          { value: "quality", label: "Quality" },
+        ]}
+        onChange={(value) => setModel(value as SkillDraft["model"])}
       />
       <TextArea
         label="Sections"
@@ -326,6 +346,18 @@ export function SkillsManager() {
     }
   }
 
+  async function importFolder() {
+    setMessage(null);
+    const result = await window.murmur.skillImportFolder();
+    if (result.ok) {
+      await load();
+      const count = `${result.imported} ${result.imported === 1 ? "Skill" : "Skills"} imported.`;
+      setMessage([count, ...result.failed].join(" "));
+    } else if ("message" in result) {
+      setMessage(result.message);
+    }
+  }
+
   return (
     <VStack gap={3}>
       <HStack gap={2} align="center" wrap="wrap">
@@ -334,6 +366,13 @@ export function SkillsManager() {
         </Button>
         <Button variant="secondary" label="Import a Skill" onClick={() => void importSkill()}>
           Import…
+        </Button>
+        <Button
+          variant="secondary"
+          label="Import every Skill file in a folder"
+          onClick={() => void importFolder()}
+        >
+          Import a folder…
         </Button>
         <Text size="sm" color="secondary">
           A Skill is the prompt and the sections that write a summary. Yours are also saved as

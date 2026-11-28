@@ -7,6 +7,7 @@ import {
   type SkillDraft,
   type SkillExportResult,
   type SkillImportResult,
+  type SkillFolderResult,
   type SkillResult,
   type SkillVersion,
   type AskSendInput,
@@ -197,6 +198,7 @@ export interface IpcDeps {
   skillRestore: (id: string, version: number) => SkillResult;
   skillExport: (id: string) => Promise<SkillExportResult>;
   skillImport: () => Promise<SkillImportResult>;
+  skillImportFolder: () => Promise<SkillFolderResult>;
   tasksList: (filter: TaskFilter) => TasksView;
   taskAdd: (draft: TaskDraft) => TaskResult;
   taskUpdate: (id: string, draft: TaskDraft) => TaskResult;
@@ -715,6 +717,8 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.skillExport(request.args[0] as string);
       case IPC_CHANNELS.skillImport:
         return deps.skillImport();
+      case IPC_CHANNELS.skillImportFolder:
+        return deps.skillImportFolder();
       case IPC_CHANNELS.tasksList:
         return deps.tasksList(request.args[0] as TaskFilter);
       case IPC_CHANNELS.taskAdd:

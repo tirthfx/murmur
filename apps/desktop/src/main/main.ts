@@ -55,6 +55,7 @@ import {
   NOTE_MESSAGES,
   DEFAULT_NOTIFICATIONS,
   DEFAULT_PRIVACY,
+  connectorFeatureOn,
   DEFAULT_SPEECH_MODEL,
   DEFAULT_PLAN_STATE,
   DEFAULT_DEVELOPER,
@@ -180,6 +181,7 @@ import { loadMeetingMatchers } from "./meetings/matchers-file";
 import { createDetectionSync } from "./meetings/detection-sync";
 import { createMeetingJobs, type MeetingJobs } from "./meetings/meeting-jobs";
 import { createSkillsService } from "./meetings/skills-service";
+import { readSkillFiles } from "./meetings/skill-folder";
 import { createConnectorConfig } from "./connectors/connector-config";
 import { createConnectorService } from "./connectors/connector-service";
 import { createConnectorStore } from "./connectors/connector-store";
@@ -249,6 +251,8 @@ import { createNoteImages, type ImageEncoder } from "./notes/note-images";
 import {
   noteFileName,
   noteRewriteChoices,
+  SKILL_CHOICE,
+  skillInstruction,
   writeNoteHtml,
   writeNoteMarkdown,
 } from "./notes/note-files";
@@ -2022,7 +2026,11 @@ const connectorService = connectorStore
 connectorStore?.cachePrune(Date.now());
 // CN-02, CN-03: the events of the days around now, read from the providers every 15 minutes
 // (or as the owner chose) and kept on this Mac.
-const calendarStore = database ? createCalendarStore(database) : null;
+const calendarStore = database
+  ? createCalendarStore(database, () => settingsStore.get().connectors.privateTitlesAsBusy)
+  : null;
+/** CN-15: whether a feature's switch on the Connectors page is on. */
+const featureOn = (id: string) => connectorFeatureOn(settingsStore.get().connectors, id);
 const calendarSync =
   connectorService && connectorStore && calendarStore
     ? createCalendarSync({
@@ -2060,12 +2068,11 @@ function folderResult(
 const noTasks = { ok: false as const, message: "Tasks cannot be saved without the database." };
 const noSkills = { ok: false as const, message: "Skills cannot be saved without the database." };
 // One call of the local model for the Notetaker's background work (summaries, tasks).
-async function meetingGenerate(request: {
-  system: string;
-  prompt: string;
-  maxTokens: number;
-}): Promise<string> {
-  const job = llm.generate(request, { timeoutMs: 180_000, onChunk: () => {} });
+async function meetingGenerate(
+  request: { system: string; prompt: string; maxTokens: number },
+  model: Pick<typeof llm, "generate"> = llm,
+): Promise<string> {
+  const job = model.generate(request, { timeoutMs: 180_000, onChunk: () => {} });
   try {
     return await job.result;
   } catch (error) {
@@ -2102,6 +2109,11 @@ const summaryRunner =
         modelId: DEFAULT_CLEANUP_MODEL.id,
         modelReady: cleanupModelReady,
         generate: meetingGenerate,
+        quality: {
+          modelId: QUALITY_INSTRUCT_MODEL.id,
+          ready: async () => allows("qualityModel") && (await qualityModel.isReady()),
+          generate: (request) => meetingGenerate(request, qualityLlm),
+        },
         dictating: () => hubDictationState !== "idle",
         generating: () => llm.isGenerating(),
         wait: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
@@ -2178,7 +2190,10 @@ const briefs =
         calendar: calendarStore,
         meeting: (id) => meetingsStore.get(id),
         settings: () => ({
-          brief: settingsStore.get().notetaker.brief,
+          brief: {
+            ...settingsStore.get().notetaker.brief,
+            auto: settingsStore.get().notetaker.brief.auto && featureOn("briefs"),
+          },
           skipDeclined: settingsStore.get().notetaker.calendar.skipDeclined,
         }),
         store: briefsStore,
@@ -2300,7 +2315,14 @@ const askActions = createAskActions({
   },
   now: Date.now,
 });
+const ACTION_FEATURES = {
+  draft_email: "email-drafts",
+  create_event: "calendar-events",
+  post_to_slack: "slack-send",
+} as const;
 const draftState = (id: "draft_email" | "create_event" | "post_to_slack") => {
+  if (!featureOn(ACTION_FEATURES[id]))
+    return { available: false, reason: "Turned off on the Connectors page.", hidden: true };
   const state = actionRunner.stateOf(id);
   return { available: state.state === "ready", reason: state.reason, hidden: state.hidden };
 };
@@ -2606,6 +2628,34 @@ const connectorImport =
         logger: createConsoleLogger("[import]"),
       })
     : null;
+/**
+ * What follows an import: the summary is written like for a recording, and then the tasks. A
+ * meeting that came with its service's own summary keeps it: the local summary is not written
+ * over it by itself, and the tasks are looked for in the transcript instead.
+ */
+function afterImport(meetingId: string): void {
+  const hasProviderSummary = (meetingSummaries?.list(meetingId).length ?? 0) > 0;
+  if (hasProviderSummary) {
+    if (settingsStore.get().notetaker.tasks.extract) {
+      meetingJobs?.enqueue(meetingId, "extract_tasks");
+      meetingJobs?.kick();
+    }
+  } else if (settingsStore.get().notetaker.import.regenerateSummary) {
+    meetingJobs?.enqueue(meetingId, "summarise");
+    meetingJobs?.kick();
+  }
+  notifyMeetings(null);
+}
+// CN-09, CN-10: new recordings, once an hour, for the accounts whose switch is on.
+const AUTO_IMPORT_MS = 60 * 60_000;
+function importNewRecordings(): void {
+  if (!connectorImport || !featureOn("import-services")) return;
+  void connectorImport.importNew().then(
+    (ids) => ids.forEach(afterImport),
+    (error: unknown) => console.warn(`[import] automatic import failed: ${String(error)}`),
+  );
+}
+setInterval(importNewRecordings, AUTO_IMPORT_MS).unref();
 // NT-18: a meeting as one HTML file that opens offline; audio is never in it.
 function buildMeetingExport(
   meetingId: string,
@@ -2911,6 +2961,7 @@ function eventForApp(app: { id: string }): CalendarEvent | null {
   const matcher = meetingMatchers.find((candidate) => candidate.id === app.id);
   const hosts = [...(matcher?.web?.hosts ?? []), ...(matcher?.linkHosts ?? [])];
   const now = Date.now();
+  if (!featureOn("reminders")) return null;
   return eventForCall(
     upcomingEvents(now, now + 600_000),
     now,
@@ -2945,7 +2996,7 @@ const calendarReminders =
   calendarStore && meetings
     ? createCalendarReminders({
         settings: () => settingsStore.get().notetaker.calendar,
-        events: ({ from, to }) => upcomingEvents(from, to),
+        events: ({ from, to }) => (featureOn("reminders") ? upcomingEvents(from, to) : []),
         recording: () => meetings.state().status !== "idle",
         ...(eventResponder
           ? {
@@ -3099,7 +3150,7 @@ function createTray(): void {
     // NT-29: the next meeting from the calendar kept here; none when it is off or not connected.
     nextMeeting: () => {
       const { menubar, calendar } = settingsStore.get().notetaker;
-      if (!menubar.showNextMeeting || !calendarStore) return null;
+      if (!menubar.showNextMeeting || !calendarStore || !featureOn("next-meeting")) return null;
       const now = Date.now();
       const event = upcomingMeeting(
         upcomingEvents(now - 600_000, now + menubar.lookaheadHours * 3_600_000),
@@ -3928,7 +3979,9 @@ function registerIpc(): void {
         : { ok: false, message: outcome.message };
     },
     connectorRecordings: async (accountId) =>
-      connectorImport?.list(accountId) ?? { ok: false, message: "Import needs the database." },
+      featureOn("import-services")
+        ? (connectorImport?.list(accountId) ?? { ok: false, message: "Import needs the database." })
+        : { ok: false, message: "Importing is turned off on the Connectors page." },
     connectorImportPrepare: async (accountId, remoteId) =>
       connectorImport?.prepare(accountId, remoteId) ?? {
         ok: false,
@@ -4154,20 +4207,7 @@ function registerIpc(): void {
       if (!transcriptImport) return { ok: false, message: "Import needs the database." };
       const result = transcriptImport.confirm(input);
       if (result.ok) {
-        // The summary is written like for a recording, and then the tasks. A meeting that came
-        // with its service's own summary keeps it: the local summary is not written over it by
-        // itself, and the tasks are looked for in the transcript instead.
-        const hasProviderSummary = (meetingSummaries?.list(result.meetingId).length ?? 0) > 0;
-        if (hasProviderSummary) {
-          if (settingsStore.get().notetaker.tasks.extract) {
-            meetingJobs?.enqueue(result.meetingId, "extract_tasks");
-            meetingJobs?.kick();
-          }
-        } else if (settingsStore.get().notetaker.import.regenerateSummary) {
-          meetingJobs?.enqueue(result.meetingId, "summarise");
-          meetingJobs?.kick();
-        }
-        notifyMeetings(null);
+        afterImport(result.meetingId);
       }
       return result;
     },
@@ -4269,6 +4309,23 @@ function registerIpc(): void {
       }
       return skillsService.importFile(text);
     },
+    skillImportFolder: async () => {
+      if (!skillsService) return { ok: false, message: noSkills.message };
+      const options = {
+        title: "Import Skills from a folder",
+        properties: ["openDirectory" as const],
+      };
+      const picked = hubWindow
+        ? await dialog.showOpenDialog(hubWindow, options)
+        : await dialog.showOpenDialog(options);
+      const folder = picked.filePaths[0];
+      if (picked.canceled || !folder) return { ok: false, cancelled: true };
+      try {
+        return { ok: true, ...skillsService.importFolder(readSkillFiles(folder)) };
+      } catch {
+        return { ok: false, message: "That folder could not be read." };
+      }
+    },
     meetingRename: (id, title) => {
       meetingsStore?.rename(id, title);
       notifyMeetings(id);
@@ -4340,9 +4397,14 @@ function registerIpc(): void {
         ok: false as const,
         message: "Images cannot be saved without the database.",
       }),
-    noteRewrites: () => noteRewriteChoices(rewrites?.enabled() ?? []),
+    noteRewrites: () => noteRewriteChoices(rewrites?.enabled() ?? [], meetingSkills?.list() ?? []),
     noteRewriteRun: async ({ rewriteId, text }) => {
-      const rewrite = rewrites?.get(rewriteId) ?? null;
+      const skill = rewriteId.startsWith(SKILL_CHOICE)
+        ? (meetingSkills?.get(rewriteId.slice(SKILL_CHOICE.length)) ?? null)
+        : null;
+      const rewrite = skill
+        ? { instruction: skillInstruction(skill), example: null, enabled: true }
+        : (rewrites?.get(rewriteId) ?? null);
       if (!rewrite || !rewrite.enabled)
         return { ok: false, message: "That Rewrite is not available." };
       try {
@@ -4365,7 +4427,10 @@ function registerIpc(): void {
       if (input.outcome === "discarded") return;
       rewrites?.markUsed(input.rewriteId);
       if (input.outcome === "replaced") {
-        const name = rewrites?.get(input.rewriteId)?.name ?? "Rewrite";
+        const name =
+          rewrites?.get(input.rewriteId)?.name ??
+          meetingSkills?.get(input.rewriteId.slice(SKILL_CHOICE.length))?.name ??
+          "Rewrite";
         notes.saveVersion({
           noteId: input.noteId,
           label: `${name} applied`.slice(0, 60),
@@ -4789,6 +4854,7 @@ void app.whenReady().then(() => {
     { urls: ["http://*/*", "https://*/*", "ws://*/*", "wss://*/*"] },
     (details, callback) => callback({ cancel: !networkGuard.allowsUrl(details.url) }),
   );
+  importNewRecordings();
   // HB-50: the daily retention job, at start when due and checked every hour.
   runRetention();
   setInterval(runRetention, 60 * 60_000).unref();

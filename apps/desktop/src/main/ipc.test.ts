@@ -67,6 +67,7 @@ function setup() {
     skillRestore: vi.fn(),
     skillExport: vi.fn(),
     skillImport: vi.fn(),
+    skillImportFolder: vi.fn(),
     tasksList: vi.fn(),
     taskAdd: vi.fn(),
     taskUpdate: vi.fn(),
