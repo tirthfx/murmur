@@ -35,7 +35,7 @@ The tools refuse to run while developer mode is off.
 
 ## Log files (HB-49)
 
-What Murmur's loggers say also goes to `logs/murmur-<date>.log` in the data folder, seven days kept (`logs/log-file.ts`). Loggers never include dictated text; with `MURMUR_LOG_TRANSCRIPTS=1` no file is written at all. The Data page shows the folder's size, the full reset removes it, and the diagnostics bundle copies it.
+What Murmur's loggers say also goes to `logs/murmur-<date>.log` in the data folder, seven days kept (`logging/log-file.ts`). Loggers never include dictated text; with `MURMUR_LOG_TRANSCRIPTS=1` no file is written at all. The Data page shows the folder's size, the full reset removes it, and the diagnostics bundle copies it.
 
 ## Engine switches (HB-57)
 

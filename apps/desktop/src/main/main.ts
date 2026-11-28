@@ -378,7 +378,7 @@ import { createLastTranscript } from "./insertion/last-transcript";
 import { createTypingReminder } from "./reminder/typing-reminder";
 import { createMicCheck } from "./mic-check/mic-check";
 import { toLatinHindi } from "./speech/latin-hindi";
-import { createLogFile } from "./logs/log-file";
+import { createLogFile } from "./logging/log-file";
 import { profilePaths, sandboxDir } from "./profile";
 import { demoDictations, restartArgs, SANDBOX_SWITCH } from "./testing/sandbox-data";
 import { createSmokeRun, SMOKE_PAGE, type SmokeRun } from "./smoke";
