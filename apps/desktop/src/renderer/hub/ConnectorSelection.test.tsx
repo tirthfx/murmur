@@ -84,7 +84,9 @@ describe("selecting what a connector reads (CN-05 to CN-08)", () => {
     expect(api.connectorOptions).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Choose channels for me@example.com" }));
     fireEvent.click(await screen.findByRole("switch", { name: "#beta" }));
-    await waitFor(() => expect(save).toHaveBeenCalledWith({ slack: { channels: ["C2"] } }));
+    await waitFor(() =>
+      expect(save).toHaveBeenCalledWith({ slack: { channels: ["C2"], privateChannels: false } }),
+    );
     expect(api.connectorOptions).toHaveBeenCalledWith("a1");
   });
 
@@ -94,13 +96,15 @@ describe("selecting what a connector reads (CN-05 to CN-08)", () => {
       options: Array.from({ length: 22 }, (_, i) => ({ id: `C${i}`, label: `#c${i}` })),
     });
     const channels = Array.from({ length: 20 }, (_, i) => `C${i}`);
-    show("slack", { slack: { channels } });
+    show("slack", { slack: { channels, privateChannels: false } });
     fireEvent.click(screen.getByRole("button", { name: "Choose channels for me@example.com" }));
     const extra = await screen.findByRole("switch", { name: "#c21" });
     expect(extra.getAttribute("aria-disabled")).toBe("true");
     fireEvent.click(screen.getByRole("switch", { name: "#c0" }));
     await waitFor(() =>
-      expect(save).toHaveBeenCalledWith({ slack: { channels: channels.slice(1) } }),
+      expect(save).toHaveBeenCalledWith({
+        slack: { channels: channels.slice(1), privateChannels: false },
+      }),
     );
   });
 

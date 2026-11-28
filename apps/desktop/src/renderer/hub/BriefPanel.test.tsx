@@ -130,6 +130,20 @@ describe("Brief tab (NT-11)", () => {
     ).toBeTruthy();
   }, 20_000);
 
+  it("keeps a brief just built when the first, empty answer arrives late", async () => {
+    let answer: (found: null) => void = () => {};
+    api.briefGet = vi.fn(() => new Promise<null>((resolve) => (answer = resolve)));
+    api.briefBuild = vi.fn().mockResolvedValue({ ok: true, brief: brief() });
+    render(<BriefPanel onOpenMeeting={openMeeting} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Build the brief" }));
+    expect(await screen.findByLabelText("Brief for Budget review")).toBeTruthy();
+    answer(null);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Build the brief again" })).toBeTruthy(),
+    );
+    expect(screen.getByLabelText("Brief for Budget review")).toBeTruthy();
+  });
+
   it("cites its sources, with a way to open the meeting or the item", async () => {
     api.briefGet = vi.fn().mockResolvedValue(brief());
     render(<BriefPanel onOpenMeeting={openMeeting} />);

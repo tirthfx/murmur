@@ -5,6 +5,7 @@ import {
   connectorChoice,
   gmailScopesFor,
   SLACK_ID,
+  SLACK_SCOPE_PRIVATE,
   SLACK_SCOPES,
   SLACK_SCOPE_WRITE,
   type ConnectorSettings,
@@ -27,10 +28,11 @@ export function connectOptionsFor(
   else if (providerId === SLACK_ID) {
     // Posting as the owner is asked for only when read only is turned off.
     const entry = CONNECTOR_CATALOGUE.find((candidate) => candidate.id === SLACK_ID);
-    scopes =
-      entry && !connectorChoice(settings, entry).readOnly
-        ? [...SLACK_SCOPES, SLACK_SCOPE_WRITE]
-        : [...SLACK_SCOPES];
+    scopes = [
+      ...SLACK_SCOPES,
+      ...(settings.slack.privateChannels ? [SLACK_SCOPE_PRIVATE] : []),
+      ...(entry && !connectorChoice(settings, entry).readOnly ? [SLACK_SCOPE_WRITE] : []),
+    ];
   } else if ((CALENDAR_CONNECTOR_IDS as readonly string[]).includes(providerId)) {
     const entry = CONNECTOR_CATALOGUE.find((candidate) => candidate.id === providerId);
     if (entry && providerScopes.length > 0)

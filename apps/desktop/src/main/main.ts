@@ -225,7 +225,7 @@ import { linearProvider } from "./connectors/linear/linear";
 import { notionProvider } from "./connectors/notion/notion";
 import { slackProvider } from "./connectors/slack/slack";
 import { zoomProvider } from "./connectors/zoom/zoom";
-import { createCalendarSync } from "./connectors/calendar/calendar-sync";
+import { CALENDAR_CONNECTORS, createCalendarSync } from "./connectors/calendar/calendar-sync";
 import { googleCalendarProvider } from "./connectors/calendar/google-calendar";
 import { outlookCalendarProvider } from "./connectors/calendar/outlook-calendar";
 import { createAskIndex } from "./meetings/ask-index";
@@ -4085,8 +4085,13 @@ function registerIpc(): void {
         ok: false,
         message: "Import needs the database.",
       },
-    connectorOptions: async (accountId) =>
-      connectorData?.options(accountId) ?? { ok: false, message: "Connectors are not available." },
+    connectorOptions: async (accountId) => {
+      const account = connectorService?.list().find((entry) => entry.id === accountId);
+      // A calendar account chooses calendars; the others choose channels or teams.
+      const source =
+        account && CALENDAR_CONNECTORS.includes(account.connector) ? calendarSync : connectorData;
+      return source?.options(accountId) ?? { ok: false, message: "Connectors are not available." };
+    },
     connectorDataStatus: () => connectorData?.status() ?? [],
     connectorSync: async (accountId) => {
       const refusal = connectorRefusal();

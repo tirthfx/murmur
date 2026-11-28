@@ -96,6 +96,17 @@ describe("slackText", () => {
 });
 
 describe("listChannels", () => {
+  it("lists private channels too when asked, and marks them", async () => {
+    const t = fake({
+      "conversations.list": () =>
+        json({ ok: true, channels: [{ id: "G1", name: "board", is_private: true }] }),
+    });
+    expect(await listChannels({ fetch: t.fetch, limits: limits(), includePrivate: true })).toEqual([
+      { id: "G1", label: "#board (private)" },
+    ]);
+    expect(new URL(t.urls[0]!).searchParams.get("types")).toBe("public_channel,private_channel");
+  });
+
   it("lists public channels across pages, sorted, and asks for nothing private", async () => {
     const t = fake({
       "conversations.list": (q) =>

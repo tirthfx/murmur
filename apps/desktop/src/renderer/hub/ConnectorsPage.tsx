@@ -32,12 +32,32 @@ import {
   type Settings,
   type ConnectorsView,
   type ConnectorView,
+  MAX_EXTRA_CALENDARS,
+  SLACK_ID,
+  SLACK_SCOPE_PRIVATE,
 } from "@murmur/shared";
 import { ConnectorImport, KeyForm } from "./ConnectorImport";
-import { ConnectorSelection } from "./ConnectorSelection";
+import { ConnectorSelection, OptionPicker } from "./ConnectorSelection";
 import { McpSection } from "./McpSection";
 
 type BadgeVariant = "neutral" | "info" | "success" | "warning" | "error";
+
+/** What is turned on for a calendar or Slack account and its provider has not yet allowed. */
+function missingPermissions(
+  connector: ConnectorView,
+  settings: ConnectorSettings,
+  scopes: readonly string[],
+): string[] {
+  const lacks = (scope: string | undefined) => scope !== undefined && !hasScope(scopes, scope);
+  const writes = !connector.choice.readOnly;
+  if ((CALENDAR_CONNECTOR_IDS as readonly string[]).includes(connector.id))
+    return writes && lacks(CALENDAR_WRITE_SCOPES[connector.id]) ? ["create events"] : [];
+  if (connector.id !== SLACK_ID) return [];
+  return [
+    settings.slack.privateChannels && lacks(SLACK_SCOPE_PRIVATE) ? "read private channels" : null,
+    writes && lacks(SLACK_SCOPE_WRITE) ? "post messages" : null,
+  ].filter((word): word is string => word !== null);
+}
 
 const intervalText = (minutes: number) =>
   minutes < 60
@@ -703,37 +723,61 @@ export function ConnectorsPage() {
                           </HStack>
                         ) : null}
 
-                        {((CALENDAR_CONNECTOR_IDS as readonly string[]).includes(connector.id) ||
-                          connector.id === "slack") &&
-                        !connector.choice.readOnly
+                        {settings &&
+                        (CALENDAR_CONNECTOR_IDS as readonly string[]).includes(connector.id)
                           ? connector.accounts
                               .filter((entry) => entry.status === "connected")
                               .map((entry) => {
-                                const write =
-                                  connector.id === "slack"
-                                    ? SLACK_SCOPE_WRITE
-                                    : CALENDAR_WRITE_SCOPES[connector.id];
-                                if (!write || hasScope(entry.scopes, write)) return null;
+                                const chosen = settings.calendars[entry.id] ?? [];
                                 return (
-                                  <Banner
+                                  <OptionPicker
                                     key={entry.id}
-                                    status="info"
-                                    title={`${entry.email}: ${connector.name} has not yet allowed Murmur to ${connector.id === "slack" ? "post messages" : "create events"}`}
-                                    endContent={
-                                      <Button
-                                        size="sm"
-                                        variant="secondary"
-                                        label={`Give permission for ${entry.email}`}
-                                        isDisabled={waiting !== null}
-                                        onClick={() => void connect(connector, entry.email)}
-                                      >
-                                        Give permission
-                                      </Button>
+                                    account={entry}
+                                    title="Other calendars"
+                                    noun="calendars"
+                                    selected={chosen}
+                                    max={MAX_EXTRA_CALENDARS}
+                                    summary={
+                                      chosen.length === 0
+                                        ? "Only the main calendar is read."
+                                        : `The main calendar and ${chosen.length} more are read.`
+                                    }
+                                    onChange={(ids) =>
+                                      void saveData(
+                                        { calendars: { ...settings.calendars, [entry.id]: ids } },
+                                        [entry.id],
+                                      )
                                     }
                                   />
                                 );
                               })
                           : null}
+
+                        {connector.accounts
+                          .filter((entry) => entry.status === "connected")
+                          .map((entry) => {
+                            if (!settings) return null;
+                            const missing = missingPermissions(connector, settings, entry.scopes);
+                            if (missing.length === 0) return null;
+                            return (
+                              <Banner
+                                key={entry.id}
+                                status="info"
+                                title={`${entry.email}: ${connector.name} has not yet allowed Murmur to ${missing.join(" and ")}`}
+                                endContent={
+                                  <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    label={`Give permission for ${entry.email}`}
+                                    isDisabled={waiting !== null}
+                                    onClick={() => void connect(connector, entry.email)}
+                                  >
+                                    Give permission
+                                  </Button>
+                                }
+                              />
+                            );
+                          })}
                       </>
                     )}
                   </VStack>

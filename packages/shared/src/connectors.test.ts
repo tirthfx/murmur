@@ -85,13 +85,14 @@ describe("connector settings", () => {
       cacheTtlMinutes: 15,
       choices: {},
       gmail: { briefContext: false, draftEnabled: false, maxThreadsPerBrief: 5 },
-      slack: { channels: [] },
+      slack: { channels: [], privateChannels: false },
       notion: { maxCharsPerPage: 10_000 },
       linear: { teams: [], assignedOnly: true },
       github: { repos: [] },
       zoom: { rangeDays: 30, autoImport: false },
       fireflies: { rangeDays: 30, importProviderSummary: true, autoImport: false },
       featuresOff: [],
+      calendars: {},
       privateTitlesAsBusy: false,
     });
     const calendar = CONNECTOR_CATALOGUE[0]!;

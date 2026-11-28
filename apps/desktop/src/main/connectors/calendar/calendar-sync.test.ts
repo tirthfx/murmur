@@ -14,19 +14,6 @@ import { CALENDAR_CONNECTORS, createCalendarSync, SYNC_TICK_MS } from "./calenda
 import { googleCalendarProvider } from "./google-calendar";
 import { outlookCalendarProvider } from "./outlook-calendar";
 
-const { gmail, slack, notion, linear, github, zoom, fireflies } = DEFAULT_CONNECTOR_SETTINGS;
-const DEFAULT_CONNECTOR_SETTINGS_EXTRAS = {
-  gmail,
-  slack,
-  notion,
-  linear,
-  github,
-  zoom,
-  fireflies,
-  featuresOff: [],
-  privateTitlesAsBusy: false,
-};
-
 const MIN = 60_000;
 const NOW = Date.UTC(2026, 10, 21, 9, 0);
 
@@ -56,6 +43,8 @@ const googleItem = (id: string, start: string, over: object = {}) => ({
 class FakeProviders {
   requests: string[] = [];
   googleEvents: object[] = [];
+  /** The events of calendars other than the main one, by calendar id. */
+  otherEvents = new Map<string, object[]>();
   graphPages: object[] = [];
   grantRevoked = false;
   /** Access tokens that Google still accepts. */
@@ -73,6 +62,19 @@ class FakeProviders {
       const token = `acc-${++this.issued}`;
       this.valid.add(token);
       return Response.json({ access_token: token, expires_in: 3600 });
+    }
+    if (url.startsWith("https://www.googleapis.com/calendar/v3/users/me/calendarList")) {
+      return Response.json({
+        items: [
+          { id: "me@example.com", summary: "Me", primary: true },
+          { id: "team@group.example", summary: "Team", summaryOverride: "Our team" },
+        ],
+      });
+    }
+    const other = /calendars\/([^/]+)\/events/.exec(url)?.[1];
+    if (other && other !== "primary") {
+      const items = this.otherEvents.get(decodeURIComponent(other));
+      return items ? Response.json({ items }) : new Response("gone", { status: 404 });
     }
     if (url.startsWith("https://www.googleapis.com/calendar/v3/calendars/primary/events")) {
       this.eventCalls++;
@@ -325,9 +327,9 @@ describe("calendar sync (CN-02, CN-03)", () => {
   it("uses the interval the owner chose for a connector, and leaves other connectors alone", async () => {
     const t = setup({
       settings: {
+        ...DEFAULT_CONNECTOR_SETTINGS,
         cacheTtlMinutes: 15,
         choices: { googleCalendar: { syncIntervalMinutes: 60, readOnly: true } },
-        ...DEFAULT_CONNECTOR_SETTINGS_EXTRAS,
       },
     });
     t.addAccount("x1", "gmail", "me@example.com", "t", "r");
@@ -367,5 +369,43 @@ describe("calendar sync (CN-02, CN-03)", () => {
     await t.connectors.disconnect("g1");
     expect(t.store.count("g1")).toBe(0);
     expect(t.db.prepare("SELECT COUNT(*) AS n FROM calendar_events").get()).toEqual({ n: 0 });
+  });
+
+  it("reads the chosen calendars too, keeps a shared meeting once and passes over a gone one", async () => {
+    const t = setup({
+      settings: {
+        ...DEFAULT_CONNECTOR_SETTINGS,
+        calendars: { g1: ["team@group.example", "gone@group.example"] },
+      },
+    });
+    const shared = googleItem("e1", "2026-11-21T10:00:00Z");
+    t.providers.googleEvents = [shared];
+    t.providers.otherEvents.set("team@group.example", [
+      shared,
+      // The same meeting under another id.
+      googleItem("copy", "2026-11-21T10:00:00Z", { summary: "Meeting e1" }),
+      // Google's `self` here is the team calendar, not the owner.
+      googleItem("t1", "2026-11-22T10:00:00Z", {
+        attendees: [
+          { email: "team@group.example", self: true, responseStatus: "declined" },
+          { email: "me@example.com", responseStatus: "needsAction" },
+        ],
+      }),
+    ]);
+    expect(await t.sync.syncAccount("g1")).toEqual({ ok: true, count: 2 });
+    const events = t.store.list({ from: NOW - 1e9, to: NOW + 1e10, includeDeclined: true });
+    expect(events.map((event) => event.id)).toEqual(["e1", "t1"]);
+    expect(events[1]!.response).toBe("none");
+    expect(events[1]!.attendees.find((a) => a.self)?.email).toBe("me@example.com");
+    expect(t.warnings.join("\n")).toContain("a chosen calendar is gone");
+  });
+
+  it("lists the other calendars to choose from", async () => {
+    const t = setup();
+    expect(await t.sync.options("g1")).toEqual({
+      ok: true,
+      options: [{ id: "team@group.example", label: "Our team" }],
+    });
+    expect(await t.sync.options("nobody")).toMatchObject({ ok: false });
   });
 });

@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-  CalendarFetchError,
   fetchGoogleEvents,
   googleCalendarProvider,
   googleEvent,
@@ -212,7 +211,7 @@ describe("fetching Google events (CN-02)", () => {
         ...range,
         maxEvents: 10,
       }),
-    ).rejects.toThrow(new CalendarFetchError("Google Calendar answered 503."));
+    ).rejects.toThrow("Google Calendar answered 503.");
     await expect(
       fetchGoogleEvents({
         fetch: async () => new Response("<html>", { status: 200 }),

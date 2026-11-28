@@ -1,5 +1,11 @@
 import { z } from "zod";
-import type { CalendarAttendee, CalendarEvent, CalendarResponse, RsvpAnswer } from "@murmur/shared";
+import type {
+  CalendarAttendee,
+  CalendarEvent,
+  CalendarResponse,
+  ConnectorOption,
+  RsvpAnswer,
+} from "@murmur/shared";
 import type { ConnectorProvider } from "../providers";
 import { CalendarFetchError, localDayStart } from "./google-calendar";
 
@@ -92,6 +98,8 @@ const http = (value: string | null | undefined) =>
 export function outlookEvent(
   item: unknown,
   accountEmail: string,
+  /** On another calendar, the event's own answer is that calendar owner's, not this account's. */
+  mainCalendar = true,
 ): Omit<CalendarEvent, "accountId" | "connector"> | null {
   const parsed = eventSchema.safeParse(item);
   if (!parsed.success) return null;
@@ -135,7 +143,7 @@ export function outlookEvent(
       organizer: true,
     });
 
-  const own = RESPONSES[event.responseStatus?.response ?? ""];
+  const own = mainCalendar ? RESPONSES[event.responseStatus?.response ?? ""] : undefined;
   const selfAttendee = attendees.find((attendee) => attendee.self);
   return {
     id: event.id,
@@ -154,9 +162,36 @@ export function outlookEvent(
 const SELECT =
   "id,subject,start,end,isAllDay,isCancelled,location,attendees,organizer,onlineMeeting,onlineMeetingUrl,responseStatus,sensitivity";
 
+const calendarsSchema = z.object({
+  value: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        name: z.string().nullish(),
+        isDefaultCalendar: z.boolean().nullish(),
+      }),
+    )
+    .default([]),
+});
+
+/** The account's other calendars, which can be read besides the default one (CN-03). */
+export async function listOutlookCalendars(options: {
+  fetch(url: string): Promise<Response>;
+}): Promise<ConnectorOption[]> {
+  const query = new URLSearchParams({ $select: "id,name,isDefaultCalendar", $top: "100" });
+  const response = await options.fetch(`${GRAPH}/me/calendars?${query}`);
+  if (!response.ok)
+    throw new CalendarFetchError(`Outlook answered ${response.status}.`, response.status);
+  const body = calendarsSchema.safeParse(await response.json().catch(() => null));
+  if (!body.success) throw new CalendarFetchError("Outlook sent an answer Murmur cannot read.");
+  return body.data.value
+    .filter((calendar) => !calendar.isDefaultCalendar)
+    .map((calendar) => ({ id: calendar.id, label: (calendar.name || "Calendar").slice(0, 200) }));
+}
+
 /**
- * The events of the default calendar from `from` to `to` through `calendarView`, which expands
- * repeats. Times are asked for in UTC.
+ * The events of one calendar (the default one unless named) from `from` to `to` through
+ * `calendarView`, which expands repeats. Times are asked for in UTC.
  */
 export async function fetchOutlookEvents(options: {
   fetch(url: string, init?: RequestInit): Promise<Response>;
@@ -164,6 +199,7 @@ export async function fetchOutlookEvents(options: {
   from: number;
   to: number;
   maxEvents: number;
+  calendarId?: string;
 }): Promise<Omit<CalendarEvent, "accountId" | "connector">[]> {
   const events: Omit<CalendarEvent, "accountId" | "connector">[] = [];
   const query = new URLSearchParams({
@@ -173,16 +209,18 @@ export async function fetchOutlookEvents(options: {
     $orderby: "start/dateTime",
     $top: "100",
   });
-  let next: string | null = `${GRAPH}/me/calendarView?${query}`;
+  const calendar = options.calendarId ? `calendars/${encodeURIComponent(options.calendarId)}/` : "";
+  let next: string | null = `${GRAPH}/me/${calendar}calendarView?${query}`;
   for (let page = 0; page < 10 && next && events.length < options.maxEvents; page++) {
     const response: Response = await options.fetch(next, {
       headers: { prefer: 'outlook.timezone="UTC"' },
     });
-    if (!response.ok) throw new CalendarFetchError(`Outlook answered ${response.status}.`);
+    if (!response.ok)
+      throw new CalendarFetchError(`Outlook answered ${response.status}.`, response.status);
     const body = pageSchema.safeParse(await response.json().catch(() => null));
     if (!body.success) throw new CalendarFetchError("Outlook sent an answer Murmur cannot read.");
     for (const item of body.data.value ?? []) {
-      const event = outlookEvent(item, options.accountEmail);
+      const event = outlookEvent(item, options.accountEmail, options.calendarId === undefined);
       if (event) events.push(event);
     }
     next = body.data["@odata.nextLink"] ?? null;

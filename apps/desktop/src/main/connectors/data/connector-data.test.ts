@@ -85,7 +85,7 @@ describe("connector data (CN-05 to CN-08)", () => {
   it("reads only the selected Slack channels, keeps what it read and lists it", async () => {
     const t = setup({
       handler: slackHandler,
-      settings: { slack: { channels: ["C2"] } },
+      settings: { slack: { channels: ["C2"], privateChannels: false } },
     });
     expect(await t.data.refresh("s1")).toEqual({ ok: true, count: 1 });
     const history = t.requests.filter((r) => r.url.pathname.endsWith("conversations.history"));
@@ -106,10 +106,13 @@ describe("connector data (CN-05 to CN-08)", () => {
   });
 
   it("stops showing a channel the owner deselected, before the next read", async () => {
-    const t = setup({ handler: slackHandler, settings: { slack: { channels: ["C1", "C2"] } } });
+    const t = setup({
+      handler: slackHandler,
+      settings: { slack: { channels: ["C1", "C2"], privateChannels: false } },
+    });
     await t.data.refresh("s1");
     expect(t.data.items()).toHaveLength(2);
-    t.settings.slack = { channels: ["C1"] };
+    t.settings.slack = { channels: ["C1"], privateChannels: false };
     expect(t.data.items().map((i) => i.id.split(":")[0])).toEqual(["C1"]);
   });
 
@@ -121,7 +124,10 @@ describe("connector data (CN-05 to CN-08)", () => {
         { id: "l1", connector: "linear", email: "me@example.com" },
         { id: "g1", connector: "github", email: "octocat" },
       ],
-      settings: { slack: { channels: ["C1"] }, github: { repos: ["acme/app"] } },
+      settings: {
+        slack: { channels: ["C1"], privateChannels: false },
+        github: { repos: ["acme/app"] },
+      },
       handler: (url, _init, account) => {
         if (account === "s1") return slackHandler(url, undefined, account);
         if (account === "n1")
@@ -210,7 +216,10 @@ describe("connector data (CN-05 to CN-08)", () => {
   });
 
   it("drops what it kept when it is older than the lifetime", async () => {
-    const t = setup({ handler: slackHandler, settings: { slack: { channels: ["C1"] } } });
+    const t = setup({
+      handler: slackHandler,
+      settings: { slack: { channels: ["C1"], privateChannels: false } },
+    });
     await t.data.refresh("s1");
     expect(t.data.items()).toHaveLength(1);
     // Slack's interval is 30 minutes, so what is read is kept for 60.
@@ -226,7 +235,7 @@ describe("connector data (CN-05 to CN-08)", () => {
     const t = setup({
       handler: (url, init, account) =>
         fail ? json({ ok: false, error: "invalid_auth" }) : slackHandler(url, init, account),
-      settings: { slack: { channels: ["C1"] } },
+      settings: { slack: { channels: ["C1"], privateChannels: false } },
     });
     await t.data.refresh("s1");
     fail = true;
@@ -242,14 +251,14 @@ describe("connector data (CN-05 to CN-08)", () => {
       handler: () => {
         throw new ConnectorError("needs-attention", "Connect again.");
       },
-      settings: { slack: { channels: ["C1"] } },
+      settings: { slack: { channels: ["C1"], privateChannels: false } },
     });
     expect(await stale.data.refresh("s1")).toEqual({ ok: false, message: "Connect again." });
     const down = setup({
       handler: () => {
         throw new TypeError("fetch failed");
       },
-      settings: { slack: { channels: ["C1"] } },
+      settings: { slack: { channels: ["C1"], privateChannels: false } },
     });
     expect(await down.data.refresh("s1")).toEqual({
       ok: false,
@@ -267,7 +276,10 @@ describe("connector data (CN-05 to CN-08)", () => {
   });
 
   it("reads one account once at a time", async () => {
-    const t = setup({ handler: slackHandler, settings: { slack: { channels: ["C1"] } } });
+    const t = setup({
+      handler: slackHandler,
+      settings: { slack: { channels: ["C1"], privateChannels: false } },
+    });
     const [a, b] = await Promise.all([t.data.refresh("s1"), t.data.refresh("s1")]);
     expect(a).toEqual(b);
     expect(t.requests.filter((r) => r.url.pathname.endsWith("conversations.history"))).toHaveLength(
@@ -283,7 +295,7 @@ describe("connector data (CN-05 to CN-08)", () => {
         { id: "s3", connector: "slack", email: "third/dana" },
       ],
       handler: slackHandler,
-      settings: { slack: { channels: ["C1"] } },
+      settings: { slack: { channels: ["C1"], privateChannels: false } },
     });
     // s1 never read, s2 read ten minutes ago, s3 disabled.
     t.store.setLastSync("s2", Date.UTC(2026, 10, 22, 11, 50));
@@ -297,7 +309,10 @@ describe("connector data (CN-05 to CN-08)", () => {
   });
 
   it("starts a schedule that looks every minute, and reads once now", async () => {
-    const t = setup({ handler: slackHandler, settings: { slack: { channels: ["C1"] } } });
+    const t = setup({
+      handler: slackHandler,
+      settings: { slack: { channels: ["C1"], privateChannels: false } },
+    });
     t.data.start();
     t.data.start();
     expect(t.timers).toHaveLength(1);

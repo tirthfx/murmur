@@ -5,6 +5,7 @@ import {
   connectorChoice,
   CONNECTOR_CATALOGUE,
   type ConnectorAccount,
+  type ConnectorOption,
   type ConnectorSettings,
 } from "@murmur/shared";
 import type { Logger } from "../../helper/types";
@@ -16,13 +17,24 @@ import {
   CalendarFetchError,
   fetchGoogleEvents,
   GOOGLE_CALENDAR_ID,
+  listGoogleCalendars,
   GOOGLE_ORIGIN,
 } from "./google-calendar";
-import { fetchOutlookEvents, GRAPH_ORIGIN, OUTLOOK_CALENDAR_ID } from "./outlook-calendar";
+import {
+  fetchOutlookEvents,
+  GRAPH_ORIGIN,
+  listOutlookCalendars,
+  OUTLOOK_CALENDAR_ID,
+} from "./outlook-calendar";
 
 export type SyncResult = { ok: true; count: number } | { ok: false; message: string };
 
+export type CalendarOptionsResult =
+  { ok: true; options: ConnectorOption[] } | { ok: false; message: string };
+
 export interface CalendarSync {
+  /** The account's other calendars, to choose from. */
+  options(accountId: string): Promise<CalendarOptionsResult>;
   /** Reads the account's events for the days around now and replaces what is kept. */
   syncAccount(accountId: string): Promise<SyncResult>;
   /** Syncs the connected calendar accounts that are due by their interval. */
@@ -60,30 +72,59 @@ export function createCalendarSync(deps: {
   const account = (id: string): ConnectorAccount | null =>
     deps.connectors.list().find((candidate) => candidate.id === id) ?? null;
 
+  // The token goes only to the provider's own address, whatever a page of the answer says.
+  const fetchFor = (target: ConnectorAccount) => async (url: string, init?: RequestInit) => {
+    if (new URL(url).origin !== ORIGINS[target.connector])
+      throw new CalendarFetchError("Refused a request to another address.");
+    return deps.connectors.authorizedFetch(target.id, url, init);
+  };
+
+  /**
+   * The main calendar and the chosen others. A meeting on several of them is kept once, as the
+   * main calendar has it. A chosen calendar that is gone is passed over.
+   */
+  async function readCalendars(target: ConnectorAccount, from: number, to: number) {
+    const fetchEvents =
+      target.connector === GOOGLE_CALENDAR_ID ? fetchGoogleEvents : fetchOutlookEvents;
+    const options = {
+      fetch: fetchFor(target),
+      accountEmail: target.email,
+      from,
+      to,
+      maxEvents: CALENDAR_MAX_EVENTS,
+    };
+    const events = await fetchEvents(options);
+    const key = (event: (typeof events)[number]) =>
+      `${event.title}\n${event.startMs}\n${event.endMs}`;
+    const ids = new Set(events.map((event) => event.id));
+    const times = new Set(events.map(key));
+    for (const calendarId of deps.settings().calendars[target.id] ?? []) {
+      let others: typeof events;
+      try {
+        others = await fetchEvents({ ...options, calendarId });
+      } catch (error) {
+        if (!(error instanceof CalendarFetchError) || error.status !== 404) throw error;
+        deps.logger.warn(`[calendar] ${target.connector}: a chosen calendar is gone`);
+        continue;
+      }
+      for (const event of others) {
+        if (ids.has(event.id) || times.has(key(event))) continue;
+        ids.add(event.id);
+        times.add(key(event));
+        events.push(event);
+      }
+    }
+    return events.sort((a, b) => a.startMs - b.startMs).slice(0, CALENDAR_MAX_EVENTS);
+  }
+
   async function sync(target: ConnectorAccount): Promise<SyncResult> {
-    const origin = ORIGINS[target.connector];
-    if (!origin) return { ok: false, message: "That account is not a calendar." };
+    if (!ORIGINS[target.connector])
+      return { ok: false, message: "That account is not a calendar." };
     const now = deps.now();
     const from = now - CALENDAR_WINDOW.pastMs;
     const to = now + CALENDAR_WINDOW.aheadMs;
-    // The token goes only to the provider's own address, whatever a page of the answer says.
-    const fetchOne = async (url: string, init?: RequestInit) => {
-      if (new URL(url).origin !== origin)
-        throw new CalendarFetchError("Refused a request to another address.");
-      return deps.connectors.authorizedFetch(target.id, url, init);
-    };
     try {
-      const options = {
-        fetch: fetchOne,
-        accountEmail: target.email,
-        from,
-        to,
-        maxEvents: CALENDAR_MAX_EVENTS,
-      };
-      const events =
-        target.connector === GOOGLE_CALENDAR_ID
-          ? await fetchGoogleEvents(options)
-          : await fetchOutlookEvents(options);
+      const events = await readCalendars(target, from, to);
       const count = deps.store.replaceWindow(target.id, { from, to }, events);
       deps.connectorStore.setLastSync(target.id, now);
       deps.onChange?.();
@@ -132,6 +173,20 @@ export function createCalendarSync(deps: {
   return {
     syncAccount,
     syncDue,
+    async options(accountId) {
+      const target = account(accountId);
+      if (!target || target.status !== "connected" || !ORIGINS[target.connector])
+        return { ok: false, message: "That account is not connected." };
+      const list =
+        target.connector === GOOGLE_CALENDAR_ID ? listGoogleCalendars : listOutlookCalendars;
+      try {
+        return { ok: true, options: await list({ fetch: fetchFor(target) }) };
+      } catch (error) {
+        if (error instanceof ConnectorError || error instanceof CalendarFetchError)
+          return { ok: false, message: error.message };
+        return { ok: false, message: "The list of calendars could not be read." };
+      }
+    },
     start() {
       if (timer) return;
       const set =

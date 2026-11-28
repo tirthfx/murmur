@@ -246,7 +246,8 @@ export function BriefPanel({
     setBrief(null);
     if (eventKey)
       void window.murmur.briefGet(eventKey).then(
-        (found) => alive && setBrief(found),
+        // A brief built while this was being read is newer, so it stays.
+        (found) => alive && setBrief((current) => current ?? found),
         () => undefined,
       );
     return () => {
