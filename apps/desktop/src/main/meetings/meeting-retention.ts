@@ -19,9 +19,6 @@ export interface MeetingRetentionDeps {
     /** True when a summary is written after each meeting. */
     summaryAuto: boolean;
   };
-  /** TM-15: keeps a period inside what the organization allows; the period itself if absent. */
-  limitAudio?(period: AudioRetention): AudioRetention;
-  limitTranscript?(period: TranscriptRetention): TranscriptRetention;
   /** Removes a file; a file that is already gone is not an error. */
   removeFile(path: string): void;
   logger: Logger;
@@ -74,14 +71,9 @@ export function createMeetingRetention(
       )
       .all() as unknown as Row[];
 
-  const audioPeriod = (row: Row): AudioRetention => {
-    const own = row.folder_audio ?? deps.settings().audio;
-    return deps.limitAudio ? deps.limitAudio(own) : own;
-  };
-  const transcriptPeriod = (row: Row): TranscriptRetention => {
-    const own = row.folder_transcript ?? deps.settings().transcript;
-    return deps.limitTranscript ? deps.limitTranscript(own) : own;
-  };
+  const audioPeriod = (row: Row): AudioRetention => row.folder_audio ?? deps.settings().audio;
+  const transcriptPeriod = (row: Row): TranscriptRetention =>
+    row.folder_transcript ?? deps.settings().transcript;
 
   /** The summary is written, or no summary is going to be. */
   function processed(id: string): boolean {

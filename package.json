@@ -8,8 +8,7 @@
   },
   "workspaces": [
     "apps/*",
-    "packages/*",
-    "services/*"
+    "packages/*"
   ],
   "scripts": {
     "dev": "npm run dev --workspace @murmur/desktop",

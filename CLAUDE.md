@@ -14,7 +14,7 @@ Murmur is a personal, single-owner Mac-only desktop app for voice dictation and 
 
 - **Clean room.** Never copy code, UI text, artwork, sounds, names or branding from any other app into this repo. Re-implement observed behaviour only, in our own words and our own design. Do not commit reverse-engineering output (decompiled code, string catalogues, bundle dumps, migration files, flag lists) from any third-party app.
 - **Public repo.** Everything committed is published. No secrets, personal data, recordings, transcripts or third-party material. Do not add badges, publish packages, or enable Pages.
-- **No payments.** No real payment, billing or subscription integration. Plan tiers (free, paid, team) are a local setting that unlocks features for testing.
+- **No payments.** No real payment, billing or subscription integration. Plan tiers (free, pro) are a local setting that unlocks features for testing.
 - **Local-only AI.** Speech recognition and text cleanup or rewriting run on-device. The speech model runs in the Swift helper. Cleanup and rewrites use a local LLM. No cloud AI APIs, no telemetry that sends transcripts or audio off the machine.
 - **Secrets.** No API keys, tokens or `.env` files in git. Model files (`*.gguf`, `*.mlmodelc`, `models/`) are never committed.
 
@@ -27,7 +27,6 @@ Stack:
 - **Package manager:** npm workspaces only. Do not use any other package manager.
 - **Native helper:** a Swift Package executable in `native/helper-mac`. It handles global hotkeys, accessibility text context, pasting into other apps, microphone capture, system-audio capture and the on-device speech model.
 - **Shared code:** `packages/shared` holds shared TypeScript types and the helper protocol definitions.
-- **Local server:** `services/local-server` is a bundled local backend for team, sync and admin features. Supabase comes later.
 - **Storage:** local SQLite with numbered migrations.
 - **Docs:** `docs/` for in-repo technical docs only. The product spec lives in the vault (see Vault protocol).
 
@@ -39,18 +38,19 @@ Helper protocol (idea, to be formalised in `packages/shared`):
 - Events cover hotkey down and up, audio chunks or levels, partial and final transcripts, focused-field context, and errors.
 - Protocol types are versioned and shared between main and helper. Breaking changes need a version bump.
 
+Scope: Murmur is a one-person app. It has no team features, server or sync.
+
 Platform rule: Murmur is for the Mac only. Keep macOS details in `native/helper-mac` and `apps/desktop/src/main/platform`; the rest of the app reaches the helper through `PlatformHelper`.
 
 Layout:
 
-| Path                    | Purpose                                |
-| ----------------------- | -------------------------------------- |
-| `apps/desktop`          | Electron app (main, preload, renderer) |
-| `native/helper-mac`     | Swift helper package                   |
-| `packages/shared`       | Shared types and helper protocol       |
-| `services/local-server` | Local backend for team, sync and admin |
-| `docs/`                 | In-repo technical documentation        |
-| `.github/`              | Issue and PR templates, CI workflow    |
+| Path                | Purpose                                |
+| ------------------- | -------------------------------------- |
+| `apps/desktop`      | Electron app (main, preload, renderer) |
+| `native/helper-mac` | Swift helper package                   |
+| `packages/shared`   | Shared types and helper protocol       |
+| `docs/`             | In-repo technical documentation        |
+| `.github/`          | Issue and PR templates, CI workflow    |
 
 ## Workflow
 
@@ -153,12 +153,6 @@ Scratchpad (the window, notes, tabs, autosave, search, versions, pins, images, R
 Notetaker (meeting recording of the microphone and the Mac's sound in chunk files, the meetings tables, the indicator, crash recovery, the transcription queue that waits for the model and lets dictation go first, the Notetaker page and its tabs, live text, the start shortcut and the recording notice, meeting detection, Skills and summaries, custom Skills, tasks and My Tasks, Ask across meetings, speakers and playback, transcript corrections, languages and rerun, folders and shareable files, retention, importing transcripts, dictation during a meeting and recaps): see `docs/notetaker.md`.
 
 Connectors (the framework for calendars, mail and chat: accounts, OAuth with PKCE in the system browser, tokens in the Keychain through the helper, refresh, disconnect, the client-id file, strict local mode, the Connectors page and its feature notices): see `docs/connectors.md`.
-
-Team mode in the app (connecting, signing in, the idle lock, the shared dictionary and snippets, usage counts): see `docs/team.md`.
-
-Local server (the team backend on 127.0.0.1: accounts, sessions, the API, running it): see `docs/local-server.md`.
-
-Team backend on Supabase (the schema, row-level security, the functions, applying the migrations, the SQL tests, the dashboard settings): see `docs/supabase.md`.
 
 Platform helper (the `PlatformHelper` interface, the macOS code in main, the conformance suite, the helper hash): see `docs/platform.md`.
 

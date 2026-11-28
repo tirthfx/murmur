@@ -1,6 +1,5 @@
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { TextArea } from "@astryxdesign/core/TextArea";
-import { RetentionPolicyNote } from "./PolicyNotice";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Banner } from "@astryxdesign/core/Banner";
 import { Button } from "@astryxdesign/core/Button";
@@ -1047,7 +1046,6 @@ export function SettingsSection({
         <Row id="meeting-retention">
           <VStack gap={2}>
             <Heading level={3}>Meeting recordings and transcripts</Heading>
-            <RetentionPolicyNote />
             <Text size="sm" color="secondary">
               How long a meeting&apos;s audio and its transcript are kept. When time is up they are
               deleted for good: the meeting keeps its title, date and folder, marked “Deleted by

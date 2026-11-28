@@ -5,9 +5,7 @@ import { HStack } from "@astryxdesign/core/HStack";
 import { Switch } from "@astryxdesign/core/Switch";
 import { Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
-import { Selector } from "@astryxdesign/core/Selector";
 import { DEFAULT_EXPORT_OPTIONS, type MeetingExportOptions } from "@murmur/shared";
-import { useTeamView } from "./ShareWithTeam";
 
 const PARTS: { key: keyof MeetingExportOptions; label: string }[] = [
   { key: "summary", label: "Summary" },
@@ -17,75 +15,8 @@ const PARTS: { key: keyof MeetingExportOptions; label: string }[] = [
 ];
 
 /**
- * NT-17: puts a meeting's summary and tasks, as text, into a folder the person's team shares.
- * It is shown only while signed in to a team that has a folder the person may add to. The
- * transcript, the person's own notes and the audio are never sent.
- */
-function ShareToFolder({ meetingId }: { meetingId: string }) {
-  const view = useTeamView();
-  const writable = (view?.shared.folders ?? []).filter((folder) => folder.canWrite);
-  const [key, setKey] = useState("");
-  const [said, setSaid] = useState("");
-  const [busy, setBusy] = useState(false);
-  if (!view || view.state !== "signed_in" || writable.length === 0) return null;
-  const chosen = writable.find((folder) => `${folder.teamId}/${folder.id}` === key) ?? writable[0]!;
-
-  async function share() {
-    setBusy(true);
-    setSaid("");
-    try {
-      const result = await window.murmur.teamShareMeeting({
-        meetingId,
-        teamId: chosen.teamId,
-        folderId: chosen.id,
-      });
-      setSaid(result.ok ? `Shared into ${chosen.name}.` : result.message);
-    } catch {
-      setSaid("That could not be shared.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <VStack gap={1}>
-      <Text weight="semibold">Share with your team</Text>
-      <HStack gap={2} align="end" wrap="wrap">
-        <Selector
-          label="Folder"
-          value={`${chosen.teamId}/${chosen.id}`}
-          options={writable.map((folder) => ({
-            value: `${folder.teamId}/${folder.id}`,
-            label: view.teams.length > 1 ? `${folder.name} (${folder.teamName})` : folder.name,
-          }))}
-          onChange={(value) => setKey(String(value))}
-        />
-        <Button
-          variant="secondary"
-          label="Share the summary and tasks into the folder"
-          isDisabled={busy}
-          onClick={() => void share()}
-        >
-          Share
-        </Button>
-      </HStack>
-      <Text size="sm" color="secondary">
-        The summary and the tasks go in, as text. The transcript, your own notes and the audio stay
-        on this Mac.
-      </Text>
-      {said ? (
-        <Text size="sm" role="status">
-          {said}
-        </Text>
-      ) : null}
-    </VStack>
-  );
-}
-
-/**
  * NT-18: a meeting as one web page that opens offline in any browser. The owner chooses what
- * goes in it; the audio never does, and the panel says so. A link that other people can open
- * needs the team server, which comes later.
+ * goes in it; the audio never does, and the panel says so.
  */
 export function ExportPanel({ meetingId, onClose }: { meetingId: string; onClose: () => void }) {
   const [options, setOptions] = useState<MeetingExportOptions>(DEFAULT_EXPORT_OPTIONS);
@@ -114,11 +45,9 @@ export function ExportPanel({ meetingId, onClose }: { meetingId: string; onClose
           ))}
         </HStack>
         <Text size="sm" color="secondary">
-          The file is a web page that opens offline in any browser. The audio is not included. A
-          link that others can open needs the team server, which comes later.
+          The file is a web page that opens offline in any browser. The audio is not included.
         </Text>
         {message ? <Banner status={message.status} title={message.text} /> : null}
-        <ShareToFolder meetingId={meetingId} />
         <HStack gap={2}>
           <Button
             variant="primary"

@@ -1,4 +1,3 @@
-import { TeamLeaderboard } from "./TeamLeaderboard";
 import { useCallback, useEffect, useState } from "react";
 import { Banner } from "@astryxdesign/core/Banner";
 import { Button } from "@astryxdesign/core/Button";
@@ -21,12 +20,11 @@ import {
 
 import { renderProgressCard } from "./progress-card";
 
-type Tab = "usage" | "voice" | "leaderboard";
+type Tab = "usage" | "voice";
 
 const TABS: { id: Tab; title: string }[] = [
   { id: "usage", title: "Your usage" },
   { id: "voice", title: "Your voice" },
-  { id: "leaderboard", title: "Leaderboard" },
 ];
 
 /** Typing speeds to measure time saved against (HB-36: 10 to 150). */
@@ -361,7 +359,7 @@ function Voice() {
   );
 }
 
-/** Insights (HB-11): usage, your voice, and the team leaderboard. */
+/** Insights (HB-11): usage and your voice. */
 export function InsightsPage() {
   const [tab, setTab] = useState<Tab>("usage");
   const [range, setRange] = useState<InsightsRange>("30");
@@ -436,10 +434,8 @@ export function InsightsPage() {
             />
           ) : null}
         </VStack>
-      ) : tab === "voice" ? (
-        <Voice />
       ) : (
-        <TeamLeaderboard />
+        <Voice />
       )}
     </VStack>
   );

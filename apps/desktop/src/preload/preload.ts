@@ -12,8 +12,6 @@ import {
 const api: MurmurApi = {
   getAppInfo: () => ipcRenderer.invoke(IPC_CHANNELS.getAppInfo),
   helperRetry: () => ipcRenderer.invoke(IPC_CHANNELS.helperRetry),
-  teamLeaderboard: (period) => ipcRenderer.invoke(IPC_CHANNELS.teamLeaderboard, period),
-  teamLeaderboardShow: (visible) => ipcRenderer.invoke(IPC_CHANNELS.teamLeaderboardShow, visible),
   openGuide: () => ipcRenderer.invoke(IPC_CHANNELS.openGuide),
   reportProblem: () => ipcRenderer.invoke(IPC_CHANNELS.reportProblem),
   testingTool: (tool) => ipcRenderer.invoke(IPC_CHANNELS.testingTool, tool),
@@ -209,37 +207,6 @@ const api: MurmurApi = {
   slackPostPrepare: (input) => ipcRenderer.invoke(IPC_CHANNELS.slackPostPrepare, input),
   slackPostSend: (input) => ipcRenderer.invoke(IPC_CHANNELS.slackPostSend, input),
   extensionsView: () => ipcRenderer.invoke(IPC_CHANNELS.extensionsView),
-  policyView: () => ipcRenderer.invoke(IPC_CHANNELS.policyView),
-  teamView: () => ipcRenderer.invoke(IPC_CHANNELS.teamView),
-  teamConnect: (input) => ipcRenderer.invoke(IPC_CHANNELS.teamConnect, input),
-  teamSetup: (input) => ipcRenderer.invoke(IPC_CHANNELS.teamSetup, input),
-  teamSignIn: (input) => ipcRenderer.invoke(IPC_CHANNELS.teamSignIn, input),
-  teamSignOut: () => ipcRenderer.invoke(IPC_CHANNELS.teamSignOut),
-  teamLock: () => ipcRenderer.invoke(IPC_CHANNELS.teamLock),
-  teamUnlock: (password) => ipcRenderer.invoke(IPC_CHANNELS.teamUnlock, password),
-  teamRedeem: (input) => ipcRenderer.invoke(IPC_CHANNELS.teamRedeem, input),
-  teamSyncNow: () => ipcRenderer.invoke(IPC_CHANNELS.teamSyncNow),
-  teamSetIdleLock: (minutes) => ipcRenderer.invoke(IPC_CHANNELS.teamSetIdleLock, minutes),
-  teamDisconnect: () => ipcRenderer.invoke(IPC_CHANNELS.teamDisconnect),
-  teamNoticesSeen: () => ipcRenderer.invoke(IPC_CHANNELS.teamNoticesSeen),
-  teamOpenAdmin: () => ipcRenderer.invoke(IPC_CHANNELS.teamOpenAdmin),
-  teamPropose: (input) => ipcRenderer.invoke(IPC_CHANNELS.teamPropose, input),
-  teamChangePassword: (input) => ipcRenderer.invoke(IPC_CHANNELS.teamChangePassword, input),
-  teamPeople: (teamId) => ipcRenderer.invoke(IPC_CHANNELS.teamPeople, teamId),
-  teamFolderCreate: (input) => ipcRenderer.invoke(IPC_CHANNELS.teamFolderCreate, input),
-  teamNoteRead: (input) => ipcRenderer.invoke(IPC_CHANNELS.teamNoteRead, input),
-  teamSkillAdd: (input) => ipcRenderer.invoke(IPC_CHANNELS.teamSkillAdd, input),
-  teamShareMeeting: (input) => ipcRenderer.invoke(IPC_CHANNELS.teamShareMeeting, input),
-  onPolicyChanged: (handler) => {
-    const listener = (_event: unknown, view: Parameters<typeof handler>[0]) => handler(view);
-    ipcRenderer.on(IPC_EVENTS.policyChanged, listener);
-    return () => ipcRenderer.removeListener(IPC_EVENTS.policyChanged, listener);
-  },
-  onTeamChanged: (handler) => {
-    const listener = (_event: unknown, view: Parameters<typeof handler>[0]) => handler(view);
-    ipcRenderer.on(IPC_EVENTS.teamChanged, listener);
-    return () => ipcRenderer.removeListener(IPC_EVENTS.teamChanged, listener);
-  },
   briefOverview: () => ipcRenderer.invoke(IPC_CHANNELS.briefOverview),
   briefGet: (eventKey) => ipcRenderer.invoke(IPC_CHANNELS.briefGet, eventKey),
   briefBuild: (eventKey) => ipcRenderer.invoke(IPC_CHANNELS.briefBuild, eventKey),

@@ -62,7 +62,7 @@ the dictionary's own limits. Snippets work the same way (see `snippets.md`).
 ## Storage
 
 Table `dictionary` (migration `0003_dictionary.sql`), as in the vault's data model.
-`scope_team_id` stays null until team dictionaries (M7). Code:
+`scope_team_id` is a column from the first migrations that is always null. Code:
 `apps/desktop/src/main/dictionary/` (store and the pure `apply.ts`),
 `apps/desktop/src/renderer/hub/DictionaryPage.tsx`.
 
