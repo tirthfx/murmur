@@ -84,6 +84,7 @@ import {
   DEFAULT_EXPORT_OPTIONS,
   DEFAULT_SKILL_ID,
   SPEAKER_DEFAULT_NAMES,
+  formatElapsed,
   GENERATION_MESSAGES,
   markdownTitle,
   markdownToRich,
@@ -232,6 +233,7 @@ import { createCorrectionsStore } from "./meetings/corrections-store";
 import { createMeetingRerun } from "./meetings/meeting-rerun";
 import { createMeetingRetention } from "./meetings/meeting-retention";
 import { createSpeakerClip } from "./meetings/speaker-clip";
+import { zipFiles } from "./meetings/zip";
 import { createTranscriptVersions } from "./meetings/transcript-versions";
 import { createSpeakersStore } from "./meetings/speakers-store";
 import { AskError, createAskRunner } from "./meetings/ask-runner";
@@ -2608,15 +2610,28 @@ const connectorImport =
 function buildMeetingExport(
   meetingId: string,
   options: MeetingExportOptions,
-): { fileName: string; html: string } | null {
+): { fileName: string; html: string; audio: { name: string; path: string }[] } | null {
   const meeting = meetingsStore?.get(meetingId);
   if (!meeting || !meetingTranscripts || !meetingNotes) return null;
+  // NT-18: the recording's own files, when they are wanted and still here.
+  const audio =
+    options.audio && meeting.audioDeletedAt === null
+      ? (meetingsStore?.chunks(meetingId) ?? [])
+          .filter((chunk) => existsSync(chunk.path))
+          .map((chunk) => ({
+            name: `audio/${path.basename(chunk.path)}`,
+            label: `${SPEAKER_DEFAULT_NAMES[chunk.channel]}, from ${formatElapsed(chunk.startMs)}`,
+            path: chunk.path,
+          }))
+      : [];
   const speakers = speakersStore?.list(meetingId) ?? [];
   const summaries = (meetingSummaries?.list(meetingId) ?? []).filter((summary) => !summary.quick);
   const summary = summaries.at(-1) ?? null;
   return {
     fileName: exportFileName(meeting.title, meeting.startedAt),
+    audio,
     html: renderMeetingHtml({
+      audio,
       title: meeting.title,
       startedAt: meeting.startedAt,
       durationMs: meeting.durationMs,
@@ -4062,17 +4077,31 @@ function registerIpc(): void {
     meetingExport: async (meetingId, options) => {
       const file = buildMeetingExport(meetingId, options);
       if (!file) return { ok: false, message: "That meeting is gone." };
+      const archive = file.audio.length > 0;
       const dialogOptions = {
         title: "Export a shareable file",
-        defaultPath: path.join(app.getPath("documents"), file.fileName),
-        filters: [{ name: "Web page", extensions: ["html"] }],
+        defaultPath: path.join(
+          app.getPath("documents"),
+          archive ? file.fileName.replace(/\.html$/, ".murmur-meeting") : file.fileName,
+        ),
+        filters: archive
+          ? [{ name: "Meeting archive", extensions: ["murmur-meeting"] }]
+          : [{ name: "Web page", extensions: ["html"] }],
       };
       const choice = hubWindow
         ? await dialog.showSaveDialog(hubWindow, dialogOptions)
         : await dialog.showSaveDialog(dialogOptions);
       if (choice.canceled || !choice.filePath) return { ok: false, cancelled: true };
       try {
-        writeFileSync(choice.filePath, file.html);
+        writeFileSync(
+          choice.filePath,
+          archive
+            ? zipFiles([
+                { name: "index.html", data: Buffer.from(file.html, "utf8") },
+                ...file.audio.map(({ name, path: from }) => ({ name, data: readFileSync(from) })),
+              ])
+            : file.html,
+        );
         return { ok: true, path: choice.filePath };
       } catch {
         return { ok: false, message: "The file could not be saved there." };

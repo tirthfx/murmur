@@ -106,7 +106,14 @@ describe("shareable file (NT-18)", () => {
     const only = (options: Partial<typeof DEFAULT_EXPORT_OPTIONS>) =>
       renderMeetingHtml(
         input({
-          options: { summary: false, transcript: false, tasks: false, notes: false, ...options },
+          options: {
+            summary: false,
+            transcript: false,
+            tasks: false,
+            notes: false,
+            audio: false,
+            ...options,
+          },
         }),
       );
     const none = only({});
@@ -151,5 +158,35 @@ describe("exportFileName", () => {
     expect(exportFileName("  ..hidden ", at)).toBe("2026-11-21 hidden.html");
     expect(exportFileName("???", at)).toBe("2026-11-21 Meeting.html");
     expect(exportFileName("x".repeat(200), at).length).toBeLessThanOrEqual(11 + 80 + 5);
+  });
+});
+
+describe("audio in an export (NT-18)", () => {
+  const input = {
+    title: "Sync",
+    startedAt: 0,
+    durationMs: 1000,
+    folderName: null,
+    segments: [],
+    summary: null,
+    tasks: [],
+    notes: "",
+    audio: [{ name: "audio/mic-1.m4a", label: "You, from 00:00" }],
+    exportedAt: 0,
+  };
+
+  it("plays the files beside the page when asked", () => {
+    const html = renderMeetingHtml({
+      ...input,
+      options: { ...DEFAULT_EXPORT_OPTIONS, audio: true },
+    });
+    expect(html).toContain('src="audio/mic-1.m4a"');
+    expect(html).not.toContain("The audio is not included");
+  });
+
+  it("says the audio is not included otherwise", () => {
+    const html = renderMeetingHtml({ ...input, options: DEFAULT_EXPORT_OPTIONS });
+    expect(html).not.toContain("audio/mic-1.m4a");
+    expect(html).toContain("The audio is not included");
   });
 });

@@ -29,6 +29,7 @@ describe("export (NT-18)", () => {
         transcript: true,
         tasks: true,
         notes: false,
+        audio: false,
       }),
     );
     expect(
@@ -52,6 +53,7 @@ describe("export (NT-18)", () => {
         transcript: false,
         tasks: false,
         notes: true,
+        audio: false,
       }),
     );
   });

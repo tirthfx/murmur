@@ -45,12 +45,14 @@ export const folderPatchSchema = z.strictObject({
 });
 export type FolderPatch = z.infer<typeof folderPatchSchema>;
 
-/** What a shareable file holds (NT-18). Audio is never in it. */
+/** What a shareable file holds (NT-18). With audio it is an archive rather than one page. */
 export const meetingExportOptionsSchema = z.strictObject({
   summary: z.boolean(),
   transcript: z.boolean(),
   tasks: z.boolean(),
   notes: z.boolean(),
+  /** The recording's files, in a `.murmur-meeting` archive beside the page. Off unless asked. */
+  audio: z.boolean().default(false),
 });
 export type MeetingExportOptions = z.infer<typeof meetingExportOptionsSchema>;
 export const DEFAULT_EXPORT_OPTIONS: MeetingExportOptions = {
@@ -58,6 +60,7 @@ export const DEFAULT_EXPORT_OPTIONS: MeetingExportOptions = {
   transcript: true,
   tasks: true,
   notes: false,
+  audio: false,
 };
 
 export type MeetingExportResult =
