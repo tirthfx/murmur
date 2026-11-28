@@ -99,7 +99,8 @@ export function createAutoRewriter(deps: AutoRewriterDeps) {
       return { status: "applied", rewriteId: rewrite.id, text: first.text };
     } catch (error) {
       const code = (error as { code?: unknown } | null)?.code;
-      deps.logger.warn(`auto-apply ${rewrite.name} failed: ${String(code ?? "error")}`);
+      const reason = typeof code === "string" ? code : "error";
+      deps.logger.warn(`auto-apply ${rewrite.name} failed: ${reason}`);
       record("failed", null);
       return {
         status: code === "timeout" ? "skipped_timeout" : "failed",

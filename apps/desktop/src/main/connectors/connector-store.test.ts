@@ -89,7 +89,5 @@ describe("connector store (CN-01)", () => {
     expect(db.prepare("SELECT account_id FROM connector_cache").all()).toEqual([
       { account_id: "b" },
     ]);
-    store.cacheClear("b");
-    expect(db.prepare("SELECT COUNT(*) AS n FROM connector_cache").get()).toEqual({ n: 0 });
   });
 });

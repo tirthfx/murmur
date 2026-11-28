@@ -25,10 +25,6 @@ export const REMOTE_DESKTOP_APPS: readonly string[] = [
   "com.apple.ScreenSharing",
 ];
 
-export function isTerminalApp(bundleId: string | null | undefined): boolean {
-  return bundleId != null && TERMINAL_APPS.includes(bundleId);
-}
-
 /** The per-app part of an `insert.text` request. */
 export function insertionRules(
   choice: { pasteInRemoteDesktops: boolean; typeInApps: readonly string[] } = {

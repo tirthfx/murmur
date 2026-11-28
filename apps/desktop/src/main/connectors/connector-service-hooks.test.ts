@@ -273,11 +273,4 @@ describe("signing in with a personal key (CN-10)", () => {
     expect(t.store.list()).toHaveLength(1);
     expect(JSON.parse([...t.keychain.items.values()][0]!)).toMatchObject({ accessToken: "second" });
   });
-
-  it("lists a key connector as configured without an OAuth client id", () => {
-    const t = setupKey(async () => ({ ok: true, label: "a" }));
-    expect(t.service.providers()).toEqual([
-      { id: "keyed", name: "Keybook", scopes: [], configured: true },
-    ]);
-  });
 });

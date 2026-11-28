@@ -125,10 +125,6 @@ export type Page = (typeof PAGES)[number];
 /** Which features are on; a missing entry counts as on. */
 export type PageFeatures = Partial<Record<PageFeature, boolean>>;
 
-export function isPageId(value: string): value is PageId {
-  return PAGES.some((page) => page.id === value);
-}
-
 /** The pages shown in the sidebar. */
 export function visiblePages(features: PageFeatures): Page[] {
   return PAGES.filter((page) => !("feature" in page) || features[page.feature] !== false);

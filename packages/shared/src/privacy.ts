@@ -6,10 +6,6 @@ import { z } from "zod";
  */
 
 export const AUDIO_KEEP = ["24h", "never", "keep"] as const;
-export type AudioKeep = (typeof AUDIO_KEEP)[number];
-
-/** Days dictation text is kept; null keeps it. */
-export const HISTORY_DAYS = [null, 365, 30, 7] as const;
 
 export const privacySettingsSchema = z.strictObject({
   /** Write dictations to History at all (counts for Insights are kept either way). */

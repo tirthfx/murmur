@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   contactDraftSchema,
-  mentionedIds,
   mentionQuery,
   mentionToken,
   readableMentions,
@@ -13,8 +12,7 @@ const priya = { id: "ab12", name: "Priya Rao" };
 const text = `Ask ${mentionToken(priya)} and ${mentionToken({ id: "cd34", name: "Sam" })}.`;
 
 describe("mentions (NT-12)", () => {
-  it("finds, renames and removes them, keeping the text around", () => {
-    expect(mentionedIds(text)).toEqual(["ab12", "cd34"]);
+  it("renames and removes them, keeping the text around", () => {
     expect(readableMentions(renameMentions(text, "ab12", "Priya R"))).toBe(
       "Ask @Priya R and @Sam.",
     );

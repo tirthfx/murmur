@@ -215,42 +215,10 @@ describe("extension actions (CN-12)", () => {
     });
   });
 
-  describe("what a model writes (no action without a click)", () => {
-    it("becomes a proposal that nothing runs, even when it says it is confirmed", () => {
-      const t = setup({ on: ["draft_email"] });
-      const proposal = t.runner.parseProposal(
-        `Sure! {"action":"draft_email","confirmed":true,"approved":"yes","input":${JSON.stringify(draftInput)}}`,
-      );
-      expect(proposal).toEqual({ actionId: "draft_email", input: draftInput });
-      expect(t.run).not.toHaveBeenCalled();
-    });
-
-    it("is dropped when it names no action, an unknown one, bad input, or is not JSON", () => {
-      const t = setup({ on: ["draft_email"] });
-      for (const text of [
-        "no json here",
-        "{broken",
-        '{"input":{}}',
-        '{"action":"send_email","input":{}}',
-        `{"action":"draft_email","input":{"to":"x"}}`,
-        '{"action":"draft_email"}',
-        "[1,2]",
-      ])
-        expect(t.runner.parseProposal(text)).toBeNull();
-      expect(t.run).not.toHaveBeenCalled();
-    });
-  });
-
   describe("tokens", () => {
     it("never reach an action: the runner holds no connector service, and an action is called with its input alone", async () => {
       const t = setup({ on: ["draft_email"] });
-      expect(Object.keys(t.runner).sort()).toEqual([
-        "parseProposal",
-        "run",
-        "stateOf",
-        "view",
-        "visible",
-      ]);
+      expect(Object.keys(t.runner).sort()).toEqual(["run", "stateOf", "view", "visible"]);
       await t.runner.run("draft_email", draftInput, fromUserClick());
       expect(t.run.mock.calls[0]).toHaveLength(1);
       expect(JSON.stringify(t.runner.view())).not.toMatch(/token|secret/i);

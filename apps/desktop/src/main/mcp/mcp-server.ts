@@ -70,11 +70,7 @@ const requestSchema = z.object({
 
 const initializeSchema = z.object({
   protocolVersion: z.string().optional(),
-  clientInfo: z
-    .object({ name: z.string().max(200) })
-    .partial()
-    .passthrough()
-    .optional(),
+  clientInfo: z.looseObject({ name: z.string().max(200).optional() }).optional(),
 });
 
 const callSchema = z.object({
@@ -102,8 +98,6 @@ export interface McpServer {
   handle(message: unknown, client: McpClient): Promise<JsonRpcResponse | null>;
   /** One line of text: parses it, and returns the reply as text, or null. */
   handleText(text: string, client: McpClient): Promise<string | null>;
-  /** The tools a client may see. */
-  toolList(): Record<string, unknown>[];
 }
 
 const failure = (id: JsonRpcId, code: number, message: string): JsonRpcResponse => ({
@@ -218,7 +212,6 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
   }
 
   const server: McpServer = {
-    toolList,
     async handle(message, client) {
       const request = requestSchema.safeParse(message);
       if (!request.success) {

@@ -83,7 +83,9 @@ export function createLiveTranscriber(deps: LiveTranscriberDeps): LiveTranscribe
           deps.onPartial(partial);
         } catch (error) {
           // No model yet, or the helper is restarting: try again a little later.
-          deps.logger.info(`live text paused: ${error instanceof Error ? error.message : error}`);
+          deps.logger.info(
+            `live text paused: ${error instanceof Error ? error.message : String(error)}`,
+          );
           await deps.wait(5 * LIVE_PAUSE_MS);
         }
       }

@@ -66,7 +66,7 @@ const pageSchema = z.object({
   archived: z.boolean().optional(),
   in_trash: z.boolean().optional(),
   properties: z
-    .record(z.string(), z.object({ type: z.string(), title: richText.optional() }).passthrough())
+    .record(z.string(), z.looseObject({ type: z.string(), title: richText.optional() }))
     .optional(),
 });
 
@@ -76,13 +76,11 @@ const searchSchema = z.object({
   next_cursor: z.string().nullish(),
 });
 
-const blockSchema = z
-  .object({
-    type: z.string(),
-    child_page: z.object({ title: z.string().optional() }).optional(),
-    child_database: z.object({ title: z.string().optional() }).optional(),
-  })
-  .passthrough();
+const blockSchema = z.looseObject({
+  type: z.string(),
+  child_page: z.object({ title: z.string().optional() }).optional(),
+  child_database: z.object({ title: z.string().optional() }).optional(),
+});
 
 const childrenSchema = z.object({
   results: z.array(z.unknown()),

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { PermissionSnapshot } from "@murmur/shared";
+import type { HotkeyBinding, PermissionSnapshot } from "@murmur/shared";
 import {
   FakeClock,
   createFakeSpawner,
@@ -9,7 +9,6 @@ import {
 } from "./helper/fakes";
 import { HelperSupervisor } from "./helper/supervisor";
 import { createHotkeyService } from "./hotkeys";
-import { MAC_DEFAULT_HOTKEY_BINDINGS } from "./platform/mac-hotkeys";
 
 const statuses = (inputMonitoring: PermissionSnapshot["inputMonitoring"]): PermissionSnapshot => ({
   microphone: "granted",
@@ -25,7 +24,17 @@ async function completeHandshake(helper: FakeHelperProcess): Promise<void> {
   await flush();
 }
 
-function setup(bindings = MAC_DEFAULT_HOTKEY_BINDINGS) {
+/** Hold Right Option to dictate, the default. */
+const DICTATE_BINDINGS: HotkeyBinding[] = [
+  {
+    id: "dictate-hold",
+    action: "dictate.hold",
+    trigger: { type: "key", keyCode: 61, modifiers: [] },
+    mode: "hold",
+  },
+];
+
+function setup(bindings = DICTATE_BINDINGS) {
   const clock = new FakeClock();
   const spawner = createFakeSpawner();
   const helper = new HelperSupervisor({
@@ -236,7 +245,7 @@ describe("hotkey service live changes", () => {
       trigger: { type: "key" as const, keyCode: 2, modifiers: ["control" as const] },
       mode: "press" as const,
     };
-    context.service.setBindings([...MAC_DEFAULT_HOTKEY_BINDINGS, chord]);
+    context.service.setBindings([...DICTATE_BINDINGS, chord]);
     expect((proc.lastRequest("hotkey.configure")!.payload.bindings as unknown[]).length).toBe(2);
     context.service.setPaused(true);
     expect(proc.lastRequest("hotkey.configure")!.payload).toEqual({ bindings: [] });

@@ -10,4 +10,3 @@ export const procForegroundResultSchema = z.object({
   /** Lower-case process names, each once; empty when nothing could be read. */
   names: z.array(z.string().min(1).max(64)).max(PROC_FOREGROUND_MAX_NAMES),
 });
-export type ProcForegroundResult = z.infer<typeof procForegroundResultSchema>;

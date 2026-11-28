@@ -113,12 +113,6 @@ export interface ExtensionsView {
   planned: ExtensionPlanned[];
 }
 
-/** What a model may propose: an action of the set and what it would be given. Never executed by itself. */
-export interface ActionProposal {
-  actionId: ExtensionActionId;
-  input: unknown;
-}
-
 export const PLANNED_EXTENSIONS: readonly ExtensionPlanned[] = [
   { name: "Create a Linear issue", detail: "Not planned for the first release." },
 ];

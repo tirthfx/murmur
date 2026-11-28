@@ -27,8 +27,6 @@ export interface DictationWindows {
   close(meetingId: string, atMs: number): void;
   /** Dictations a crash left open are closed. */
   closeLost(): number;
-  /** Marks the microphone lines of a meeting that overlap a dictation. Returns how many. */
-  mark(meetingId: string): number;
 }
 
 export function createDictationWindows(db: DatabaseSync): DictationWindows {
@@ -56,6 +54,5 @@ export function createDictationWindows(db: DatabaseSync): DictationWindows {
           .run().changes,
       );
     },
-    mark,
   };
 }

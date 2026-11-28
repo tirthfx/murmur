@@ -168,7 +168,6 @@ export const helloAckPayloadSchema = z.object({
   appVersion: z.string(),
   reason: z.string().optional(),
 });
-export type HelloAckPayload = z.infer<typeof helloAckPayloadSchema>;
 
 const emptyObjectSchema = z.object({});
 
@@ -341,7 +340,6 @@ export const helperErrorEventPayloadSchema = z.object({
   message: z.string(),
   fatal: z.boolean(),
 });
-export type HelperErrorEventPayload = z.infer<typeof helperErrorEventPayloadSchema>;
 
 /**
  * Feature events main dispatches to subscribers, by type. `hello` and `helper.error` are
@@ -379,7 +377,6 @@ export const responseErrorSchema = z.object({
   message: z.string(),
   retryable: z.boolean(),
 });
-export type ResponseError = z.infer<typeof responseErrorSchema>;
 
 /** Payload of a `response` message. `result` is checked per request by the caller. */
 export const responsePayloadSchema = z.discriminatedUnion("ok", [
@@ -394,129 +391,3 @@ export const responsePayloadSchema = z.discriminatedUnion("ok", [
     error: responseErrorSchema,
   }),
 ]);
-export type ResponsePayload = z.infer<typeof responsePayloadSchema>;
-
-// ------------------------------------------------------- whole-message schemas
-
-const eventEnvelope = <T extends string, P extends z.ZodType>(type: T, payload: P) =>
-  z.strictObject({ id: z.null(), type: z.literal(type), payload });
-
-const requestEnvelope = <T extends string, P extends z.ZodType>(type: T, payload: P) =>
-  z.strictObject({ id: z.string(), type: z.literal(type), payload });
-
-export const helloEventSchema = eventEnvelope("hello", helloPayloadSchema);
-export const helperErrorEventSchema = eventEnvelope("helper.error", helperErrorEventPayloadSchema);
-export const responseSchema = z.strictObject({
-  id: z.string(),
-  type: z.literal("response"),
-  payload: responsePayloadSchema,
-});
-
-export const helloAckRequestSchema = requestEnvelope("hello.ack", helloAckPayloadSchema);
-export const pingRequestSchema = requestEnvelope("ping", HELPER_REQUESTS.ping.payload);
-export const shutdownRequestSchema = requestEnvelope("shutdown", shutdownPayloadSchema);
-export const permissionsStatusRequestSchema = requestEnvelope(
-  "permissions.status",
-  HELPER_REQUESTS["permissions.status"].payload,
-);
-export const permissionsRequestRequestSchema = requestEnvelope(
-  "permissions.request",
-  permissionsRequestPayloadSchema,
-);
-export const hotkeyConfigureRequestSchema = requestEnvelope(
-  "hotkey.configure",
-  hotkeyConfigurePayloadSchema,
-);
-export const hotkeyEventSchema = eventEnvelope("hotkey.event", hotkeyEventPayloadSchema);
-export const hotkeyTapStatusEventSchema = eventEnvelope(
-  "hotkey.tap.status",
-  hotkeyTapStatusPayloadSchema,
-);
-
-export const audioDevicesRequestSchema = requestEnvelope("audio.devices", emptyObjectSchema);
-export const audioStartRequestSchema = requestEnvelope("audio.start", audioStartPayloadSchema);
-export const audioStopRequestSchema = requestEnvelope("audio.stop", audioSessionPayloadSchema);
-export const audioCancelRequestSchema = requestEnvelope("audio.cancel", audioSessionPayloadSchema);
-export const audioLevelEventSchema = eventEnvelope("audio.level", audioLevelPayloadSchema);
-export const audioSilentEventSchema = eventEnvelope("audio.silent", audioSilentPayloadSchema);
-export const audioDevicesChangedEventSchema = eventEnvelope(
-  "audio.devices.changed",
-  audioDevicesChangedPayloadSchema,
-);
-export const audioRouteChangedEventSchema = eventEnvelope(
-  "audio.route.changed",
-  audioRouteChangedPayloadSchema,
-);
-
-export const transcribeLoadRequestSchema = requestEnvelope(
-  "transcribe.load",
-  transcribeLoadPayloadSchema,
-);
-export const transcribeUnloadRequestSchema = requestEnvelope(
-  "transcribe.unload",
-  emptyObjectSchema,
-);
-export const transcribeFileRequestSchema = requestEnvelope(
-  "transcribe.file",
-  transcribeFilePayloadSchema,
-);
-
-export const insertTextRequestSchema = requestEnvelope("insert.text", insertTextPayloadSchema);
-export const insertCopyRequestSchema = requestEnvelope("insert.copy", insertCopyPayloadSchema);
-
-export const mediaStatusRequestSchema = requestEnvelope("media.status", emptyObjectSchema);
-export const mediaMuteRequestSchema = requestEnvelope("media.mute", mediaMutePayloadSchema);
-export const mediaPlaybackRequestSchema = requestEnvelope("media.playback", emptyObjectSchema);
-export const mediaPauseRequestSchema = requestEnvelope("media.pause", emptyObjectSchema);
-export const mediaResumeRequestSchema = requestEnvelope("media.resume", emptyObjectSchema);
-export const typingWatchRequestSchema = requestEnvelope("typing.watch", typingWatchPayloadSchema);
-export const typingActivityEventSchema = eventEnvelope(
-  "typing.activity",
-  typingActivityPayloadSchema,
-);
-export const editsWatchRequestSchema = requestEnvelope("edits.watch", editsWatchPayloadSchema);
-export const editsCancelRequestSchema = requestEnvelope("edits.cancel", emptyObjectSchema);
-export const editsChangedEventSchema = eventEnvelope("edits.changed", editsChangedPayloadSchema);
-export const procForegroundRequestSchema = requestEnvelope("proc.foreground", emptyObjectSchema);
-export const selectionReadRequestSchema = requestEnvelope(
-  "selection.read",
-  selectionReadPayloadSchema,
-);
-export const keysPressRequestSchema = requestEnvelope("keys.press", keysPressPayloadSchema);
-export const focusWatchRequestSchema = requestEnvelope("focus.watch", focusWatchPayloadSchema);
-export const focusAppEventSchema = eventEnvelope("focus.app", frontAppPayloadSchema);
-export const appsListRequestSchema = requestEnvelope("apps.list", emptyObjectSchema);
-export const keychainGetRequestSchema = requestEnvelope("keychain.get", keychainGetPayloadSchema);
-export const keychainSetRequestSchema = requestEnvelope("keychain.set", keychainSetPayloadSchema);
-export const keychainDeleteRequestSchema = requestEnvelope(
-  "keychain.delete",
-  keychainDeletePayloadSchema,
-);
-export const axInspectRequestSchema = requestEnvelope("ax.inspect", axInspectPayloadSchema);
-export const captureStartRequestSchema = requestEnvelope(
-  "capture.start",
-  captureStartPayloadSchema,
-);
-export const captureStopRequestSchema = requestEnvelope("capture.stop", captureStopPayloadSchema);
-export const transcribeLiveRequestSchema = requestEnvelope(
-  "transcribe.live",
-  transcribeLivePayloadSchema,
-);
-export const detectSubscribeRequestSchema = requestEnvelope(
-  "detect.subscribe",
-  detectSubscribePayloadSchema,
-);
-export const detectEventSchema = eventEnvelope("detect.event", detectEventPayloadSchema);
-export const captureChunkEventSchema = eventEnvelope("capture.chunk", captureChunkPayloadSchema);
-export const captureLevelEventSchema = eventEnvelope("capture.level", captureLevelPayloadSchema);
-export const captureErrorEventSchema = eventEnvelope("capture.error", captureErrorPayloadSchema);
-export const contextSnapshotRequestSchema = requestEnvelope(
-  "context.snapshot",
-  contextSnapshotPayloadSchema,
-);
-
-export type HelloEvent = z.infer<typeof helloEventSchema>;
-export type HelperResponse = z.infer<typeof responseSchema>;
-
-/** Helper-to-main messages main understands in this protocol version. */
-export type HelperEvent = HelloEvent | z.infer<typeof helperErrorEventSchema>;

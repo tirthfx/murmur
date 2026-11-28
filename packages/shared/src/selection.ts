@@ -27,7 +27,6 @@ export type SelectionReadInput = z.infer<typeof selectionReadPayloadSchema>;
  * - `unavailable`: no focused element, and copying was off or failed.
  */
 export const SELECTION_STATUSES = ["ok", "empty", "too_long", "secure", "unavailable"] as const;
-export type SelectionStatus = (typeof SELECTION_STATUSES)[number];
 
 export const selectionRangeSchema = z.object({
   /** UTF-16 offset of the selection in the field. */

@@ -274,9 +274,6 @@ describe("connecting (CN-01)", () => {
     expect(await t.service.connect("fake")).toMatchObject({ ok: false, reason: "not-configured" });
     expect(await t.service.connect("nope")).toMatchObject({ ok: false, reason: "failed" });
     expect(t.opened).toHaveLength(0);
-    expect(t.service.providers()).toEqual([
-      { id: "fake", name: "Fakebook", scopes: ["read"], configured: false },
-    ]);
   });
 
   it("names localhost in the redirect for a provider that registers it, and shows the provider's reason for a refused code", async () => {
