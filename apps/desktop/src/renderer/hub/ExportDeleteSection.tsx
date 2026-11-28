@@ -4,6 +4,7 @@ import { Button } from "@astryxdesign/core/Button";
 import { CheckboxInput } from "@astryxdesign/core/CheckboxInput";
 import { Heading } from "@astryxdesign/core/Heading";
 import { HStack } from "@astryxdesign/core/HStack";
+import { ProgressBar } from "@astryxdesign/core/ProgressBar";
 import { Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
 import {
@@ -14,6 +15,7 @@ import {
   type DataCounts,
   type DeleteCategory,
   type ExportCategory,
+  type ExportStatus,
 } from "@murmur/shared";
 
 function size(bytes: number): string {
@@ -23,32 +25,49 @@ function size(bytes: number): string {
     : ` · ${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-/** HB-46: export chosen categories to a folder the user picks. */
+/** How often a running export is asked how far it is. */
+const POLL_MS = 500;
+
+/** HB-46: export chosen categories to a folder the user picks, in the background. */
 function ExportPart() {
   const [chosen, setChosen] = useState<Set<ExportCategory>>(new Set(DEFAULT_EXPORT));
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
+  const [status, setStatus] = useState<ExportStatus>({ state: "idle" });
+  const [choosing, setChoosing] = useState(false);
+  const [refusal, setRefusal] = useState<string | null>(null);
+
+  const read = useCallback(
+    () =>
+      window.murmur.dataExportStatus().then(
+        (next) => setStatus(next),
+        () => setRefusal("The export could not be followed."),
+      ),
+    [],
+  );
+  // An export started earlier may still be running, or have finished while the page was closed.
+  useEffect(() => void read(), [read]);
+  const running = status.state === "running";
+  useEffect(() => {
+    if (!running) return;
+    const timer = window.setInterval(() => void read(), POLL_MS);
+    return () => window.clearInterval(timer);
+  }, [running, read]);
 
   async function run() {
-    setBusy(true);
-    setMessage(null);
+    setChoosing(true);
+    setRefusal(null);
     try {
       const result = await window.murmur.dataExport({
         categories: EXPORT_CATEGORIES.filter((category) => chosen.has(category)),
       });
-      if (result.ok) {
-        const total = Object.values(result.counts).reduce((sum, n) => sum + n, 0);
-        setMessage({
-          text: `Exported ${total.toLocaleString()} items to ${result.folder}.`,
-          error: false,
-        });
-      } else if (!result.canceled) {
-        setMessage({ text: result.message, error: true });
-      }
+      if (result.ok) await read();
+      else if (!result.canceled) setRefusal(result.message);
     } finally {
-      setBusy(false);
+      setChoosing(false);
     }
   }
+
+  const total =
+    status.state === "done" ? Object.values(status.counts).reduce((sum, n) => sum + n, 0) : 0;
 
   return (
     <section data-setting="export" className="hub-setting-row">
@@ -79,21 +98,27 @@ function ExportPart() {
           <Button
             variant="secondary"
             label="Export the chosen data"
-            isDisabled={busy || chosen.size === 0}
+            isDisabled={choosing || running || chosen.size === 0}
             onClick={() => void run()}
           >
-            {busy ? "Exporting…" : "Export…"}
+            {running ? "Exporting…" : "Export…"}
           </Button>
         </div>
-        {message ? (
-          message.error ? (
-            <Banner status="error" title={message.text} />
-          ) : (
-            <Text size="sm" role="status">
-              {message.text}
+        {status.state === "running" ? (
+          <VStack gap={1}>
+            <ProgressBar label="Export progress" value={status.done} max={status.total} />
+            <Text size="sm" color="secondary" role="status">
+              Writing {EXPORT_LABELS[status.category]}. You can keep using Murmur.
             </Text>
-          )
+          </VStack>
         ) : null}
+        {status.state === "done" ? (
+          <Text size="sm" role="status">
+            Exported {total.toLocaleString()} items to {status.folder}.
+          </Text>
+        ) : null}
+        {status.state === "failed" ? <Banner status="error" title={status.message} /> : null}
+        {refusal ? <Banner status="error" title={refusal} /> : null}
       </VStack>
     </section>
   );

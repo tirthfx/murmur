@@ -182,12 +182,14 @@ import {
   deleteResultSchema,
   exportRequestSchema,
   exportResultSchema,
+  exportStatusSchema,
   resetRequestSchema,
   type DataCounts,
   type DeleteCategory,
   type DeleteResult,
   type ExportRequest,
   type ExportResult,
+  type ExportStatus,
   type ResetRequest,
 } from "./data";
 import {
@@ -358,6 +360,7 @@ export const IPC_CHANNELS = {
   homeView: "home:view",
   storageView: "privacy:storage",
   dataExport: "data:export",
+  dataExportStatus: "data:export-status",
   planView: "plan:view",
   testingTool: "testing:tool",
   reportProblem: "help:report-problem",
@@ -867,6 +870,7 @@ export const IPC_CONTRACT = {
   [IPC_CHANNELS.planAct]: { args: z.tuple([planActionSchema]), result: planViewSchema },
   // HB-46, HB-47.
   [IPC_CHANNELS.dataExport]: { args: z.tuple([exportRequestSchema]), result: exportResultSchema },
+  [IPC_CHANNELS.dataExportStatus]: { args: z.tuple([]), result: exportStatusSchema },
   [IPC_CHANNELS.dataCounts]: { args: z.tuple([]), result: dataCountsSchema },
   [IPC_CHANNELS.dataDelete]: {
     args: z.tuple([z.enum(DELETE_CATEGORIES)]),
@@ -1501,6 +1505,8 @@ export interface MurmurApi {
   planAct(action: PlanAction): Promise<PlanView>;
   /** Exports the chosen categories to a folder the user picks (HB-46). */
   dataExport(request: ExportRequest): Promise<ExportResult>;
+  /** How the export is going; poll it while one runs (HB-46). */
+  dataExportStatus(): Promise<ExportStatus>;
   /** Counts and sizes of each category that can be deleted (HB-47). */
   dataCounts(): Promise<DataCounts>;
   /** Deletes one category for good. */
