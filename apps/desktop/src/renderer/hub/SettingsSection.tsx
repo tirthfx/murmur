@@ -200,6 +200,7 @@ const ROW_SETTINGS: Partial<Record<string, ResettableSetting[]>> = {
   mute: ["muteWhileDictating"],
   scratchpad: ["scratchpad"],
   languages: ["languages"],
+  "language-prompt": ["languagePrompt"],
   microphone: ["inputDevice"],
   "microphone-list": ["microphones"],
   "silent-warning": ["silentWarning"],
@@ -1556,6 +1557,16 @@ export function SettingsSection({
           <LanguagesField
             languages={settings.languages}
             onChange={(languages) => update({ languages })}
+          />
+        </Row>
+        <Row id="language-prompt">
+          <Switch
+            label="Offer to add a language I speak"
+            description="With two or more languages chosen: after another one is clearly heard twice in a row, the Bar asks whether to add it. Not now keeps quiet about it for a week."
+            value={settings.languagePrompt.enabled}
+            onChange={(enabled) =>
+              update({ languagePrompt: { ...settings.languagePrompt, enabled } })
+            }
           />
         </Row>
         <Row id="models">

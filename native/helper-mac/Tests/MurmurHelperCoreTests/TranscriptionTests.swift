@@ -9,6 +9,7 @@ actor FakeRecognizer: SpeechRecognizer {
     var decodeDelay: Double = 0
     var loadError: SpeechRecognizerError?
     var decodeError: SpeechRecognizerError?
+    var heard: LanguageGuess?
     private(set) var loads: [(URL, URL)] = []
     private(set) var decodes: [(count: Int, options: RecognitionOptions)] = []
 
@@ -35,8 +36,11 @@ actor FakeRecognizer: SpeechRecognizer {
         if let decodeError { throw decodeError }
         return Recognition(
             text: "Hello there.", language: options.languages.first ?? "en",
-            segments: [RecognizedSegment(startMs: 0, endMs: 1200, text: "Hello there.", confidence: 0.91234)])
+            segments: [RecognizedSegment(startMs: 0, endMs: 1200, text: "Hello there.", confidence: 0.91234)],
+            heard: heard)
     }
+
+    func hear(_ guess: LanguageGuess) { heard = guess }
 }
 
 /// Polls until `count` replies have arrived or two seconds pass.
@@ -114,6 +118,19 @@ final class TranscriptionControllerTests: XCTestCase {
         waitForReplies(events, count: 1)
         XCTAssertEqual(events.all.first.flatMap(errorCode), "MODEL_LOAD_FAILED")
         XCTAssertNil(controller.currentModel)
+    }
+
+    func testTheDetectedLanguageIsReportedWithItsConfidence() async throws {
+        let (controller, recognizer, events) = loaded()
+        await recognizer.hear(LanguageGuess(language: "de", confidence: 0.93456))
+        XCTAssertNil(controller.handle(
+            id: "t-1", type: "transcribe.file",
+            payload: ["path": .string(try pcmFile(seconds: 1)), "languages": .array([.string("en"), .string("hi")])]))
+        waitForReplies(events, count: 1)
+        let result = try XCTUnwrap(events.all.first?.payload["result"]?.objectValue)
+        let heard = try XCTUnwrap(result["heard"]?.objectValue)
+        XCTAssertEqual(heard["language"], .string("de"))
+        XCTAssertEqual(heard["confidence"], .double(0.935))
     }
 
     func testTranscribeBeforeLoadIsModelNotLoaded() throws {
@@ -325,5 +342,21 @@ final class LanguageChoiceTests: XCTestCase {
         XCTAssertEqual(LanguageChoice.pick(probabilities: ["en": -0.5, "hi": -0.5], allowed: ["hi", "en"]), "hi")
         XCTAssertEqual(LanguageChoice.pick(probabilities: [:], allowed: ["mr", "en"]), "mr")
         XCTAssertNil(LanguageChoice.pick(probabilities: [:], allowed: []))
+    }
+
+    func testRawScoresBecomeProbabilitiesThatAddUpToOne() throws {
+        let probabilities = LanguageChoice.probabilities(logits: ["en": 1000, "hi": 998, "fr": -.infinity])
+        XCTAssertEqual(probabilities.values.reduce(0, +), 1, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(probabilities["en"]), 0.8808, accuracy: 0.001)
+        XCTAssertNil(probabilities["fr"])
+        XCTAssertTrue(LanguageChoice.probabilities(logits: [:]).isEmpty)
+    }
+
+    func testTheGuessIsTheMostLikelyLanguageOfAll() throws {
+        let guess = try XCTUnwrap(LanguageChoice.guess(probabilities: ["en": 0.05, "de": 0.9, "fr": 0.05]))
+        XCTAssertEqual(guess.language, "de")
+        XCTAssertEqual(guess.confidence, 0.9, accuracy: 0.0001)
+        XCTAssertEqual(LanguageChoice.guess(probabilities: ["fr": 0.5, "de": 0.5])?.language, "de")
+        XCTAssertNil(LanguageChoice.guess(probabilities: [:]))
     }
 }

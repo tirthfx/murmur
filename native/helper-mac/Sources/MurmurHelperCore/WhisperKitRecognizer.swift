@@ -50,14 +50,16 @@ public actor WhisperKitRecognizer: SpeechRecognizer {
         var decode = DecodingOptions()
         decode.verbose = false
         decode.task = options.translate ? .translate : .transcribe
+        var heard: LanguageGuess?
         if options.languages.count == 1, let language = options.languages.first {
             decode.language = LanguageChoice.base(language)
             decode.detectLanguage = false
         } else if options.languages.count > 1 {
             // Detect, but only among the chosen languages: score them, then force the best.
             var chosen = LanguageChoice.base(options.languages[0])
-            if let detected = try? await pipe.detectLangauge(audioArray: samples) {
-                chosen = LanguageChoice.pick(probabilities: detected.langProbs, allowed: options.languages) ?? chosen
+            if let scores = try? await LanguageScores.read(pipe, samples: samples) {
+                chosen = LanguageChoice.pick(probabilities: scores, allowed: options.languages) ?? chosen
+                heard = LanguageChoice.guess(probabilities: scores)
             }
             decode.language = chosen
             decode.detectLanguage = false
@@ -95,7 +97,8 @@ public actor WhisperKitRecognizer: SpeechRecognizer {
             }
         }
         let text = segments.map(\.text).joined(separator: " ")
-        return Recognition(text: text, language: results.first?.language ?? "", segments: segments)
+        return Recognition(
+            text: text, language: results.first?.language ?? "", segments: segments, heard: heard)
     }
 
     static let maxPromptTokens = 200

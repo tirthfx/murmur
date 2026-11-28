@@ -49,5 +49,10 @@ export const transcriptSchema = z.object({
   segments: z.array(transcriptSegmentSchema),
   decodeMs: z.number().int().nonnegative(),
   audioMs: z.number().int().nonnegative(),
+  /**
+   * DC-17: the most likely of every language the model knows, and how sure it is. Only when
+   * the language was detected; it may not be the one the words were written in.
+   */
+  heard: z.object({ language: z.string(), confidence: z.number().min(0).max(1) }).optional(),
 });
 export type Transcript = z.infer<typeof transcriptSchema>;

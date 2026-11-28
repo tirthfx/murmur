@@ -215,6 +215,23 @@ describe("recorder", () => {
     expect(logger.lines.join("\n")).not.toContain("Thursday");
   });
 
+  it("passes on the detected language of a dictation with words (DC-17)", async () => {
+    const heard = { language: "de", confidence: 0.97 };
+    const transcribe = vi
+      .fn()
+      .mockResolvedValueOnce({ ...transcript, text: "Guten Morgen.", heard })
+      .mockResolvedValueOnce({ ...transcript, heard });
+    const onHeard = vi.fn();
+    const { recorder } = setup({ transcribe, onHeard });
+    for (let take = 0; take < 2; take++) {
+      recorder.handleHotkey(key("down"));
+      recorder.handleHotkey(key("up"));
+      await recorder.idle();
+    }
+    // The second heard no words, so it says nothing about a language.
+    expect(onHeard).toHaveBeenCalledExactlyOnceWith(heard);
+  });
+
   it("logs the words only when asked to", async () => {
     const transcribe = vi.fn(async () => ({
       text: "Hello.",

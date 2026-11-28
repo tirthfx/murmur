@@ -214,6 +214,12 @@ export const SETTINGS_INDEX: readonly SettingEntry[] = [
   { id: "mouse-hands-free", page: "shortcuts", label: "Hands-free (mouse)", words: "button" },
   { id: "languages", page: "languages", label: "Dictation languages", words: "language" },
   {
+    id: "language-prompt",
+    page: "languages",
+    label: "Offer to add a language I speak",
+    words: "prompt detect",
+  },
+  {
     id: "models",
     page: "languages",
     label: "Speech and language models",

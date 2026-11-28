@@ -212,6 +212,12 @@ public final class TranscriptionController: @unchecked Sendable {
                         "decodeMs": .int(decodeMs),
                         "audioMs": .int(audioMs),
                     ]
+                if let heard = recognition.heard {
+                    result["heard"] = .object([
+                        "language": .string(heard.language),
+                        "confidence": .double(((heard.confidence * 1000).rounded()) / 1000),
+                    ])
+                }
                 result.merge(extra) { $1 }
                 envelope = MessageRouter.success(id: id, requestType: type, result)
                 Log.info("transcribed \(audioMs) ms of audio in \(decodeMs) ms")

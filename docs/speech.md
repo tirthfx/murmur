@@ -54,6 +54,14 @@ own.
   takes the chosen language it finds most likely (on a tie, the earlier one in the list),
   and then transcribes in that language. A language that was not chosen is never used.
 - The tray's Languages menu makes a language the primary one, or switches to detection.
+- The detection scores every language the model knows, so the nearest chosen language wins
+  even when another language is more likely. WhisperKit's own detection call reports only the
+  winner, so `LanguageScores.swift` runs the same single decoding step and reads all the scores.
+- **Adding a language:** `transcribe.file` also reports the most likely language of all
+  (`heard`). When it is surer than 0.85 of a language that is not chosen, two dictations in a
+  row, the Bar asks "Add German to your languages?". **Not now** keeps quiet about that
+  language for 7 days. It needs two or more chosen languages and room for another; the switch
+  is on the Languages page.
 - A single language stored by an older build (`speech.language`) is carried over once.
 
 ### Hindi in Latin script
