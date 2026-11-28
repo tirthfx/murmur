@@ -28,13 +28,20 @@ import { ReadError, defaultSleep, type Fetch } from "./http";
 export interface ConnectorImport {
   list(accountId: string): Promise<RecordingsResult>;
   prepare(accountId: string, remoteId: string): Promise<TranscriptImportPreviewResult>;
+  /**
+   * Imports what is new in the accounts whose automatic import is on, a few at a time, and
+   * returns the new meetings. One already imported, or like a meeting that is here, is left.
+   */
+  importNew(): Promise<string[]>;
 }
 
 const DAY = 86_400_000;
+/** The most one automatic run brings in from one account; the rest come the next time. */
+const AUTO_BATCH = 5;
 
 export function createConnectorImport(deps: {
   connectors: Pick<ConnectorService, "list" | "authorizedFetch">;
-  importer: Pick<TranscriptImport, "prepareRemote" | "isImported">;
+  importer: Pick<TranscriptImport, "prepareRemote" | "isImported" | "confirm" | "discard">;
   settings(): ConnectorSettings;
   now(): number;
   logger: Logger;
@@ -85,7 +92,36 @@ export function createConnectorImport(deps: {
     return { ok: true as const, entry };
   };
 
-  return {
+  const service: ConnectorImport = {
+    async importNew() {
+      const settings = deps.settings();
+      const imported: string[] = [];
+      for (const entry of deps.connectors.list()) {
+        const auto =
+          entry.connector === ZOOM_ID
+            ? settings.zoom.autoImport
+            : entry.connector === FIREFLIES_ID && settings.fireflies.autoImport;
+        if (!auto || entry.status !== "connected") continue;
+        const found = await service.list(entry.id);
+        if (!found.ok) continue;
+        const fresh = found.recordings
+          .filter((recording) => recording.hasTranscript && !recording.imported)
+          .slice(0, AUTO_BATCH);
+        for (const recording of fresh) {
+          const prepared = await service.prepare(entry.id, recording.remoteId);
+          if (!prepared.ok) continue;
+          const { token, title, startedAt, duplicate } = prepared.preview;
+          if (duplicate) {
+            deps.importer.discard(token);
+            continue;
+          }
+          const result = deps.importer.confirm({ token, title, startedAt });
+          if (result.ok) imported.push(result.meetingId);
+        }
+      }
+      return imported;
+    },
+
     async list(accountId) {
       const found = usable(accountId);
       if (!found.ok) return found;
@@ -168,6 +204,7 @@ export function createConnectorImport(deps: {
       }
     },
   };
+  return service;
 }
 
 const toResult = (

@@ -325,6 +325,8 @@ describe("Connectors page (CN-15)", () => {
           github: DEFAULT_CONNECTOR_SETTINGS.github,
           zoom: DEFAULT_CONNECTOR_SETTINGS.zoom,
           fireflies: DEFAULT_CONNECTOR_SETTINGS.fireflies,
+          featuresOff: [],
+          privateTitlesAsBusy: false,
         },
       }),
     );
@@ -343,6 +345,8 @@ describe("Connectors page (CN-15)", () => {
           github: DEFAULT_CONNECTOR_SETTINGS.github,
           zoom: DEFAULT_CONNECTOR_SETTINGS.zoom,
           fireflies: DEFAULT_CONNECTOR_SETTINGS.fireflies,
+          featuresOff: [],
+          privateTitlesAsBusy: false,
         },
       }),
     );

@@ -140,7 +140,7 @@ export function ConnectorImport({
             void save(
               fireflies
                 ? { fireflies: { ...settings.fireflies, rangeDays: Number(value) } }
-                : { zoom: { rangeDays: Number(value) } },
+                : { zoom: { ...settings.zoom, rangeDays: Number(value) } },
             )
           }
         />
@@ -164,6 +164,18 @@ export function ConnectorImport({
           }
         />
       ) : null}
+      <Switch
+        label={`Import new meetings from ${connector.name} by itself`}
+        description="Looked for once an hour. A meeting that looks like one already here is left for you."
+        value={(fireflies ? settings.fireflies : settings.zoom).autoImport}
+        onChange={(autoImport) =>
+          void save(
+            fireflies
+              ? { fireflies: { ...settings.fireflies, autoImport } }
+              : { zoom: { ...settings.zoom, autoImport } },
+          )
+        }
+      />
       {message ? <Banner status="warning" title={message} /> : null}
       {recordings ? (
         recordings.length === 0 ? (

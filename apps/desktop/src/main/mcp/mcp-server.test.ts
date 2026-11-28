@@ -179,6 +179,14 @@ describe("MCP protocol (CN-11)", () => {
     });
   });
 
+  it("neither lists nor runs a reading tool the owner switched off (CN-11)", async () => {
+    const t = setup([tool()], { toolOff: (name) => name === "echo" });
+    expect((await t.call("tools/list"))?.result).toEqual({ tools: [] });
+    expect((await t.call("tools/call", { name: "echo" }))?.result).toMatchObject({
+      isError: true,
+    });
+  });
+
   it("counts calls to tools, 60 a minute, and says when to try again; listing is free", async () => {
     let now = 0;
     const t = setup([tool()], {

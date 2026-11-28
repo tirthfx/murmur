@@ -8,7 +8,17 @@ import { createConnectorConfig } from "./connector-config";
 import { buildConnectorsView } from "./connectors-view";
 
 const { gmail, slack, notion, linear, github, zoom, fireflies } = DEFAULT_CONNECTOR_SETTINGS;
-const DEFAULT_CONNECTOR_SETTINGS_EXTRAS = { gmail, slack, notion, linear, github, zoom, fireflies };
+const DEFAULT_CONNECTOR_SETTINGS_EXTRAS = {
+  gmail,
+  slack,
+  notion,
+  linear,
+  github,
+  zoom,
+  fireflies,
+  featuresOff: [],
+  privateTitlesAsBusy: false,
+};
 
 const account = (over: Partial<ConnectorAccount> = {}): ConnectorAccount => ({
   id: "a1",

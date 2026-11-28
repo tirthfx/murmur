@@ -18,20 +18,25 @@ export const IMPORT_RANGE_DAYS = [7, 30, 90] as const;
 /** `connectors.zoom`: how far back to list recordings. Nothing is downloaded until a meeting is picked. */
 export const zoomSettingsSchema = z.strictObject({
   rangeDays: z.number().int().min(1).max(90),
+  /** CN-09: bring new recordings in without being asked. */
+  autoImport: z.boolean().default(false),
 });
 export type ZoomSettings = z.infer<typeof zoomSettingsSchema>;
-export const DEFAULT_ZOOM_SETTINGS: ZoomSettings = { rangeDays: 30 };
+export const DEFAULT_ZOOM_SETTINGS: ZoomSettings = { rangeDays: 30, autoImport: false };
 
 /** `connectors.fireflies`: how far back to list transcripts, and whether its summary comes with the meeting. */
 export const firefliesSettingsSchema = z.strictObject({
   rangeDays: z.number().int().min(1).max(365),
   /** Keep Fireflies' own summary as a summary labelled as imported. */
   importProviderSummary: z.boolean(),
+  /** CN-10: bring new transcripts in without being asked. */
+  autoImport: z.boolean().default(false),
 });
 export type FirefliesSettings = z.infer<typeof firefliesSettingsSchema>;
 export const DEFAULT_FIREFLIES_SETTINGS: FirefliesSettings = {
   rangeDays: 30,
   importProviderSummary: true,
+  autoImport: false,
 };
 
 /** One meeting in the list the owner picks from. */

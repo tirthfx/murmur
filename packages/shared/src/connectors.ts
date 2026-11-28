@@ -366,6 +366,10 @@ export const connectorSettingsSchema = z.strictObject({
   /** CN-09, CN-10: importing meetings from Zoom and Fireflies. */
   zoom: zoomSettingsSchema.default(DEFAULT_ZOOM_SETTINGS),
   fireflies: firefliesSettingsSchema.default(DEFAULT_FIREFLIES_SETTINGS),
+  /** CN-15: features the owner switched off, by their id. */
+  featuresOff: z.array(z.string().max(64)).max(32).default([]),
+  /** CN-02: events the calendar marks private are titled "Busy" everywhere in Murmur. */
+  privateTitlesAsBusy: z.boolean().default(false),
 });
 export type ConnectorSettings = z.infer<typeof connectorSettingsSchema>;
 
@@ -379,6 +383,8 @@ export const DEFAULT_CONNECTOR_SETTINGS: ConnectorSettings = {
   github: DEFAULT_GITHUB_SETTINGS,
   zoom: DEFAULT_ZOOM_SETTINGS,
   fireflies: DEFAULT_FIREFLIES_SETTINGS,
+  featuresOff: [],
+  privateTitlesAsBusy: false,
 };
 
 /** The sync interval and read-only switch of a connector, with the defaults filled in. */
@@ -424,7 +430,13 @@ export interface ConnectorView {
 export interface ConnectorsView {
   connectors: ConnectorView[];
   cacheTtlMinutes: number;
+  /** CN-15: features the owner switched off. */
+  featuresOff?: readonly string[];
 }
+
+/** Whether a feature's own switch on the Connectors page is on (CN-15). */
+export const connectorFeatureOn = (settings: ConnectorSettings, id: string): boolean =>
+  !settings.featuresOff.includes(id);
 
 export interface ConnectorFeatureState {
   feature: ConnectorFeature;
@@ -442,8 +454,10 @@ export interface ConnectorFeatureState {
  */
 export function connectorFeatureState(
   feature: ConnectorFeature,
-  view: Pick<ConnectorsView, "connectors">,
+  view: Pick<ConnectorsView, "connectors" | "featuresOff">,
 ): ConnectorFeatureState {
+  if (view.featuresOff?.includes(feature.id))
+    return { feature, enabled: false, reason: "Turned off here.", reconnect: null };
   if (!feature.built)
     return {
       feature,
@@ -493,7 +507,7 @@ export function connectorFeatureState(
 
 /** The states of every feature, for the "Used by" list. */
 export function connectorFeatureStates(
-  view: Pick<ConnectorsView, "connectors">,
+  view: Pick<ConnectorsView, "connectors" | "featuresOff">,
 ): ConnectorFeatureState[] {
   return CONNECTOR_FEATURES.map((feature) => connectorFeatureState(feature, view));
 }

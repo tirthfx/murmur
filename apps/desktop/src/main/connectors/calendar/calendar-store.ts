@@ -52,7 +52,14 @@ const toEvent = (row: Row): CalendarEvent => ({
   isPrivate: row.is_private === 1,
 });
 
-export function createCalendarStore(db: DatabaseSync): CalendarStore {
+export function createCalendarStore(
+  db: DatabaseSync,
+  /** CN-02: whether private events are shown as "Busy". */
+  privateAsBusy: () => boolean = () => false,
+): CalendarStore {
+  /** A private event keeps its time; its title is kept here and shown only when allowed. */
+  const shown = (event: CalendarEvent): CalendarEvent =>
+    event.isPrivate && privateAsBusy() ? { ...event, title: "Busy", location: null } : event;
   return {
     replaceWindow(accountId, window, events) {
       db.exec("BEGIN IMMEDIATE");
@@ -100,7 +107,7 @@ export function createCalendarStore(db: DatabaseSync): CalendarStore {
              ORDER BY e.start_ms, e.end_ms, e.title`,
           )
           .all(range.from, range.to, range.includeDeclined ? 1 : 0) as unknown as Row[]
-      ).map(toEvent);
+      ).map((row) => shown(toEvent(row)));
     },
 
     count(accountId) {

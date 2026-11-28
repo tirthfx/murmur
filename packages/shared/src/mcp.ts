@@ -19,6 +19,16 @@ export const MCP_LIMITS = {
 
 export const MCP_DEFAULT_PORT = 7825;
 
+/** The tools that only read, as the Connectors page names them. */
+export const MCP_READ_TOOLS = [
+  { name: "search_meetings", label: "Search meetings" },
+  { name: "get_meeting", label: "Open a meeting" },
+  { name: "get_summary", label: "Read a summary" },
+  { name: "get_transcript", label: "Read a transcript" },
+  { name: "list_tasks", label: "List tasks" },
+  { name: "list_folders", label: "List folders" },
+] as const;
+
 export const mcpSettingsSchema = z.strictObject({
   /** Off until the owner turns it on. */
   enabled: z.boolean(),
@@ -42,6 +52,8 @@ export const mcpSettingsSchema = z.strictObject({
       addNote: z.boolean(),
     })
     .default({ createTask: false, addNote: false }),
+  /** CN-11: reading tools the owner switched off, by name. */
+  toolsOff: z.array(z.string().max(64)).max(32).default([]),
 });
 export type McpSettings = z.infer<typeof mcpSettingsSchema>;
 
@@ -51,6 +63,7 @@ export const DEFAULT_MCP_SETTINGS: McpSettings = {
   http: { port: MCP_DEFAULT_PORT },
   rateLimitPerMinute: 60,
   write: { createTask: false, addNote: false },
+  toolsOff: [],
 };
 
 /** What the Connectors page shows about the server. */

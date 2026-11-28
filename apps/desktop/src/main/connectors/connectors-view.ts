@@ -53,5 +53,9 @@ export async function buildConnectorsView(deps: {
       };
     }),
   );
-  return { connectors, cacheTtlMinutes: deps.settings.cacheTtlMinutes };
+  return {
+    connectors,
+    cacheTtlMinutes: deps.settings.cacheTtlMinutes,
+    featuresOff: deps.settings.featuresOff,
+  };
 }

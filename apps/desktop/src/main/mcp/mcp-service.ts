@@ -60,6 +60,7 @@ export function createMcpService(deps: {
       limit: () => deps.settings().rateLimitPerMinute,
       now: deps.now,
     }),
+    toolOff: (name) => deps.settings().toolsOff.includes(name),
     // A tool that writes works only while its switch is on.
     writeAllowed: (tool) => {
       const write = deps.settings().write;

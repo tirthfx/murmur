@@ -242,6 +242,19 @@ export function ConnectorsPage() {
     }
   }
 
+  /** CN-15: a feature's own switch. */
+  async function switchFeature(id: string, on: boolean) {
+    if (!settings) return;
+    const featuresOff = on
+      ? settings.featuresOff.filter((off) => off !== id)
+      : [...settings.featuresOff, id];
+    const updated = await window.murmur.updateSettings({
+      connectors: { ...settings, featuresOff },
+    });
+    setSettings(updated.settings.connectors);
+    await reload();
+  }
+
   /** What Murmur may do with Gmail (CN-04). A permission is asked for only when its feature is on. */
   async function setGmail(patch: Partial<GmailSettings>) {
     if (!settings) return;
@@ -324,6 +337,14 @@ export function ConnectorsPage() {
                   {state.feature.detail}
                 </Text>
                 {state.reason ? <Text size="sm">{state.reason}</Text> : null}
+                {state.feature.built ? (
+                  <Switch
+                    label={`Use ${state.feature.name.toLowerCase()}`}
+                    isLabelHidden
+                    value={!view.featuresOff?.includes(state.feature.id)}
+                    onChange={(on) => void switchFeature(state.feature.id, on)}
+                  />
+                ) : null}
               </li>
             ))}
           </ul>
