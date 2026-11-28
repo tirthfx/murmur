@@ -46,6 +46,7 @@ import { FocusSection } from "./FocusSection";
 import { PlansSection } from "./PlansSection";
 import { ExperimentalSection } from "./ExperimentalSection";
 import { InstructSection } from "./InstructSection";
+import { Models } from "./ModelRow";
 import { LanguagesField } from "./LanguagesField";
 import { MouseButtonField } from "./MouseButtonField";
 import { ShortcutField } from "./ShortcutField";
@@ -1550,12 +1551,18 @@ export function SettingsSection({
       </>
     ),
     languages: () => (
-      <Row id="languages">
-        <LanguagesField
-          languages={settings.languages}
-          onChange={(languages) => update({ languages })}
-        />
-      </Row>
+      <>
+        <Row id="languages">
+          <LanguagesField
+            languages={settings.languages}
+            onChange={(languages) => update({ languages })}
+          />
+        </Row>
+        <Row id="models">
+          <Heading level={3}>Models on this Mac</Heading>
+          <Models />
+        </Row>
+      </>
     ),
     microphone: () => (
       <>

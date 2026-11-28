@@ -70,7 +70,7 @@ describe("Home page", () => {
     });
     render(<HomePage />);
     await user.click(await screen.findByRole("button", { name: "Download the speech model" }));
-    expect(window.murmur.downloadSpeechModel).toHaveBeenCalled();
+    expect(window.murmur.modelDownload).toHaveBeenCalledWith("speech");
   });
 
   it("shows the checklist until setup is done and ticks items off as they are", async () => {

@@ -51,7 +51,7 @@ Control+Z in the panel takes the last inserted draft out of the app again (see `
 
 - **Fast:** the cleanup model (Qwen3 4B Instruct), always there.
 - **Quality:** Qwen3 8B, 4-bit, 5.0 GB (Apache 2.0; owner's choice 2026-11-13). Never
-  downloaded unless asked: Settings, Instruct Mode, Quality model, Download. The file is pinned
+  downloaded unless asked: its row under Instruct Mode's settings, or Settings, Languages. The file is pinned
   by revision, size and SHA-256 in `packages/shared/src/llm-models.ts`, checked once per run,
   and can be removed again. `npm run model:download -- quality` fetches it from a terminal.
   It runs in its own worker ("Murmur Instruct Quality"), started only when a thread uses it

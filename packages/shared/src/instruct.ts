@@ -178,16 +178,5 @@ export type InstructThread = z.infer<typeof instructThreadSchema>;
 /** Longest field text sent with an instruction, on each side of the caret. */
 export const INSTRUCT_FIELD_CHARS = 2000;
 
-/** The Quality model on this Mac (RW-15), for Settings. */
-export const instructModelStatusSchema = z.object({
-  state: z.enum(["missing", "downloading", "ready", "failed"]),
-  label: z.string(),
-  totalBytes: z.number(),
-  doneBytes: z.number(),
-  /** Why the download or check failed. */
-  message: z.string().nullable(),
-});
-export type InstructModelStatus = z.infer<typeof instructModelStatusSchema>;
-
 /** Auto-detect (RW-16): how long the Bar asks before the dictation goes in as text. */
 export const AUTO_INSTRUCT_ASK_MS = 4000;

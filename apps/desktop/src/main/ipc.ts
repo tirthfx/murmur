@@ -89,7 +89,8 @@ import {
   type NoteVersionSave,
   type NoteVersionText,
   type CapturedKey,
-  type InstructModelStatus,
+  type ModelId,
+  type ModelStatus,
   type FocusAddResult,
   type FocusAppInput,
   type FocusDuration,
@@ -364,7 +365,10 @@ export interface IpcDeps {
   resetShortcuts: (slot: ShortcutSlot | "all") => Promise<ShortcutResult>;
   captureShortcut: (active: boolean) => void;
   getSetupStatus: () => Promise<SetupStatus>;
-  downloadSpeechModel: () => Promise<SetupStatus>;
+  modelsList: () => Promise<ModelStatus[]>;
+  modelDownload: (id: ModelId) => Promise<ModelStatus>;
+  modelCancel: (id: ModelId) => Promise<ModelStatus>;
+  modelRemove: (id: ModelId) => Promise<ModelStatus>;
   micCheckStart: () => Promise<MicCheckStartResult>;
   micCheckStop: () => Promise<MicCheckResult | null>;
   getMediaPlayback: () => Promise<MediaPlayback | null>;
@@ -400,9 +404,6 @@ export interface IpcDeps {
   instructDelete: (id: string) => void;
   instructDeleteAll: () => void;
   instructReuse: (id: string) => boolean | Promise<boolean>;
-  instructModelStatus: () => InstructModelStatus | Promise<InstructModelStatus>;
-  instructModelDownload: () => InstructModelStatus | Promise<InstructModelStatus>;
-  instructModelRemove: () => InstructModelStatus | Promise<InstructModelStatus>;
   focusState: () => FocusState;
   focusStart: (duration: FocusDuration) => FocusState;
   focusStop: () => FocusState;
@@ -571,8 +572,14 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.captureShortcut(request.args[0] as boolean);
       case IPC_CHANNELS.getSetupStatus:
         return deps.getSetupStatus();
-      case IPC_CHANNELS.downloadSpeechModel:
-        return deps.downloadSpeechModel();
+      case IPC_CHANNELS.modelsList:
+        return deps.modelsList();
+      case IPC_CHANNELS.modelDownload:
+        return deps.modelDownload(request.args[0] as ModelId);
+      case IPC_CHANNELS.modelCancel:
+        return deps.modelCancel(request.args[0] as ModelId);
+      case IPC_CHANNELS.modelRemove:
+        return deps.modelRemove(request.args[0] as ModelId);
       case IPC_CHANNELS.micCheckStart:
         return deps.micCheckStart();
       case IPC_CHANNELS.micCheckStop:
@@ -647,12 +654,6 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.instructDeleteAll();
       case IPC_CHANNELS.instructReuse:
         return deps.instructReuse(request.args[0] as string);
-      case IPC_CHANNELS.instructModelStatus:
-        return deps.instructModelStatus();
-      case IPC_CHANNELS.instructModelDownload:
-        return deps.instructModelDownload();
-      case IPC_CHANNELS.instructModelRemove:
-        return deps.instructModelRemove();
       case IPC_CHANNELS.focusState:
         return deps.focusState();
       case IPC_CHANNELS.focusStart:

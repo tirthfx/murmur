@@ -41,16 +41,16 @@ ago counts. A permission whose status macOS will not report is not treated as mi
 
 ## Code
 
-| File                                            | Purpose                                    |
-| ----------------------------------------------- | ------------------------------------------ |
-| `packages/shared/src/setup.ts`                  | Setup status types and the blocked message |
-| `apps/desktop/src/main/setup/readiness.ts`      | What still blocks dictation                |
-| `apps/desktop/src/main/setup/model-download.ts` | One download at a time, with progress      |
-| `apps/desktop/src/renderer/hub/Onboarding.tsx`  | The setup screens                          |
-| `apps/desktop/src/renderer/hub/setup-steps.ts`  | Step order, titles and small formatters    |
+| File                                           | Purpose                                    |
+| ---------------------------------------------- | ------------------------------------------ |
+| `packages/shared/src/setup.ts`                 | Setup status types and the blocked message |
+| `apps/desktop/src/main/setup/readiness.ts`     | What still blocks dictation                |
+| `apps/desktop/src/main/setup/managed-model.ts` | One model: download, cancel, check, delete |
+| `apps/desktop/src/renderer/hub/Onboarding.tsx` | The setup screens                          |
+| `apps/desktop/src/renderer/hub/setup-steps.ts` | Step order, titles and small formatters    |
 
 The Hub reads the model state and the blockers with `getSetupStatus` once a second while the
-setup screen is open, and starts the download with `downloadSpeechModel`.
+setup screen is open, and starts the download with `modelDownload("speech")`.
 
 ## Manual test
 

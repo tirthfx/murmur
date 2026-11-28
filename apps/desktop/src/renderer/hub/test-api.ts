@@ -14,6 +14,7 @@ import type {
   MurmurApi,
   PermissionsInfo,
   SettingsView,
+  ModelStatus,
   SetupStatus,
   StylesView,
   VoiceProfileView,
@@ -158,16 +159,37 @@ export const SAMPLE_PERMISSIONS: PermissionsInfo = {
   message: null,
 };
 
-export const SAMPLE_SETUP: SetupStatus = {
-  model: {
-    state: "ready",
-    label: "Test speech model",
-    totalBytes: 648_000_000,
-    downloadedBytes: 0,
-    message: null,
-  },
-  blockers: [],
-};
+/** One model's row, ready unless the test says otherwise. */
+export const sampleModel = (over: Partial<ModelStatus> = {}): ModelStatus => ({
+  id: "speech",
+  state: "ready",
+  label: "Test speech model",
+  host: "huggingface.co",
+  totalBytes: 648_000_000,
+  diskBytes: 648_000_000,
+  downloadedBytes: 0,
+  message: null,
+  ...over,
+});
+
+export const SAMPLE_MODELS: ModelStatus[] = [
+  sampleModel(),
+  sampleModel({
+    id: "fast",
+    label: "Test fast model",
+    totalBytes: 2_500_000_000,
+    diskBytes: 2_500_000_000,
+  }),
+  sampleModel({
+    id: "quality",
+    state: "missing",
+    label: "Test quality model",
+    totalBytes: 5_000_000_000,
+    diskBytes: 0,
+  }),
+];
+
+export const SAMPLE_SETUP: SetupStatus = { model: sampleModel(), blockers: [] };
 
 export const SAMPLE_PROFILE: VoiceProfileView = {
   sessions: 0,
@@ -629,7 +651,10 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
     setShortcut: vi.fn().mockResolvedValue({ ok: true, view: SAMPLE_SETTINGS }),
     captureShortcut: vi.fn().mockResolvedValue(undefined),
     getSetupStatus: vi.fn().mockResolvedValue(SAMPLE_SETUP),
-    downloadSpeechModel: vi.fn().mockResolvedValue(SAMPLE_SETUP),
+    modelsList: vi.fn().mockResolvedValue(SAMPLE_MODELS),
+    modelDownload: vi.fn().mockResolvedValue(sampleModel({ state: "downloading" })),
+    modelCancel: vi.fn().mockResolvedValue(sampleModel({ state: "missing" })),
+    modelRemove: vi.fn().mockResolvedValue(sampleModel({ state: "missing", diskBytes: 0 })),
     micCheckStart: vi.fn().mockResolvedValue({ ok: true, deviceName: "Desk Mic" }),
     micCheckStop: vi.fn().mockResolvedValue(null),
     onMicCheckLevel: vi.fn().mockReturnValue(() => {}),
@@ -666,27 +691,6 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
     instructDelete: vi.fn().mockResolvedValue(undefined),
     instructDeleteAll: vi.fn().mockResolvedValue(undefined),
     instructReuse: vi.fn().mockResolvedValue(true),
-    instructModelStatus: vi.fn().mockResolvedValue({
-      state: "missing",
-      label: "Qwen3 8B (4-bit)",
-      totalBytes: 5027784512,
-      doneBytes: 0,
-      message: null,
-    }),
-    instructModelDownload: vi.fn().mockResolvedValue({
-      state: "downloading",
-      label: "Qwen3 8B (4-bit)",
-      totalBytes: 5027784512,
-      doneBytes: 0,
-      message: null,
-    }),
-    instructModelRemove: vi.fn().mockResolvedValue({
-      state: "missing",
-      label: "Qwen3 8B (4-bit)",
-      totalBytes: 5027784512,
-      doneBytes: 0,
-      message: null,
-    }),
     focusState: vi.fn().mockResolvedValue({ status: "off" }),
     focusStart: vi.fn().mockResolvedValue({ status: "on", endsAt: null }),
     focusStop: vi.fn().mockResolvedValue({ status: "off" }),

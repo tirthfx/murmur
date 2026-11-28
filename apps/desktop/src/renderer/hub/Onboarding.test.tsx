@@ -4,7 +4,13 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MurmurApi, PermissionsInfo, SetupStatus } from "@murmur/shared";
 import { App } from "./App";
-import { SAMPLE_PERMISSIONS, SAMPLE_SETTINGS, SAMPLE_SETUP, createMockApi } from "./test-api";
+import {
+  SAMPLE_PERMISSIONS,
+  SAMPLE_SETTINGS,
+  SAMPLE_SETUP,
+  createMockApi,
+  sampleModel,
+} from "./test-api";
 
 function stubBrowserApis() {
   vi.stubGlobal(
@@ -197,12 +203,13 @@ describe("Onboarding", () => {
     const getSetupStatus = vi
       .fn()
       .mockResolvedValue(setupStatus({ state: "missing" }, ["speechModel"]));
-    const downloadSpeechModel = vi
-      .fn()
-      .mockResolvedValue(
+    const modelDownload = vi.fn(async () => {
+      getSetupStatus.mockResolvedValue(
         setupStatus({ state: "downloading", downloadedBytes: 324_000_000 }, ["speechModel"]),
       );
-    fresh({ getSetupStatus, downloadSpeechModel });
+      return sampleModel({ state: "downloading" });
+    });
+    fresh({ getSetupStatus, modelDownload });
     render(<App />);
     await screen.findByTestId("setup");
     await press(user, "Get started");
@@ -210,7 +217,7 @@ describe("Onboarding", () => {
     expect(title()).toBe("Speech model");
     expect(screen.getByRole("button", { name: "Continue" })).toHaveProperty("disabled", true);
     await press(user, "Download the speech model");
-    expect(downloadSpeechModel).toHaveBeenCalledOnce();
+    expect(modelDownload).toHaveBeenCalledExactlyOnceWith("speech");
     await waitFor(() =>
       expect(screen.getByTestId("setup-model-progress").textContent).toBe("324 MB of 648 MB"),
     );
