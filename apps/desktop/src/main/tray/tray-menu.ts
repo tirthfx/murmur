@@ -28,6 +28,8 @@ export interface TrayState {
   hasLastTranscript: boolean;
   /** Dictation is paused (DC-45). */
   paused: boolean;
+  /** HB-13: Creator mode adds "Draft from last dictation". */
+  creatorMode?: boolean;
   /** The Bar is shown (HB-17). */
   barVisible: boolean;
   /** A failed dictation can be transcribed again. */
@@ -63,6 +65,7 @@ export type TrayAction =
   | { type: "language"; code: SpeechLanguage | "auto" }
   | { type: "copy-last" }
   | { type: "paste-last" }
+  | { type: "draft-last" }
   /** DC-45: dictation off until resumed. */
   | { type: "pause"; paused: boolean }
   | { type: "show-bar"; visible: boolean }
@@ -305,6 +308,16 @@ export function trayMenu(state: TrayState): TrayItem[] {
       enabled: state.hasLastTranscript,
       action: { type: "paste-last" },
     },
+    ...(state.creatorMode
+      ? [
+          {
+            kind: "item" as const,
+            label: tr(state.language, "tray.draftLast"),
+            enabled: state.hasLastTranscript,
+            action: { type: "draft-last" as const },
+          },
+        ]
+      : []),
     {
       kind: "item",
       label: tr(state.language, "tray.retryLast"),

@@ -487,6 +487,14 @@ export function SettingsSection({
             onChange={(enabled) => update({ typingReminder: { enabled, snoozedUntil: null } })}
           />
         </Row>
+        <Row id="creator-mode">
+          <Switch
+            label="Creator mode"
+            description="Puts Scratchpad and Rewrites at the top of the sidebar, and adds “Draft from last dictation” to the menu."
+            value={settings.creatorMode}
+            onChange={(creatorMode) => update({ creatorMode })}
+          />
+        </Row>
         <Row id="sounds">
           <VStack gap={2}>
             <Heading level={3}>Sounds</Heading>

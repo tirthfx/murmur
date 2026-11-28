@@ -836,6 +836,7 @@ const settingsDefaults: Settings = {
   muteWhileDictating: false,
   setupComplete: false,
   pressEnterCommand: true,
+  creatorMode: false,
   sessionLimitMinutes: SESSION_LIMIT_DEFAULT,
   smartFormatting: true,
   bar: DEFAULT_BAR,
@@ -3129,6 +3130,14 @@ function createTray(): void {
     listDevices: () => helper.listAudioDevices(),
     lastTranscript: () => lastTranscript.read(),
     pasteLast: () => void lastTranscript.paste(),
+    draftFromLast: () => {
+      const text = history?.lastText() ?? null;
+      if (!notes || text === null) {
+        bar.dispatch({ type: "warn", message: NOTE_MESSAGES.noDictation });
+        return;
+      }
+      openScratchpad(notes.create(text).id);
+    },
     openHub: () => openHubPage("home"),
     paused: () => dictationPaused,
     setPaused: (paused) => {

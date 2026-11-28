@@ -46,6 +46,7 @@ function setup() {
     silentWarning: true,
     setupComplete: true,
     pressEnterCommand: true,
+    creatorMode: false,
     openHubOnLaunch: true,
     insights: { typingWpm: 40 },
     profile: { displayName: "", showOnHome: true },

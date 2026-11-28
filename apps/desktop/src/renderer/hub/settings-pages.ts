@@ -64,6 +64,7 @@ export const SETTINGS_INDEX: readonly SettingEntry[] = [
   { id: "silent-warning", page: "microphone", label: "Silent microphone warning", words: "mute" },
   { id: "context", page: "system", label: "Use the text around the cursor", words: "context" },
   { id: "typing-reminder", page: "system", label: "Suggest dictating after a lot of typing" },
+  { id: "creator-mode", page: "system", label: "Creator mode", words: "writing scratchpad draft" },
   { id: "sounds", page: "system", label: "Sounds", words: "tones audio" },
   { id: "mute", page: "system", label: "Mute other audio while dictating" },
   { id: "scratchpad", page: "system", label: "Scratchpad", words: "notes tabs" },

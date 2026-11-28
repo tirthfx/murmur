@@ -51,6 +51,8 @@ export interface TrayControllerDeps {
   canRetry(): boolean;
   retryLast(): void;
   pasteLast(): void;
+  /** HB-13: a new note holding the last dictation. */
+  draftFromLast?(): void;
   openHub(): void;
   paused(): boolean;
   setPaused(paused: boolean): void;
@@ -157,6 +159,7 @@ export function createTrayController(deps: TrayControllerDeps): TrayController {
       language: settings.language,
       hasLastTranscript: deps.lastTranscript() !== null,
       paused: deps.paused(),
+      creatorMode: settings.creatorMode,
       barVisible: settings.bar.visible,
       canRetry: deps.canRetry(),
       typingReminder: reminderStatus(settings.typingReminder, deps.clock.now()),
@@ -248,6 +251,9 @@ export function createTrayController(deps: TrayControllerDeps): TrayController {
           else deps.copy(text);
           return;
         }
+        case "draft-last":
+          deps.draftFromLast?.();
+          break;
         case "paste-last":
           deps.pasteLast();
           return;
