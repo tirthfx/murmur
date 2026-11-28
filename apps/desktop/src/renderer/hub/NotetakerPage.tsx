@@ -653,11 +653,7 @@ function MeetingView({
           ) : tab === "docs" ? (
             <Docs detail={detail} onChange={onChange} />
           ) : tab === "brief" ? (
-            <MeetingBriefTab
-              meetingId={meeting.id}
-              fromCalendar={Boolean(meeting.calendarEventId)}
-              onOpenMeeting={onOpenMeeting}
-            />
+            <MeetingBriefTab meetingId={meeting.id} onOpenMeeting={onOpenMeeting} />
           ) : (
             <Text color="secondary">{empty[tab]}</Text>
           )}

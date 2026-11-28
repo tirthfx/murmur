@@ -5,6 +5,7 @@ import type {
   BriefSettings,
   CalendarEvent,
   ConnectorAccount,
+  Meeting,
   MeetingBrief,
 } from "@murmur/shared";
 import { CALENDAR_CONNECTOR_IDS } from "@murmur/shared";
@@ -22,7 +23,10 @@ import { STARTED_GRACE_MS, usable } from "./calendar-upcoming";
 export interface BriefService {
   overview(): BriefOverview;
   get(eventKey: string): MeetingBrief | null;
-  /** Builds the brief of an event now, replacing the old one. */
+  /**
+   * Builds the brief of an event now, replacing the old one. The key `meeting:<id>` builds one
+   * for a recorded meeting that has no calendar event, from what came before it.
+   */
   build(eventKey: string): Promise<BriefResult>;
   /** Builds the briefs that are due: once a minute, and once now. */
   start(): void;
@@ -38,6 +42,31 @@ const LIST_AHEAD_MS = 24 * 3_600_000;
 const FIND_AHEAD_MS = 7 * 24 * 3_600_000;
 const MAX_EVENTS = 10;
 
+/** The account name in the key of a brief that has no calendar event. */
+export const MEETING_BRIEF_ACCOUNT = "meeting";
+
+/** A recorded meeting as the event its brief is built for. */
+const eventOfMeeting = (meeting: Meeting): CalendarEvent => ({
+  id: meeting.id,
+  accountId: MEETING_BRIEF_ACCOUNT,
+  connector: "",
+  title: meeting.title,
+  startMs: meeting.startedAt,
+  endMs: meeting.startedAt + meeting.durationMs,
+  allDay: false,
+  location: null,
+  attendees: (meeting.attendees ?? []).map((person) => ({
+    name: person.name,
+    email: person.email,
+    response: "accepted",
+    self: false,
+    organizer: false,
+  })),
+  joinUrl: null,
+  response: "accepted",
+  isPrivate: false,
+});
+
 export interface BriefServiceDeps {
   calendar: {
     list(range: { from: number; to: number; includeDeclined?: boolean }): CalendarEvent[];
@@ -46,6 +75,8 @@ export interface BriefServiceDeps {
   store: BriefsStore;
   builder: BriefBuilder;
   accounts(): ConnectorAccount[];
+  /** A recorded meeting, for a brief without a calendar event. */
+  meeting?(id: string): Meeting | null;
   now(): number;
   logger: Logger;
   /** Called after a brief was built, so the menu bar can look again. */
@@ -129,6 +160,11 @@ export function createBriefService(deps: BriefServiceDeps): BriefService {
     get: (eventKey) => deps.store.get(eventKey),
 
     async build(eventKey) {
+      if (eventKey.startsWith(`${MEETING_BRIEF_ACCOUNT}:`)) {
+        const meeting = deps.meeting?.(eventKey.slice(MEETING_BRIEF_ACCOUNT.length + 1));
+        if (!meeting) return { ok: false, message: "That meeting is gone." };
+        return buildEvent(eventOfMeeting(meeting));
+      }
       const now = deps.now();
       const event = deps.calendar
         .list({ from: now - 86_400_000, to: now + FIND_AHEAD_MS, includeDeclined: true })

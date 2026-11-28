@@ -1,10 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_BRIEF_SETTINGS,
   type BriefSettings,
   type CalendarEvent,
   type ConnectorAccount,
   type MeetingBrief,
+  type Meeting,
 } from "@murmur/shared";
 import { openDatabase } from "../db/database";
 import { BRIEF_KEEP_MS, eventKeyOf } from "./brief-builder";
@@ -236,5 +237,40 @@ describe("brief service (NT-11)", () => {
     });
     await t.service.build("cal1:a");
     expect(t.store.get("cal1:old")).toBeNull();
+  });
+});
+
+describe("a brief for a meeting with no calendar event (NT-11)", () => {
+  it("is built from the recorded meeting and kept however old it is", async () => {
+    const store = createBriefsStore(openDatabase(":memory:"));
+    const build = vi.fn(async (event: CalendarEvent) => ({
+      eventKey: `${event.accountId}:${event.id}`,
+      title: event.title,
+      startMs: event.startMs,
+      builtAt: NOW,
+      markdown: "x",
+      sources: [],
+      items: [],
+      modelWrote: false,
+    }));
+    const service = createBriefService({
+      calendar: { list: () => [] },
+      settings: () => ({ brief: DEFAULT_BRIEF_SETTINGS, skipDeclined: true }),
+      store,
+      builder: { availability: () => [], build },
+      accounts: () => [],
+      meeting: (id) =>
+        id === "m1"
+          ? ({ id, title: "Roadmap", startedAt: 1_000, durationMs: 500 } as Meeting)
+          : null,
+      now: () => NOW,
+      logger: { info() {}, warn() {}, error() {} },
+    });
+    await expect(service.build("meeting:m1")).resolves.toMatchObject({ ok: true });
+    expect(build).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "m1", title: "Roadmap", startMs: 1_000, endMs: 1_500 }),
+    );
+    expect(store.get("meeting:m1")).not.toBeNull();
+    await expect(service.build("meeting:gone")).resolves.toMatchObject({ ok: false });
   });
 });

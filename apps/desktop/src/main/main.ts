@@ -2173,6 +2173,7 @@ const briefs =
   connectorData
     ? createBriefService({
         calendar: calendarStore,
+        meeting: (id) => meetingsStore.get(id),
         settings: () => ({
           brief: settingsStore.get().notetaker.brief,
           skipDeclined: settingsStore.get().notetaker.calendar.skipDeclined,
@@ -3942,7 +3943,8 @@ function registerIpc(): void {
     briefGet: (eventKey) => briefs?.get(eventKey) ?? null,
     briefForMeeting: (meetingId) => {
       const eventId = meetingsStore?.get(meetingId)?.calendarEventId;
-      return eventId ? (briefsStore?.getForEvent(eventId) ?? null) : null;
+      const found = eventId ? briefsStore?.getForEvent(eventId) : null;
+      return found ?? briefsStore?.get(`meeting:${meetingId}`) ?? null;
     },
     briefBuild: async (eventKey) =>
       briefs?.build(eventKey) ?? { ok: false, message: "Briefs need a calendar and the database." },

@@ -12,7 +12,10 @@ export interface BriefsStore {
   getForEvent(eventId: string): MeetingBrief | null;
   /** When each of these events' briefs was built, by key; an event with none is not in it. */
   builtAt(eventKeys: readonly string[]): Map<string, number>;
-  /** Deletes briefs of meetings that began before `before`. Returns how many went. */
+  /**
+   * Deletes briefs of calendar meetings that began before `before`. A brief built for a recorded
+   * meeting stays with it. Returns how many went.
+   */
   prune(before: number): number;
 }
 
@@ -89,7 +92,11 @@ export function createBriefsStore(db: DatabaseSync): BriefsStore {
     },
     prune(before) {
       return Number(
-        db.prepare("DELETE FROM meeting_briefs WHERE start_ms < ?").run(before).changes,
+        db
+          .prepare(
+            "DELETE FROM meeting_briefs WHERE start_ms < ? AND event_key NOT LIKE 'meeting:%'",
+          )
+          .run(before).changes,
       );
     },
   };
