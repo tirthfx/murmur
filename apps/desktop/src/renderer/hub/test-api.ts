@@ -461,6 +461,7 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
     skillRestore: vi.fn().mockResolvedValue({ ok: false, message: "Not available." }),
     skillExport: vi.fn().mockResolvedValue({ ok: false, cancelled: true }),
     skillImport: vi.fn().mockResolvedValue({ ok: false, cancelled: true }),
+    skillImportFolder: vi.fn().mockResolvedValue({ ok: false, cancelled: true }),
     tasksList: vi.fn().mockResolvedValue({ tasks: [], undo: null }),
     taskAdd: vi.fn().mockResolvedValue({ ok: false, message: "Not available." }),
     taskUpdate: vi.fn().mockResolvedValue({ ok: false, message: "Not available." }),

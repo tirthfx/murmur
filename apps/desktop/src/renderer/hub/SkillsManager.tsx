@@ -346,6 +346,18 @@ export function SkillsManager() {
     }
   }
 
+  async function importFolder() {
+    setMessage(null);
+    const result = await window.murmur.skillImportFolder();
+    if (result.ok) {
+      await load();
+      const count = `${result.imported} ${result.imported === 1 ? "Skill" : "Skills"} imported.`;
+      setMessage([count, ...result.failed].join(" "));
+    } else if ("message" in result) {
+      setMessage(result.message);
+    }
+  }
+
   return (
     <VStack gap={3}>
       <HStack gap={2} align="center" wrap="wrap">
@@ -354,6 +366,13 @@ export function SkillsManager() {
         </Button>
         <Button variant="secondary" label="Import a Skill" onClick={() => void importSkill()}>
           Import…
+        </Button>
+        <Button
+          variant="secondary"
+          label="Import every Skill file in a folder"
+          onClick={() => void importFolder()}
+        >
+          Import a folder…
         </Button>
         <Text size="sm" color="secondary">
           A Skill is the prompt and the sections that write a summary. Yours are also saved as

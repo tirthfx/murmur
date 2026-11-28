@@ -40,6 +40,11 @@ export interface SkillsService {
   exportFile(id: string): { fileName: string; text: string } | null;
   /** Makes a new custom Skill from the text of a `.md` file. */
   importFile(text: string): SkillImportResult;
+  /** Imports several files; a bad one is named with its line and the rest still come in. */
+  importFolder(files: readonly { name: string; text: string }[]): {
+    imported: number;
+    failed: string[];
+  };
 }
 
 const BUILT_IN = "Built-in Skills cannot be changed. Duplicate one to make your own copy.";
@@ -141,6 +146,17 @@ export function createSkillsService(deps: SkillsServiceDeps): SkillsService {
         fileName: skillFileName(skill.name),
         text: formatSkillFile(skill),
       };
+    },
+
+    importFolder(files) {
+      const failed: string[] = [];
+      let imported = 0;
+      for (const file of files) {
+        const result = this.importFile(file.text);
+        if (result.ok) imported++;
+        else if ("message" in result) failed.push(`${file.name}: ${result.message}`);
+      }
+      return { imported, failed };
     },
 
     importFile(text) {

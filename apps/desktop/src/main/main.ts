@@ -180,6 +180,7 @@ import { loadMeetingMatchers } from "./meetings/matchers-file";
 import { createDetectionSync } from "./meetings/detection-sync";
 import { createMeetingJobs, type MeetingJobs } from "./meetings/meeting-jobs";
 import { createSkillsService } from "./meetings/skills-service";
+import { readSkillFiles } from "./meetings/skill-folder";
 import { createConnectorConfig } from "./connectors/connector-config";
 import { createConnectorService } from "./connectors/connector-service";
 import { createConnectorStore } from "./connectors/connector-store";
@@ -249,6 +250,8 @@ import { createNoteImages, type ImageEncoder } from "./notes/note-images";
 import {
   noteFileName,
   noteRewriteChoices,
+  SKILL_CHOICE,
+  skillInstruction,
   writeNoteHtml,
   writeNoteMarkdown,
 } from "./notes/note-files";
@@ -4273,6 +4276,23 @@ function registerIpc(): void {
       }
       return skillsService.importFile(text);
     },
+    skillImportFolder: async () => {
+      if (!skillsService) return { ok: false, message: noSkills.message };
+      const options = {
+        title: "Import Skills from a folder",
+        properties: ["openDirectory" as const],
+      };
+      const picked = hubWindow
+        ? await dialog.showOpenDialog(hubWindow, options)
+        : await dialog.showOpenDialog(options);
+      const folder = picked.filePaths[0];
+      if (picked.canceled || !folder) return { ok: false, cancelled: true };
+      try {
+        return { ok: true, ...skillsService.importFolder(readSkillFiles(folder)) };
+      } catch {
+        return { ok: false, message: "That folder could not be read." };
+      }
+    },
     meetingRename: (id, title) => {
       meetingsStore?.rename(id, title);
       notifyMeetings(id);
@@ -4344,9 +4364,14 @@ function registerIpc(): void {
         ok: false as const,
         message: "Images cannot be saved without the database.",
       }),
-    noteRewrites: () => noteRewriteChoices(rewrites?.enabled() ?? []),
+    noteRewrites: () => noteRewriteChoices(rewrites?.enabled() ?? [], meetingSkills?.list() ?? []),
     noteRewriteRun: async ({ rewriteId, text }) => {
-      const rewrite = rewrites?.get(rewriteId) ?? null;
+      const skill = rewriteId.startsWith(SKILL_CHOICE)
+        ? (meetingSkills?.get(rewriteId.slice(SKILL_CHOICE.length)) ?? null)
+        : null;
+      const rewrite = skill
+        ? { instruction: skillInstruction(skill), example: null, enabled: true }
+        : (rewrites?.get(rewriteId) ?? null);
       if (!rewrite || !rewrite.enabled)
         return { ok: false, message: "That Rewrite is not available." };
       try {
@@ -4369,7 +4394,10 @@ function registerIpc(): void {
       if (input.outcome === "discarded") return;
       rewrites?.markUsed(input.rewriteId);
       if (input.outcome === "replaced") {
-        const name = rewrites?.get(input.rewriteId)?.name ?? "Rewrite";
+        const name =
+          rewrites?.get(input.rewriteId)?.name ??
+          meetingSkills?.get(input.rewriteId.slice(SKILL_CHOICE.length))?.name ??
+          "Rewrite";
         notes.saveVersion({
           noteId: input.noteId,
           label: `${name} applied`.slice(0, 60),

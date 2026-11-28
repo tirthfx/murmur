@@ -61,6 +61,11 @@ export type SkillImportResult =
   | { ok: true; skill: Skill }
   | { ok: false; message: string; line: number | null }
   | { ok: false; cancelled: true };
+/** NT-16: what importing a folder of Skill files did. */
+export type SkillFolderResult =
+  | { ok: true; imported: number; failed: string[] }
+  | { ok: false; message: string }
+  | { ok: false; cancelled: true };
 export type SkillExportResult =
   { ok: true; path: string } | { ok: false; message: string } | { ok: false; cancelled: true };
 
