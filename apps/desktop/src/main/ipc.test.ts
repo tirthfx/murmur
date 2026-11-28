@@ -36,6 +36,7 @@ function setup() {
   const handle = createIpcHandler({
     entryUrl,
     hubSetPage: vi.fn(),
+    openGuide: vi.fn(),
     reportProblem: vi.fn(() => Promise.resolve({ ok: true, message: "" })),
     testingTool: vi.fn(() => Promise.resolve({ ok: true, message: "" })),
     axInspect: vi.fn(() => Promise.resolve(null)),
@@ -77,6 +78,10 @@ function setup() {
     askThreads: vi.fn(),
     askThread: vi.fn(),
     askSend: vi.fn(),
+    contactsList: vi.fn(),
+    contactSave: vi.fn(),
+    contactDelete: vi.fn(),
+    contactCard: vi.fn(),
     askDelete: vi.fn(),
     meetingSpeakerRename: vi.fn(),
     meetingSpeakerClip: vi.fn(),

@@ -345,3 +345,9 @@ A brief is built on this Mac before a calendar meeting. It needs nothing but the
 Meetings from Zoom and Fireflies use the same importer and the same preview (`docs/connectors.md`, Zoom and Fireflies import): the meeting keeps the service's id, so the same recording is never imported twice, and a Fireflies summary is kept as a separate, labelled summary that the automatic local summary does not replace.
 
 With the experimental option "Ask can propose connector actions" on, Ask can turn a request such as "draft a follow-up to Priya about the timeline" into a proposed email, event or Slack message that is shown first and confirmed with a click (`docs/connectors.md`, Ask connector actions).
+
+## Contacts and mentions (NT-12)
+
+Notetaker, Contacts holds people: added by hand, taken from the invitees of a calendar meeting (a switch on that tab) or from a renamed speaker. Typing "@" in meeting notes, a task or a question offers them, or creating one.
+
+A mention is written into the text as `@[contact:<id>|<name>]`; there is no separate table. Renaming a contact rewrites the name in every mention; deleting one leaves the plain name. Anything that leaves the text box (summaries, Ask, the shared files, the MCP tools) shows "@Name". A contact's card lists the meetings they were invited to, spoke in or are mentioned in, and their open tasks. "Delete meetings" removes contacts too. Code: `apps/desktop/src/main/contacts/`, `renderer/hub/MentionField.tsx`.

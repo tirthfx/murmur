@@ -1,4 +1,4 @@
-import { TASK_STATUS_TEXT, formatElapsed, type TaskStatus } from "@murmur/shared";
+import { TASK_STATUS_TEXT, formatElapsed, type TaskStatus, readableMentions } from "@murmur/shared";
 
 /**
  * What a person shares into a team folder from a meeting (NT-17): the title, when it was, the
@@ -41,7 +41,7 @@ export function meetingShare(input: MeetingShareInput): { title: string; body: s
     for (const task of open) {
       const who = task.owner ? ` (${task.ownerIsMe ? "me" : task.owner})` : "";
       const due = task.dueOn ? `, due ${task.dueOn}` : "";
-      lines.push(`- ${TASK_STATUS_TEXT[task.status]}: ${task.title}${who}${due}`);
+      lines.push(`- ${TASK_STATUS_TEXT[task.status]}: ${readableMentions(task.title)}${who}${due}`);
     }
   }
   return { title: input.title.slice(0, 200), body: lines.join("\n") + "\n" };

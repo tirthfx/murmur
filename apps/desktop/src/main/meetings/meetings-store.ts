@@ -127,7 +127,13 @@ function toMeeting(row: MeetingRow): Meeting {
 /** Longest title kept. */
 export const MEETING_TITLE_MAX = 200;
 
-export function createMeetingsStore(db: DatabaseSync): MeetingsStore {
+export function createMeetingsStore(
+  db: DatabaseSync,
+  hooks: {
+    /** NT-12: told who was invited to a meeting that starts from an event. */
+    onAttendees?: (attendees: readonly MeetingAttendee[]) => void;
+  } = {},
+): MeetingsStore {
   const get = (id: string): Meeting | null => {
     const row = db.prepare(`SELECT ${COLUMNS} FROM meetings WHERE id = ?`).get(id) as
       MeetingRow | undefined;
@@ -152,6 +158,7 @@ export function createMeetingsStore(db: DatabaseSync): MeetingsStore {
         input.calendarEventId ?? null,
         JSON.stringify(input.attendees ?? []),
       );
+      if (input.attendees?.length) hooks.onAttendees?.(input.attendees);
       return get(input.id)!;
     },
     get,

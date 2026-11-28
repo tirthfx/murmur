@@ -3,6 +3,7 @@ import {
   formatElapsed,
   type MeetingExportOptions,
   type TaskStatus,
+  readableMentions,
 } from "@murmur/shared";
 
 /** What a shareable file is made from (NT-18). */
@@ -153,7 +154,9 @@ export function renderMeetingHtml(input: ExportInput): string {
   }
 
   if (options.notes && input.notes.trim() !== "") {
-    parts.push(`<section id="notes"><h2>Notes</h2><pre>${esc(input.notes.trim())}</pre></section>`);
+    parts.push(
+      `<section id="notes"><h2>Notes</h2><pre>${esc(readableMentions(input.notes).trim())}</pre></section>`,
+    );
   }
 
   if (options.transcript) {

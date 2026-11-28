@@ -1,10 +1,10 @@
+import { MentionField } from "./MentionField";
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { Banner } from "@astryxdesign/core/Banner";
 import { Button } from "@astryxdesign/core/Button";
 import { HStack } from "@astryxdesign/core/HStack";
 import { Selector } from "@astryxdesign/core/Selector";
 import { Text } from "@astryxdesign/core/Text";
-import { TextArea } from "@astryxdesign/core/TextArea";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { VStack } from "@astryxdesign/core/VStack";
 import { CalendarEventEditor } from "./CalendarEventCreate";
@@ -26,6 +26,7 @@ import {
   type MeetingFolder,
   type MeetingTab,
   type SlackStart,
+  readableMentions,
 } from "@murmur/shared";
 
 /**
@@ -263,7 +264,8 @@ export function AskPanel({
   }
 
   async function send() {
-    const text = question.trim();
+    // The question is asked in plain words; "@Name" stays, the mention's id does not.
+    const text = readableMentions(question).trim();
     if (text === "" || sending) return;
     const scope = scopeNow();
     if (typeof scope === "string") return setProblem(scope);
@@ -500,7 +502,7 @@ export function AskPanel({
             </Text>
           ) : null}
           <VStack gap={2}>
-            <TextArea
+            <MentionField
               label="Your question"
               rows={3}
               value={question}

@@ -174,6 +174,7 @@ export function createDataDeleter(deps: DataDeleterDeps): DataDeleter {
           "DELETE FROM meetings",
           "DELETE FROM tasks WHERE source = 'meeting'",
           "DELETE FROM ask_threads",
+          "DELETE FROM contacts",
         ]);
         return { rows, files: emptyFolder(deps.meetingsRoot), failedFiles: failed.size };
       }

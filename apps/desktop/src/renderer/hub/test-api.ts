@@ -82,7 +82,13 @@ export const SAMPLE_SETTINGS: SettingsView = {
       milestone: false,
       weeklySummary: false,
     },
-    privacy: { storeHistory: true, audio: "24h", historyDays: null, strictLocal: false },
+    privacy: {
+      storeHistory: true,
+      audio: "24h",
+      historyDays: null,
+      strictLocal: false,
+      contextExcludedApps: [],
+    },
     planState: { trial: null, student: false, log: [] },
     devMode: { enabled: false, disableCleanup: false, forceTyped: false, disableContext: false },
     help: { tours: {} },
@@ -265,6 +271,7 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
   return {
     hubSetPage: vi.fn().mockResolvedValue(undefined),
     insightsView: vi.fn().mockResolvedValue(SAMPLE_INSIGHTS),
+    openGuide: vi.fn(async () => true),
     reportProblem: vi.fn().mockResolvedValue({ ok: true, message: "Saved to /tmp/x." }),
     testingTool: vi.fn().mockResolvedValue({ ok: true, message: "Done." }),
     axInspect: vi.fn().mockResolvedValue({
@@ -481,6 +488,10 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
     askThreads: vi.fn().mockResolvedValue([]),
     askThread: vi.fn().mockResolvedValue(null),
     askSend: vi.fn().mockResolvedValue({ ok: false, message: "Not available." }),
+    contactsList: vi.fn(async () => []),
+    contactSave: vi.fn(),
+    contactDelete: vi.fn(),
+    contactCard: vi.fn(async () => null),
     askDelete: vi.fn().mockResolvedValue(undefined),
     meetingSpeakerRename: vi.fn().mockResolvedValue({ ok: false, message: "Not available." }),
     meetingSpeakerClip: vi.fn().mockResolvedValue({ ok: false, reason: "no-audio" }),

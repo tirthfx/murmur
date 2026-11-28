@@ -11,6 +11,7 @@ import {
 // Only this narrow, typed surface reaches the renderer. ipcRenderer itself is never exposed.
 const api: MurmurApi = {
   getAppInfo: () => ipcRenderer.invoke(IPC_CHANNELS.getAppInfo),
+  openGuide: () => ipcRenderer.invoke(IPC_CHANNELS.openGuide),
   reportProblem: () => ipcRenderer.invoke(IPC_CHANNELS.reportProblem),
   testingTool: (tool) => ipcRenderer.invoke(IPC_CHANNELS.testingTool, tool),
   axInspect: (showValues) => ipcRenderer.invoke(IPC_CHANNELS.axInspect, showValues),
@@ -172,6 +173,10 @@ const api: MurmurApi = {
   askThreads: () => ipcRenderer.invoke(IPC_CHANNELS.askThreads),
   askThread: (id) => ipcRenderer.invoke(IPC_CHANNELS.askThread, id),
   askSend: (input) => ipcRenderer.invoke(IPC_CHANNELS.askSend, input),
+  contactsList: (query) => ipcRenderer.invoke(IPC_CHANNELS.contactsList, query),
+  contactSave: (id, draft) => ipcRenderer.invoke(IPC_CHANNELS.contactSave, id, draft),
+  contactDelete: (id) => ipcRenderer.invoke(IPC_CHANNELS.contactDelete, id),
+  contactCard: (id) => ipcRenderer.invoke(IPC_CHANNELS.contactCard, id),
   askDelete: (id) => ipcRenderer.invoke(IPC_CHANNELS.askDelete, id),
   meetingSpeakerRename: (meetingId, speakerId, name) =>
     ipcRenderer.invoke(IPC_CHANNELS.meetingSpeakerRename, meetingId, speakerId, name),

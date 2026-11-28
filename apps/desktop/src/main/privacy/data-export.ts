@@ -19,6 +19,16 @@ import {
 } from "@murmur/shared";
 import { noteFileName, writeNoteMarkdown, type ImageFiles } from "../notes/note-files";
 
+export interface ExportedMeeting {
+  title: string;
+  startedAt: number;
+  endedAt: number | null;
+  attendees: unknown[];
+  notes: string;
+  summaries: unknown[];
+  transcript: unknown[];
+}
+
 /** Where each category's data comes from. Each is read only when ticked. */
 export interface ExportSources {
   dictations(): HistoryRow[];
@@ -31,6 +41,10 @@ export interface ExportSources {
   noteImages: ImageFiles;
   instructThreads(): InstructThread[];
   insights(): InsightsDay[];
+  /** Each meeting with its notes, summaries and transcript. */
+  meetings(): ExportedMeeting[];
+  tasks(): unknown[];
+  contacts(): unknown[];
   /** Kept recordings: absolute paths inside the audio folder. */
   audioFiles(): string[];
 }
@@ -198,6 +212,39 @@ export function writeExport(
         write("insights.csv", insightsCsv(days));
         counts.insights = days.length;
         files.insights = "insights.csv";
+        break;
+      }
+      case "meetings": {
+        const meetings = sources.meetings();
+        const folderName = "meetings";
+        mkdirSync(path.join(folder, folderName), { recursive: true });
+        const used = new Set<string>();
+        for (const meeting of meetings) {
+          const base = unique(
+            `${iso(meeting.startedAt).slice(0, 10)} ${meeting.title}`
+              .replace(/[\\/:*?"<>|\p{Cc}]+/gu, " ")
+              .replace(/\s+/g, " ")
+              .trim()
+              .slice(0, 80) || "Meeting",
+            used,
+          );
+          write(
+            path.join(folderName, `${base}.json`),
+            `${JSON.stringify(
+              {
+                ...meeting,
+                startedAt: iso(meeting.startedAt),
+                endedAt: meeting.endedAt === null ? null : iso(meeting.endedAt),
+              },
+              null,
+              2,
+            )}\n`,
+          );
+        }
+        write("tasks.json", `${JSON.stringify(sources.tasks(), null, 2)}\n`);
+        write("contacts.json", `${JSON.stringify(sources.contacts(), null, 2)}\n`);
+        counts[category] = meetings.length;
+        files[category] = "meetings/, tasks.json, contacts.json";
         break;
       }
       case "audio": {
