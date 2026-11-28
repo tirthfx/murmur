@@ -77,6 +77,25 @@ describe("readIssues", () => {
     expect(t.bodies[0]!.variables).toEqual({ teams: ["T1"], recent: "-P14D" });
   });
 
+  it("says which project and cycle an issue belongs to", async () => {
+    const t = fake({
+      viewer: {
+        assignedIssues: {
+          nodes: [
+            issue("1", { project: { name: "Onboarding" }, cycle: { number: 3, name: null } }),
+            issue("2", { updatedAt: "2026-11-19T10:00:00.000Z" }),
+          ],
+        },
+      },
+    });
+    const items = await readIssues({ fetch: t.fetch, limits, teams: [], assignedOnly: true });
+    expect(items.map((item) => item.text)).toEqual([
+      "In Progress: Issue 1 (Project: Onboarding. Cycle: 3)",
+      "In Progress: Issue 2",
+    ]);
+    expect(t.bodies[0]!.query).toContain("project { name } cycle { number name }");
+  });
+
   it("asks for no team issues when none is selected, even with assigned only off", async () => {
     const t = fake({ viewer: { assignedIssues: { nodes: [] } } });
     await readIssues({ fetch: t.fetch, limits, teams: [], assignedOnly: false });

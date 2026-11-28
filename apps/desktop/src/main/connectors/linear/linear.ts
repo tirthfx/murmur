@@ -113,9 +113,12 @@ const issueSchema = z.object({
   updatedAt: z.string().optional(),
   state: z.object({ name: z.string(), type: z.string().optional() }).nullish(),
   team: z.object({ key: z.string() }).nullish(),
+  project: z.object({ name: z.string() }).nullish(),
+  cycle: z.object({ number: z.number(), name: z.string().nullish() }).nullish(),
 });
 
-const FIELDS = "id identifier title url updatedAt state { name type } team { key }";
+const FIELDS =
+  "id identifier title url updatedAt state { name type } team { key } project { name } cycle { number name }";
 /** How far back an issue's last change may be and still be read, so a closed one shows as closed. */
 const RECENT = "-P14D";
 
@@ -164,12 +167,21 @@ export async function readIssues(options: {
     seen.add(issue.data.id);
     const state = issue.data.state?.name ?? "";
     const title = clip(issue.data.title, CONNECTOR_DATA_LIMITS.titleChars, true);
+    // The project and cycle say what the issue belongs to, for briefs and Ask.
+    const { project, cycle } = issue.data;
+    const context = [
+      project ? `Project: ${project.name}` : "",
+      cycle ? `Cycle: ${cycle.name || cycle.number}` : "",
+    ]
+      .filter(Boolean)
+      .join(". ");
+    const line = state ? `${state}: ${title}` : title;
     items.push({
       id: issue.data.id,
       connector: LINEAR_ID,
       kind: "issue",
       title: `${issue.data.identifier} ${title}`,
-      text: state ? `${state}: ${title}` : title,
+      text: context ? `${line} (${clip(context, CONNECTOR_DATA_LIMITS.titleChars, true)})` : line,
       truncated: false,
       updatedAt: timeOf(issue.data.updatedAt),
       url: issue.data.url && /^https:\/\//i.test(issue.data.url) ? issue.data.url : null,
