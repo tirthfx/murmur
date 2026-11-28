@@ -144,6 +144,15 @@ describe("recorder", () => {
     expect(calls).toEqual(["start s1", "stop s1", "start s2", "stop s2"]);
   });
 
+  it("ends the recording when the microphone changes and carrying on is off (DC-16)", async () => {
+    const t = setup({ routeFallback: () => false });
+    t.recorder.handleHotkey(key("down"));
+    await t.recorder.idle();
+    t.route({ sessionId: "s1", reason: "device-removed", deviceName: "Built-in" });
+    await t.recorder.idle();
+    expect(t.calls).toEqual(["start s1", "stop s1"]);
+  });
+
   it("warns with the device name when the microphone is silent", async () => {
     const { recorder, logger, silent } = setup();
     recorder.handleHotkey(key("down"));

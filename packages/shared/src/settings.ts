@@ -210,6 +210,11 @@ export const settingsSchema = z.strictObject({
   silentWarning: z.boolean(),
   /** Saying "press enter" at the end of a dictation presses Return (DC-36). */
   pressEnterCommand: z.boolean(),
+  /** DC-16, HB-16: the microphone list and what happens when the input goes away. */
+  microphones: z.strictObject({
+    showVirtual: z.boolean(),
+    routeFallback: z.boolean(),
+  }),
   /** HB-13: writing first. Scratchpad and Rewrites lead the Hub, and the menu drafts notes. */
   creatorMode: z.boolean(),
   /** The local plan tier (RW-22, TM-25): unlocks features for testing; nothing is charged. */
@@ -282,6 +287,7 @@ export const settingsPatchSchema = settingsSchema
     setupComplete: true,
     pressEnterCommand: true,
     creatorMode: true,
+    microphones: true,
     insertion: true,
     soundVolume: true,
     silentWarning: true,
@@ -344,6 +350,7 @@ export const SETTING_KEYS: Record<keyof Settings, string> = {
   setupComplete: "onboarding.complete",
   pressEnterCommand: "press_enter.enabled",
   creatorMode: "ui.creator_mode",
+  microphones: "audio.microphones",
   insertion: "insert.settings",
   soundVolume: "sounds.volume",
   silentWarning: "audio.silent_warning",

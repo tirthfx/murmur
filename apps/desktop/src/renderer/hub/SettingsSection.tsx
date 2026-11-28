@@ -1,3 +1,4 @@
+import { microphoneChoices } from "./microphone-choices";
 import { RetentionLog } from "./RetentionLog";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { TextArea } from "@astryxdesign/core/TextArea";
@@ -261,7 +262,7 @@ export function SettingsSection({
   const known = devices.some((device) => device.id === settings.inputDevice);
   const microphoneOptions = [
     { value: "auto", label: "Automatic" },
-    ...devices.map((device) => ({ value: device.id, label: device.name })),
+    ...microphoneChoices(devices, settings.microphones.showVirtual, settings.inputDevice),
     ...(settings.inputDevice !== "auto" && !known
       ? [{ value: settings.inputDevice, label: "Saved microphone (not connected)" }]
       : []),
@@ -1502,6 +1503,26 @@ export function SettingsSection({
             value={settings.inputDevice}
             onChange={(inputDevice) => update({ inputDevice })}
           />
+        </Row>
+        <Row id="microphone-list">
+          <VStack gap={2}>
+            <Switch
+              label="Show virtual microphones"
+              description="Inputs made by software, such as loopback and meeting apps."
+              value={settings.microphones.showVirtual}
+              onChange={(showVirtual) =>
+                update({ microphones: { ...settings.microphones, showVirtual } })
+              }
+            />
+            <Switch
+              label="Carry on with another microphone if this one goes away"
+              description="When off, the recording ends there and what was heard is used."
+              value={settings.microphones.routeFallback}
+              onChange={(routeFallback) =>
+                update({ microphones: { ...settings.microphones, routeFallback } })
+              }
+            />
+          </VStack>
         </Row>
         <Row id="silent-warning">
           <Switch

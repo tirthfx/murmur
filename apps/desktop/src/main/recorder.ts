@@ -196,6 +196,11 @@ export interface RecorderDeps {
    * missing.
    */
   formatting?: () => { lists: boolean; smart: boolean };
+  /**
+   * Whether recording goes on with another input when the microphone goes away (DC-16). On when
+   * missing; off ends the recording there and uses what was heard.
+   */
+  routeFallback?: () => boolean;
   /** Whether to warn when the microphone stays silent (DC-11). On when missing. */
   silentWarning?: () => boolean;
   /** Whether "press enter" at the end of a dictation presses Return. Off when missing. */
@@ -1394,6 +1399,13 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 
   function handleRouteChanged(change: AudioRouteChanged): void {
     if (!current || change.sessionId !== current.id) return;
+    if (deps.routeFallback?.() === false) {
+      const { purpose } = current;
+      logger.warn(`the microphone changed (${change.reason}); ending the recording there`);
+      gesture.reset();
+      enqueue(() => end(purpose));
+      return;
+    }
     const name = change.deviceName;
     logger.warn(
       name === null

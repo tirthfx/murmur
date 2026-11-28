@@ -47,6 +47,7 @@ function setup() {
     setupComplete: true,
     pressEnterCommand: true,
     creatorMode: false,
+    microphones: { showVirtual: true, routeFallback: true },
     openHubOnLaunch: true,
     insights: { typingWpm: 40 },
     profile: { displayName: "", showOnHome: true },

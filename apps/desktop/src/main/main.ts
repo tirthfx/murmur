@@ -837,6 +837,7 @@ const settingsDefaults: Settings = {
   setupComplete: false,
   pressEnterCommand: true,
   creatorMode: false,
+  microphones: { showVirtual: true, routeFallback: true },
   sessionLimitMinutes: SESSION_LIMIT_DEFAULT,
   smartFormatting: true,
   bar: DEFAULT_BAR,
@@ -1238,6 +1239,7 @@ const recorder = createRecorder({
   },
   pressEnterCommand: () => settingsStore.get().pressEnterCommand,
   silentWarning: () => settingsStore.get().silentWarning,
+  routeFallback: () => settingsStore.get().microphones.routeFallback,
   formatting: () => {
     const { cleanupLevel, smartFormatting } = nextSession.settings();
     return {
