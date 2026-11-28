@@ -95,16 +95,21 @@ export function createSpeakersStore(db: DatabaseSync, deps: { now(): number }): 
         talkMs: totals.get(id)?.talk ?? 0,
       };
     });
-    // Speakers that were added, once they have lines.
+    // Speakers that were added, once they have lines. One whose lines were not found again by a
+    // rerun (NT-23) stays listed with none, so the name is not lost without a word.
+    const heardBefore = db.prepare(
+      "SELECT 1 FROM transcript_versions WHERE meeting_id = ? AND INSTR(segments_json, ?) > 0",
+    );
     for (const row of rows) {
-      if (own.has(row.id) || !totals.has(row.id)) continue;
+      if (own.has(row.id)) continue;
+      if (!totals.has(row.id) && !heardBefore.get(meetingId, JSON.stringify(row.id))) continue;
       speakers.push({
         id: row.id,
         channel: row.channel,
         name: row.name,
         defaultName: row.name,
-        segments: totals.get(row.id)!.n,
-        talkMs: totals.get(row.id)!.talk,
+        segments: totals.get(row.id)?.n ?? 0,
+        talkMs: totals.get(row.id)?.talk ?? 0,
       });
     }
     return speakers;

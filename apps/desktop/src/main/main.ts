@@ -2458,6 +2458,7 @@ const meetingJobs: MeetingJobs | null =
           // After a rerun (NT-23) a new summary is always written, and the tasks are looked
           // for again: a title the meeting already has is skipped, so done tasks stay done.
           if (meetingsStore.consumeRerun(id)) {
+            transcriptVersions?.reapplySpeakers(id);
             rerunExtract.add(id);
             meetingJobs?.enqueue(id, "summarise");
             return;

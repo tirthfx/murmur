@@ -23,6 +23,20 @@ export interface TranscriptVersions {
   restore(meetingId: string, versionId: number, keepDays: number, now: number): RerunResult;
   /** Deletes the versions that have expired, for every meeting. Returns how many. */
   purge(now: number): number;
+  /**
+   * After a rerun, gives the new lines the speakers the replaced transcript had added: a line
+   * takes the speaker who was talking on its channel for more than half of its time. Returns how
+   * many lines were named.
+   */
+  reapplySpeakers(meetingId: string): number;
+}
+
+interface SpokenLine {
+  id: string;
+  channel: string;
+  start_ms: number;
+  end_ms: number;
+  speaker_id: string | null;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -198,6 +212,45 @@ export function createTranscriptVersions(db: DatabaseSync): TranscriptVersions {
         ).run(now, meetingId);
       });
       return { ok: true };
+    },
+
+    reapplySpeakers(meetingId) {
+      const saved = db
+        .prepare(
+          `SELECT segments_json FROM transcript_versions
+           WHERE meeting_id = ? ORDER BY created_at DESC, id DESC LIMIT 1`,
+        )
+        .get(meetingId) as { segments_json: string } | undefined;
+      if (!saved) return 0;
+      const before = (JSON.parse(saved.segments_json) as SpokenLine[]).filter(
+        (line) => line.speaker_id !== null,
+      );
+      if (before.length === 0) return 0;
+      const lines = db
+        .prepare(
+          `SELECT id, channel, start_ms, end_ms, speaker_id FROM meeting_segments
+           WHERE meeting_id = ? AND is_dictated = 0 AND speaker_id IS NULL`,
+        )
+        .all(meetingId) as unknown as SpokenLine[];
+      const name = db.prepare("UPDATE meeting_segments SET speaker_id = ? WHERE id = ?");
+      return atomic(() => {
+        let named = 0;
+        for (const line of lines) {
+          const talk = new Map<string, number>();
+          for (const old of before) {
+            if (old.channel !== line.channel) continue;
+            const shared =
+              Math.min(old.end_ms, line.end_ms) - Math.max(old.start_ms, line.start_ms);
+            if (shared > 0) talk.set(old.speaker_id!, (talk.get(old.speaker_id!) ?? 0) + shared);
+          }
+          const [speaker, shared] = [...talk].sort((a, b) => b[1] - a[1])[0] ?? [null, 0];
+          if (speaker !== null && shared * 2 > line.end_ms - line.start_ms) {
+            name.run(speaker, line.id);
+            named++;
+          }
+        }
+        return named;
+      });
     },
 
     purge(now) {
