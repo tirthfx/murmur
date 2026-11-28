@@ -45,8 +45,6 @@ import {
   selectionResultSchema,
 } from "./selection";
 import {
-  appsActivatePayloadSchema,
-  appsActivateResultSchema,
   appsListResultSchema,
   focusWatchPayloadSchema,
   focusWatchResultSchema,
@@ -292,10 +290,6 @@ export const HELPER_REQUESTS = {
     payload: focusWatchPayloadSchema,
     result: focusWatchResultSchema,
   },
-  "apps.activate": {
-    payload: appsActivatePayloadSchema,
-    result: appsActivateResultSchema,
-  },
   "apps.list": {
     payload: emptyObjectSchema,
     result: appsListResultSchema,
@@ -491,10 +485,6 @@ export const selectionReadRequestSchema = requestEnvelope(
 export const keysPressRequestSchema = requestEnvelope("keys.press", keysPressPayloadSchema);
 export const focusWatchRequestSchema = requestEnvelope("focus.watch", focusWatchPayloadSchema);
 export const focusAppEventSchema = eventEnvelope("focus.app", frontAppPayloadSchema);
-export const appsActivateRequestSchema = requestEnvelope(
-  "apps.activate",
-  appsActivatePayloadSchema,
-);
 export const appsListRequestSchema = requestEnvelope("apps.list", emptyObjectSchema);
 export const keychainGetRequestSchema = requestEnvelope("keychain.get", keychainGetPayloadSchema);
 export const keychainSetRequestSchema = requestEnvelope("keychain.set", keychainSetPayloadSchema);

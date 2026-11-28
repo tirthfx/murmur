@@ -1,26 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { HotkeyTrigger } from "@murmur/shared";
-import {
-  MAC_CAPS_LOCK,
-  MAC_FUNCTION_KEYS,
-  MAC_MODIFIER_KEYS,
-  MAC_RESERVED,
-  macKeyCode,
-  macTriggerLabel,
-} from "../platform/mac-keymap";
-import { checkShortcut, type KeyPlatform } from "./shortcuts";
-
-const mac: KeyPlatform = {
-  keyCode: macKeyCode,
-  label: macTriggerLabel,
-  modifierKeys: MAC_MODIFIER_KEYS,
-  capsLock: MAC_CAPS_LOCK,
-  functionKeys: MAC_FUNCTION_KEYS,
-  reserved: MAC_RESERVED,
-  osName: "macOS",
-  modifierHint: "Command, Option, Control or Shift",
-  cancelKeyCode: 53,
-};
+import { MAC_KEYS as mac } from "../platform";
+import { macTriggerLabel } from "../platform/mac-keymap";
+import { checkShortcut } from "./shortcuts";
 
 const rightOption: HotkeyTrigger = { type: "key", keyCode: 61, modifiers: [] };
 

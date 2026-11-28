@@ -114,9 +114,6 @@ export const llamaBinariesFor =
 /** This Mac's binaries; the other platforms' packages are not installed anyway. */
 export const includeLlamaOptional = llamaBinariesFor("mac-arm64-metal");
 
-/** The Windows x64 CPU build; the GPU builds are large and are not shipped. */
-export const includeLlamaOptionalWindows = llamaBinariesFor("win-x64");
-
 /** The 35 MB source bundle is only for building llama.cpp from source. */
 export const skipLlamaFile = (relativePath: string): boolean =>
   relativePath === path.join("node-llama-cpp", "llama", "gitRelease.bundle");

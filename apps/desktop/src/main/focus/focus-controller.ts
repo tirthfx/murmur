@@ -1,4 +1,3 @@
-import { appKey } from "../apps/app-id";
 import {
   FOCUS_LIMITS,
   FOCUS_MESSAGES,
@@ -148,8 +147,7 @@ export function createFocusController(deps: FocusControllerDeps): FocusControlle
   function isBlocked(bundleId: string | null, rules = deps.rules()): FocusRule | null {
     if (!bundleId) return null;
     if (bundleId === null) return null;
-    const key = appKey(bundleId);
-    return rules.find((rule) => rule.kind === "app" && appKey(rule.value) === key) ?? null;
+    return rules.find((rule) => rule.kind === "app" && rule.value === bundleId) ?? null;
   }
 
   function show(key: string, name: string, browser: string | null): void {

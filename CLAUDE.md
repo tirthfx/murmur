@@ -4,7 +4,7 @@ Project instructions for Claude Code working in this repository.
 
 ## Project summary
 
-Murmur is a personal, single-owner Mac desktop app for voice dictation and meeting notes, built for the owner's own use. It is not a product and is not distributed as an app. The source is public.
+Murmur is a personal, single-owner Mac-only desktop app for voice dictation and meeting notes, built for the owner's own use. It is not a product and is not distributed as an app. The source is public.
 
 - Owner GitHub account: `tirthfx`
 - Repository: public, `tirthfx/murmur` (public since 2026-11-12)
@@ -39,7 +39,7 @@ Helper protocol (idea, to be formalised in `packages/shared`):
 - Events cover hotkey down and up, audio chunks or levels, partial and final transcripts, focused-field context, and errors.
 - Protocol types are versioned and shared between main and helper. Breaking changes need a version bump.
 
-Platform rule: all platform-specific code sits behind an interface, so a Windows helper can be added later without touching the rest of the app. Mac code must not leak into `apps/desktop` or `packages/shared`.
+Platform rule: Murmur is for the Mac only. Keep macOS details in `native/helper-mac` and `apps/desktop/src/main/platform`; the rest of the app reaches the helper through `PlatformHelper`.
 
 Layout:
 
@@ -47,7 +47,6 @@ Layout:
 | ----------------------- | -------------------------------------- |
 | `apps/desktop`          | Electron app (main, preload, renderer) |
 | `native/helper-mac`     | Swift helper package                   |
-| `native/helper-win`     | .NET helper for Windows                |
 | `packages/shared`       | Shared types and helper protocol       |
 | `services/local-server` | Local backend for team, sync and admin |
 | `docs/`                 | In-repo technical documentation        |
@@ -102,7 +101,6 @@ Run all commands from the repo root.
 - Build helper (Swift): `npm run build:helper` (runs `swift build -c release`; output in `native/helper-mac/.build/release/murmur-helper`). Needs macOS with Xcode or the Swift toolchain. In development the app finds the binary there, or at `MURMUR_HELPER_PATH`. If it is missing the app still starts and the Hub shows the helper as unavailable.
 - Smoke test: `npm run smoke` (owner's Mac only; see `docs/smoke-test.md`).
 - Helper tests: `npm run test:helper` (runs `swift test`). Not part of CI yet; run it locally when `native/helper-mac` changes.
-- Windows helper: `npm run build:helper:win` and `npm run test:helper:win` (need the .NET 9 SDK). CI runs both, the app's conformance suite against the helper, and `--self-test` on a Windows runner.
 
 The Hub (sidebar order, hidden pages, hash routes, the remembered page and window size, Home, the Dictation page and retry from the Hub, themes): see `docs/hub.md`.
 
@@ -162,7 +160,7 @@ Local server (the team backend on 127.0.0.1: accounts, sessions, the API, runnin
 
 Team backend on Supabase (the schema, row-level security, the functions, applying the migrations, the SQL tests, the dashboard settings): see `docs/supabase.md`.
 
-Platform helper and adapter (the `PlatformHelper` interface, the one place that reads the OS, the conformance suite every helper must pass, the Windows helper in `native/helper-win`, what is checked where): see `docs/platform.md`.
+Platform helper (the `PlatformHelper` interface, the macOS code in main, the conformance suite, the helper hash): see `docs/platform.md`.
 
 Local MCP server (the read and write tools for AI clients, the socket and the `murmur-mcp` command, HTTP on 127.0.0.1, per-app tokens, writing an app's config after an approved diff, the call log, limits, what is never returned): see `docs/mcp.md`.
 

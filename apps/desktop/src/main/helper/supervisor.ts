@@ -410,15 +410,6 @@ export class HelperSupervisor implements PlatformHelper {
     return subscribe(this.frontAppHandlers, handler);
   }
 
-  async activateApp(appId: string): Promise<boolean> {
-    if (!this.connection || this.status.state !== "ready") return false;
-    try {
-      return (await this.connection.request("apps.activate", { bundleId: appId })).activated;
-    } catch {
-      return false;
-    }
-  }
-
   async listApps(): Promise<InstalledApp[]> {
     if (!this.connection || this.status.state !== "ready") return [];
     try {

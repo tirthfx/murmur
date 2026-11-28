@@ -10,9 +10,9 @@ describe("the chosen insertion method (DC-32, DC-34)", () => {
   });
 
   it("types into remote desktops unless told to paste, plus the person's own apps", () => {
-    expect(insertionRules().typeInApps).toContain("mstsc.exe");
+    expect(insertionRules().typeInApps).toContain("com.microsoft.rdc.macos");
     const rules = insertionRules({ pasteInRemoteDesktops: true, typeInApps: ["a.viewer"] });
-    expect(rules.typeInApps).not.toContain("mstsc.exe");
+    expect(rules.typeInApps).not.toContain("com.microsoft.rdc.macos");
     expect(rules.typeInApps).toContain("a.viewer");
   });
 });

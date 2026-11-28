@@ -9,7 +9,6 @@ import {
   type StylesView,
   type StyleUpdate,
 } from "@murmur/shared";
-import { appKey } from "../apps/app-id";
 import { DEFAULT_APP_CATEGORIES, resolveCategory, type CategorySource } from "./app-categories";
 
 /** What a dictation uses: its category, the style for it, and how the category was found. */
@@ -99,7 +98,7 @@ export function createStyleStore(db: DatabaseSync, now: () => number = Date.now)
         recent.all() as unknown as { bundle_id: string; app_name: string | null }[]
       ).map((row) => {
         const chosen = map.get(row.bundle_id);
-        const known = DEFAULT_APP_CATEGORIES[appKey(row.bundle_id)];
+        const known = DEFAULT_APP_CATEGORIES[row.bundle_id];
         return {
           bundleId: row.bundle_id,
           appName: row.app_name,

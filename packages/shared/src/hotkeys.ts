@@ -38,7 +38,7 @@ export const MAX_HOTKEY_BINDINGS = 64;
 
 export const hotkeyTriggerSchema = z.object({
   type: z.literal("key"),
-  /** Platform key code (up to 255: Windows virtual keys). A modifier key on its own has no modifiers. */
+  /** Mac virtual key code (up to 255). A modifier key on its own has no modifiers. */
   keyCode: z.number().int().min(0).max(255),
   modifiers: z
     .array(z.enum(HOTKEY_MODIFIERS))

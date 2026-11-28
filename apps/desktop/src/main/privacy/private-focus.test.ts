@@ -29,9 +29,13 @@ describe("the private app list (HB-48)", () => {
   });
 
   it("never asks a listed app for its text, and hides its window title", async () => {
-    const read = reader("Vault.exe");
-    const result = await createPrivateFocus(read, () => ["vault.exe"])({});
-    expect(result).toMatchObject({ textBefore: "", windowTitle: null, bundleId: "Vault.exe" });
+    const read = reader("com.example.vault");
+    const result = await createPrivateFocus(read, () => ["com.example.vault"])({});
+    expect(result).toMatchObject({
+      textBefore: "",
+      windowTitle: null,
+      bundleId: "com.example.vault",
+    });
     expect(read).toHaveBeenCalledTimes(1);
     expect(read).toHaveBeenCalledWith({ maxBefore: 0, maxAfter: 0 });
   });

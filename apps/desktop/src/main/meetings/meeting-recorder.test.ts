@@ -15,7 +15,6 @@ function setup(
   options: {
     captureSystem?: boolean;
     startResult?: Partial<CaptureStartResult>;
-    warnPlayback?: boolean;
   } = {},
 ) {
   let clock = 1_000_000;
@@ -43,7 +42,6 @@ function setup(
   const states: RecordingState[] = [];
   const finished: string[] = [];
   const removed: string[] = [];
-  const playbackWarned: string[] = [];
   const recorder = createMeetingRecorder({
     helper,
     store,
@@ -55,8 +53,6 @@ function setup(
       chunkSeconds: 30,
       micDeviceId: null,
     }),
-    playbackWarning: (channels) => (options.warnPlayback ?? false) && channels.includes("system"),
-    onPlaybackWarned: () => playbackWarned.push("warned"),
     onState: (state) => states.push(state),
     onFinished: (meeting) => finished.push(meeting.id),
     removePartials: (folder) => removed.push(folder),
@@ -80,7 +76,6 @@ function setup(
     states,
     finished,
     removed,
-    playbackWarned,
     chunk,
     error: (error: CaptureError) => errorHandler(error),
     advance: (ms: number) => (clock += ms),
@@ -184,42 +179,5 @@ describe("meeting recorder", () => {
       durationMs: 40_000,
       warnings: ["interrupted"],
     });
-  });
-});
-
-describe("the playback warning (SW-12)", () => {
-  it("is added to the recording and the meeting when the computer's sound is recorded", async () => {
-    const t = setup({ warnPlayback: true });
-    await t.recorder.start();
-    const state = t.recorder.state();
-    expect(state.status === "recording" && state.warnings).toEqual(["system_playback"]);
-    expect(t.store.get("mtg-1")?.warnings).toContain("system_playback");
-    expect(t.playbackWarned).toEqual(["warned"]);
-  });
-
-  it("is not added when only the microphone is recorded", async () => {
-    const t = setup({ warnPlayback: true, captureSystem: false });
-    await t.recorder.start();
-    const state = t.recorder.state();
-    expect(state.status === "recording" && state.warnings).toEqual([]);
-    expect(t.playbackWarned).toEqual([]);
-  });
-
-  it("is not added when the system channel did not start", async () => {
-    const t = setup({
-      warnPlayback: true,
-      startResult: { channels: { mic: "Device" }, warnings: ["system_unavailable"] },
-    });
-    await t.recorder.start();
-    const state = t.recorder.state();
-    expect(state.status === "recording" && state.warnings).toEqual(["system_unavailable"]);
-    expect(t.playbackWarned).toEqual([]);
-  });
-
-  it("is not added when it is not wanted", async () => {
-    const t = setup();
-    await t.recorder.start();
-    const state = t.recorder.state();
-    expect(state.status === "recording" && state.warnings).toEqual([]);
   });
 });

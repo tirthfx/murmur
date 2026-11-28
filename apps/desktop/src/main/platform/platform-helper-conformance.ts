@@ -15,20 +15,18 @@ import {
 } from "@murmur/shared";
 
 /**
- * The conformance suite for `PlatformHelper` (SW-09). It states what the app needs from any
- * helper, on any OS, and talks to the helper only through the interface. What the helper acts
- * on (a test text field, the front app, a call in a window, keys pressed) is reached through a
- * `HelperWorld`: the Mac implementation here plays the operating system with a scripted
- * stand-in, and a Windows implementation drives a real machine with fixture audio and a real
- * text field. The same scenarios then run on both.
+ * The conformance suite for `PlatformHelper`. It states what the app needs from the helper and
+ * talks to it only through the interface. What the helper acts on (a test text field, the front
+ * app, a call in a window, keys pressed) is reached through a `HelperWorld`, here a scripted
+ * stand-in for the operating system.
  *
- * A scenario that cannot be run on a platform is skipped by naming it in `skip`, with a reason
- * the report shows; it is never dropped silently.
+ * A scenario that cannot be run is skipped by naming it in `skip`, with a reason the report
+ * shows; it is never dropped silently.
  */
 export interface HelperWorld {
   /** The helper under test, not yet started. */
   helper: PlatformHelper;
-  /** A binding that is valid on this OS (key codes differ), with a hold mode and one action. */
+  /** A valid binding with a hold mode and one action. */
   holdBinding: HotkeyBinding;
   /** A folder the helper may write meeting chunks into. */
   captureFolder: string;
@@ -247,8 +245,6 @@ export function describePlatformHelperConformance(name: string, options: Conform
         expect(app.bundleId.length).toBeGreaterThan(0);
         expect(app.name.length).toBeGreaterThan(0);
       }
-      // Never a rejection: false when the app is not running, or the helper leaves it to main.
-      expect(await helper.activateApp("app.not.running")).toBe(false);
     });
 
     scenario("context", async ({ helper, setPermission, focusApp, focusTextField }) => {

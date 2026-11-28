@@ -1,5 +1,4 @@
 import type { ContextSnapshotInput, FocusContext } from "@murmur/shared";
-import { appKey } from "../apps/app-id";
 
 /**
  * HB-48: an app on the private list is never asked for the text around the caret. The app is
@@ -14,8 +13,8 @@ export function createPrivateFocus(
     const list = excluded();
     if (list.length === 0) return read(input);
     const app = await read(nothing);
-    const listed = new Set(list.map((id) => appKey(id)));
-    if (app.bundleId !== null && listed.has(appKey(app.bundleId))) {
+    const listed = new Set(list);
+    if (app.bundleId !== null && listed.has(app.bundleId)) {
       return { ...app, windowTitle: null, textBefore: "", textAfter: "" };
     }
     return read(input);

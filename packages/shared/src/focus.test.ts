@@ -71,14 +71,12 @@ describe("Blocked app ids", () => {
   const accepts = (bundleId: string) =>
     focusAppInputSchema.safeParse({ bundleId, label: "App" }).success;
 
-  it("takes a bundle id or a Windows program name", () => {
-    for (const id of ["com.example.App", "chrome.exe", "Notion Calendar.exe", "obs_64.EXE"]) {
-      expect(accepts(id), id).toBe(true);
-    }
+  it("takes a bundle id", () => {
+    expect(accepts("com.example.App")).toBe(true);
   });
 
   it("refuses paths and plain words", () => {
-    for (const id of ["Safari", "/Applications/App.app", "C:\\Apps\\app.exe", ".exe", "a|b.exe"]) {
+    for (const id of ["Safari", "/Applications/App.app", "com.example.", "a|b.c"]) {
       expect(accepts(id), id).toBe(false);
     }
   });

@@ -59,7 +59,3 @@ logs/
 .vscode/
 .idea/
 
-# .NET (Windows helper)
-native/helper-win/**/bin/
-native/helper-win/**/obj/
-native/helper-win/publish/

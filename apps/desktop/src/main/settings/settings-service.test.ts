@@ -6,7 +6,7 @@ import {
 } from "@murmur/shared";
 import { describe, expect, it, vi } from "vitest";
 import type { Settings } from "@murmur/shared";
-import { keyPlatform } from "../platform";
+import { MAC_KEYS } from "../platform";
 import {
   bindingsFor,
   createSettingsService,
@@ -121,7 +121,7 @@ function setup() {
   return {
     store,
     listDevices,
-    service: createSettingsService({ store, platform: keyPlatform("darwin"), listDevices }),
+    service: createSettingsService({ store, platform: MAC_KEYS, listDevices }),
   };
 }
 

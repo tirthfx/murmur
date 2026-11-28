@@ -3,8 +3,6 @@ import type { BrowserWindowConstructorOptions } from "electron";
 export interface HubWindowOptionsInput {
   /** Absolute path to the built preload script. */
   preloadPath: string;
-  /** Value of `process.platform`. */
-  platform: string;
   /** Development builds only: allows the developer tools. */
   isDevelopment: boolean;
 }
@@ -19,7 +17,7 @@ export const HUB_MIN_HEIGHT = 640;
 export function createHubWindowOptions(
   input: HubWindowOptionsInput,
 ): BrowserWindowConstructorOptions {
-  const options: BrowserWindowConstructorOptions = {
+  return {
     title: "Murmur",
     width: 1120,
     height: 720,
@@ -38,12 +36,7 @@ export function createHubWindowOptions(
       webviewTag: false,
       devTools: input.isDevelopment,
     },
+    titleBarStyle: "hiddenInset",
+    trafficLightPosition: { x: 16, y: 16 },
   };
-
-  if (input.platform === "darwin") {
-    options.titleBarStyle = "hiddenInset";
-    options.trafficLightPosition = { x: 16, y: 16 };
-  }
-
-  return options;
 }
