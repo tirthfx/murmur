@@ -339,6 +339,9 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
         log: [{ at: Date.UTC(2026, 10, 19), text: "Trial of Pro started for 14 days" }],
       },
     }),
+    gmailThreads: vi.fn().mockResolvedValue({ ok: true, threads: [] }),
+    gmailImportContacts: vi.fn().mockResolvedValue({ ok: true, added: 0, found: 0 }),
+    gmailLearnStyle: vi.fn().mockResolvedValue({ ok: false, message: "Not available." }),
     dataExport: vi.fn().mockResolvedValue({ ok: true }),
     // Nothing until an export has been started; then it is done at once.
     dataExportStatus: vi

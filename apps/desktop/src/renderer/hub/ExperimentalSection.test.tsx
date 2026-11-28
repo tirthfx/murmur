@@ -64,14 +64,6 @@ describe("Experimental section", () => {
     expect(onChange).toHaveBeenCalledWith({ ...off, pronunciationClips: true });
   });
 
-  it("keeps learning from sent mail disabled, saying why", () => {
-    window.murmur = createMockApi();
-    render(<ExperimentalSection experimental={off} onChange={vi.fn()} />);
-    const mail = screen.getByRole("switch", { name: /Learn from sent mail/ });
-    expect(mail.getAttribute("aria-disabled")).toBe("true");
-    expect(screen.getByText(/does not learn from sent mail/)).toBeTruthy();
-  });
-
   it("hides the ring search until the ring is turned on, then searches for 30 seconds", () => {
     vi.useFakeTimers();
     window.murmur = createMockApi();

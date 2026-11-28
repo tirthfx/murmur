@@ -169,8 +169,6 @@ export function parseThread(value: unknown): GmailThread | null {
   };
 }
 
-const listSchema = z.object({ threads: z.array(z.object({ id: z.string().min(1) })).optional() });
-
 /**
  * The most recent threads with any of these people, newest first, as plain text (CN-04). Only
  * addresses that look like addresses go into the search. An attachment is never fetched.
@@ -188,20 +186,85 @@ export async function recentThreadsWith(options: {
   if (emails.length === 0 || options.max < 1) return [];
   const group = `(${emails.join(" OR ")})`;
   const query = `(from:${group} OR to:${group}) newer_than:${options.days ?? 90}d`;
-  const list = await options.fetch(
-    `${API}/threads?${new URLSearchParams({ q: query, maxResults: String(options.max) })}`,
-  );
-  if (!list.ok) throw new GmailError(`Gmail answered ${list.status}.`);
-  const ids = listSchema.safeParse(await list.json().catch(() => null));
-  if (!ids.success) throw new GmailError("Gmail sent an answer Murmur cannot read.");
+  const params = new URLSearchParams({ q: query, maxResults: String(options.max) });
+  const ids = await listIds(options.fetch, `${API}/threads?${params}`, "threads");
+  return readThreads(options.fetch, ids.slice(0, options.max));
+}
+
+/** The newest threads of the inbox, as plain text, for choosing one to reply to. */
+export async function recentInboxThreads(options: {
+  fetch: Fetch;
+  max: number;
+}): Promise<GmailThread[]> {
+  const query = new URLSearchParams({
+    q: "in:inbox newer_than:30d",
+    maxResults: String(options.max),
+  });
+  const ids = await listIds(options.fetch, `${API}/threads?${query}`, "threads");
+  return readThreads(options.fetch, ids.slice(0, options.max));
+}
+
+/** One message the owner sent: who it went to, and its text. */
+export interface SentMessage {
+  to: string;
+  cc: string;
+  /** Empty unless the text was asked for. */
+  text: string;
+}
+
+/**
+ * The newest messages the owner sent in the last 90 days. With `headersOnly` Gmail is asked for
+ * the address lines alone, so no message text is read.
+ */
+export async function sentMessages(options: {
+  fetch: Fetch;
+  max: number;
+  headersOnly: boolean;
+}): Promise<SentMessage[]> {
+  const query = new URLSearchParams({
+    q: "in:sent newer_than:90d",
+    maxResults: String(options.max),
+  });
+  const ids = await listIds(options.fetch, `${API}/messages?${query}`, "messages");
+  const format = options.headersOnly
+    ? "format=metadata&metadataHeaders=To&metadataHeaders=Cc"
+    : "format=full";
+  const messages: SentMessage[] = [];
+  for (const id of ids.slice(0, options.max)) {
+    const response = await options.fetch(`${API}/messages/${encodeURIComponent(id)}?${format}`);
+    if (!response.ok) throw new GmailError(`Gmail answered ${response.status}.`);
+    const message = messageSchema.safeParse(await response.json().catch(() => null));
+    if (!message.success) continue;
+    const part = message.data.payload;
+    messages.push({
+      to: header(part, "to"),
+      cc: header(part, "cc"),
+      text: options.headersOnly ? "" : textOf(part).slice(0, GMAIL_LIMITS.messageText),
+    });
+  }
+  return messages;
+}
+
+async function readThreads(fetch: Fetch, ids: readonly string[]): Promise<GmailThread[]> {
   const threads: GmailThread[] = [];
-  for (const { id } of (ids.data.threads ?? []).slice(0, options.max)) {
-    const response = await options.fetch(`${API}/threads/${encodeURIComponent(id)}?format=full`);
+  for (const id of ids) {
+    const response = await fetch(`${API}/threads/${encodeURIComponent(id)}?format=full`);
     if (!response.ok) throw new GmailError(`Gmail answered ${response.status}.`);
     const thread = parseThread(await response.json().catch(() => null));
     if (thread) threads.push(thread);
   }
   return threads;
+}
+
+async function listIds(fetch: Fetch, url: string, key: "threads" | "messages"): Promise<string[]> {
+  const response = await fetch(url);
+  if (!response.ok) throw new GmailError(`Gmail answered ${response.status}.`);
+  const body = z
+    .object({ [key]: z.array(z.object({ id: z.string().min(1) })).optional() })
+    .safeParse(await response.json().catch(() => null));
+  if (!body.success) throw new GmailError("Gmail sent an answer Murmur cannot read.");
+  const entries = (body.data as Record<string, { id: string }[] | undefined>)[key] ?? [];
+  return entries.map((entry) => entry.id);
 }
 
 // ------------------------------------------------------------------ drafts

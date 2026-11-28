@@ -140,6 +140,9 @@ import {
   type SetupStatus,
   languageLabel,
   type SpeechLanguage,
+  describeEmailStyle,
+  type EmailStyle,
+  GMAIL_ID,
 } from "@murmur/shared";
 import {
   createNavigationGuard,
@@ -213,6 +216,7 @@ import { createEmailDraftService } from "./connectors/gmail/email-draft";
 import { createActionRunner, fromUserClick } from "./extensions/action-runner";
 import { createSlackPost } from "./connectors/slack/slack-post";
 import { createAskActions } from "./connectors/ask-actions";
+import { createGmailMail, type GmailMail } from "./connectors/gmail/gmail-mail";
 import { createGmailThreads } from "./connectors/gmail/gmail-threads";
 import { createBriefBuilder, eventKeyOf as briefEventKey } from "./meetings/brief-builder";
 import { createBriefService } from "./meetings/brief-service";
@@ -1618,6 +1622,22 @@ function rewriteContext(appId: string | null, text: string) {
         : [],
   };
 }
+/** Instruct Mode's context: a Rewrite's, and in Email apps what sent mail taught (PZ-23). */
+function instructContext(appId: string | null, text: string) {
+  const own = rewriteContext(appId, text);
+  const { learnStyle, style } = settingsStore.get().connectors.gmail;
+  const resolved = styles?.resolve({ bundleId: appId, windowTitle: null });
+  return learnStyle && style && resolved?.category === "email"
+    ? { ...own, style: [...own.style, describeEmailStyle(style)] }
+    : own;
+}
+/** Keeps or forgets what was learned from sent mail. */
+function saveEmailStyle(style: EmailStyle | null): void {
+  const { connectors } = settingsStore.get();
+  settingsStore.update({
+    connectors: { ...connectors, gmail: { ...connectors.gmail, style } },
+  });
+}
 // Auto-apply (RW-05): one Rewrite on every dictation, within 3 s.
 const autoRewrite = createAutoRewriter({
   // Free has no auto-apply (RW-22): no Rewrite counts as auto-applying.
@@ -1651,7 +1671,7 @@ const instructController = createInstructController({
   modelId: (model) => (model === "quality" ? QUALITY_INSTRUCT_MODEL.id : DEFAULT_CLEANUP_MODEL.id),
   notify: (message) => bar.dispatch({ type: "warn", message }),
   activateApp,
-  context: (appId, text) => rewriteContext(appId, text),
+  context: (appId, text) => instructContext(appId, text),
   settings: () => {
     const settings = settingsStore.get();
     return { instruct: settings.instruct, contextAwareness: settings.contextAwareness };
@@ -2314,6 +2334,25 @@ const briefs =
       })
     : null;
 briefs?.start();
+// CN-04, NT-12, PZ-23: what reads Gmail only when asked.
+const gmailMail = connectorService
+  ? createGmailMail({
+      connectors: connectorService,
+      settings: () => settingsStore.get().connectors.gmail,
+      saveStyle: saveEmailStyle,
+      addContacts: (people) => contactsStore?.addAttendees(people, "mail") ?? 0,
+      now: Date.now,
+    })
+  : null;
+/** Runs one Gmail request, unless connectors are unavailable or refused (strict local mode). */
+async function withGmailMail<T>(
+  run: (mail: GmailMail) => Promise<T>,
+): Promise<T | { ok: false; message: string }> {
+  const refusal = connectorRefusal();
+  if (refusal !== null) return { ok: false, message: refusal };
+  if (!gmailMail) return { ok: false, message: "Connectors are not available." };
+  return run(gmailMail);
+}
 /** The meeting the menu bar asked the Brief tab to show; handed over once. */
 let briefTarget: string | null = null;
 const noBriefs = {
@@ -3809,6 +3848,9 @@ function registerIpc(): void {
         : { ok: false, message: "An export is already running.", canceled: false };
     },
     dataExportStatus: () => exportJob.status(),
+    gmailThreads: async () => withGmailMail((mail) => mail.threads()),
+    gmailImportContacts: async () => withGmailMail((mail) => mail.importContacts()),
+    gmailLearnStyle: async () => withGmailMail((mail) => mail.learnStyle()),
     dataCounts: () => dataDeleter?.counts() ?? { categories: [], failedFiles: 0 },
     dataDelete: (category) => {
       const result = dataDeleter?.delete(category) ?? { rows: 0, files: 0, failedFiles: 0 };
@@ -4055,7 +4097,9 @@ function registerIpc(): void {
     connectorDisconnect: async (accountId) => {
       if (!connectorService) return { ok: false, message: "Connectors are not available." };
       try {
+        const gone = connectorService.list().find((entry) => entry.id === accountId);
         const { revoked } = await connectorService.disconnect(accountId);
+        if (gone?.connector === GMAIL_ID) saveEmailStyle(null);
         return {
           ok: true,
           message:

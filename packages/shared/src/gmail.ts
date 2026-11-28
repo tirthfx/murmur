@@ -14,12 +14,59 @@ export const GMAIL_SCOPE_READ = "https://www.googleapis.com/auth/gmail.readonly"
 export const GMAIL_SCOPE_COMPOSE = "https://www.googleapis.com/auth/gmail.compose";
 
 /** `connectors.gmail`: what Murmur may do with mail. Everything is off until the owner turns it on. */
+/** How the owner usually writes email, worked out on this Mac from sent mail (PZ-23). */
+export const emailStyleSchema = z.strictObject({
+  /** The usual opening, with `{name}` where a name goes; null when there is no habit. */
+  greeting: z.string().max(80).nullable(),
+  signOff: z.string().max(80).nullable(),
+  /** The middle length of a message, in words. */
+  words: z.number().int().nonnegative(),
+  /** How many messages it was learned from. */
+  messages: z.number().int().positive(),
+  learnedAt: z.number().int().nonnegative(),
+});
+export type EmailStyle = z.infer<typeof emailStyleSchema>;
+
+/** The habits in plain words, for the owner and for the model. */
+export function describeEmailStyle(style: EmailStyle): string {
+  const parts = [
+    style.greeting ? `Open with “${style.greeting}”.` : "No usual opening.",
+    style.signOff ? `Sign off with “${style.signOff}”.` : "No usual sign-off.",
+    `Messages are usually about ${style.words} words.`,
+  ];
+  return parts.join(" ");
+}
+
+/** A recent thread to choose as the source of a reply, as plain text. */
+export interface GmailThreadChoice {
+  id: string;
+  subject: string;
+  /** Who wrote last. */
+  from: string;
+  /** The thread as it goes into the notes. */
+  text: string;
+}
+
+export type GmailThreadsResult =
+  { ok: true; threads: GmailThreadChoice[] } | { ok: false; message: string };
+export type GmailContactsResult =
+  { ok: true; added: number; found: number } | { ok: false; message: string };
+export type GmailStyleResult = { ok: true; style: EmailStyle } | { ok: false; message: string };
+
 export const gmailSettingsSchema = z.strictObject({
   /** Read recent threads with the people in a meeting, for briefs. Needs the read scope. */
   briefContext: z.boolean(),
   /** Create drafts from a task or a summary. Needs the compose scope. */
   draftEnabled: z.boolean(),
   maxThreadsPerBrief: z.number().int().min(1).max(10),
+  /** Pick a recent thread to put in a meeting's notes, for a reply draft. Needs the read scope. */
+  replyContext: z.boolean().default(false),
+  /** Add the people the owner writes to as contacts, when asked (NT-12). Needs the read scope. */
+  contactsFromMail: z.boolean().default(false),
+  /** Learn how the owner writes email from sent mail, when asked (PZ-23). Needs the read scope. */
+  learnStyle: z.boolean().default(false),
+  /** What was learned, used by Instruct Mode in email apps; null before it was. */
+  style: emailStyleSchema.nullable().default(null),
 });
 export type GmailSettings = z.infer<typeof gmailSettingsSchema>;
 
@@ -27,12 +74,22 @@ export const DEFAULT_GMAIL_SETTINGS: GmailSettings = {
   briefContext: false,
   draftEnabled: false,
   maxThreadsPerBrief: 5,
+  replyContext: false,
+  contactsFromMail: false,
+  learnStyle: false,
+  style: null,
 };
 
 /** The scopes to ask for when signing in to Gmail: only those of the features that are on. */
 export function gmailScopesFor(settings: GmailSettings): string[] {
   const scopes: string[] = [...GMAIL_BASE_SCOPES];
-  if (settings.briefContext) scopes.push(GMAIL_SCOPE_READ);
+  if (
+    settings.briefContext ||
+    settings.replyContext ||
+    settings.contactsFromMail ||
+    settings.learnStyle
+  )
+    scopes.push(GMAIL_SCOPE_READ);
   if (settings.draftEnabled) scopes.push(GMAIL_SCOPE_COMPOSE);
   return scopes;
 }

@@ -22,8 +22,8 @@ export interface ContactsStore {
   save(id: string | null, draft: unknown, source?: ContactSource): ContactResult;
   /** Removes the contact; its mentions become the plain name. */
   remove(id: string): boolean;
-  /** NT-12: people from a calendar event. Known emails are left as they are. */
-  addAttendees(attendees: readonly MeetingAttendee[]): number;
+  /** NT-12: people from a calendar event, or from sent mail. Known emails are left as they are. */
+  addAttendees(attendees: readonly MeetingAttendee[], source?: "calendar" | "mail"): number;
   /** A renamed speaker becomes a contact unless one of that name exists. */
   addSpeaker(name: string): void;
   card(id: string): ContactCard | null;
@@ -155,7 +155,7 @@ export function createContactsStore(db: DatabaseSync, deps: ContactsStoreDeps): 
         return db.prepare("DELETE FROM contacts WHERE id = ?").run(id).changes > 0;
       });
     },
-    addAttendees(attendees) {
+    addAttendees(attendees, source = "calendar") {
       let added = 0;
       for (const attendee of attendees) {
         if (full()) break;
@@ -163,7 +163,7 @@ export function createContactsStore(db: DatabaseSync, deps: ContactsStoreDeps): 
         const name = attendee.name?.trim() || email.split("@")[0]!;
         const draft = contactDraftSchema.safeParse({ name, email });
         if (!draft.success || byEmail.get(draft.data.email)) continue;
-        insert(draft.data.name, draft.data.email, "calendar");
+        insert(draft.data.name, draft.data.email, source);
         added++;
       }
       return added;

@@ -38,6 +38,7 @@ import {
 } from "@murmur/shared";
 import { ConnectorImport, KeyForm } from "./ConnectorImport";
 import { ConnectorSelection, OptionPicker } from "./ConnectorSelection";
+import { GmailMailSection } from "./GmailMailSection";
 import { McpSection } from "./McpSection";
 
 type BadgeVariant = "neutral" | "info" | "success" | "warning" | "error";
@@ -654,6 +655,14 @@ export function ConnectorsPage() {
                               description="Murmur makes a draft in Gmail after you have read it. It never sends mail. It asks Google for permission to create drafts only when this is on."
                               value={settings.gmail.draftEnabled}
                               onChange={(draftEnabled) => void setGmail({ draftEnabled })}
+                            />
+                            <GmailMailSection
+                              gmail={settings.gmail}
+                              save={setGmail}
+                              onLearned={async () => {
+                                const next = await window.murmur.getSettings();
+                                setSettings(next.settings.connectors);
+                              }}
                             />
                             {connector.accounts
                               .filter((entry) => entry.status === "connected")

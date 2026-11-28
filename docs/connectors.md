@@ -130,6 +130,16 @@ Meetings from Zoom and Fireflies come in through the transcript importer (NT-21,
 
 **Manual check:** register your own Zoom app (recording read scope, redirect address above) and connect it; List meetings, pick one with a transcript, check the preview shows the speakers, confirm, and check the meeting is in Notetaker. List again and check it is marked Imported; import it again from the list and check it is refused. For Fireflies, paste your key: a wrong one says Key rejected; with the right one, import a transcript and check the speaker names and the labelled summary.
 
+## Reading Gmail when asked
+
+Besides briefs and drafts, three switches on the Gmail card each ask for `gmail.readonly` and read only when the owner presses a button (`connectors/gmail/gmail-mail.ts`):
+
+- **Reply from an email thread** (`replyContext`): a meeting's notes offer "Add an email thread", which lists up to 10 inbox threads of the last 30 days and puts the chosen one into the notes (its end, if over 8,000 characters). The **Email reply draft** Skill reads it there.
+- **Add people I write to as contacts** (`contactsFromMail`): reads the `To` and `Cc` lines of up to 100 messages sent in the last 90 days (`format=metadata`, so no message text) and adds the new addresses as contacts with the source `mail` (migration 0050).
+- **Learn how I write email** (`learnStyle`): see `email.md`.
+
+None of these was tried against a real account.
+
 ## Sending to Slack and tags (CN-05, CN-14)
 
 **Send to Slack** is the third built-in action (`post_to_slack`, off until turned on in Extensions). It is on an open task and under a meeting's summary. It needs the Slack connector with **Read only turned off** and the user permission `chat:write`, which is asked for only then (the card shows "Give permission" for an account that lacks it); posting is as the owner, to a channel they are in (private ones when "Include private channels" is on). The flow has two steps and no shortcut:
