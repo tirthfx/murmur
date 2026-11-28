@@ -118,25 +118,29 @@ export function LineEditor({
         >
           Save
         </Button>
-        <Button
-          size="sm"
-          variant="secondary"
-          label="Cut this line in two at the cursor"
-          isDisabled={changed}
-          onClick={() =>
-            void correct({ kind: "split", segmentId: segment.id, offset: cursor() }, "close")
-          }
-        >
-          Split at the cursor
-        </Button>
-        <Button
-          size="sm"
-          variant="secondary"
-          label="Join this line with the next one"
-          onClick={() => void correct({ kind: "merge", segmentId: segment.id }, "close")}
-        >
-          Join with next
-        </Button>
+        {segment.isDictated ? null : (
+          <>
+            <Button
+              size="sm"
+              variant="secondary"
+              label="Cut this line in two at the cursor"
+              isDisabled={changed}
+              onClick={() =>
+                void correct({ kind: "split", segmentId: segment.id, offset: cursor() }, "close")
+              }
+            >
+              Split at the cursor
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              label="Join this line with the next one"
+              onClick={() => void correct({ kind: "merge", segmentId: segment.id }, "close")}
+            >
+              Join with next
+            </Button>
+          </>
+        )}
         <Button size="sm" variant="ghost" label="Close the editor" onClick={onClose}>
           Close
         </Button>
@@ -146,7 +150,7 @@ export function LineEditor({
           Save the new words before splitting.
         </Text>
       ) : null}
-      <HStack gap={2} wrap="wrap" align="end">
+      <HStack gap={2} wrap="wrap" align="end" hidden={segment.isDictated}>
         <Selector
           label="Speaker"
           value={speaker}

@@ -23,6 +23,8 @@ export interface ExportInput {
     dueOn: string | null;
   }[];
   notes: string;
+  /** The recording's files as they are named inside the archive, when audio is wanted. */
+  audio?: { name: string; label: string }[];
   options: MeetingExportOptions;
   exportedAt: number;
 }
@@ -108,7 +110,8 @@ pre { white-space: pre-wrap; font: inherit; margin: 6px 0; }
 /**
  * A meeting as one HTML file that opens offline in any browser (NT-18): the summary, the
  * transcript, the tasks and, if asked, the owner's notes. It has no scripts, no fonts, no
- * images and no links to the web, and every piece of text is escaped. Audio is never in it.
+ * images and no links to the web, and every piece of text is escaped. Audio is only named when
+ * the owner asked for it, and then it plays from the files beside the page.
  * A link in the summary jumps to the transcript line it came from.
  */
 export function renderMeetingHtml(input: ExportInput): string {
@@ -171,8 +174,20 @@ export function renderMeetingHtml(input: ExportInput): string {
     parts.push("</section>");
   }
 
+  const audio = options.audio ? (input.audio ?? []) : [];
+  if (audio.length > 0) {
+    parts.push('<section id="audio"><h2>Audio</h2>');
+    for (const file of audio)
+      parts.push(
+        `<p>${esc(file.label)}<br><audio controls preload="none" src="${esc(file.name)}"></audio></p>`,
+      );
+    parts.push("</section>");
+  }
+
   parts.push(
-    `<p class="note">Exported from Murmur on ${esc(day(input.exportedAt))}. The audio is not included.</p>`,
+    `<p class="note">Exported from Murmur on ${esc(day(input.exportedAt))}.${
+      audio.length > 0 ? "" : " The audio is not included."
+    }</p>`,
   );
 
   return `<!doctype html>
@@ -180,7 +195,7 @@ export function renderMeetingHtml(input: ExportInput): string {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; media-src 'self' file:">
 <title>${esc(input.title)}</title>
 <style>${CSS}</style>
 </head>

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { CalendarAttendee, CalendarEvent, CalendarResponse } from "@murmur/shared";
+import type { CalendarAttendee, CalendarEvent, CalendarResponse, RsvpAnswer } from "@murmur/shared";
 import type { ConnectorProvider } from "../providers";
 
 export const GOOGLE_CALENDAR_ID = "googleCalendar";
@@ -234,3 +234,33 @@ export async function createGoogleEvent(options: {
 }
 
 const https = (value: string | undefined) => (value && /^https:\/\//i.test(value) ? value : null);
+
+// ------------------------------------------------------------------ answering an invitation
+
+const invitationSchema = z.object({
+  attendees: z.array(z.looseObject({ self: z.boolean().optional() })).default([]),
+});
+
+/** Sets the owner's own answer on an event; the organiser is told (NT-02). */
+export async function respondGoogleEvent(options: {
+  fetch(url: string, init?: RequestInit): Promise<Response>;
+  eventId: string;
+  answer: RsvpAnswer;
+}): Promise<void> {
+  const address = `${API}/calendars/primary/events/${encodeURIComponent(options.eventId)}`;
+  const read = await options.fetch(`${address}?fields=attendees`);
+  if (!read.ok) throw new CalendarFetchError(`Google Calendar answered ${read.status}.`);
+  const body = invitationSchema.safeParse(await read.json().catch(() => null));
+  if (!body.success || !body.data.attendees.some((attendee) => attendee.self))
+    throw new CalendarFetchError("You are not on that event's list of people.");
+  // The list is replaced as a whole, so everyone else is sent back as they were.
+  const attendees = body.data.attendees.map((attendee) =>
+    attendee.self ? { ...attendee, responseStatus: options.answer } : attendee,
+  );
+  const written = await options.fetch(`${address}?sendUpdates=all`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ attendees }),
+  });
+  if (!written.ok) throw new CalendarFetchError(`Google Calendar answered ${written.status}.`);
+}

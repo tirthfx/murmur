@@ -52,3 +52,11 @@ export interface MeetingRetentionDue {
   audio: number;
   transcripts: number;
 }
+
+/** NT-22: one thing the retention rules deleted. */
+export interface RetentionLogEntry {
+  meetingId: string;
+  title: string;
+  kind: "audio" | "transcript";
+  at: number;
+}

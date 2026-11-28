@@ -4,12 +4,15 @@ import {
   type AudioRetention,
   type MeetingRetentionDue,
   type TranscriptRetention,
+  type RetentionLogEntry,
 } from "@murmur/shared";
 import type { Logger } from "../helper/types";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** Segment rows are deleted this many at a time, each batch in its own transaction. */
 export const DELETE_BATCH = 500;
+/** How many entries of the log the Settings page shows. */
+const LOG_SHOWN = 50;
 
 export interface MeetingRetentionDeps {
   settings(): {
@@ -25,6 +28,8 @@ export interface MeetingRetentionDeps {
 }
 
 export interface MeetingRetention {
+  /** What the rules deleted, newest first. */
+  log(): RetentionLogEntry[];
   /** Deletes the audio of meetings past their period. Returns how many meetings. */
   runAudio(now: number): number;
   /** Deletes the transcripts of meetings past their period. Returns how many meetings. */
@@ -103,6 +108,14 @@ export function createMeetingRetention(
     return days != null && now - row.at >= days * DAY_MS;
   };
 
+  /** NT-22: notes in the log what is being deleted, once, with the meeting's title. */
+  function record(id: string, kind: "audio" | "transcript", now: number): void {
+    db.prepare(
+      `INSERT INTO retention_log (meeting_id, title, kind, at)
+       SELECT id, title, ?, ? FROM meetings WHERE id = ? AND ${kind}_deleted_at IS NULL`,
+    ).run(kind, now, id);
+  }
+
   /** Removes the audio files, then marks the meeting. Documents attached to it stay. */
   function deleteAudio(id: string, now: number): void {
     const chunks = db
@@ -117,6 +130,7 @@ export function createMeetingRetention(
         );
       }
     }
+    record(id, "audio", now);
     db.prepare(
       "UPDATE meetings SET audio_deleted_at = ? WHERE id = ? AND audio_deleted_at IS NULL",
     ).run(now, id);
@@ -149,6 +163,7 @@ export function createMeetingRetention(
       db.prepare("DELETE FROM transcript_versions WHERE meeting_id = ?").run(id);
       if (deps.settings().removeSummaryWithTranscript)
         db.prepare("DELETE FROM meeting_summaries WHERE meeting_id = ?").run(id);
+      record(id, "transcript", now);
       db.prepare("UPDATE meetings SET transcript_deleted_at = ? WHERE id = ?").run(now, id);
       db.exec("COMMIT");
     } catch (error) {
@@ -183,6 +198,21 @@ export function createMeetingRetention(
       if (!row || audioPeriod(row) !== "processing" || !audioDue(row, now)) return false;
       deleteAudio(meetingId, now);
       return true;
+    },
+
+    log() {
+      const found = db
+        .prepare(
+          `SELECT meeting_id, title, kind, at FROM retention_log
+           ORDER BY at DESC, id DESC LIMIT ${LOG_SHOWN}`,
+        )
+        .all() as { meeting_id: string; title: string; kind: "audio" | "transcript"; at: number }[];
+      return found.map((row) => ({
+        meetingId: row.meeting_id,
+        title: row.title,
+        kind: row.kind,
+        at: row.at,
+      }));
     },
 
     due(now) {

@@ -12,11 +12,12 @@ const PARTS: { key: keyof MeetingExportOptions; label: string }[] = [
   { key: "transcript", label: "Transcript" },
   { key: "tasks", label: "Tasks" },
   { key: "notes", label: "My notes" },
+  { key: "audio", label: "Audio" },
 ];
 
 /**
  * NT-18: a meeting as one web page that opens offline in any browser. The owner chooses what
- * goes in it; the audio never does, and the panel says so.
+ * goes in it; the audio only when asked, and the panel says which.
  */
 export function ExportPanel({ meetingId, onClose }: { meetingId: string; onClose: () => void }) {
   const [options, setOptions] = useState<MeetingExportOptions>(DEFAULT_EXPORT_OPTIONS);
@@ -45,7 +46,9 @@ export function ExportPanel({ meetingId, onClose }: { meetingId: string; onClose
           ))}
         </HStack>
         <Text size="sm" color="secondary">
-          The file is a web page that opens offline in any browser. The audio is not included.
+          {options.audio
+            ? "The file is a .murmur-meeting archive: unzip it and open index.html, which opens offline in any browser. It holds the recording."
+            : "The file is a web page that opens offline in any browser. The audio is not included."}
         </Text>
         {message ? <Banner status={message.status} title={message.text} /> : null}
         <HStack gap={2}>

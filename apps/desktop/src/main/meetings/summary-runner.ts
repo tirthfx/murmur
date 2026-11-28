@@ -7,6 +7,7 @@ import {
   type SkillLength,
 } from "@murmur/shared";
 import type { Logger } from "../helper/types";
+import { titleFromSummary } from "./meeting-title";
 import { createModelAsk } from "./model-ask";
 import { summarizeMeeting } from "./summarizer";
 import type { SkillsStore, SummariesStore } from "./summaries-store";
@@ -36,6 +37,11 @@ export interface SummaryRunnerDeps {
   summaries: Pick<SummariesStore, "add">;
   skills: Pick<SkillsStore, "get">;
   settings(): { skillId: string; length: SkillLength; language?: string };
+  /** NT-05: names a meeting from its summary, when it still has the name it was given. */
+  title?: {
+    wanted(meetingId: string): boolean;
+    set(meetingId: string, title: string): void;
+  };
   /** The Skill set for the folder a meeting is in (NT-17), or null. */
   folderSkill?(meetingId: string): string | null;
   modelId: string;
@@ -79,6 +85,20 @@ export function createSummaryRunner(deps: SummaryRunnerDeps): SummaryRunner {
   };
 
   const ask = createModelAsk(deps);
+
+  /** A meeting that cannot be named keeps its name: the summary is already saved. */
+  async function retitle(meetingId: string, markdown: string): Promise<void> {
+    if (!deps.title?.wanted(meetingId)) return;
+    try {
+      const title = await titleFromSummary(ask, markdown);
+      if (!title) return;
+      deps.title.set(meetingId, title);
+      deps.onChange(meetingId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      deps.logger.warn(`meeting ${meetingId} could not be named: ${message}`);
+    }
+  }
 
   return {
     status: (meetingId) => states.get(meetingId) ?? { state: "idle" },
@@ -135,6 +155,7 @@ export function createSummaryRunner(deps: SummaryRunnerDeps): SummaryRunner {
           at: deps.now(),
         });
         set(meetingId, null);
+        if (!summary.quick) await retitle(meetingId, markdown);
         return summary;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);

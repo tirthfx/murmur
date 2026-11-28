@@ -142,6 +142,7 @@ function setup() {
     meetingFolderDismiss: vi.fn(),
     meetingExport: vi.fn(),
     meetingRetentionDue: vi.fn(),
+    meetingRetentionLog: vi.fn(),
     meetingImportPreview: vi.fn(),
     meetingRecap: vi.fn(),
     meetingImportConfirm: vi.fn(),

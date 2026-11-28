@@ -22,7 +22,7 @@ export const BAR_STATES = [
 export type BarState = (typeof BAR_STATES)[number];
 
 /** What a Bar question can be answered with. Yes and No unless a question gives buttons. */
-export const BAR_ANSWERS = ["yes", "no", "never"] as const;
+export const BAR_ANSWERS = ["yes", "no", "never", "reply"] as const;
 export type BarAnswer = (typeof BAR_ANSWERS)[number];
 
 /** What the Bar page draws. */

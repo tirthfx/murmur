@@ -84,6 +84,7 @@ import {
   DEFAULT_EXPORT_OPTIONS,
   DEFAULT_SKILL_ID,
   SPEAKER_DEFAULT_NAMES,
+  formatElapsed,
   GENERATION_MESSAGES,
   markdownTitle,
   markdownToRich,
@@ -185,6 +186,7 @@ import { createConnectorStore } from "./connectors/connector-store";
 import { buildConnectorsView } from "./connectors/connectors-view";
 import { createMcpService } from "./mcp/mcp-service";
 import { createCalendarReminders } from "./meetings/calendar-reminders";
+import { createEventResponder } from "./connectors/calendar/event-respond";
 import {
   eventForCall,
   menuBarText,
@@ -231,6 +233,7 @@ import { createCorrectionsStore } from "./meetings/corrections-store";
 import { createMeetingRerun } from "./meetings/meeting-rerun";
 import { createMeetingRetention } from "./meetings/meeting-retention";
 import { createSpeakerClip } from "./meetings/speaker-clip";
+import { zipFiles } from "./meetings/zip";
 import { createTranscriptVersions } from "./meetings/transcript-versions";
 import { createSpeakersStore } from "./meetings/speakers-store";
 import { AskError, createAskRunner } from "./meetings/ask-runner";
@@ -787,6 +790,7 @@ const dataDeleter =
         audioRoot: path.join(profile.appData, "Murmur", "audio"),
         clipsRoot: path.join(profile.appData, "Murmur", "clips"),
         meetingsRoot: path.join(profile.appData, "Murmur", "meetings"),
+        skillsRoot: path.join(profile.appData, "Murmur", "Skills"),
       })
     : null;
 
@@ -2089,6 +2093,11 @@ const summaryRunner =
             language: settings.summary.language,
           };
         },
+        // NT-05: a recording the owner started keeps a made-up name until its summary names it.
+        title: {
+          wanted: (id) => meetingsStore.get(id)?.source === "ad_hoc",
+          set: (id, title) => void meetingsStore.setGeneratedTitle(id, title),
+        },
         folderSkill: (id) => foldersStore?.defaultSkillOf(id) ?? null,
         modelId: DEFAULT_CLEANUP_MODEL.id,
         modelReady: cleanupModelReady,
@@ -2102,6 +2111,10 @@ const summaryRunner =
         logger: createConsoleLogger("[summary]"),
       })
     : null;
+// NT-04: the recording's level meter in the Hub.
+helper.onCaptureLevel((level) => {
+  if (hubEvents && !hubEvents.isDestroyed()) hubEvents.send(IPC_EVENTS.meetingLevel, level);
+});
 /** Tells the Hub a meeting changed (null: the list or the recording). */
 function notifyMeetings(meetingId: string | null): void {
   if (hubEvents && !hubEvents.isDestroyed()) hubEvents.send(IPC_EVENTS.meetingsChanged, meetingId);
@@ -2163,6 +2176,7 @@ const briefs =
   connectorData
     ? createBriefService({
         calendar: calendarStore,
+        meeting: (id) => meetingsStore.get(id),
         settings: () => ({
           brief: settingsStore.get().notetaker.brief,
           skipDeclined: settingsStore.get().notetaker.calendar.skipDeclined,
@@ -2446,6 +2460,7 @@ const meetingJobs: MeetingJobs | null =
           // After a rerun (NT-23) a new summary is always written, and the tasks are looked
           // for again: a title the meeting already has is skipped, so done tasks stay done.
           if (meetingsStore.consumeRerun(id)) {
+            transcriptVersions?.reapplySpeakers(id);
             rerunExtract.add(id);
             meetingJobs?.enqueue(id, "summarise");
             return;
@@ -2595,15 +2610,28 @@ const connectorImport =
 function buildMeetingExport(
   meetingId: string,
   options: MeetingExportOptions,
-): { fileName: string; html: string } | null {
+): { fileName: string; html: string; audio: { name: string; path: string }[] } | null {
   const meeting = meetingsStore?.get(meetingId);
   if (!meeting || !meetingTranscripts || !meetingNotes) return null;
+  // NT-18: the recording's own files, when they are wanted and still here.
+  const audio =
+    options.audio && meeting.audioDeletedAt === null
+      ? (meetingsStore?.chunks(meetingId) ?? [])
+          .filter((chunk) => existsSync(chunk.path))
+          .map((chunk) => ({
+            name: `audio/${path.basename(chunk.path)}`,
+            label: `${SPEAKER_DEFAULT_NAMES[chunk.channel]}, from ${formatElapsed(chunk.startMs)}`,
+            path: chunk.path,
+          }))
+      : [];
   const speakers = speakersStore?.list(meetingId) ?? [];
   const summaries = (meetingSummaries?.list(meetingId) ?? []).filter((summary) => !summary.quick);
   const summary = summaries.at(-1) ?? null;
   return {
     fileName: exportFileName(meeting.title, meeting.startedAt),
+    audio,
     html: renderMeetingHtml({
+      audio,
       title: meeting.title,
       startedAt: meeting.startedAt,
       durationMs: meeting.durationMs,
@@ -2769,6 +2797,7 @@ function meetingDetail(id: string): MeetingDetail | null {
     recaps: recapsStore?.list(id) ?? [],
     recapStatus: recapRunner?.status(id) ?? { state: "idle" as const },
     showDictated: !settingsStore.get().notetaker.dictation.excludeFromTranscript,
+    correctedAt: correctionsStore?.lastAt(id) ?? null,
     speakers: speakersStore?.list(id) ?? [],
     transcriptVersions: transcriptVersions?.list(id, Date.now()) ?? [],
     detectedLanguage: meeting.language ? null : meetingTranscripts.detectedLanguage(id),
@@ -2879,7 +2908,8 @@ function startFromEvent(event: CalendarEvent): void {
 }
 /** The calendar event that a detected call in this app belongs to, or null. */
 function eventForApp(app: { id: string }): CalendarEvent | null {
-  const hosts = meetingMatchers.find((matcher) => matcher.id === app.id)?.web?.hosts ?? [];
+  const matcher = meetingMatchers.find((candidate) => candidate.id === app.id);
+  const hosts = [...(matcher?.web?.hosts ?? []), ...(matcher?.linkHosts ?? [])];
   const now = Date.now();
   return eventForCall(
     upcomingEvents(now, now + 600_000),
@@ -2888,13 +2918,46 @@ function eventForApp(app: { id: string }): CalendarEvent | null {
     settingsStore.get().notetaker.calendar.skipDeclined,
   );
 }
+const eventResponder = connectorService
+  ? createEventResponder({
+      connectors: connectorService,
+      settings: () => settingsStore.get().connectors,
+      onAnswered: (accountId) => void calendarSync?.syncAccount(accountId),
+    })
+  : null;
+/** NT-02: the confirmation before every answer to an invitation; nothing is sent without it. */
+async function replyToInvitation(event: CalendarEvent): Promise<void> {
+  const answers = ["accepted", "tentative", "declined"] as const;
+  const { response } = await dialog.showMessageBox({
+    type: "question",
+    message: `Answer “${event.title}”?`,
+    detail: "The answer goes to your calendar, and the organiser is told.",
+    buttons: ["Accept", "Maybe", "Decline", "Cancel"],
+    defaultId: 3,
+    cancelId: 3,
+  });
+  const answer = answers[response];
+  if (!answer || !eventResponder) return;
+  const result = await eventResponder.respond(event, answer);
+  bar.dispatch({ type: "warn", message: result.ok ? "Answer sent" : result.message });
+}
 const calendarReminders =
   calendarStore && meetings
     ? createCalendarReminders({
         settings: () => settingsStore.get().notetaker.calendar,
         events: ({ from, to }) => upcomingEvents(from, to),
         recording: () => meetings.state().status !== "idle",
-        ask: ({ message, detail }) => {
+        ...(eventResponder
+          ? {
+              replying: {
+                offered: (event) =>
+                  settingsStore.get().notetaker.calendar.rsvpFromReminder &&
+                  eventResponder.canRespond(event),
+                reply: (event) => void replyToInvitation(event),
+              },
+            }
+          : {}),
+        ask: ({ message, detail, reply }) => {
           // Only when the Bar is free: a dictation or another question is not interrupted.
           if (bar.getView().state !== "idle") return false;
           bar.dispatch({
@@ -2904,6 +2967,7 @@ const calendarReminders =
             actions: [
               { answer: "yes", label: "Record", primary: true },
               { answer: "no", label: "Not now" },
+              ...(reply ? [{ answer: "reply" as const, label: "Reply" }] : []),
             ],
             timeoutMs: 60_000,
           });
@@ -3897,7 +3961,8 @@ function registerIpc(): void {
     briefGet: (eventKey) => briefs?.get(eventKey) ?? null,
     briefForMeeting: (meetingId) => {
       const eventId = meetingsStore?.get(meetingId)?.calendarEventId;
-      return eventId ? (briefsStore?.getForEvent(eventId) ?? null) : null;
+      const found = eventId ? briefsStore?.getForEvent(eventId) : null;
+      return found ?? briefsStore?.get(`meeting:${meetingId}`) ?? null;
     },
     briefBuild: async (eventKey) =>
       briefs?.build(eventKey) ?? { ok: false, message: "Briefs need a calendar and the database." },
@@ -4012,17 +4077,31 @@ function registerIpc(): void {
     meetingExport: async (meetingId, options) => {
       const file = buildMeetingExport(meetingId, options);
       if (!file) return { ok: false, message: "That meeting is gone." };
+      const archive = file.audio.length > 0;
       const dialogOptions = {
         title: "Export a shareable file",
-        defaultPath: path.join(app.getPath("documents"), file.fileName),
-        filters: [{ name: "Web page", extensions: ["html"] }],
+        defaultPath: path.join(
+          app.getPath("documents"),
+          archive ? file.fileName.replace(/\.html$/, ".murmur-meeting") : file.fileName,
+        ),
+        filters: archive
+          ? [{ name: "Meeting archive", extensions: ["murmur-meeting"] }]
+          : [{ name: "Web page", extensions: ["html"] }],
       };
       const choice = hubWindow
         ? await dialog.showSaveDialog(hubWindow, dialogOptions)
         : await dialog.showSaveDialog(dialogOptions);
       if (choice.canceled || !choice.filePath) return { ok: false, cancelled: true };
       try {
-        writeFileSync(choice.filePath, file.html);
+        writeFileSync(
+          choice.filePath,
+          archive
+            ? zipFiles([
+                { name: "index.html", data: Buffer.from(file.html, "utf8") },
+                ...file.audio.map(({ name, path: from }) => ({ name, data: readFileSync(from) })),
+              ])
+            : file.html,
+        );
         return { ok: true, path: choice.filePath };
       } catch {
         return { ok: false, message: "The file could not be saved there." };
@@ -4094,6 +4173,7 @@ function registerIpc(): void {
     },
     meetingImportCancel: (token) => transcriptImport?.discard(token),
     meetingRetentionDue: () => meetingRetention?.due(Date.now()) ?? { audio: 0, transcripts: 0 },
+    meetingRetentionLog: () => meetingRetention?.log() ?? [],
     meetingSetLanguage: (meetingId, input) =>
       meetingRerun?.setLanguage(meetingId, input) ?? {
         ok: false,

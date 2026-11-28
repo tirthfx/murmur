@@ -1,3 +1,4 @@
+import { RetentionLog } from "./RetentionLog";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { TextArea } from "@astryxdesign/core/TextArea";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
@@ -849,6 +850,19 @@ export function SettingsSection({
               }
             />
             <Switch
+              label="Reply to invitations from a reminder"
+              description="Needs the calendar’s read-only switch off. Murmur asks you to confirm before anything is sent."
+              value={settings.notetaker.calendar.rsvpFromReminder}
+              onChange={(rsvpFromReminder) =>
+                update({
+                  notetaker: {
+                    ...settings.notetaker,
+                    calendar: { ...settings.notetaker.calendar, rsvpFromReminder },
+                  },
+                })
+              }
+            />
+            <Switch
               label="Skip events I declined"
               value={settings.notetaker.calendar.skipDeclined}
               onChange={(skipDeclined) =>
@@ -1109,6 +1123,7 @@ export function SettingsSection({
                   ? "Nothing is due in the next 24 hours."
                   : `In the next 24 hours: ${retentionDue.audio} ${retentionDue.audio === 1 ? "recording" : "recordings"} and ${retentionDue.transcripts} ${retentionDue.transcripts === 1 ? "transcript" : "transcripts"} will be deleted.`}
             </Text>
+            <RetentionLog />
           </VStack>
         </Row>
         <Row id="meeting-folders">

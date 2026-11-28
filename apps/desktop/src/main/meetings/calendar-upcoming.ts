@@ -68,7 +68,8 @@ export function linkHost(url: string | null): string | null {
 /**
  * The calendar event a detected call belongs to: an event on now (from ten minutes before its
  * start to its end) whose call link is on one of the app's hosts. When several fit, the one
- * that started most recently.
+ * that started most recently. When no link fits, an event on now that has people and no link is
+ * taken by its time alone, if it is the only one.
  */
 export function eventForCall(
   events: readonly CalendarEvent[],
@@ -77,13 +78,17 @@ export function eventForCall(
   skipDeclined: boolean,
 ): CalendarEvent | null {
   let best: CalendarEvent | null = null;
+  const unlinked: CalendarEvent[] = [];
   for (const event of events) {
     if (!usable(event, skipDeclined)) continue;
     if (now < event.startMs - NAME_ONLY_MS || now >= event.endMs) continue;
     const host = linkHost(event.joinUrl);
-    if (host === null || !hosts.some((wanted) => host === wanted || host.endsWith(`.${wanted}`)))
+    if (host === null) {
+      if (event.attendees.length > 1) unlinked.push(event);
       continue;
+    }
+    if (!hosts.some((wanted) => host === wanted || host.endsWith(`.${wanted}`))) continue;
     if (best === null || event.startMs > best.startMs) best = event;
   }
-  return best;
+  return best ?? (unlinked.length === 1 ? unlinked[0]! : null);
 }

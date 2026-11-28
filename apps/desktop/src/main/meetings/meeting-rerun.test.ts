@@ -388,3 +388,42 @@ describe("meetings start with the default language", () => {
     expect(t.transcripts.detectedLanguage("nope")).toBeNull();
   });
 });
+
+describe("speakers after a rerun (NT-23)", () => {
+  /** Makes "Dana" a speaker of the system line, as a correction would. */
+  const addDana = (t: ReturnType<typeof setup>) => {
+    t.db
+      .prepare(
+        "INSERT INTO meeting_speakers (id, meeting_id, channel, name, created_at, updated_at) VALUES ('sp-dana', 'm-1', 'system', 'Dana', 1, 1)",
+      )
+      .run();
+    t.db
+      .prepare("UPDATE meeting_segments SET speaker_id = 'sp-dana' WHERE channel = 'system'")
+      .run();
+  };
+
+  it("gives the new line the speaker who talked at that time on that channel", async () => {
+    const t = setup();
+    await t.transcribeNow();
+    addDana(t);
+    t.rerun.rerun("m-1", { language: "es", translate: false });
+    await t.transcribeNow();
+    expect(t.versions.reapplySpeakers("m-1")).toBe(1);
+    const named = t.transcripts.segments("m-1").map((s) => [s.channel, s.speakerId]);
+    expect(named).toContainEqual(["system", "sp-dana"]);
+    expect(named).toContainEqual(["mic", "m-1:mic"]);
+  });
+
+  it("keeps a speaker whose time was not found again, with no lines", async () => {
+    const t = setup();
+    await t.transcribeNow();
+    addDana(t);
+    t.rerun.rerun("m-1", { language: "es", translate: false });
+    await t.transcribeNow();
+    const speakers = createSpeakersStore(t.db, { now: t.now }).list("m-1");
+    expect(speakers.find((speaker) => speaker.id === "sp-dana")).toMatchObject({
+      name: "Dana",
+      segments: 0,
+    });
+  });
+});

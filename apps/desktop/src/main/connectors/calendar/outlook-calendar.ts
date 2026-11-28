@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { CalendarAttendee, CalendarEvent, CalendarResponse } from "@murmur/shared";
+import type { CalendarAttendee, CalendarEvent, CalendarResponse, RsvpAnswer } from "@murmur/shared";
 import type { ConnectorProvider } from "../providers";
 import { CalendarFetchError, localDayStart } from "./google-calendar";
 
@@ -248,4 +248,27 @@ export async function createOutlookEvent(options: {
     eventId: body.data.id,
     openUrl: /^https:\/\//i.test(link) ? link : "https://outlook.office.com/calendar/",
   };
+}
+
+const RSVP_ACTIONS: Record<RsvpAnswer, string> = {
+  accepted: "accept",
+  tentative: "tentativelyAccept",
+  declined: "decline",
+};
+
+/** Answers an invitation; Graph tells the organiser (NT-02). */
+export async function respondOutlookEvent(options: {
+  fetch(url: string, init?: RequestInit): Promise<Response>;
+  eventId: string;
+  answer: RsvpAnswer;
+}): Promise<void> {
+  const response = await options.fetch(
+    `${GRAPH}/me/events/${encodeURIComponent(options.eventId)}/${RSVP_ACTIONS[options.answer]}`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ sendResponse: true }),
+    },
+  );
+  if (!response.ok) throw new CalendarFetchError(`Outlook answered ${response.status}.`);
 }

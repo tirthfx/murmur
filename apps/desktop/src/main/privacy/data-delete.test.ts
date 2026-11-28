@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -74,6 +74,7 @@ function setup() {
     audioRoot,
     clipsRoot: null,
     meetingsRoot,
+    skillsRoot: path.join(dir, "Skills"),
   });
   return { db, deleter, file, notesRoot, meetingsRoot };
 }
@@ -172,5 +173,41 @@ describe("delete by category (HB-47)", () => {
     // Built-in Rewrites and the four default styles stay.
     expect(rows(db, "styles")).toBe(4);
     expect(DELETE_CATEGORIES.length).toBeGreaterThan(5);
+  });
+});
+
+describe("what reset covers (HB-47)", () => {
+  it("empties every table: a new one has to be added to a delete", () => {
+    const db = openDatabase(":memory:");
+    const tables = (
+      db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as { name: string }[]
+    )
+      .map((row) => row.name)
+      .filter((name) => !name.startsWith("sqlite_") && !name.includes("_fts"));
+    const source = readFileSync(new URL("./data-delete.ts", import.meta.url), "utf8");
+    // Emptied by name, or by the history store; the styles are put back to their defaults.
+    const covered = new Set([
+      ...[...source.matchAll(/DELETE FROM (\w+)/g)].map((match) => match[1]!),
+      "history",
+      "styles",
+      "schema_migrations",
+    ]);
+    for (let grew = true; grew;) {
+      grew = false;
+      for (const table of tables) {
+        const keys = db.prepare(`PRAGMA foreign_key_list(${table})`).all() as {
+          table: string;
+          on_delete: string;
+        }[];
+        if (
+          !covered.has(table) &&
+          keys.some((key) => covered.has(key.table) && key.on_delete === "CASCADE")
+        ) {
+          covered.add(table);
+          grew = true;
+        }
+      }
+    }
+    expect(tables.filter((table) => !covered.has(table))).toEqual([]);
   });
 });

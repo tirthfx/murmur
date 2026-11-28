@@ -138,48 +138,63 @@ export function BriefView({
   );
 }
 
-/**
- * The Brief tab of a recorded meeting (NT-11): the brief built for the calendar event the meeting
- * was started from, if there is one.
- */
+/** A recorded meeting's own brief: the one built before it, or one built now from what came before. */
 export function MeetingBriefTab({
   meetingId,
-  fromCalendar,
   onOpenMeeting,
 }: {
   meetingId: string;
-  fromCalendar: boolean;
   onOpenMeeting: (meetingId: string) => void;
 }) {
   const [brief, setBrief] = useState<MeetingBrief | null | undefined>(undefined);
+  const [building, setBuilding] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
     setBrief(undefined);
-    if (fromCalendar)
-      void window.murmur.briefForMeeting(meetingId).then(
-        (found) => alive && setBrief(found),
-        () => alive && setBrief(null),
-      );
+    setMessage(null);
+    void window.murmur.briefForMeeting(meetingId).then(
+      (found) => alive && setBrief(found),
+      () => alive && setBrief(null),
+    );
     return () => {
       alive = false;
     };
-  }, [meetingId, fromCalendar]);
+  }, [meetingId]);
 
-  if (!fromCalendar)
-    return (
-      <Text color="secondary">
-        This meeting did not start from a calendar event, so it has no brief. The Upcoming tab of
-        the Notetaker page has the briefs of the meetings that are coming.
-      </Text>
-    );
+  async function build() {
+    setBuilding(true);
+    setMessage(null);
+    try {
+      const result = await window.murmur.briefBuild(`meeting:${meetingId}`);
+      if (result.ok) setBrief(result.brief);
+      else setMessage(result.message);
+    } finally {
+      setBuilding(false);
+    }
+  }
+
   if (brief === undefined) return <Text color="secondary">Loading…</Text>;
   if (brief === null)
     return (
-      <Text color="secondary">
-        No brief was built before this meeting. Briefs are built before a calendar meeting once a
-        calendar is connected.
-      </Text>
+      <VStack gap={2}>
+        <Text color="secondary">
+          No brief was built before this meeting. You can build one from the meetings and open tasks
+          that came before it.
+        </Text>
+        <div>
+          <Button
+            variant="secondary"
+            label="Build a brief for this meeting"
+            isDisabled={building}
+            onClick={() => void build()}
+          >
+            {building ? "Building…" : "Build a brief"}
+          </Button>
+        </div>
+        {message ? <Banner status="warning" title={message} /> : null}
+      </VStack>
     );
   return <BriefView brief={brief} onOpenMeeting={onOpenMeeting} />;
 }

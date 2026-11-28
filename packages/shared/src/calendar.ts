@@ -84,6 +84,10 @@ export function calendarScopesFor(
     : [...providerScopes];
 }
 
+/** NT-02: how an invitation can be answered. */
+export const RSVP_ANSWERS = ["accepted", "tentative", "declined"] as const;
+export type RsvpAnswer = (typeof RSVP_ANSWERS)[number];
+
 export const CREATE_EVENT_LIMITS = {
   title: 200,
   description: 4000,

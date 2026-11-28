@@ -203,19 +203,26 @@ describe("BriefBody", () => {
 describe("the Brief tab of a meeting (NT-11)", () => {
   it("shows the brief built for the calendar event the meeting started from, with its sources", async () => {
     api.briefForMeeting = vi.fn().mockResolvedValue(brief());
-    render(<MeetingBriefTab meetingId="m9" fromCalendar onOpenMeeting={openMeeting} />);
+    render(<MeetingBriefTab meetingId="m9" onOpenMeeting={openMeeting} />);
     expect(await screen.findByLabelText("Brief for Budget review")).toBeTruthy();
     expect(api.briefForMeeting).toHaveBeenCalledWith("m9");
     fireEvent.click(screen.getByRole("button", { name: "Open the meeting “Budget review”" }));
     expect(openMeeting).toHaveBeenCalledWith("m1");
   });
 
-  it("says there is no brief when none was built, and when the meeting did not start from an event", async () => {
-    render(<MeetingBriefTab meetingId="m9" fromCalendar onOpenMeeting={openMeeting} />);
+  it("offers to build one when none was built, and shows it", async () => {
+    api.briefBuild = vi.fn().mockResolvedValue({ ok: true, brief: brief() });
+    render(<MeetingBriefTab meetingId="m9" onOpenMeeting={openMeeting} />);
     expect(await screen.findByText(/No brief was built before this meeting/)).toBeTruthy();
-    cleanup();
-    render(<MeetingBriefTab meetingId="m9" fromCalendar={false} onOpenMeeting={openMeeting} />);
-    expect(screen.getByText(/did not start from a calendar event/)).toBeTruthy();
-    expect(api.briefForMeeting).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Build a brief for this meeting" }));
+    expect(await screen.findByLabelText("Brief for Budget review")).toBeTruthy();
+    expect(api.briefBuild).toHaveBeenCalledWith("meeting:m9");
+  });
+
+  it("says why a brief could not be built", async () => {
+    api.briefBuild = vi.fn().mockResolvedValue({ ok: false, message: "That meeting is gone." });
+    render(<MeetingBriefTab meetingId="m9" onOpenMeeting={openMeeting} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Build a brief for this meeting" }));
+    expect(await screen.findByText("That meeting is gone.")).toBeTruthy();
   });
 });

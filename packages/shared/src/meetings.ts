@@ -389,6 +389,8 @@ export interface MeetingDetail {
   recapStatus: RecapStatus;
   /** NT-19: show lines dictated during the meeting, tagged, in the transcript. */
   showDictated: boolean;
+  /** NT-24: when a line was last corrected; a summary older than this does not have it. */
+  correctedAt: number | null;
 }
 
 /** What the Tasks tab shows besides the tasks (NT-26). */
@@ -497,6 +499,8 @@ export const calendarSettingsSchema = z.strictObject({
   skipDeclined: z.boolean(),
   /** The folder a meeting started from an account's calendar goes in, by account id; missing means the usual folder. */
   defaultFolders: z.record(z.string().max(64), z.string().max(64)),
+  /** Offer to answer an invitation from its reminder; each answer is confirmed first. */
+  rsvpFromReminder: z.boolean().default(false),
 });
 export type CalendarSettings = z.infer<typeof calendarSettingsSchema>;
 export const DEFAULT_CALENDAR_SETTINGS: CalendarSettings = {
@@ -504,6 +508,7 @@ export const DEFAULT_CALENDAR_SETTINGS: CalendarSettings = {
   autoStart: false,
   skipDeclined: true,
   defaultFolders: {},
+  rsvpFromReminder: false,
 };
 
 /** NT-28: creating a calendar event from a task or a summary. */
