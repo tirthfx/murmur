@@ -40,6 +40,8 @@ export interface CorrectionsStore {
   /** The corrections of a line, newest first. */
   history(meetingId: string, segmentId: string): SegmentHistoryItem[];
   revert(meetingId: string, correctionId: number): RevertResult;
+  /** When a line of the meeting was last corrected, or null. */
+  lastAt(meetingId: string): number | null;
 }
 
 const COLUMNS =
@@ -108,9 +110,18 @@ export function createCorrectionsStore(
   const GONE = "That line is gone.";
 
   return {
+    lastAt: (meetingId) =>
+      (
+        db
+          .prepare("SELECT MAX(created_at) AS at FROM transcript_corrections WHERE meeting_id = ?")
+          .get(meetingId) as { at: number | null }
+      ).at,
+
     apply(meetingId, correction) {
       const segment = row(meetingId, correction.segmentId);
-      if (!spoken(segment)) return { ok: false, message: GONE };
+      // A dictated line's words can be put right; it has no other speaker and is never cut.
+      if (!segment || (correction.kind !== "text" && !spoken(segment)))
+        return { ok: false, message: GONE };
 
       if (correction.kind === "text") {
         const text = correction.text.replace(/[ \t]+/g, " ").trim();

@@ -65,7 +65,7 @@ describe("edit a line's text (NT-24)", () => {
     ]);
   });
 
-  it("does nothing for the same text, and refuses an empty or too long line and a missing or dictated one", () => {
+  it("does nothing for the same text, and refuses an empty, too long or missing line", () => {
     const t = setup();
     expect(
       t.corrections.apply("m-1", { kind: "text", segmentId: "c", text: "Agreed." }),
@@ -80,13 +80,23 @@ describe("edit a line's text (NT-24)", () => {
     expect(
       t.corrections.apply("m-1", { kind: "text", segmentId: "nope", text: "x" }),
     ).toMatchObject({ ok: false });
-    expect(t.corrections.apply("m-1", { kind: "text", segmentId: "d", text: "x" })).toMatchObject({
-      ok: false,
-    });
     expect(t.corrections.apply("m-2", { kind: "text", segmentId: "a", text: "x" })).toMatchObject({
       ok: false,
     });
     expect(t.text("c")).toBe("Agreed.");
+  });
+
+  it("lets a dictated line's words be put right, and nothing else about it", () => {
+    const t = setup();
+    expect(t.corrections.apply("m-1", { kind: "text", segmentId: "d", text: "x" })).toMatchObject({
+      ok: true,
+      changed: true,
+    });
+    expect(t.corrections.apply("m-1", { kind: "merge", segmentId: "d" })).toMatchObject({
+      ok: false,
+    });
+    expect(t.corrections.lastAt("m-1")).not.toBeNull();
+    expect(t.corrections.lastAt("m-2")).toBeNull();
   });
 
   it("restores the original on revert and removes the correction", () => {

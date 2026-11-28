@@ -1,3 +1,4 @@
+import { BulkSpeaker } from "./BulkSpeaker";
 import { RecordingLevels } from "./RecordingLevels";
 import { ContactsPanel } from "./ContactsPanel";
 import { MentionField } from "./MentionField";
@@ -128,6 +129,15 @@ function Transcript({ detail, highlight }: { detail: MeetingDetail; highlight: s
   );
   const count = lines.length + live.length;
 
+  // NT-24: several lines can be given to one speaker; null while not selecting.
+  const [selected, setSelected] = useState<Set<string> | null>(null);
+  const toggle = (id: string) =>
+    setSelected((current) => {
+      const next = new Set(current);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+
   // A link in the summary opens the transcript at its line.
   useEffect(() => {
     if (!highlight) return;
@@ -158,6 +168,9 @@ function Transcript({ detail, highlight }: { detail: MeetingDetail; highlight: s
     <VStack gap={2}>
       <LanguagePanel detail={detail} />
       <SpeakersPanel detail={detail} />
+      {lines.length > 1 && meeting.status === "ready" ? (
+        <BulkSpeaker detail={detail} selected={selected} onSelect={setSelected} />
+      ) : null}
       {waiting ? (
         <Text size="sm" color="secondary" role="status">
           {waiting}
@@ -200,7 +213,17 @@ function Transcript({ detail, highlight }: { detail: MeetingDetail; highlight: s
                 data-segment-id={segment.id}
                 {...(segment.id === highlight ? { "data-highlight": "true" } : {})}
               >
-                <span className="hub-transcript-time">{formatElapsed(segment.startMs)}</span>
+                <span className="hub-transcript-time">
+                  {selected && !segment.isDictated ? (
+                    <input
+                      type="checkbox"
+                      aria-label={`Select the line at ${formatElapsed(segment.startMs)}`}
+                      checked={selected.has(segment.id)}
+                      onChange={() => toggle(segment.id)}
+                    />
+                  ) : null}
+                  {formatElapsed(segment.startMs)}
+                </span>
                 <span className="hub-transcript-speaker">{speakerName(detail, segment)}</span>
                 <span>
                   {segment.text}
@@ -217,16 +240,14 @@ function Transcript({ detail, highlight }: { detail: MeetingDetail; highlight: s
                       (edited)
                     </span>
                   ) : null}
-                  {segment.isDictated ? null : (
-                    <button
-                      type="button"
-                      className="hub-transcript-edit"
-                      aria-label={`Correct the line at ${formatElapsed(segment.startMs)}`}
-                      onClick={() => setEditing(segment.id)}
-                    >
-                      Edit
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    className="hub-transcript-edit"
+                    aria-label={`Correct the line at ${formatElapsed(segment.startMs)}`}
+                    onClick={() => setEditing(segment.id)}
+                  >
+                    Edit
+                  </button>
                 </span>
               </p>
             ),

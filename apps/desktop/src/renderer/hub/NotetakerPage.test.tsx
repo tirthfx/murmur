@@ -34,6 +34,7 @@ const meeting: MeetingListItem = {
 
 function detail(overrides: Partial<MeetingDetail> = {}): MeetingDetail {
   return {
+    correctedAt: null,
     meeting,
     progress: meeting.progress,
     segments: [
@@ -720,8 +721,8 @@ describe("Notetaker page", () => {
       expect(screen.getByText(/Dictated into an email/)).toBeTruthy();
       // The fixture has another dictated line too.
       expect(screen.getAllByText("Dictated")).toHaveLength(2);
-      // A dictated line cannot be corrected.
-      expect(screen.queryByRole("button", { name: "Correct the line at 1:30" })).toBeNull();
+      // A dictated line's words can be corrected too (NT-24).
+      expect(screen.getByRole("button", { name: "Correct the line at 1:30" })).toBeTruthy();
       expect(screen.getByRole("button", { name: "Correct the line at 0:02" })).toBeTruthy();
     });
   });

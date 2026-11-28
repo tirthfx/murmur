@@ -189,6 +189,12 @@ export function SummaryTab({
           />
         ) : null}
       </HStack>
+      {shown && detail.correctedAt !== null && detail.correctedAt > shown.createdAt ? (
+        <Banner
+          status="info"
+          title="The transcript was corrected after this summary was written. Write a new version to include the corrections."
+        />
+      ) : null}
       {summaryStatus.state === "running" ? (
         <Text size="sm" color="secondary" role="status">
           Writing the summary: step {Math.min(summaryStatus.done + 1, summaryStatus.total)} of{" "}

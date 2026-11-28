@@ -2782,6 +2782,7 @@ function meetingDetail(id: string): MeetingDetail | null {
     recaps: recapsStore?.list(id) ?? [],
     recapStatus: recapRunner?.status(id) ?? { state: "idle" as const },
     showDictated: !settingsStore.get().notetaker.dictation.excludeFromTranscript,
+    correctedAt: correctionsStore?.lastAt(id) ?? null,
     speakers: speakersStore?.list(id) ?? [],
     transcriptVersions: transcriptVersions?.list(id, Date.now()) ?? [],
     detectedLanguage: meeting.language ? null : meetingTranscripts.detectedLanguage(id),

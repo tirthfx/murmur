@@ -389,6 +389,8 @@ export interface MeetingDetail {
   recapStatus: RecapStatus;
   /** NT-19: show lines dictated during the meeting, tagged, in the transcript. */
   showDictated: boolean;
+  /** NT-24: when a line was last corrected; a summary older than this does not have it. */
+  correctedAt: number | null;
 }
 
 /** What the Tasks tab shows besides the tasks (NT-26). */
