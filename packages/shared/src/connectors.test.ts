@@ -84,7 +84,15 @@ describe("connector settings", () => {
     expect(connectorSettingsSchema.parse(DEFAULT_CONNECTOR_SETTINGS)).toEqual({
       cacheTtlMinutes: 15,
       choices: {},
-      gmail: { briefContext: false, draftEnabled: false, maxThreadsPerBrief: 5 },
+      gmail: {
+        briefContext: false,
+        draftEnabled: false,
+        maxThreadsPerBrief: 5,
+        replyContext: false,
+        contactsFromMail: false,
+        learnStyle: false,
+        style: null,
+      },
       slack: { channels: [], privateChannels: false },
       notion: { maxCharsPerPage: 10_000 },
       linear: { teams: [], assignedOnly: true },

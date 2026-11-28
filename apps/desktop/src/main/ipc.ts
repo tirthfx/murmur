@@ -70,6 +70,9 @@ import {
   type ExportRequest,
   type ExportResult,
   type ExportStatus,
+  type GmailContactsResult,
+  type GmailStyleResult,
+  type GmailThreadsResult,
   type ResetRequest,
   type StorageView,
   type Note,
@@ -308,6 +311,9 @@ export interface IpcDeps {
   planAct: (action: PlanAction) => PlanView;
   dataExport: (request: ExportRequest) => Promise<ExportResult>;
   dataExportStatus: () => ExportStatus;
+  gmailThreads: () => Promise<GmailThreadsResult>;
+  gmailImportContacts: () => Promise<GmailContactsResult>;
+  gmailLearnStyle: () => Promise<GmailStyleResult>;
   dataCounts: () => DataCounts;
   dataDelete: (category: DeleteCategory) => DeleteResult;
   dataReset: (request: ResetRequest) => Promise<DeleteResult>;
@@ -463,6 +469,12 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.dataExport(request.args[0] as ExportRequest);
       case IPC_CHANNELS.dataExportStatus:
         return deps.dataExportStatus();
+      case IPC_CHANNELS.gmailThreads:
+        return deps.gmailThreads();
+      case IPC_CHANNELS.gmailImportContacts:
+        return deps.gmailImportContacts();
+      case IPC_CHANNELS.gmailLearnStyle:
+        return deps.gmailLearnStyle();
       case IPC_CHANNELS.dataCounts:
         return deps.dataCounts();
       case IPC_CHANNELS.dataDelete:

@@ -43,7 +43,7 @@ shown. Samples are not used by cleanup. Rewrites (M3) will use them.
 
 ## Learn from sent mail
 
-Shown under Experimental, always off and disabled: it needs a mail connector.
+A switch on the Gmail card of the Connectors page, off by default (`connectors.settings.gmail.learnStyle`). Turning it on asks Gmail for permission to read. **Learn from sent mail** then reads up to 50 messages sent in the last 90 days and works out, by plain counting on this Mac (`connectors/gmail/email-style.ts`): the usual opening (a name becomes `{name}`), the usual sign-off and the middle length. Quoted mail and signatures are left out, and fewer than three messages teach nothing. Only these three habits are kept, never message text. Instruct Mode adds them to its style notes in Email apps. Turning the switch off, or disconnecting Gmail, forgets them. Tested with a fake Gmail only.
 
 ## Storage
 

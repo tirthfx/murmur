@@ -350,6 +350,7 @@ import {
 /** Launch at login (HB-17). `available` is false outside a packaged app. */
 export const loginItemSchema = z.strictObject({ available: z.boolean(), enabled: z.boolean() });
 export type LoginItem = z.infer<typeof loginItemSchema>;
+import type { GmailContactsResult, GmailStyleResult, GmailThreadsResult } from "./gmail";
 
 export const IPC_CHANNELS = {
   getAppInfo: "app:get-info",
@@ -361,6 +362,9 @@ export const IPC_CHANNELS = {
   storageView: "privacy:storage",
   dataExport: "data:export",
   dataExportStatus: "data:export-status",
+  gmailThreads: "gmail:threads",
+  gmailImportContacts: "gmail:import-contacts",
+  gmailLearnStyle: "gmail:learn-style",
   planView: "plan:view",
   testingTool: "testing:tool",
   reportProblem: "help:report-problem",
@@ -871,6 +875,12 @@ export const IPC_CONTRACT = {
   // HB-46, HB-47.
   [IPC_CHANNELS.dataExport]: { args: z.tuple([exportRequestSchema]), result: exportResultSchema },
   [IPC_CHANNELS.dataExportStatus]: { args: z.tuple([]), result: exportStatusSchema },
+  [IPC_CHANNELS.gmailThreads]: { args: z.tuple([]), result: z.custom<GmailThreadsResult>() },
+  [IPC_CHANNELS.gmailImportContacts]: {
+    args: z.tuple([]),
+    result: z.custom<GmailContactsResult>(),
+  },
+  [IPC_CHANNELS.gmailLearnStyle]: { args: z.tuple([]), result: z.custom<GmailStyleResult>() },
   [IPC_CHANNELS.dataCounts]: { args: z.tuple([]), result: dataCountsSchema },
   [IPC_CHANNELS.dataDelete]: {
     args: z.tuple([z.enum(DELETE_CATEGORIES)]),
@@ -1507,6 +1517,12 @@ export interface MurmurApi {
   dataExport(request: ExportRequest): Promise<ExportResult>;
   /** How the export is going; poll it while one runs (HB-46). */
   dataExportStatus(): Promise<ExportStatus>;
+  /** Recent inbox threads to reply to (CN-04); Gmail is asked now. */
+  gmailThreads(): Promise<GmailThreadsResult>;
+  /** Adds the people written to in the last 90 days as contacts (NT-12). */
+  gmailImportContacts(): Promise<GmailContactsResult>;
+  /** Works out how email is written from sent mail and keeps it (PZ-23). */
+  gmailLearnStyle(): Promise<GmailStyleResult>;
   /** Counts and sizes of each category that can be deleted (HB-47). */
   dataCounts(): Promise<DataCounts>;
   /** Deletes one category for good. */

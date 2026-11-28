@@ -8,7 +8,7 @@ import { z } from "zod";
 
 export const CONTACT_LIMITS = { name: 120, email: 254, count: 5000, suggestions: 8 } as const;
 
-export const CONTACT_SOURCES = ["manual", "calendar", "speaker"] as const;
+export const CONTACT_SOURCES = ["manual", "calendar", "speaker", "mail"] as const;
 export type ContactSource = (typeof CONTACT_SOURCES)[number];
 
 export const contactSchema = z.strictObject({

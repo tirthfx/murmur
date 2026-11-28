@@ -154,14 +154,6 @@ export function ExperimentalSection({
           onChange={(slackTagging) => set({ slackTagging })}
         />
         <Switch
-          label="Learn from sent mail"
-          description="Learn how you write email from messages you have sent."
-          value={false}
-          isDisabled
-          disabledMessage="Murmur does not learn from sent mail yet."
-          onChange={() => {}}
-        />
-        <Switch
           label="Bluetooth ring microphone"
           description="Start and stop dictation from a ring worn on a finger."
           value={experimental.ringMicrophone}

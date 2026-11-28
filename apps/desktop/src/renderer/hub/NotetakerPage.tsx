@@ -1,3 +1,4 @@
+import { EmailThreadPicker } from "./EmailThreadPicker";
 import { NotionPagePicker } from "./NotionPagePicker";
 import { BulkSpeaker } from "./BulkSpeaker";
 import { RecordingLevels } from "./RecordingLevels";
@@ -304,6 +305,15 @@ function Notes({ detail }: { detail: MeetingDetail }) {
     [save],
   );
 
+  /** Takes a change to the notes and saves it shortly after. */
+  const change = (value: string) => {
+    setText(value);
+    latest.current = value;
+    setState("pending");
+    if (timer.current !== null) window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => void save(), NOTES_SAVE_MS);
+  };
+
   return (
     <VStack gap={1}>
       <MentionField
@@ -311,13 +321,7 @@ function Notes({ detail }: { detail: MeetingDetail }) {
         description="Your own notes for this meeting, in Markdown. Type @ to mention someone. Saved as you type."
         rows={12}
         value={text}
-        onChange={(value) => {
-          setText(value);
-          latest.current = value;
-          setState("pending");
-          if (timer.current !== null) window.clearTimeout(timer.current);
-          timer.current = window.setTimeout(() => void save(), NOTES_SAVE_MS);
-        }}
+        onChange={change}
         onBlur={() => {
           if (state === "pending") void save();
         }}
@@ -329,6 +333,9 @@ function Notes({ detail }: { detail: MeetingDetail }) {
             ? "Saving…"
             : `Not saved: notes can be up to ${MEETING_LIMITS.notesBytes / 1000} KB.`}
       </Text>
+      <EmailThreadPicker
+        onPick={(thread) => change(latest.current ? `${latest.current}\n\n${thread}` : thread)}
+      />
     </VStack>
   );
 }

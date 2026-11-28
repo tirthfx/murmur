@@ -31,8 +31,18 @@ describe("Gmail scopes (CN-04)", () => {
   });
 
   it("never asks for a scope that sends mail", () => {
-    const all = gmailScopesFor({ briefContext: true, draftEnabled: true, maxThreadsPerBrief: 5 });
+    const all = gmailScopesFor({
+      ...DEFAULT_GMAIL_SETTINGS,
+      briefContext: true,
+      draftEnabled: true,
+      maxThreadsPerBrief: 5,
+    });
     expect(all.join(" ")).not.toMatch(/gmail\.send|mail\.google\.com\/$|gmail\.modify/);
+  });
+
+  it("asks to read for a reply thread, contacts or writing style", () => {
+    for (const on of ["replyContext", "contactsFromMail", "learnStyle"] as const)
+      expect(gmailScopesFor({ ...DEFAULT_GMAIL_SETTINGS, [on]: true })).toContain(GMAIL_SCOPE_READ);
   });
 
   it("reports what a turned-on feature still lacks", () => {
@@ -48,6 +58,10 @@ describe("Gmail settings", () => {
       briefContext: false,
       draftEnabled: false,
       maxThreadsPerBrief: 5,
+      replyContext: false,
+      contactsFromMail: false,
+      learnStyle: false,
+      style: null,
     });
   });
 

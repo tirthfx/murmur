@@ -1,12 +1,8 @@
-import {
-  GMAIL_ID,
-  GMAIL_SCOPE_READ,
-  type ConnectorAccount,
-  type GmailThread,
-} from "@murmur/shared";
+import type { GmailThread } from "@murmur/shared";
 import { ConnectorError, type ConnectorService } from "../connector-service";
 import type { ConnectorStore } from "../connector-store";
-import { GMAIL_ORIGIN, GmailError, recentThreadsWith } from "./gmail";
+import { GmailError, recentThreadsWith } from "./gmail";
+import { gmailReader } from "./gmail-reader";
 
 /** Fifteen minutes: briefs do not ask Gmail again for the same people (CN-04). */
 export const THREADS_TTL_MS = 15 * 60_000;
@@ -23,17 +19,10 @@ export function createGmailThreads(deps: {
   now(): number;
 }): (emails: string[], max: number) => Promise<GmailThread[]> {
   return async (emails, max) => {
-    const account: ConnectorAccount | undefined = deps.connectors
-      .list()
-      .find(
-        (entry) =>
-          entry.connector === GMAIL_ID &&
-          entry.status === "connected" &&
-          entry.scopes.includes(GMAIL_SCOPE_READ),
-      );
-    if (!account) throw new Error("Gmail has not been given permission to read mail.");
+    const reader = gmailReader(deps.connectors);
+    if (!reader) throw new Error("Gmail has not been given permission to read mail.");
     const key = `${[...emails].sort().join(",")}|${max}`;
-    const kept = deps.connectorStore.cacheGet(account.id, "brief-threads", key, deps.now());
+    const kept = deps.connectorStore.cacheGet(reader.id, "brief-threads", key, deps.now());
     if (kept !== null) {
       try {
         return JSON.parse(kept) as GmailThread[];
@@ -42,17 +31,9 @@ export function createGmailThreads(deps: {
       }
     }
     try {
-      const threads = await recentThreadsWith({
-        fetch: (url, init) => {
-          if (!url.startsWith(`${GMAIL_ORIGIN}/`))
-            throw new GmailError("Murmur only talks to Gmail here.");
-          return deps.connectors.authorizedFetch(account.id, url, init);
-        },
-        emails,
-        max,
-      });
+      const threads = await recentThreadsWith({ fetch: reader.fetch, emails, max });
       deps.connectorStore.cachePut(
-        account.id,
+        reader.id,
         "brief-threads",
         key,
         JSON.stringify(threads),
