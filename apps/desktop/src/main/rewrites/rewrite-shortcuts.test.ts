@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Settings } from "@murmur/shared";
 import { openDatabase } from "../db/database";
-import { keyPlatform } from "../platform";
+import { MAC_KEYS } from "../platform";
 import { createRewriteStore } from "./rewrite-store";
 import {
   rewriteBindings,
@@ -10,7 +10,7 @@ import {
   withShortcutLabels,
 } from "./rewrite-shortcuts";
 
-const mac = keyPlatform("darwin");
+const mac = MAC_KEYS;
 const settings = {
   holdShortcut: { type: "key", keyCode: 61, modifiers: [] },
   handsFreeShortcut: null,

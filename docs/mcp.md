@@ -81,7 +81,3 @@ Audio files and their paths, the data folder's paths, sign-ins and connector acc
 5. By hand: `printf '{"jsonrpc":"2.0","method":"murmur/authorize","params":{"token":"TOKEN"}}\n{"jsonrpc":"2.0","id":1,"method":"tools/list"}\n' | nc -U "$HOME/Library/Application Support/Murmur/mcp.sock"`, with the token from Copy token; or with the web address on, `curl -s -X POST http://127.0.0.1:7825/mcp -H 'content-type: application/json' -H "authorization: Bearer TOKEN" -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'`. Without the token it is refused.
 6. Call `get_transcript` on a long meeting and check it stops at 20 minutes and says where to go on.
 7. Turn the server off and check the socket file is gone and the port refuses connections.
-
-## On Windows
-
-The address is a named pipe, `\\.\pipe\murmur-mcp-<user>`, instead of a socket file (a pipe has no file mode; its default access is for this user and administrators, and the token is still required). The command is `resources/mcp/murmur-mcp.cmd`, which runs the Node script `murmur-mcp.cjs` with the app's own Node (`ELECTRON_RUN_AS_NODE`); the script sends the token first and relays stdio, as the shell script does. Claude desktop's config is `%USERPROFILE%\AppData\Roaming\Claude\claude_desktop_config.json`. Squirrel keeps one folder per version, so after an update write the app's config again. `docs/platform.md` says what CI checks.

@@ -2,99 +2,33 @@ import { createHash } from "node:crypto";
 import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { ForgeConfig } from "@electron-forge/shared-types";
-import { MakerSquirrel } from "@electron-forge/maker-squirrel";
 import { VitePlugin } from "@electron-forge/plugin-vite";
 import {
   LLM_MODULES_DIR,
   copyRuntimePackages,
   includeLlamaOptional,
-  includeLlamaOptionalWindows,
   runtimeClosure,
   skipLlamaFile,
 } from "./packaging/runtime-modules.ts";
 
 /** The command MCP clients launch; it relays stdio to the app's local socket (CN-11). */
 const mcpShim = path.resolve("packaging/murmur-mcp");
-/** On Windows the command is a launcher and a Node script, both run by the app's own Node. */
-const mcpWindowsFiles = ["murmur-mcp.cmd", "murmur-mcp.cjs"].map((name) =>
-  path.resolve("packaging", name),
-);
-
-/** Where `npm run publish:helper:win` puts the Windows helper: one file, so one hash covers it. */
-const windowsHelperFolder = path.resolve("../../native/helper-win/publish");
-
 /** Where `npm run build:helper` puts the Swift helper, relative to this directory. */
 const helperBinary = path.resolve("../../native/helper-mac/.build/release/murmur-helper");
-
-/**
- * The Windows installer (SW-13). It is signed when a certificate is given in the environment
- * (`MURMUR_WIN_CERT_FILE` and `MURMUR_WIN_CERT_PASSWORD`); without one it is built unsigned, which
- * is for testing the installer only and is never distributed.
- */
-const certificateFile = process.env.MURMUR_WIN_CERT_FILE;
-const certificatePassword = process.env.MURMUR_WIN_CERT_PASSWORD;
 
 const config: ForgeConfig = {
   packagerConfig: {
     name: "Murmur",
     asar: true,
-    // The publisher in the Windows file's properties, and so the Start menu folder. Without it
-    // Electron's own default is used.
-    win32metadata: { CompanyName: "tirthfx" },
     // macOS shows this text in the microphone prompt. Without it the prompt cannot appear.
     extendInfo: {
       NSMicrophoneUsageDescription: "Murmur listens to your voice so it can turn it into text.",
     },
   },
-  makers: [
-    new MakerSquirrel({
-      name: "Murmur",
-      authors: "tirthfx",
-      description: "Voice dictation and meeting notes",
-      setupExe: "Murmur-Setup.exe",
-      ...(certificateFile && certificatePassword ? { certificateFile, certificatePassword } : {}),
-    }),
-  ],
   hooks: {
     // Copies the built helper to Contents/Resources/helper/murmur-helper. If the helper
     // has not been built, the package is still made and the app shows the helper as unavailable.
     postPackage: async (_config, { outputPaths, platform }) => {
-      if (platform === "win32") {
-        // The cleanup model's runtime and the MCP command go under resources, outside the asar
-        // archive, as on the Mac. The helper follows, with its hash beside it (SW-13).
-        const llm = runtimeClosure("node-llama-cpp", process.cwd(), {
-          includeOptional: includeLlamaOptionalWindows,
-        });
-        for (const outputPath of outputPaths) {
-          const resources = path.join(outputPath, "resources");
-          copyRuntimePackages(llm, path.join(resources, LLM_MODULES_DIR), skipLlamaFile);
-          console.log(`[package] included ${llm.length} packages for the cleanup model`);
-          const mcp = path.join(resources, "mcp");
-          mkdirSync(mcp, { recursive: true });
-          for (const file of mcpWindowsFiles) cpSync(file, path.join(mcp, path.basename(file)));
-          console.log(`[package] included the MCP command at ${mcp}`);
-        }
-        // The Windows helper goes to resources/helper/murmur-helper.exe.
-        const exe = path.join(windowsHelperFolder, "murmur-helper.exe");
-        if (!existsSync(exe)) {
-          console.warn(
-            "[package] Windows helper not found; run `npm run publish:helper:win` to include it",
-          );
-          return;
-        }
-        for (const outputPath of outputPaths) {
-          const target = path.join(outputPath, "resources", "helper");
-          mkdirSync(target, { recursive: true });
-          cpSync(exe, path.join(target, "murmur-helper.exe"));
-          const hash = createHash("sha256").update(readFileSync(exe)).digest("hex");
-          writeFileSync(
-            path.join(target, "murmur-helper.exe.sha256"),
-            `${hash}  murmur-helper.exe\n`,
-          );
-          console.log(`[package] included the Windows helper at ${target}`);
-        }
-        return;
-      }
       if (platform !== "darwin") return;
       // The cleanup model's runtime (node-llama-cpp and what it needs) goes next to the app,
       // outside the asar archive, so its native library can load.

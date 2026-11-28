@@ -50,7 +50,7 @@ export function createWritingSampleStore(
 
     save(input) {
       const label = input.label.trim();
-      // Line endings kept as typed, apart from Windows ones.
+      // Line endings kept as typed, with CRLF read as one.
       const text = input.text.replace(/\r\n?/g, "\n").trim();
       if (label === "") {
         return { ok: false, reason: "no-label", message: "Give the sample a label." };

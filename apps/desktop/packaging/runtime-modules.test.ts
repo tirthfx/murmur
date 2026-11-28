@@ -5,7 +5,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   copyRuntimePackages,
   includeLlamaOptional,
-  includeLlamaOptionalWindows,
   runtimeClosure,
   skipLlamaFile,
 } from "./runtime-modules";
@@ -92,10 +91,6 @@ describe("runtime modules", () => {
     expect(includeLlamaOptional("@node-llama-cpp/mac-arm64-metal")).toBe(true);
     expect(includeLlamaOptional("@node-llama-cpp/linux-x64")).toBe(false);
     expect(includeLlamaOptional("some-other-optional")).toBe(true);
-    expect(includeLlamaOptionalWindows("@node-llama-cpp/win-x64")).toBe(true);
-    expect(includeLlamaOptionalWindows("@node-llama-cpp/win-x64-cuda")).toBe(false);
-    expect(includeLlamaOptionalWindows("@node-llama-cpp/mac-arm64-metal")).toBe(false);
-    expect(includeLlamaOptionalWindows("some-other-optional")).toBe(true);
     expect(skipLlamaFile(path.join("node-llama-cpp", "llama", "gitRelease.bundle"))).toBe(true);
     expect(skipLlamaFile(path.join("node-llama-cpp", "dist", "index.js"))).toBe(false);
   });

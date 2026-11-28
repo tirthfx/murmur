@@ -1,8 +1,6 @@
 import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite";
-import { targetOs } from "./packaging/target-os.ts";
-import { windowsWordingPlugin } from "./packaging/windows-wording.ts";
 import { buildCsp, injectCspMeta } from "./src/security/csp.ts";
 
 /** Writes the Content-Security-Policy meta tag into the Hub page for this build mode. */
@@ -17,7 +15,7 @@ function contentSecurityPolicy(development: boolean): Plugin {
 }
 
 export default defineConfig(({ command }) => ({
-  plugins: [windowsWordingPlugin(targetOs()), react(), contentSecurityPolicy(command === "serve")],
+  plugins: [react(), contentSecurityPolicy(command === "serve")],
   // `@murmur/shared` is our own source, not a library: pre-building it would cache an old copy,
   // and the Hub would crash on the next new export. Its own dependency, zod, is pre-built.
   optimizeDeps: {

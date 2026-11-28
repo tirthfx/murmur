@@ -31,17 +31,6 @@ export const meetingMatcherSchema = z
     native: z
       .strictObject({ bundleIds: z.array(z.string().min(1).max(255)).min(1).max(8), titles: words })
       .optional(),
-    /**
-     * A window on Windows (SW-12): the process's image name (any case, `Zoom.exe`) and a word in
-     * the window's title. A browser is listed by its process name, so a Meet tab that is in
-     * front matches by its title when the page address cannot be read.
-     */
-    windows: z
-      .strictObject({
-        processes: z.array(z.string().trim().min(1).max(100)).min(1).max(12),
-        titles: words,
-      })
-      .optional(),
     /** A web app. The visible tab's host must match; `path` and `titles` narrow it further. */
     web: z
       .strictObject({
@@ -60,11 +49,9 @@ export const meetingMatcherSchema = z
       })
       .optional(),
   })
-  .refine(
-    (matcher) =>
-      matcher.native !== undefined || matcher.web !== undefined || matcher.windows !== undefined,
-    { message: "a matcher needs `native`, `web` or `windows`" },
-  );
+  .refine((matcher) => matcher.native !== undefined || matcher.web !== undefined, {
+    message: "a matcher needs `native` or `web`",
+  });
 export type MeetingMatcher = z.infer<typeof meetingMatcherSchema>;
 
 export const meetingMatchersSchema = z.array(meetingMatcherSchema).max(20);
@@ -75,16 +62,11 @@ export const DEFAULT_MEETING_MATCHERS: MeetingMatcher[] = [
     id: "zoom",
     name: "Zoom",
     native: { bundleIds: ["us.zoom.xos"], titles: ["Zoom Meeting"] },
-    windows: { processes: ["Zoom.exe"], titles: ["Zoom Meeting"] },
   },
   {
     id: "meet",
     name: "Google Meet",
     web: { hosts: ["meet.google.com"], path: "^/[a-z]{3}-[a-z]{4}-[a-z]{3}(/|$)" },
-    windows: {
-      processes: ["chrome.exe", "msedge.exe", "firefox.exe", "brave.exe"],
-      titles: ["Meet -", "Meet –"],
-    },
   },
   {
     id: "teams",
@@ -93,39 +75,12 @@ export const DEFAULT_MEETING_MATCHERS: MeetingMatcher[] = [
       bundleIds: ["com.microsoft.teams2", "com.microsoft.teams"],
       titles: ["Meeting with", "Meeting in", "Call with"],
     },
-    windows: {
-      processes: ["ms-teams.exe", "Teams.exe"],
-      titles: ["Meeting with", "Meeting in", "Call with"],
-    },
     web: {
       hosts: ["teams.microsoft.com", "teams.live.com"],
       titles: ["Meeting with", "Meeting in", "Call with"],
     },
   },
 ];
-
-/** The kinds of helper a matcher list can be made for. */
-export type MatcherOs = "mac" | "windows";
-
-/**
- * The matchers a helper on this OS can use (SW-12). A Mac helper reads `native` and `web`, a
- * Windows helper `windows` and `web`; the fields for the other OS are left out, and a matcher
- * left with nothing to match is dropped, so a helper is never sent what it cannot read.
- */
-export function matchersForOs(matchers: MeetingMatcher[], os: MatcherOs): MeetingMatcher[] {
-  const out: MeetingMatcher[] = [];
-  for (const matcher of matchers) {
-    const { native, windows, ...rest } = matcher;
-    const kept: MeetingMatcher = os === "mac" ? { ...rest, native } : { ...rest, windows };
-    const clean = Object.fromEntries(
-      Object.entries(kept).filter(([, value]) => value !== undefined),
-    ) as MeetingMatcher;
-    if (clean.native !== undefined || clean.web !== undefined || clean.windows !== undefined) {
-      out.push(clean);
-    }
-  }
-  return out;
-}
 
 /** `detect.subscribe`: watch for calls with these matchers, or stop. */
 export const detectSubscribePayloadSchema = z.object({

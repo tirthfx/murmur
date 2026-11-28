@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { checkHelperBinary, parseManifest, sha256Hex } from "./helper-integrity";
-import { createPlatformHelper } from "./index";
+import { createMacHelper } from "./mac-helper";
 
 const bytes = new TextEncoder().encode("helper bytes");
 const good = sha256Hex(bytes);
@@ -54,9 +54,8 @@ describe("the helper is not started when its hash is wrong", () => {
   };
 
   it("reports the helper as unavailable with the reason", async () => {
-    const helper = createPlatformHelper({
+    const helper = createMacHelper({
       ...base,
-      platform: "darwin",
       integrity: () => ({ ok: false, message: "does not match" }),
     });
     await expect(helper.start()).rejects.toMatchObject({ code: "HELPER_UNAVAILABLE" });

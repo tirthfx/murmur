@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { HUB_MIN_HEIGHT, HUB_MIN_WIDTH, createHubWindowOptions } from "./window-options";
 
-const base = { preloadPath: "/app/preload.cjs", platform: "darwin", isDevelopment: false };
+const base = { preloadPath: "/app/preload.cjs", isDevelopment: false };
 
 describe("createHubWindowOptions", () => {
   it("enables the renderer hardening switches", () => {
@@ -40,8 +40,7 @@ describe("createHubWindowOptions", () => {
     expect(options.height).toBeGreaterThanOrEqual(HUB_MIN_HEIGHT);
   });
 
-  it("uses a hidden inset title bar on macOS only", () => {
+  it("uses a hidden inset title bar", () => {
     expect(createHubWindowOptions(base).titleBarStyle).toBe("hiddenInset");
-    expect(createHubWindowOptions({ ...base, platform: "linux" }).titleBarStyle).toBeUndefined();
   });
 });

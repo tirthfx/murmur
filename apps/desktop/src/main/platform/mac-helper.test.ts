@@ -1,7 +1,6 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { resolveMacHelperBinary } from "./mac-helper";
-import { createPlatformHelper, matcherOs } from "./index";
+import { createMacHelper, resolveMacHelperBinary } from "./mac-helper";
 
 const base = {
   isPackaged: false,
@@ -62,36 +61,15 @@ describe("resolveMacHelperBinary", () => {
   });
 });
 
-describe("createPlatformHelper", () => {
-  it("returns an unavailable helper on a platform without one", async () => {
-    const helper = createPlatformHelper({
+describe("createMacHelper", () => {
+  it("starts a missing helper as unavailable without crashing", async () => {
+    const helper = createMacHelper({
       ...base,
-      platform: "linux",
-      appVersion: "1.0.0",
-      logger: silent,
-    });
-    await expect(helper.start()).rejects.toMatchObject({ code: "HELPER_UNAVAILABLE" });
-    expect(helper.getStatus().state).toBe("unavailable");
-    expect(helper.getStatus().message).toMatch(/linux/);
-  });
-
-  it("starts a missing macOS helper as unavailable without crashing", async () => {
-    const helper = createPlatformHelper({
-      ...base,
-      platform: "darwin",
       appVersion: "1.0.0",
       exists: () => false,
       logger: silent,
     });
     await expect(helper.start()).rejects.toThrow(/has not been built/);
     expect(helper.getStatus().state).toBe("unavailable");
-  });
-});
-
-describe("matcherOs", () => {
-  it("names the helper family for an OS, and none for an OS without a helper", () => {
-    expect(matcherOs("darwin")).toBe("mac");
-    expect(matcherOs("win32")).toBe("windows");
-    expect(matcherOs("linux")).toBeNull();
   });
 });

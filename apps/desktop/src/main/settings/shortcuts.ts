@@ -8,12 +8,8 @@ export interface KeyPlatform {
   capsLock: number;
   functionKeys: ReadonlySet<number>;
   reserved: readonly { keyCode: number; modifiers: readonly string[]; use: string }[];
-  /** Who keeps the reserved shortcuts, for the refusal ("macOS", "Windows"). */
-  osName: string;
-  /** The modifier keys as this OS names them, for "Add …" ("Command, Option, Control or Shift"). */
-  modifierHint: string;
-  /** The key that cancels a dictation (Escape), or null if the platform has none. */
-  cancelKeyCode: number | null;
+  /** The key that cancels a dictation (Escape). */
+  cancelKeyCode: number;
 }
 
 export const SLOT_NAMES: Record<ShortcutSlot, string> = {
@@ -86,7 +82,7 @@ export function checkTrigger(
   if (!isModifier && trigger.modifiers.length === 0 && !platform.functionKeys.has(keyCode)) {
     return {
       ok: false,
-      message: `${platform.label(trigger)} alone would type into apps. Add ${platform.modifierHint}.`,
+      message: `${platform.label(trigger)} alone would type into apps. Add Command, Option, Control or Shift.`,
     };
   }
   const reserved = platform.reserved.find(
@@ -98,7 +94,7 @@ export function checkTrigger(
   if (reserved) {
     return {
       ok: false,
-      message: `${platform.label(trigger)} is used by ${platform.osName} for ${reserved.use}.`,
+      message: `${platform.label(trigger)} is used by macOS for ${reserved.use}.`,
     };
   }
   const clash = used.find((other) => sameTrigger(other.trigger, trigger));

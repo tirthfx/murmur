@@ -55,6 +55,7 @@ import {
   NOTE_MESSAGES,
   DEFAULT_NOTIFICATIONS,
   DEFAULT_PRIVACY,
+  DEFAULT_SPEECH_MODEL,
   DEFAULT_PLAN_STATE,
   DEFAULT_DEVELOPER,
   CALENDAR_WRITE_SCOPES,
@@ -125,8 +126,6 @@ import {
   type PermissionKind,
   type PermissionSnapshot,
   type SoundName,
-  matchersForOs,
-  shouldWarnAboutPlayback,
   SESSION_LIMIT_DEFAULT,
   type Settings,
   DEFAULT_BAR,
@@ -300,7 +299,6 @@ import {
 } from "./rewrites/rewrite-shortcuts";
 import { createGenerationService, errorCode as generationErrorCode } from "./generation/service";
 import { createAutoRewriter } from "./rewrites/auto-apply";
-import { appKey } from "./apps/app-id";
 import { BROWSERS } from "./styles/app-categories";
 import { createPhraseLearner } from "./dictionary/phrases";
 import { createClipRecorder } from "./dictionary/clips";
@@ -324,29 +322,19 @@ import { createHotkeyService } from "./hotkeys";
 import { createIpcHandler } from "./ipc";
 import { createPermissionsService } from "./permissions";
 import {
-  appActivator,
-  appIdentity,
-  installerStartup,
-  createPlatformHelper,
-  defaultHotkeyBindings,
-  defaultCommandShortcut,
-  defaultInstructShortcut,
-  defaultFocusShortcut,
-  defaultRewriteShortcut,
-  defaultScratchpadShortcut,
-  defaultCopyLastShortcut,
-  defaultPasteLastShortcut,
-  fileManagerAppId,
-  imageToPngConverter,
-  claudeDesktopFolder,
-  hostPlatform,
-  mcpCommandFileName,
-  mcpSocketAddress,
-  speechModelFor,
-  keyPlatform,
-  matcherOs,
-  permissionSettingsLink,
-  quitsWhenLastWindowCloses,
+  activateMacApp,
+  convertMacImageToPng,
+  createMacHelper,
+  permissionSettingsUrl,
+  MAC_DEFAULT_COMMAND_TRIGGER,
+  MAC_DEFAULT_COPY_LAST_TRIGGER,
+  MAC_DEFAULT_FOCUS_TRIGGER,
+  MAC_DEFAULT_INSTRUCT_TRIGGER,
+  MAC_DEFAULT_PASTE_LAST_TRIGGER,
+  MAC_DEFAULT_REWRITE_TRIGGER,
+  MAC_DEFAULT_SCRATCHPAD_TRIGGER,
+  MAC_KEY_RIGHT_OPTION,
+  MAC_KEYS,
 } from "./platform";
 import {
   bindingsFor,
@@ -448,8 +436,7 @@ function resolveBarEntryUrl(): string {
 
 const barEntryUrl = resolveBarEntryUrl();
 
-const helper = createPlatformHelper({
-  platform: hostPlatform(),
+const helper = createMacHelper({
   isPackaged: app.isPackaged,
   resourcesPath: process.resourcesPath,
   appPath: app.getAppPath(),
@@ -629,7 +616,7 @@ const IMAGE_EXTENSIONS: Record<string, string> = {
   "image/gif": "gif",
 };
 
-const convertToPng = imageToPngConverter(hostPlatform());
+const convertToPng = convertMacImageToPng;
 
 /**
  * HB-30: decodes the image (HEIC, HEIF and GIF are first turned into PNG by the platform,
@@ -827,25 +814,21 @@ const dataDeleter =
       })
     : null;
 
-const platformDefaults = defaultHotkeyBindings(hostPlatform());
 const settingsDefaults: Settings = {
-  holdShortcut:
-    platformDefaults[0]?.trigger.type === "key"
-      ? platformDefaults[0].trigger
-      : { type: "key", keyCode: 61, modifiers: [] }, // an OS with no defaults has no helper either
+  holdShortcut: { type: "key", keyCode: MAC_KEY_RIGHT_OPTION, modifiers: [] },
   handsFreeShortcut: null,
-  rewriteShortcut: defaultRewriteShortcut(hostPlatform()),
-  commandShortcut: defaultCommandShortcut(hostPlatform()),
+  rewriteShortcut: MAC_DEFAULT_REWRITE_TRIGGER,
+  commandShortcut: MAC_DEFAULT_COMMAND_TRIGGER,
   commandMode: DEFAULT_COMMAND_MODE,
-  instructShortcut: defaultInstructShortcut(hostPlatform()),
+  instructShortcut: MAC_DEFAULT_INSTRUCT_TRIGGER,
   instruct: DEFAULT_INSTRUCT,
-  focusShortcut: defaultFocusShortcut(hostPlatform()),
+  focusShortcut: MAC_DEFAULT_FOCUS_TRIGGER,
   focus: DEFAULT_FOCUS,
-  scratchpadShortcut: defaultScratchpadShortcut(hostPlatform()),
+  scratchpadShortcut: MAC_DEFAULT_SCRATCHPAD_TRIGGER,
   // NT-03: unset until the owner picks one; the check refuses clashes with dictation keys.
   meetingShortcut: null,
-  copyLastShortcut: defaultCopyLastShortcut(hostPlatform()),
-  pasteLastShortcut: defaultPasteLastShortcut(hostPlatform()),
+  copyLastShortcut: MAC_DEFAULT_COPY_LAST_TRIGGER,
+  pasteLastShortcut: MAC_DEFAULT_PASTE_LAST_TRIGGER,
   pressEnterShortcut: null,
   recapShortcut: null,
   scratchpad: { enabled: true, newTab: true },
@@ -905,7 +888,7 @@ const settingsDefaults: Settings = {
   },
 };
 const settingsStore = createSettingsStore(database, settingsDefaults);
-const keys = keyPlatform(hostPlatform());
+const keys = MAC_KEYS;
 /** Plan gates (RW-22): read on every action, so a plan change applies at once. */
 const allows = (feature: PlanFeature) => planAllows(settingsStore.get().plan, feature);
 // TM-13 to TM-16, TM-21: the policy in force, from the managed file and the team's policy. Every
@@ -964,15 +947,13 @@ const settingsService = createSettingsService({
   rejected: () => hotkeys.rejected(),
   otherShortcuts: () => rewriteShortcutsInUse(rewrites?.list() ?? []),
 });
-const bindingsNow = () =>
-  platformDefaults.length > 0
-    ? [
-        ...bindingsFor(settingsStore.get(), keys.cancelKeyCode),
-        ...rewriteBindings(
-          policy.featureRefusal("transforms") ? [] : (rewrites?.list() ?? []),
-        ).slice(0, boundRewriteShortcuts(settingsStore.get().plan)),
-      ]
-    : [];
+const bindingsNow = () => [
+  ...bindingsFor(settingsStore.get(), keys.cancelKeyCode),
+  ...rewriteBindings(policy.featureRefusal("transforms") ? [] : (rewrites?.list() ?? [])).slice(
+    0,
+    boundRewriteShortcuts(settingsStore.get().plan),
+  ),
+];
 
 const hotkeys = createHotkeyService({
   helper,
@@ -984,8 +965,8 @@ const refreshBindings = () => hotkeys.setBindings(bindingsNow());
 settingsStore.onChange(refreshBindings);
 permissions.onChecked((statuses) => hotkeys.handlePermissions(statuses));
 
-/** The speech model for this OS (the Mac's CoreML build, or Windows' whisper.cpp file). */
-const SPEECH_MODEL = speechModelFor(hostPlatform());
+/** The speech model the helper loads. */
+const SPEECH_MODEL = DEFAULT_SPEECH_MODEL;
 const speech = createSpeechService({
   helper,
   model: SPEECH_MODEL,
@@ -1246,7 +1227,7 @@ async function workspaceFor(app: {
   windowTitle: string | null;
 }): Promise<string | null> {
   const tools = settingsStore.get().developerTools;
-  if (!tools.fileTags || !app.bundleId || !TAG_EDITORS.has(appKey(app.bundleId))) return null;
+  if (!tools.fileTags || !app.bundleId || !TAG_EDITORS.has(app.bundleId)) return null;
   return findWorkspace(app.windowTitle, tools.codeFolders);
 }
 // Jargon packs (PZ-27): rebuilt only when the pack switches change.
@@ -1369,8 +1350,7 @@ const recorder = createRecorder({
     },
     codingCli: async (app) => {
       const tools = settingsStore.get().developerTools;
-      if (!tools.cliDetection || !app.bundleId || !TERMINALS.has(appKey(app.bundleId)))
-        return false;
+      if (!tools.cliDetection || !app.bundleId || !TERMINALS.has(app.bundleId)) return false;
       const names = await Promise.race([
         helper.foregroundProcesses(),
         new Promise<string[]>((done) => setTimeout(() => done([]), 500)),
@@ -1579,7 +1559,7 @@ const qualityGeneration = createGenerationService({
   modelReady: () => qualityModel.isReady(),
   logger: createConsoleLogger("[generate]"),
 });
-const activateApp = appActivator(hostPlatform(), helper);
+const activateApp = activateMacApp;
 const rewriteController = createRewriteController({
   helper,
   rewrites: {
@@ -1738,7 +1718,7 @@ const focus = createFocusController({
     if (message === FOCUS_MESSAGES.ended) notifier.focusEnded();
   },
   activateApp,
-  fallbackApp: fileManagerAppId(hostPlatform()),
+  fallbackApp: "com.apple.finder",
   pressBack: async (bundleId) =>
     (await helper.pressKey({ key: "left_bracket", modifiers: ["command"], onlyInApp: bundleId }))
       .pressed,
@@ -1830,7 +1810,7 @@ async function writeDiagnostics(): Promise<TestingToolResult> {
       electron: process.versions.electron ?? "",
       node: process.versions.node,
     },
-    system: { platform: hostPlatform(), release: os.release(), arch: process.arch },
+    system: { platform: process.platform, release: os.release(), arch: process.arch },
     helper: helper.getStatus(),
     settings: settingsStore.get(),
     counts: dataDeleter?.counts() ?? { categories: [], failedFiles: 0 },
@@ -2486,11 +2466,11 @@ const askRunner =
         logger: createConsoleLogger("[ask]"),
       })
     : null;
-const mcpSocketPath = mcpSocketAddress(hostPlatform(), profile.appData, os.userInfo().username);
+const mcpSocketPath = path.join(profile.appData, "Murmur", "mcp.sock");
 const mcpCommandPath = () =>
   app.isPackaged
-    ? path.join(process.resourcesPath, "mcp", mcpCommandFileName(hostPlatform()))
-    : path.join(app.getAppPath(), "packaging", mcpCommandFileName(hostPlatform()));
+    ? path.join(process.resourcesPath, "mcp", "murmur-mcp")
+    : path.join(app.getAppPath(), "packaging", "murmur-mcp");
 // CN-11: the local MCP server. Off until turned on; AI clients read meeting notes, summaries,
 // transcripts and tasks through it, and nothing else.
 const mcpService =
@@ -2532,7 +2512,7 @@ const mcpSetup = mcpService
   ? createMcpSetup({
       clients: mcpService.clients,
       home: app.getPath("home"),
-      claudeFolder: claudeDesktopFolder(hostPlatform()),
+      claudeFolder: ["Library", "Application Support", "Claude"],
       command: mcpCommandPath,
       socketPath: mcpSocketPath,
       newId: randomUUID,
@@ -2842,18 +2822,6 @@ const meetings = meetingsStore
           })(),
         };
       },
-      playbackWarning: (channels) =>
-        shouldWarnAboutPlayback(
-          matcherOs(hostPlatform()),
-          channels,
-          settingsStore.get().notetaker.windowsAudio,
-        ),
-      onPlaybackWarned: () => {
-        const notetaker = settingsStore.get().notetaker;
-        settingsStore.update({
-          notetaker: { ...notetaker, windowsAudio: { ...notetaker.windowsAudio, warned: true } },
-        });
-      },
       onState: (state) => {
         // The menu bar shows the time while recording, so it is redrawn every second.
         if (state.status === "recording" && meetingTick === null) {
@@ -3143,8 +3111,7 @@ if (meetings && meetingStarter) {
 
 const detectionSync = createDetectionSync({
   matchers: () => {
-    const os = matcherOs(hostPlatform());
-    return os === null ? [] : matchersForOs(meetingMatchers, os);
+    return meetingMatchers;
   },
   settings: () => settingsStore.get().notetaker.detect,
   helperReady: () => helper.getStatus().state === "ready",
@@ -3500,9 +3467,9 @@ helper.onTypingActivity((activity) => typingReminder.record(activity.words));
 setInterval(() => syncTypingWatch(), 60_000).unref();
 
 async function openPermissionSettings(kind: PermissionKind): Promise<void> {
-  const url = permissionSettingsLink(hostPlatform(), kind);
+  const url = permissionSettingsUrl(kind);
   if (url === null) {
-    throw new Error("No System Settings pane is known for this permission on this platform");
+    throw new Error("No System Settings pane is known for this permission");
   }
   await shell.openExternal(url);
 }
@@ -3586,7 +3553,6 @@ function createHubWindow(): BrowserWindow {
   const window = new BrowserWindow({
     ...createHubWindowOptions({
       preloadPath: path.join(__dirname, "preload.cjs"),
-      platform: hostPlatform(),
       isDevelopment,
     }),
     width: hubSaved.width,
@@ -3639,7 +3605,6 @@ function openScratchpad(noteId?: string): void {
   const window = new BrowserWindow({
     ...createHubWindowOptions({
       preloadPath: path.join(__dirname, "preload.cjs"),
-      platform: hostPlatform(),
       isDevelopment,
     }),
     title: "Scratchpad",
@@ -4668,7 +4633,7 @@ function registerIpc(): void {
     getAppInfo: () => ({
       name: app.getName(),
       version: app.getVersion(),
-      platform: hostPlatform(),
+      platform: process.platform,
     }),
     getHelperStatus: () => helper.getStatus(),
     getPermissions: () => permissions.check("hub refresh"),
@@ -4943,27 +4908,7 @@ function registerIpc(): void {
   }
 }
 
-// SW-13: a start made by the installer only sets up or removes the shortcut. A second copy of
-// the app (where the OS would start one) hands over to the first and quits.
-const installing = installerStartup(hostPlatform(), process.argv, process.execPath);
-const identity = appIdentity(hostPlatform());
-if (identity.userModelId) app.setAppUserModelId(identity.userModelId);
-const alreadyRunning = !installing && identity.singleInstance && !app.requestSingleInstanceLock();
-if (installing) void installing.finally(() => app.exit(0));
-else if (alreadyRunning) app.exit(0);
-app.on("second-instance", () => {
-  if (!app.isReady()) return;
-  if (!hubWindow) {
-    createHubWindow();
-    return;
-  }
-  if (hubWindow.isMinimized()) hubWindow.restore();
-  hubWindow.show();
-  hubWindow.focus();
-});
-
 void app.whenReady().then(() => {
-  if (installing || alreadyRunning) return;
   void teamService.start();
   // HB-24: the weekly summary is checked at start and every hour.
   weeklySummary();
@@ -5041,11 +4986,8 @@ void app.whenReady().then(() => {
   });
 });
 
-app.on("window-all-closed", () => {
-  if (quitsWhenLastWindowCloses(hostPlatform())) {
-    app.quit();
-  }
-});
+// The app stays in the menu bar when its last window closes.
+app.on("window-all-closed", () => {});
 
 // Stop the helper before quitting so no child process outlives the app.
 let helperStopped = false;

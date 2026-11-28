@@ -38,10 +38,6 @@ export const installedAppSchema = z.object({
   name: z.string().min(1).max(200),
 });
 export type InstalledApp = z.infer<typeof installedAppSchema>;
-/** Brings a running app forward. Windows only: a Mac does this without the helper. */
-export const appsActivatePayloadSchema = z.object({ bundleId: z.string().min(1).max(255) });
-/** False when the app is not running or the system kept another window in front. */
-export const appsActivateResultSchema = z.object({ activated: z.boolean() });
 export const appsListResultSchema = z.object({ apps: z.array(installedAppSchema).max(5000) });
 
 // ------------------------------------------------------------------ settings and state
@@ -105,8 +101,8 @@ export const focusRuleSchema = z.strictObject({
 });
 export type FocusRule = z.infer<typeof focusRuleSchema>;
 
-/** A dotted bundle id, or a Windows program file name, which may hold spaces and underscores. */
-const APP_ID = /^([A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+|[^\\/:*?"<>|]+\.[Ee][Xx][Ee])$/;
+/** A dotted bundle id. */
+const APP_ID = /^[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$/;
 
 export const focusAppInputSchema = z.strictObject({
   bundleId: z
@@ -114,7 +110,7 @@ export const focusAppInputSchema = z.strictObject({
     .trim()
     .min(3)
     .max(255)
-    .regex(APP_ID, "Use an app's bundle id, like com.example.App, or a program, like notepad.exe"),
+    .regex(APP_ID, "Use an app's bundle id, like com.example.App"),
   label: z.string().trim().min(1).max(200),
 });
 export type FocusAppInput = z.infer<typeof focusAppInputSchema>;

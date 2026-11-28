@@ -36,13 +36,6 @@ export interface MeetingRecorderDeps {
     /** NT-03: how a meeting nobody named is titled. */
     titleFormat?: string;
   };
-  /**
-   * SW-12: whether to warn that the computer's sound, with music and all, is being recorded.
-   * Asked once the system channel has started.
-   */
-  playbackWarning?(channels: readonly MeetingChannel[]): boolean;
-  /** Called after that warning went into a recording, so it is not said again. */
-  onPlaybackWarned?(): void;
   /** Called on every change, for the Hub, the tray and the Bar. */
   onState(state: RecordingState): void;
   /** Called once a recording has ended and is ready to be transcribed. */
@@ -161,10 +154,6 @@ export function createMeetingRecorder(deps: MeetingRecorderDeps): MeetingRecorde
         const channels = (["mic", "system"] as const).filter((name) => result.channels[name]);
         deps.store.setChannels(id, channels);
         const warnings: MeetingWarning[] = [...result.warnings];
-        if (deps.playbackWarning?.(channels)) {
-          warnings.push("system_playback");
-          deps.onPlaybackWarned?.();
-        }
         for (const warning of warnings) deps.store.addWarning(id, warning);
         deps.logger.info(`meeting recording started (${channels.join(", ")})`);
         setState({

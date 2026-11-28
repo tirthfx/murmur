@@ -1,6 +1,5 @@
 import { Menu, nativeImage, Tray, type MenuItemConstructorOptions } from "electron";
 import type { TrayHost, TrayView } from "./tray-controller";
-import { hostPlatform, trayIcon, trayShowsTitle } from "../platform";
 import { micPng } from "./tray-icon";
 import type { MenuRow, TrayAction, TrayStatus } from "./tray-menu";
 
@@ -31,15 +30,15 @@ export function menuTemplate<Action>(
 }
 
 function micImage(): Electron.NativeImage {
-  const icon = trayIcon(hostPlatform());
   const image = nativeImage.createEmpty();
   for (const scaleFactor of [1, 2]) {
     image.addRepresentation({
       scaleFactor,
-      dataURL: `data:image/png;base64,${micPng(scaleFactor, icon.rgb).toString("base64")}`,
+      dataURL: `data:image/png;base64,${micPng(scaleFactor, [0, 0, 0]).toString("base64")}`,
     });
   }
-  image.setTemplateImage(icon.template);
+  // A template image: macOS recolours it to suit the menu bar.
+  image.setTemplateImage(true);
   return image;
 }
 
@@ -56,10 +55,8 @@ export function createElectronTray(perform: (action: TrayAction) => void): Elect
     render(view: TrayView) {
       tray.setContextMenu(Menu.buildFromTemplate(menuTemplate(view.items, perform)));
       tray.setToolTip(view.tooltip);
-      if (trayShowsTitle(hostPlatform())) {
-        const text = view.elapsed ?? view.nextText;
-        tray.setTitle(text ? `${DOT[view.status]} ${text}`.trim() : DOT[view.status]);
-      }
+      const text = view.elapsed ?? view.nextText;
+      tray.setTitle(text ? `${DOT[view.status]} ${text}`.trim() : DOT[view.status]);
     },
     onHover(handler) {
       tray.on("mouse-enter", handler);

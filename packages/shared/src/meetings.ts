@@ -423,8 +423,7 @@ export const MEETING_LIMITS = {
 } as const;
 
 /** What a meeting can be marked with: a channel problem, or a recording cut short. */
-export type MeetingWarning =
-  CaptureWarning | CaptureIssue | "interrupted" | "sleep" | "system_playback";
+export type MeetingWarning = CaptureWarning | CaptureIssue | "interrupted" | "sleep";
 
 /** What the Notetaker shows about the recording now. */
 export type RecordingState =
@@ -449,8 +448,6 @@ export const MEETING_WARNING_TEXT: Record<MeetingWarning, string> = {
   write_failed: "Part of the recording could not be saved.",
   interrupted: "The recording stopped unexpectedly. What was saved before then is kept.",
   sleep: "The recording stopped when the Mac went to sleep. Start a new one to carry on.",
-  system_playback:
-    "Everything this PC plays is recorded with the meeting, including music. Turn off recording the computer's sound in the Notetaker settings to record only your microphone.",
 };
 
 /** NT-03: how a new meeting is titled; `{date}` and `{time}` are filled in. */
@@ -536,32 +533,6 @@ export const DEFAULT_MENUBAR_SETTINGS: MenubarSettings = {
   lookaheadHours: 4,
 };
 
-export const windowsAudioSettingsSchema = z.strictObject({
-  endpoint: z.literal("default"),
-  warnOnPlayback: z.boolean(),
-  warned: z.boolean(),
-});
-export type WindowsAudioSettings = z.infer<typeof windowsAudioSettingsSchema>;
-export const DEFAULT_WINDOWS_AUDIO: WindowsAudioSettings = {
-  endpoint: "default",
-  warnOnPlayback: true,
-  warned: false,
-};
-
-/**
- * Whether to tell the person that the computer's sound is being recorded (SW-12): on Windows
- * only, when the system channel started, until it has been said once, and not if switched off.
- */
-export function shouldWarnAboutPlayback(
-  os: "mac" | "windows" | null,
-  channels: readonly MeetingChannel[],
-  settings: WindowsAudioSettings,
-): boolean {
-  return (
-    os === "windows" && channels.includes("system") && settings.warnOnPlayback && !settings.warned
-  );
-}
-
 export const notetakerSettingsSchema = z.strictObject({
   /** NT-04: record the Mac's sound as well as the microphone. */
   captureSystem: z.boolean(),
@@ -579,11 +550,6 @@ export const notetakerSettingsSchema = z.strictObject({
       seen: z.boolean(),
     })
     .default({ notice: "first", seen: false }),
-  /**
-   * SW-12, Windows only: the system channel is the default output, so it records everything
-   * playing. `warnOnPlayback` says so the first time (`warned` records that it did).
-   */
-  windowsAudio: windowsAudioSettingsSchema.default(DEFAULT_WINDOWS_AUDIO),
   /** NT-01: detect calls in Zoom, Meet and Teams. */
   detect: detectSettingsSchema.default(DEFAULT_DETECT),
   /** NT-09: summaries. */
@@ -652,7 +618,6 @@ export const DEFAULT_NOTETAKER: NotetakerSettings = {
   contacts: { fromCalendar: true },
   live: true,
   consent: { notice: "first", seen: false },
-  windowsAudio: DEFAULT_WINDOWS_AUDIO,
   detect: DEFAULT_DETECT,
   summary: DEFAULT_SUMMARY_SETTINGS,
   skills: DEFAULT_SKILLS_SETTINGS,

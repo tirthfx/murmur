@@ -96,7 +96,7 @@ function PrivateApps({ apps, onChange }: { apps: string[]; onChange: (apps: stri
   return (
     <TextArea
       label="Never read the text in these apps"
-      description="One app id per line, such as com.example.notes or notes.exe. Dictation still works there; nothing around the cursor is read."
+      description="One app id per line, such as com.example.notes. Dictation still works there; nothing around the cursor is read."
       value={text}
       onChange={(value) => {
         setText(value);
