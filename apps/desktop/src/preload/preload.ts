@@ -6,6 +6,7 @@ import {
   type DictationState,
   type LivePartial,
   type MurmurApi,
+  type CaptureLevel,
 } from "@murmur/shared";
 
 // Only this narrow, typed surface reaches the renderer. ipcRenderer itself is never exposed.
@@ -280,6 +281,11 @@ const api: MurmurApi = {
     };
     ipcRenderer.on(IPC_EVENTS.meetingsChanged, listener);
     return () => ipcRenderer.removeListener(IPC_EVENTS.meetingsChanged, listener);
+  },
+  onMeetingLevel: (handler) => {
+    const listener = (_event: unknown, level: CaptureLevel) => handler(level);
+    ipcRenderer.on(IPC_EVENTS.meetingLevel, listener);
+    return () => ipcRenderer.removeListener(IPC_EVENTS.meetingLevel, listener);
   },
   onMeetingLive: (handler) => {
     const listener = (_event: unknown, partial: unknown) => {

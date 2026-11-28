@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { CaptureLevel } from "./meetings";
 import {
   correctionSchema,
   meetingLanguageSchema,
@@ -1765,6 +1766,8 @@ export interface MurmurApi {
   meetingDocRemove(docId: string): Promise<void>;
   /** A meeting changed: its status, transcript, or the recording. `null` for the list. */
   onMeetingsChanged(handler: (meetingId: string | null) => void): () => void;
+  /** NT-04: how loud each channel of the meeting being recorded is, about five times a second. */
+  onMeetingLevel(handler: (level: CaptureLevel) => void): () => void;
   /** NT-06: new grey text for the chunk being recorded. */
   onMeetingLive(handler: (partial: LivePartial) => void): () => void;
 }
@@ -1776,5 +1779,6 @@ export const IPC_EVENTS = {
   scratchpadOpenNote: "scratchpad:open-note",
   openPage: "hub:open-page",
   meetingsChanged: "meetings:changed",
+  meetingLevel: "meetings:level",
   meetingLive: "meetings:live",
 } as const;

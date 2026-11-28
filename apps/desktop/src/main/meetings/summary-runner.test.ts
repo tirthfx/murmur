@@ -21,7 +21,7 @@ const segment = (id: string, startMs: number, isDictated = false): MeetingSegmen
 
 const ANSWER = "## Overview\n- We met [0:02]\n## Key points\n- Roadmap [0:02]";
 
-function setup(options: { segments?: MeetingSegment[]; ready?: boolean } = {}) {
+function setup(options: { segments?: MeetingSegment[]; ready?: boolean; naming?: boolean } = {}) {
   const db = openDatabase(":memory:");
   const meetings = createMeetingsStore(db);
   meetings.create({ id: "m-1", title: "Sync", startedAt: 1, source: "ad_hoc", folder: "/f" });
@@ -56,9 +56,19 @@ function setup(options: { segments?: MeetingSegment[]; ready?: boolean } = {}) {
     newId: () => `sum-${++id}`,
     onChange: (meetingId) => changes.push(meetingId),
     logger: { info() {}, warn() {}, error() {} },
+    ...(options.naming
+      ? {
+          title: {
+            wanted: () => true,
+            set: (meetingId: string, title: string) =>
+              void meetings.setGeneratedTitle(meetingId, title),
+          },
+        }
+      : {}),
   });
   return {
     runner,
+    meetings,
     summaries,
     generate,
     changes,
@@ -71,6 +81,31 @@ function setup(options: { segments?: MeetingSegment[]; ready?: boolean } = {}) {
 }
 
 describe("summary runner", () => {
+  it("names the meeting from its summary, and never over a name the owner gave", async () => {
+    const t = setup({ naming: true });
+    t.generate.mockResolvedValueOnce(ANSWER).mockResolvedValueOnce("Roadmap review");
+    await t.runner.run("m-1");
+    expect(t.meetings.get("m-1")?.title).toBe("Roadmap review");
+
+    t.meetings.rename("m-1", "My name for it");
+    t.generate.mockResolvedValueOnce(ANSWER).mockResolvedValueOnce("Something else");
+    await t.runner.run("m-1");
+    expect(t.meetings.get("m-1")?.title).toBe("My name for it");
+  });
+
+  it("keeps the summary when the meeting cannot be named", async () => {
+    const t = setup({ naming: true });
+    t.generate.mockResolvedValueOnce(ANSWER).mockRejectedValueOnce(new Error("no model"));
+    await expect(t.runner.run("m-1")).resolves.toMatchObject({ version: 1 });
+    expect(t.meetings.get("m-1")?.title).toBe("Sync");
+  });
+
+  it("does not name a meeting after a quick summary", async () => {
+    const t = setup({ naming: true });
+    await t.runner.run("m-1", { quick: true });
+    expect(t.meetings.get("m-1")?.title).toBe("Sync");
+  });
+
   it("writes a summary from the transcript without dictated lines and keeps each version", async () => {
     const t = setup();
     const first = await t.runner.run("m-1");

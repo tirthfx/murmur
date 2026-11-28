@@ -562,6 +562,7 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
     meetingDocOpen: vi.fn().mockResolvedValue(undefined),
     meetingDocRemove: vi.fn().mockResolvedValue(undefined),
     onMeetingsChanged: vi.fn(() => () => {}),
+    onMeetingLevel: vi.fn(() => () => {}),
     onMeetingLive: vi.fn(() => () => {}),
     homeView: vi.fn().mockResolvedValue({
       todayWords: 120,

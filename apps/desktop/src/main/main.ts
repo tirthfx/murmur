@@ -2089,6 +2089,11 @@ const summaryRunner =
             language: settings.summary.language,
           };
         },
+        // NT-05: a recording the owner started keeps a made-up name until its summary names it.
+        title: {
+          wanted: (id) => meetingsStore.get(id)?.source === "ad_hoc",
+          set: (id, title) => void meetingsStore.setGeneratedTitle(id, title),
+        },
         folderSkill: (id) => foldersStore?.defaultSkillOf(id) ?? null,
         modelId: DEFAULT_CLEANUP_MODEL.id,
         modelReady: cleanupModelReady,
@@ -2102,6 +2107,10 @@ const summaryRunner =
         logger: createConsoleLogger("[summary]"),
       })
     : null;
+// NT-04: the recording's level meter in the Hub.
+helper.onCaptureLevel((level) => {
+  if (hubEvents && !hubEvents.isDestroyed()) hubEvents.send(IPC_EVENTS.meetingLevel, level);
+});
 /** Tells the Hub a meeting changed (null: the list or the recording). */
 function notifyMeetings(meetingId: string | null): void {
   if (hubEvents && !hubEvents.isDestroyed()) hubEvents.send(IPC_EVENTS.meetingsChanged, meetingId);

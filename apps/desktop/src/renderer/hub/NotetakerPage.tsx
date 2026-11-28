@@ -1,3 +1,4 @@
+import { RecordingLevels } from "./RecordingLevels";
 import { ContactsPanel } from "./ContactsPanel";
 import { MentionField } from "./MentionField";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -776,15 +777,18 @@ export function NotetakerPage() {
       <section aria-label="Recording">
         <VStack gap={2}>
           {recording.status === "recording" ? (
-            <HStack gap={2} align="center">
-              <span className="hub-rec-dot" aria-hidden="true" />
-              <Text weight="semibold">
-                Recording “{recording.title}” · {formatElapsed(now - recording.startedAt)}
-              </Text>
-              <Button label="Stop recording" onClick={() => void stop()}>
-                Stop
-              </Button>
-            </HStack>
+            <VStack gap={2}>
+              <HStack gap={2} align="center">
+                <span className="hub-rec-dot" aria-hidden="true" />
+                <Text weight="semibold">
+                  Recording “{recording.title}” · {formatElapsed(now - recording.startedAt)}
+                </Text>
+                <Button label="Stop recording" onClick={() => void stop()}>
+                  Stop
+                </Button>
+              </HStack>
+              <RecordingLevels channels={recording.channels} />
+            </VStack>
           ) : (
             <HStack gap={2} align="center">
               <Button
