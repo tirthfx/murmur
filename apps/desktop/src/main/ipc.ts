@@ -193,6 +193,8 @@ import {
   type ContactCard,
   type ContactDraft,
   type ContactResult,
+  type LeaderboardPeriod,
+  type TeamLeaderboardAnswer,
 } from "@murmur/shared";
 import { isTrustedIpcSender } from "../security/guards";
 
@@ -334,6 +336,9 @@ export interface IpcDeps {
   entryUrl: string;
   getAppInfo: () => AppInfo;
   openGuide: () => Promise<boolean>;
+  teamLeaderboard: (period: LeaderboardPeriod) => Promise<TeamLeaderboardAnswer>;
+  teamLeaderboardShow: (visible: boolean) => Promise<boolean>;
+  helperRetry: () => boolean;
   reportProblem: () => Promise<TestingToolResult>;
   testingTool: (tool: TestingTool) => Promise<TestingToolResult>;
   axInspect: (showValues: boolean) => Promise<AxInspectResult | null>;
@@ -480,6 +485,12 @@ export function createIpcHandler(deps: IpcDeps) {
     switch (channel) {
       case IPC_CHANNELS.getAppInfo:
         return deps.getAppInfo();
+      case IPC_CHANNELS.helperRetry:
+        return deps.helperRetry();
+      case IPC_CHANNELS.teamLeaderboard:
+        return deps.teamLeaderboard(request.args[0] as LeaderboardPeriod);
+      case IPC_CHANNELS.teamLeaderboardShow:
+        return deps.teamLeaderboardShow(request.args[0] as boolean);
       case IPC_CHANNELS.openGuide:
         return deps.openGuide();
       case IPC_CHANNELS.reportProblem:

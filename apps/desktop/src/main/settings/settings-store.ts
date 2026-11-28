@@ -29,6 +29,7 @@ export const SLOT_FIELD: Record<
   | "copyLastShortcut"
   | "pasteLastShortcut"
   | "pressEnterShortcut"
+  | "recapShortcut"
 > = {
   hold: "holdShortcut",
   handsFree: "handsFreeShortcut",
@@ -41,6 +42,7 @@ export const SLOT_FIELD: Record<
   copyLast: "copyLastShortcut",
   pasteLast: "pasteLastShortcut",
   pressEnter: "pressEnterShortcut",
+  recap: "recapShortcut",
 };
 
 /**

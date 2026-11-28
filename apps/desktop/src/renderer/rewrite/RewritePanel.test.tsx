@@ -55,7 +55,8 @@ describe("Rewrite panel", () => {
     render(<RewritePanel api={mock} />);
     await waitFor(() => expect(screen.getByText("Rewrite 1,234 characters")).toBeTruthy());
     const filter = screen.getByLabelText("Find a Rewrite");
-    expect(document.activeElement).toBe(filter);
+    // The panel focuses the filter in an effect, which can run after the text is on screen.
+    await waitFor(() => expect(document.activeElement).toBe(filter));
     fireEvent.change(filter, { target: { value: "short" } });
     expect(screen.getAllByRole("option").map((option) => option.firstChild?.textContent)).toEqual([
       "Tighten",

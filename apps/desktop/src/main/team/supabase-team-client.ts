@@ -71,6 +71,8 @@ class Failed extends Error {
   }
 }
 
+const NO_LEADERBOARD = "This team server has no leaderboard yet.";
+
 const fail = (
   code: TeamClientErrorCode,
   message: string,
@@ -617,6 +619,10 @@ export function createSupabaseTeamClient(
         });
         return answer.status === 200 ? ok(null) : refusal(answer, "The counts were not taken.");
       }),
+
+    // The Supabase schema keeps usage but has no leaderboard yet.
+    leaderboard: async () => fail("not_found", NO_LEADERBOARD),
+    showOnLeaderboard: async () => fail("not_found", NO_LEADERBOARD),
 
     reportRetention: (id, counts) =>
       run(async () => {

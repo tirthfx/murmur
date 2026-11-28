@@ -33,6 +33,8 @@ export interface MeetingRecorderDeps {
     translate?: boolean;
     /** NT-17: the folder a new meeting goes in; null is the Inbox. */
     folderId?: string | null;
+    /** NT-03: how a meeting nobody named is titled. */
+    titleFormat?: string;
   };
   /**
    * SW-12: whether to warn that the computer's sound, with music and all, is being recorded.
@@ -132,7 +134,9 @@ export function createMeetingRecorder(deps: MeetingRecorderDeps): MeetingRecorde
       const id = deps.newId();
       const startedAt = deps.now();
       const folder = path.join(deps.meetingsDir, id);
-      const title = input.title?.trim() || defaultMeetingTitle(startedAt);
+      const title =
+        input.title?.trim() ||
+        defaultMeetingTitle(startedAt, undefined, deps.options().titleFormat);
       deps.store.create({
         id,
         title,

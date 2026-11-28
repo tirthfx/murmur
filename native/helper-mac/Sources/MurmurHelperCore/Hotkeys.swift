@@ -23,7 +23,7 @@ public enum HotkeyActions {
     public static let all: Set<String> = [
         "dictate.hold", "dictate.toggle", "dictate.cancel", "paste.last", "copy.last",
         "scratchpad.open", "notetaker.start", "command.mode", "instruct.mode", "rewrite",
-        "press.enter", "focus.toggle",
+        "press.enter", "focus.toggle", "notetaker.recap",
     ]
 }
 

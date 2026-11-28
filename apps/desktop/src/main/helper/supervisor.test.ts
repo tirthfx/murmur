@@ -307,6 +307,21 @@ describe("restart limit", () => {
     await expect(started).resolves.toBeDefined();
   });
 
+  it("starts again when asked after giving up, and only then", async () => {
+    const { supervisor, spawner, clock } = setup();
+    void supervisor.start().catch(() => {});
+    expect(supervisor.retry()).toBe(false);
+    for (let crash = 0; crash < 4; crash++) {
+      spawner.processes[crash]!.exit();
+      await clock.advance(2000);
+    }
+    expect(supervisor.getStatus().state).toBe("error");
+    expect(supervisor.retry()).toBe(true);
+    await completeHandshake(spawner.processes[4]!);
+    expect(supervisor.getStatus().state).toBe("ready");
+    expect(supervisor.retry()).toBe(false);
+  });
+
   it("rejects start() when the helper keeps crashing before it is ready", async () => {
     const { supervisor, spawner, clock } = setup();
     const started = supervisor.start();

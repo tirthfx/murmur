@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { EffectivePolicy } from "./policy";
 import type { TeamNotice, TeamProposeInput, TeamSummary } from "./team";
 
@@ -106,6 +107,38 @@ export interface TeamClientInviteResult {
   session: TeamClientSession | null;
 }
 
+export const LEADERBOARD_PERIODS = ["week", "all"] as const;
+export type LeaderboardPeriod = (typeof LEADERBOARD_PERIODS)[number];
+
+/**
+ * The leaderboard as the server answers it. Others' counts are null unless the person is an
+ * admin; members who chose not to appear are in no row, only in the total.
+ */
+export const teamLeaderboardSchema = z.discriminatedUnion("enabled", [
+  z.object({ enabled: z.literal(false) }),
+  z.object({
+    enabled: z.literal(true),
+    metric: z.enum(["words", "meetings", "streak"]),
+    period: z.enum(LEADERBOARD_PERIODS),
+    ranks: z.array(
+      z.object({
+        rank: z.number().int(),
+        name: z.string(),
+        value: z.number().nullable(),
+        isMe: z.boolean(),
+      }),
+    ),
+    total: z.number(),
+    hiddenCount: z.number().int(),
+    me: z.object({
+      visible: z.boolean(),
+      value: z.number(),
+      rank: z.number().int().nullable(),
+    }),
+  }),
+]);
+export type TeamLeaderboard = z.infer<typeof teamLeaderboardSchema>;
+
 export interface TeamClient {
   readonly version: typeof TEAM_CLIENT_VERSION;
 
@@ -141,6 +174,13 @@ export interface TeamClient {
     counts: { audio: number; transcripts: number },
   ): Promise<TeamClientResult<null>>;
   propose(teamId: string, input: TeamProposeInput): Promise<TeamClientResult<{ live: boolean }>>;
+  /** The team's leaderboard (TM-10). A server without one answers `not_found`. */
+  leaderboard(
+    teamId: string,
+    options: { period: LeaderboardPeriod },
+  ): Promise<TeamClientResult<TeamLeaderboard>>;
+  /** Whether this person is listed on the leaderboard. */
+  showOnLeaderboard(teamId: string, visible: boolean): Promise<TeamClientResult<null>>;
 }
 
 /**
@@ -157,3 +197,7 @@ export function teamClientErrorFor(status: number, code = ""): TeamClientErrorCo
   if (status >= 400) return "invalid";
   return "server";
 }
+
+/** What the app shows for the leaderboard tab. */
+export type TeamLeaderboardAnswer =
+  { ok: true; teamName: string; board: TeamLeaderboard } | { ok: false; message: string };

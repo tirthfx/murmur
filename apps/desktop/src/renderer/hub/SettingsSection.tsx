@@ -1,3 +1,4 @@
+import { TextInput } from "@astryxdesign/core/TextInput";
 import { TextArea } from "@astryxdesign/core/TextArea";
 import { RetentionPolicyNote } from "./PolicyNotice";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
@@ -91,6 +92,7 @@ const SLOT_TITLES: Record<ShortcutSlot, string> = {
   copyLast: "Copy last transcript",
   pasteLast: "Paste last transcript",
   pressEnter: "Press Enter",
+  recap: "What did I miss",
 };
 
 /** DC-06: every shortcut back to its default. */
@@ -500,6 +502,28 @@ export function SettingsSection({
               value={settings.scratchpad.newTab}
               isDisabled={!settings.scratchpad.enabled}
               onChange={(newTab) => update({ scratchpad: { ...settings.scratchpad, newTab } })}
+            />
+          </VStack>
+        </Row>
+        <Row id="meeting-title">
+          <VStack gap={2}>
+            <TextInput
+              label="Title of a new meeting"
+              description="{date} and {time} are filled in."
+              value={settings.notetaker.titleFormat}
+              onChange={(titleFormat) =>
+                update({
+                  notetaker: { ...settings.notetaker, titleFormat: titleFormat.slice(0, 100) },
+                })
+              }
+            />
+            <Switch
+              label="Offer to record again after sleep"
+              description="When sleep stops a recording, the Bar asks on wake."
+              value={settings.notetaker.resumeAfterSleep}
+              onChange={(resumeAfterSleep) =>
+                update({ notetaker: { ...settings.notetaker, resumeAfterSleep } })
+              }
             />
           </VStack>
         </Row>
@@ -1260,6 +1284,17 @@ export function SettingsSection({
             label={view.shortcutLabels.rewrite}
             canClear={settings.rewriteShortcut !== null}
             clear={{ label: "Turn off the Rewrite shortcut", text: "Turn off" }}
+            onSaved={setView}
+          />
+        </Row>
+        <Row id="recap-shortcut">
+          <ShortcutField
+            slot="recap"
+            title="What did I miss"
+            description="While a meeting records, writes a recap of the last few minutes."
+            label={view.shortcutLabels.recap}
+            canClear={settings.recapShortcut !== null}
+            clear={{ label: "Turn off the recap shortcut", text: "Turn off" }}
             onSaved={setView}
           />
         </Row>

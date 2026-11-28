@@ -1,3 +1,4 @@
+import { TeamLeaderboard } from "./TeamLeaderboard";
 import { useCallback, useEffect, useState } from "react";
 import { Banner } from "@astryxdesign/core/Banner";
 import { Button } from "@astryxdesign/core/Button";
@@ -360,7 +361,7 @@ function Voice() {
   );
 }
 
-/** Insights (HB-11): usage, your voice, and a note that there is no leaderboard. */
+/** Insights (HB-11): usage, your voice, and the team leaderboard. */
 export function InsightsPage() {
   const [tab, setTab] = useState<Tab>("usage");
   const [range, setRange] = useState<InsightsRange>("30");
@@ -438,13 +439,7 @@ export function InsightsPage() {
       ) : tab === "voice" ? (
         <Voice />
       ) : (
-        <VStack gap={2}>
-          <Text>Leaderboards need a team, which Murmur does not have.</Text>
-          <Text color="secondary">
-            Your own numbers and streaks are on the Your usage tab. Nothing is compared with anyone
-            else.
-          </Text>
-        </VStack>
+        <TeamLeaderboard />
       )}
     </VStack>
   );

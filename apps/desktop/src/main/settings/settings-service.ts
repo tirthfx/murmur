@@ -53,6 +53,7 @@ const BINDING_SLOTS: Record<string, ShortcutSlot> = {
   "copy-last": "copyLast",
   "paste-last": "pasteLast",
   "press-enter": "pressEnter",
+  "meeting-recap": "recap",
 };
 
 /**
@@ -193,6 +194,15 @@ export function bindingsFor(
     if (button === null || button === undefined) continue;
     bindings.push({ id, action, trigger: { type: "mouse", button }, mode: "press" });
   }
+  // NT-13: the recap of the meeting being recorded.
+  if (settings.recapShortcut) {
+    bindings.push({
+      id: "meeting-recap",
+      action: "notetaker.recap",
+      trigger: settings.recapShortcut,
+      mode: "press",
+    });
+  }
   if (cancelKeyCode !== null) {
     bindings.push({
       id: "dictate-cancel",
@@ -256,6 +266,7 @@ export function createSettingsService(deps: SettingsServiceDeps): SettingsServic
         pressEnter: settings.pressEnterShortcut
           ? platform.label(settings.pressEnterShortcut)
           : "Off",
+        recap: settings.recapShortcut ? platform.label(settings.recapShortcut) : "Off",
       },
       unavailable: (deps.rejected?.() ?? []).flatMap((id) => BINDING_SLOTS[id] ?? []),
       devices,
@@ -311,6 +322,7 @@ export function createSettingsService(deps: SettingsServiceDeps): SettingsServic
           copyLast: settings.copyLastShortcut,
           pasteLast: settings.pasteLastShortcut,
           pressEnter: settings.pressEnterShortcut,
+          recap: settings.recapShortcut,
         },
         platform,
         deps.otherShortcuts?.() ?? [],

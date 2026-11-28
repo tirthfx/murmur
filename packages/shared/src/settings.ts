@@ -214,6 +214,8 @@ export const settingsSchema = z.strictObject({
   pasteLastShortcut: hotkeyTriggerSchema.nullable(),
   /** DC-06: presses Return in the app in front. Null means no shortcut. */
   pressEnterShortcut: hotkeyTriggerSchema.nullable(),
+  /** NT-13: asks "What did I miss?" about the meeting being recorded. Null means none. */
+  recapShortcut: hotkeyTriggerSchema.nullable(),
   /** NT-03: starts a meeting recording, and stops it when pressed again. Null means none. */
   meetingShortcut: hotkeyTriggerSchema.nullable(),
   /** HB-26, HB-34: Scratchpad on or off, and whether a note opens in a new tab. */
@@ -349,6 +351,7 @@ export const SETTING_KEYS: Record<keyof Settings, string> = {
   profile: "profile.settings",
   scratchpadShortcut: "hotkey.scratchpad",
   meetingShortcut: "hotkey.meeting",
+  recapShortcut: "hotkey.recap",
   copyLastShortcut: "hotkey.copy_last",
   pasteLastShortcut: "hotkey.paste_last",
   pressEnterShortcut: "hotkey.press_enter",
@@ -449,6 +452,7 @@ export const SHORTCUT_SLOTS = [
   "copyLast",
   "pasteLast",
   "pressEnter",
+  "recap",
 ] as const;
 export type ShortcutSlot = (typeof SHORTCUT_SLOTS)[number];
 
@@ -475,6 +479,7 @@ export const settingsViewSchema = z.strictObject({
     copyLast: z.string(),
     pasteLast: z.string(),
     pressEnter: z.string(),
+    recap: z.string(),
   }),
   /** Shortcuts the helper refused to listen for (DC-06). */
   unavailable: z.array(z.enum(SHORTCUT_SLOTS)),

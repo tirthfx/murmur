@@ -20,6 +20,7 @@ import {
   type TeamNotice,
   type TeamSummary,
   type TeamVocabularyAnswer,
+  teamLeaderboardSchema,
 } from "@murmur/shared";
 
 /**
@@ -409,6 +410,24 @@ export function createLocalTeamClient(
           },
         });
         return answer.status < 300 ? ok(null) : refusal(answer, "The report was not taken.");
+      }),
+
+    leaderboard: (teamId, { period }) =>
+      run(async () => {
+        const answer = await request("GET", `v1/teams/${teamId}/leaderboard?period=${period}`);
+        if (answer.status !== 200) return refusal(answer, "The leaderboard could not be read.");
+        const parsed = teamLeaderboardSchema.safeParse(answer.json);
+        return parsed.success
+          ? ok(parsed.data)
+          : fail("invalid", "The leaderboard was not in a form the app knows.");
+      }),
+
+    showOnLeaderboard: (teamId, visible) =>
+      run(async () => {
+        const answer = await request("PUT", `v1/teams/${teamId}/leaderboard/me`, {
+          body: { visible },
+        });
+        return answer.status < 300 ? ok(null) : refusal(answer, "The choice was not saved.");
       }),
 
     propose: (teamId, input) =>

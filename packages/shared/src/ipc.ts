@@ -267,6 +267,11 @@ import {
   SHORTCUT_SLOTS,
 } from "./settings";
 import {
+  LEADERBOARD_PERIODS,
+  type LeaderboardPeriod,
+  type TeamLeaderboardAnswer,
+} from "./team-client";
+import {
   CONTACT_LIMITS,
   contactCardSchema,
   contactResultSchema,
@@ -378,6 +383,9 @@ export const IPC_CHANNELS = {
   testingTool: "testing:tool",
   reportProblem: "help:report-problem",
   openGuide: "help:open-guide",
+  teamLeaderboard: "team:leaderboard",
+  teamLeaderboardShow: "team:leaderboard-show",
+  helperRetry: "helper:retry",
   axInspect: "testing:ax-inspect",
   planAct: "plan:act",
   dataCounts: "data:counts",
@@ -884,6 +892,12 @@ export const IPC_CONTRACT = {
   // HB-08.
   [IPC_CHANNELS.reportProblem]: { args: z.tuple([]), result: testingToolResultSchema },
   [IPC_CHANNELS.openGuide]: { args: z.tuple([]), result: z.boolean() },
+  [IPC_CHANNELS.teamLeaderboard]: {
+    args: z.tuple([z.enum(LEADERBOARD_PERIODS)]),
+    result: z.custom<TeamLeaderboardAnswer>(),
+  },
+  [IPC_CHANNELS.teamLeaderboardShow]: { args: z.tuple([z.boolean()]), result: z.boolean() },
+  [IPC_CHANNELS.helperRetry]: { args: z.tuple([]), result: z.boolean() },
   // HB-55, HB-56.
   [IPC_CHANNELS.testingTool]: {
     args: z.tuple([z.enum(TESTING_TOOLS)]),
@@ -1569,6 +1583,11 @@ export interface MurmurApi {
   reportProblem(): Promise<TestingToolResult>;
   /** Opens the bundled guide in the default text viewer; false when that failed. */
   openGuide(): Promise<boolean>;
+  teamLeaderboard(period: LeaderboardPeriod): Promise<TeamLeaderboardAnswer>;
+  /** Whether this person is listed; false when the choice could not be saved. */
+  teamLeaderboardShow(visible: boolean): Promise<boolean>;
+  /** Starts the helper again after it gave up; false when there is nothing to retry. */
+  helperRetry(): Promise<boolean>;
   /** A Testing page tool (HB-55); developer mode only. */
   testingTool(tool: TestingTool): Promise<TestingToolResult>;
   /** The accessibility inspector (HB-56): the app in front now; null when it cannot. */

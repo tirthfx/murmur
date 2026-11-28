@@ -453,12 +453,20 @@ export const MEETING_WARNING_TEXT: Record<MeetingWarning, string> = {
     "Everything this PC plays is recorded with the meeting, including music. Turn off recording the computer's sound in the Notetaker settings to record only your microphone.",
 };
 
+/** NT-03: how a new meeting is titled; `{date}` and `{time}` are filled in. */
+export const DEFAULT_TITLE_FORMAT = "Meeting, {date} {time}";
+
 /** "Meeting, 21 Nov 2026 14:05" in the local time zone (NT-03). */
-export function defaultMeetingTitle(at: number, locale?: string): string {
+export function defaultMeetingTitle(
+  at: number,
+  locale?: string,
+  format: string = DEFAULT_TITLE_FORMAT,
+): string {
   const date = new Date(at);
   const day = date.toLocaleDateString(locale, { day: "numeric", month: "short", year: "numeric" });
   const time = date.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
-  return `Meeting, ${day} ${time}`;
+  const wanted = format.trim() === "" ? DEFAULT_TITLE_FORMAT : format;
+  return wanted.replaceAll("{date}", day).replaceAll("{time}", time).trim();
 }
 
 /** 0:07, 12:30, 1:02:03. */
@@ -620,6 +628,10 @@ export const notetakerSettingsSchema = z.strictObject({
   retention: meetingRetentionSettingsSchema.default(DEFAULT_MEETING_RETENTION),
   /** NT-17: folders. */
   folders: foldersSettingsSchema.default(DEFAULT_FOLDERS_SETTINGS),
+  /** NT-03: the title a new meeting starts with. */
+  titleFormat: z.string().max(100).default("Meeting, {date} {time}"),
+  /** NT-05: offer to record again when sleep stopped a recording. */
+  resumeAfterSleep: z.boolean().default(true),
   /** NT-12: whether calendar attendees become contacts. */
   contacts: z.strictObject({ fromCalendar: z.boolean() }).default({ fromCalendar: true }),
   /** NT-24: corrections to a transcript. */
@@ -635,6 +647,8 @@ export type NotetakerSettings = z.infer<typeof notetakerSettingsSchema>;
 export const DEFAULT_NOTETAKER: NotetakerSettings = {
   captureSystem: true,
   chunkSeconds: 30,
+  titleFormat: "Meeting, {date} {time}",
+  resumeAfterSleep: true,
   contacts: { fromCalendar: true },
   live: true,
   consent: { notice: "first", seen: false },

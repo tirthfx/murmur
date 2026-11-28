@@ -47,6 +47,7 @@ const defaults: Settings = {
   copyLastShortcut: null,
   pasteLastShortcut: null,
   pressEnterShortcut: null,
+  recapShortcut: null,
   meetingShortcut: null,
   scratchpad: { enabled: true, newTab: true },
   theme: "system",
@@ -140,6 +141,7 @@ describe("settings service", () => {
       copyLast: "Off",
       pasteLast: "Off",
       pressEnter: "Off",
+      recap: "Off",
     });
     expect(view.devices?.[0]?.name).toBe("Desk Mic");
   });

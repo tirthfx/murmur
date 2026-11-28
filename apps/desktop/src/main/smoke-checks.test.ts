@@ -40,6 +40,7 @@ const settings: Settings = {
   copyLastShortcut: null,
   pasteLastShortcut: null,
   pressEnterShortcut: null,
+  recapShortcut: null,
   meetingShortcut: null,
   scratchpad: { enabled: true, newTab: true },
   theme: "system",

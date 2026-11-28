@@ -208,5 +208,7 @@ export interface PlatformHelper {
   /** Sets the output mute and returns what it was before. */
   setOutputMuted(muted: boolean): Promise<boolean>;
   getStatus(): HelperStatus;
+  /** Tries again after the helper was given up on. False when there is nothing to retry. */
+  retry(): boolean;
   onStatusChange(handler: (status: HelperStatus) => void): Unsubscribe;
 }

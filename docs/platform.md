@@ -241,3 +241,7 @@ its own task, so pings are answered while it works.
 Seeing the Win32 backends work with a person at the keyboard (hotkeys in a real app, paste into
 Notepad, Teams and Zoom call detection, loopback audio), signing and the update feed (SW-13), and
 a speed and accuracy check of the large speech model.
+
+## When the helper is given up on
+
+After three restarts in a minute the app stops trying. The Hub then shows a banner on every page with Retry, which starts the helper again.

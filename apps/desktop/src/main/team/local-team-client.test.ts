@@ -184,3 +184,47 @@ describe("how the local client turns a failure into an error", () => {
     expectError(await withFetch(() => json(404, {})).health(), "invalid");
   });
 });
+
+describe("the leaderboard from the local server (TM-26)", () => {
+  it("is read in the form the app knows, and the choice to be listed is saved", async () => {
+    const server = createLocalServer({ dbPath: ":memory:", port: 0, siemAutoFlush: false });
+    const { host, port } = await server.listen();
+    let token: string | null = null;
+    const client = createLocalTeamClient({
+      serverUrl: () => `http://${host}:${port}`,
+      token: () => token,
+      fetch,
+      networkCheck: () => undefined,
+    });
+    try {
+      const owner = await client.setupOwner({
+        name: "Ada",
+        email: "ada@example.com",
+        password: CONTRACT_PASSWORD,
+      });
+      expect(owner.ok).toBe(true);
+      const session = await client.signIn({
+        email: "ada@example.com",
+        password: CONTRACT_PASSWORD,
+      });
+      if (!session.ok) throw new Error(session.error.message);
+      token = session.data.token;
+      const made = await fetch(`http://${host}:${port}/v1/teams`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+        body: JSON.stringify({ name: "Design" }),
+      });
+      expect(made.status).toBeLessThan(300);
+      const teams = await client.teams();
+      if (!teams.ok) throw new Error(teams.error.message);
+      const id = teams.data[0]!.id;
+      const board = await client.leaderboard(id, { period: "week" });
+      expect(board).toMatchObject({ ok: true, data: { enabled: true, me: { visible: true } } });
+      expect((await client.showOnLeaderboard(id, false)).ok).toBe(true);
+      const after = await client.leaderboard(id, { period: "all" });
+      expect(after).toMatchObject({ ok: true, data: { ranks: [], me: { visible: false } } });
+    } finally {
+      await server.close();
+    }
+  });
+});
