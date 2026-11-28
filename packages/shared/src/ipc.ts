@@ -28,7 +28,7 @@ import {
   type TranscriptImportPreviewResult,
 } from "./transcript-import";
 import type { ConnectorActionResult, ConnectorsView } from "./connectors";
-import type { ConnectorDataStatus, ConnectorOptionsResult } from "./connector-data";
+import type { ConnectorDataStatus, ConnectorOptionsResult, LinkablePage } from "./connector-data";
 import type { RecordingsResult } from "./connector-import";
 import type { AskActionResult } from "./ask-actions";
 import { askActionRequestSchema, type AskActionRequest } from "./ask-actions";
@@ -470,6 +470,7 @@ export const IPC_CHANNELS = {
   meetingDelete: "meetings:delete",
   meetingNotesSave: "meetings:notes-save",
   meetingDocAddLink: "meetings:doc-add-link",
+  notionPages: "meetings:notion-pages",
   meetingDocAddFile: "meetings:doc-add-file",
   meetingDocOpen: "meetings:doc-open",
   meetingDocRemove: "meetings:doc-remove",
@@ -1340,6 +1341,7 @@ export const IPC_CONTRACT = {
     args: z.tuple([meetingIdArg, z.string().max(200_000)]),
     result: z.boolean(),
   },
+  [IPC_CHANNELS.notionPages]: { args: z.tuple([]), result: z.custom<LinkablePage[]>() },
   [IPC_CHANNELS.meetingDocAddLink]: {
     args: z.tuple([meetingIdArg, z.string().max(2048), z.string().max(200)]),
     result: z.custom<MeetingDocResult>(),
@@ -1772,6 +1774,8 @@ export interface MurmurApi {
   /** NT-10: saves My notes; false when they are too long. */
   meetingNotesSave(id: string, body: string): Promise<boolean>;
   meetingDocAddLink(id: string, url: string, title: string): Promise<MeetingDocResult>;
+  /** CN-06: the Notion pages read from the connected account, newest first. */
+  notionPages(): Promise<LinkablePage[]>;
   /** Asks for a file and copies it into the meeting. */
   meetingDocAddFile(id: string): Promise<MeetingDocResult>;
   meetingDocOpen(docId: string): Promise<void>;

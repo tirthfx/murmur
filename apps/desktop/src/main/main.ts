@@ -4332,6 +4332,12 @@ function registerIpc(): void {
     },
     meetingDelete: deleteMeeting,
     meetingNotesSave: (id, body) => meetingNotes?.saveNotes(id, body) ?? false,
+    notionPages: () =>
+      featureOn("notion-links")
+        ? (connectorData?.items({ connector: "notion" }) ?? []).flatMap((item) =>
+            item.url ? [{ title: item.title, url: item.url }] : [],
+          )
+        : [],
     meetingDocAddLink: (id, url, title) => {
       if (!meetingsStore?.get(id) || !meetingNotes) return { ok: false, message: "No meeting." };
       const result = meetingNotes.addLink(id, url, title);

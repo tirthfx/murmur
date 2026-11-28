@@ -331,7 +331,7 @@ export const CONNECTOR_FEATURES: readonly ConnectorFeature[] = [
     name: "Notion pages as meeting links",
     detail: "Lists your Notion pages when you attach a link to a meeting.",
     connectors: ["notion"],
-    built: false,
+    built: true,
   },
   {
     id: "import-services",

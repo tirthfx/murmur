@@ -270,6 +270,7 @@ const api: MurmurApi = {
     ipcRenderer.invoke(IPC_CHANNELS.meetingCorrectionRevert, meetingId, correctionId),
   meetingDelete: (id) => ipcRenderer.invoke(IPC_CHANNELS.meetingDelete, id),
   meetingNotesSave: (id, body) => ipcRenderer.invoke(IPC_CHANNELS.meetingNotesSave, id, body),
+  notionPages: () => ipcRenderer.invoke(IPC_CHANNELS.notionPages),
   meetingDocAddLink: (id, url, title) =>
     ipcRenderer.invoke(IPC_CHANNELS.meetingDocAddLink, id, url, title),
   meetingDocAddFile: (id) => ipcRenderer.invoke(IPC_CHANNELS.meetingDocAddFile, id),

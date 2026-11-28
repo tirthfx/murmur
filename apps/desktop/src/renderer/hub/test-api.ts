@@ -559,6 +559,7 @@ export function createMockApi(overrides: Partial<MurmurApi> = {}): MurmurApi {
     meetingCorrectionRevert: vi.fn().mockResolvedValue({ ok: false, message: "Not available." }),
     meetingDelete: vi.fn().mockResolvedValue(undefined),
     meetingNotesSave: vi.fn().mockResolvedValue(true),
+    notionPages: vi.fn().mockResolvedValue([]),
     meetingDocAddLink: vi.fn().mockResolvedValue({ ok: false, message: "x" }),
     meetingDocAddFile: vi.fn().mockResolvedValue({ ok: false, message: "x", canceled: true }),
     meetingDocOpen: vi.fn().mockResolvedValue(undefined),

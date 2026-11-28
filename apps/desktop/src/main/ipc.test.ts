@@ -154,6 +154,7 @@ function setup() {
     meetingCorrectionRevert: vi.fn(),
     meetingDelete: vi.fn(),
     meetingNotesSave: vi.fn(() => true),
+    notionPages: vi.fn(() => []),
     meetingDocAddLink: vi.fn(() => ({ ok: false as const, message: "x" })),
     meetingDocAddFile: vi.fn(async () => ({ ok: false as const, message: "x" })),
     meetingDocOpen: vi.fn(async () => {}),

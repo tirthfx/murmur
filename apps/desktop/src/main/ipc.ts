@@ -21,6 +21,7 @@ import {
   type MeetingFolder,
   type MeetingRecapResult,
   type MeetingRetentionDue,
+  type LinkablePage,
   type RetentionLogEntry,
   type TranscriptImportConfirmInput,
   type TranscriptImportConfirmResult,
@@ -288,6 +289,7 @@ export interface IpcDeps {
   meetingCorrectionRevert: (meetingId: string, correctionId: number) => RevertResult;
   meetingDelete: (id: string) => void;
   meetingNotesSave: (id: string, body: string) => boolean;
+  notionPages: () => LinkablePage[];
   meetingDocAddLink: (id: string, url: string, title: string) => MeetingDocResult;
   meetingDocAddFile: (id: string) => Promise<MeetingDocResult>;
   meetingDocOpen: (docId: string) => Promise<void>;
@@ -915,6 +917,8 @@ export function createIpcHandler(deps: IpcDeps) {
         return deps.meetingDelete(request.args[0] as string);
       case IPC_CHANNELS.meetingNotesSave:
         return deps.meetingNotesSave(request.args[0] as string, request.args[1] as string);
+      case IPC_CHANNELS.notionPages:
+        return deps.notionPages();
       case IPC_CHANNELS.meetingDocAddLink:
         return deps.meetingDocAddLink(
           request.args[0] as string,
