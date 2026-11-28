@@ -79,6 +79,7 @@ const defaults: Settings = {
   extensions: DEFAULT_EXTENSIONS_SETTINGS,
   contextAwareness: true,
   mouseButtons: { hold: null, handsFree: null, pressEnter: null, copyLast: null },
+  languagePrompt: { enabled: true, snoozed: {} },
   typingReminder: { enabled: true, snoozedUntil: null },
   whisperMode: false,
   memory: { enabled: true, fromDictation: true },

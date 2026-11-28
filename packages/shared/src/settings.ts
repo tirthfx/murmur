@@ -114,6 +114,14 @@ export const settingsSchema = z.strictObject({
     enabled: z.boolean(),
     snoozedUntil: z.number().int().nonnegative().nullable(),
   }),
+  /**
+   * DC-17: offer to add a language that is spoken and not chosen. `snoozed` holds, per
+   * language, when it may be offered again after "Not now" (epoch ms).
+   */
+  languagePrompt: z.strictObject({
+    enabled: z.boolean(),
+    snoozed: z.record(z.string(), z.number().int().nonnegative()),
+  }),
   /** "auto" or a device id from the device list. */
   inputDevice: z.string().min(1).max(512),
   /** In order, primary first; empty means detect the language. */
@@ -297,6 +305,7 @@ export const settingsPatchSchema = settingsSchema
     contextAwareness: true,
     mouseButtons: true,
     typingReminder: true,
+    languagePrompt: true,
     whisperMode: true,
     memory: true,
     learnCorrections: true,
@@ -360,6 +369,7 @@ export const SETTING_KEYS: Record<keyof Settings, string> = {
   contextAwareness: "context.enabled",
   mouseButtons: "hotkey.mouse_buttons",
   typingReminder: "reminder.typing",
+  languagePrompt: "speech.language_prompt",
   whisperMode: "audio.whisper_mode",
   memory: "memory.flags",
   learnCorrections: "dictionary.learn_corrections",
@@ -519,6 +529,7 @@ export const RESETTABLE_SETTINGS = [
   "muteWhileDictating",
   "scratchpad",
   "languages",
+  "languagePrompt",
   "inputDevice",
   "microphones",
   "silentWarning",

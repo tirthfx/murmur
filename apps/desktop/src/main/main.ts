@@ -138,6 +138,8 @@ import {
   type ModelId,
   type ModelManifest,
   type SetupStatus,
+  languageLabel,
+  type SpeechLanguage,
 } from "@murmur/shared";
 import {
   createNavigationGuard,
@@ -361,6 +363,7 @@ import {
   type ManagedModelDeps,
 } from "./setup/managed-model";
 import { dictationBlockers, hasPermissionBlocker } from "./setup/readiness";
+import { createLanguagePrompt } from "./speech/language-prompt";
 import { cleanupModelRoot, speechModelRoot } from "./speech/paths";
 import { insertionRules, insertionMethod } from "./insertion/app-rules";
 import { createLastTranscript } from "./insertion/last-transcript";
@@ -493,6 +496,8 @@ let lastDictation: LastDictation | null = null;
 /** A Command Mode question on the Bar ("Delete the selected text?"), waiting for its answer. */
 /** How long the Bar offers to undo a command. */
 const UNDO_OFFER_MS = 8000;
+/** How long the offer to add a language stays on the Bar. */
+const LANGUAGE_OFFER_MS = 15_000;
 const UNDO_QUESTION = "Text changed";
 const RESUME_QUESTION = "Recording was interrupted";
 let commandQuestion: { answer: (yes: boolean) => void; timer: NodeJS.Timeout } | null = null;
@@ -525,8 +530,41 @@ const importer = createImporter({ dictionary, snippets });
 const voiceProfile = database ? createVoiceProfile(database) : null;
 let profilePromptShown = false;
 let offeredFact: { text: string; until: number } | null = null;
+// DC-17: offer to add a language that is spoken and not chosen.
+const languagePrompt = createLanguagePrompt({
+  settings: () => settingsStore.get(),
+  save: (patch) => settingsStore.update(patch),
+  now: () => Date.now(),
+});
+let languageQuestion: { language: SpeechLanguage; message: string } | null = null;
+function offerLanguage(language: SpeechLanguage): void {
+  // After the dictation's own message has had its moment.
+  setTimeout(() => {
+    const message = `Add ${languageLabel(language)} to your languages?`;
+    languageQuestion = { language, message };
+    bar.dispatch({
+      type: "ask",
+      message,
+      detail: "You spoke it twice in a row.",
+      actions: [
+        { answer: "yes", label: "Add", primary: true },
+        { answer: "no", label: "Not now" },
+      ],
+      timeoutMs: LANGUAGE_OFFER_MS,
+    });
+  }, BAR_WARNING_MS).unref();
+}
+
 /** The Bar's question was answered: "Save to Memory?" or the weekly profile prompt. */
 function answerBar(choice: BarAnswer): void {
+  if (bar.getView().state === "ask" && bar.getView().message === languageQuestion?.message) {
+    const { language } = languageQuestion!;
+    languageQuestion = null;
+    bar.dispatch({ type: "answered" });
+    if (choice === "yes") languagePrompt.add(language);
+    else languagePrompt.notNow(language);
+    return;
+  }
   // NT-05: recording again after sleep stopped a recording.
   if (bar.getView().state === "ask" && bar.getView().message === RESUME_QUESTION) {
     bar.dispatch({ type: "answered" });
@@ -863,6 +901,7 @@ const settingsDefaults: Settings = {
   contextAwareness: true,
   mouseButtons: { hold: null, handsFree: null, pressEnter: null, copyLast: null },
   typingReminder: { enabled: true, snoozedUntil: null },
+  languagePrompt: { enabled: true, snoozed: {} },
   whisperMode: false,
   memory: { enabled: true, fromDictation: true },
   learnCorrections: true,
@@ -1282,6 +1321,10 @@ const recorder = createRecorder({
     });
   },
   pressEnterCommand: () => settingsStore.get().pressEnterCommand,
+  onHeard: (detected) => {
+    const language = languagePrompt.heard(detected);
+    if (language) offerLanguage(language);
+  },
   silentWarning: () => settingsStore.get().silentWarning,
   routeFallback: () => settingsStore.get().microphones.routeFallback,
   formatting: () => {

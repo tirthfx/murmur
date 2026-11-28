@@ -17,15 +17,30 @@ public struct RecognizedSegment: Sendable, Equatable {
     }
 }
 
+/// The language the detector found most likely among every language the model knows.
+public struct LanguageGuess: Sendable, Equatable {
+    public var language: String
+    /// 0 to 1.
+    public var confidence: Double
+
+    public init(language: String, confidence: Double) {
+        self.language = language
+        self.confidence = confidence
+    }
+}
+
 public struct Recognition: Sendable, Equatable {
     public var text: String
     public var language: String
     public var segments: [RecognizedSegment]
+    /// Set when the language was detected (several were chosen); the one forced may differ.
+    public var heard: LanguageGuess?
 
-    public init(text: String, language: String, segments: [RecognizedSegment]) {
+    public init(text: String, language: String, segments: [RecognizedSegment], heard: LanguageGuess? = nil) {
         self.text = text
         self.language = language
         self.segments = segments
+        self.heard = heard
     }
 }
 
@@ -62,6 +77,23 @@ public enum LanguageChoice {
             if best == nil || score > best!.score { best = (code, score) }
         }
         return best?.code ?? bases.first
+    }
+
+    /// Turns the model's raw language scores into probabilities that add up to one.
+    public static func probabilities(logits: [String: Float]) -> [String: Float] {
+        let finite = logits.filter { $0.value.isFinite }
+        guard let top = finite.values.max() else { return [:] }
+        // Subtracting the largest first keeps `exp` from overflowing.
+        let weights = finite.mapValues { exp($0 - top) }
+        let sum = weights.values.reduce(0, +)
+        return weights.mapValues { $0 / sum }
+    }
+
+    /// The most likely language of all; the first by code on a tie.
+    public static func guess(probabilities: [String: Float]) -> LanguageGuess? {
+        probabilities
+            .max { $0.value == $1.value ? $0.key > $1.key : $0.value < $1.value }
+            .map { LanguageGuess(language: $0.key, confidence: min(max(Double($0.value), 0), 1)) }
     }
 }
 

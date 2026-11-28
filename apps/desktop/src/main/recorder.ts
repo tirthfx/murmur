@@ -201,6 +201,8 @@ export interface RecorderDeps {
    * missing; off ends the recording there and uses what was heard.
    */
   routeFallback?: () => boolean;
+  /** DC-17: the language detected in a dictation with words, or nothing when none was. */
+  onHeard?: (detected: Transcript["heard"]) => void;
   /** Whether to warn when the microphone stays silent (DC-11). On when missing. */
   silentWarning?: () => boolean;
   /** Whether "press enter" at the end of a dictation presses Return. Off when missing. */
@@ -857,6 +859,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
       `transcribed ${(transcript.audioMs / 1000).toFixed(2)} s in ${transcript.decodeMs} ms: ${words} words, language ${transcript.language || "unknown"}`,
     );
     if (deps.logTranscripts) logger.info(`text: ${transcript.text}`);
+    if (words > 0) deps.onHeard?.(transcript.heard);
     lastFailed = null;
     if (dropped(take)) return;
     // Noise labels ("*thud*") were never said; then any script rewrite (Hindi in Latin letters),
