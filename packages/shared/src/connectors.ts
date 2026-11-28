@@ -344,6 +344,9 @@ export const CONNECTOR_FEATURES: readonly ConnectorFeature[] = [
 
 export const SYNC_INTERVALS = [5, 15, 30, 60, 240] as const;
 
+/** How many calendars an account may add to its main one. */
+export const MAX_EXTRA_CALENDARS = 10;
+
 /** What the owner chose for one connector; a missing entry means the catalogue's defaults. */
 export const connectorChoiceSchema = z.strictObject({
   syncIntervalMinutes: z.number().int().min(5).max(1440),
@@ -368,6 +371,10 @@ export const connectorSettingsSchema = z.strictObject({
   fireflies: firefliesSettingsSchema.default(DEFAULT_FIREFLIES_SETTINGS),
   /** CN-15: features the owner switched off, by their id. */
   featuresOff: z.array(z.string().max(64)).max(32).default([]),
+  /** CN-02: per calendar account, the other calendars read besides the main one. */
+  calendars: z
+    .record(z.string().max(64), z.array(z.string().min(1).max(512)).max(MAX_EXTRA_CALENDARS))
+    .default({}),
   /** CN-02: events the calendar marks private are titled "Busy" everywhere in Murmur. */
   privateTitlesAsBusy: z.boolean().default(false),
 });
@@ -384,6 +391,7 @@ export const DEFAULT_CONNECTOR_SETTINGS: ConnectorSettings = {
   zoom: DEFAULT_ZOOM_SETTINGS,
   fireflies: DEFAULT_FIREFLIES_SETTINGS,
   featuresOff: [],
+  calendars: {},
   privateTitlesAsBusy: false,
 };
 

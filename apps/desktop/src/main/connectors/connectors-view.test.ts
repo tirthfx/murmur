@@ -7,19 +7,6 @@ import {
 import { createConnectorConfig } from "./connector-config";
 import { buildConnectorsView } from "./connectors-view";
 
-const { gmail, slack, notion, linear, github, zoom, fireflies } = DEFAULT_CONNECTOR_SETTINGS;
-const DEFAULT_CONNECTOR_SETTINGS_EXTRAS = {
-  gmail,
-  slack,
-  notion,
-  linear,
-  github,
-  zoom,
-  fireflies,
-  featuresOff: [],
-  privateTitlesAsBusy: false,
-};
-
 const account = (over: Partial<ConnectorAccount> = {}): ConnectorAccount => ({
   id: "a1",
   connector: "googleCalendar",
@@ -128,9 +115,9 @@ describe("Connectors page view (CN-15)", () => {
   it("fills in the sync interval and read-only default, and uses the owner's choice", async () => {
     const view = await build({
       settings: {
+        ...DEFAULT_CONNECTOR_SETTINGS,
         cacheTtlMinutes: 30,
         choices: { slack: { syncIntervalMinutes: 60, readOnly: false } },
-        ...DEFAULT_CONNECTOR_SETTINGS_EXTRAS,
       },
     }).view;
     expect(view.cacheTtlMinutes).toBe(30);

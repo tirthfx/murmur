@@ -130,7 +130,10 @@ export function createConnectorData(deps: {
       case SLACK_ID: {
         const selected = new Set(settings.slack.channels);
         if (selected.size === 0) return { items: [], note: null };
-        const channels = (await listChannels({ fetch, limits })).filter((c) => selected.has(c.id));
+        const includePrivate = settings.slack.privateChannels;
+        const channels = (await listChannels({ fetch, limits, includePrivate })).filter((c) =>
+          selected.has(c.id),
+        );
         return {
           items: await readMessages({
             fetch,
@@ -262,8 +265,10 @@ export function createConnectorData(deps: {
         return { ok: false, message: "That account is not connected." };
       const fetch = fetchFor(account);
       try {
-        if (account.connector === SLACK_ID)
-          return { ok: true, options: await listChannels({ fetch, limits }) };
+        if (account.connector === SLACK_ID) {
+          const includePrivate = deps.settings().slack.privateChannels;
+          return { ok: true, options: await listChannels({ fetch, limits, includePrivate }) };
+        }
         if (account.connector === LINEAR_ID)
           return { ok: true, options: await listTeams({ fetch, limits }) };
         return { ok: false, message: "There is nothing to choose for this connector." };

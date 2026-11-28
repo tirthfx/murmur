@@ -24,6 +24,8 @@ export const SLACK_SCOPES = [
   "groups:read",
   "im:read",
 ] as const;
+/** Reading the messages of private channels, asked for only when they are turned on. */
+export const SLACK_SCOPE_PRIVATE = "groups:history";
 /** Linear: the one read scope. */
 export const LINEAR_SCOPES = ["read"] as const;
 /** GitHub: who the account is. What else can be read depends on the app (see ADR-0086). */
@@ -71,9 +73,11 @@ const idList = (max: number) => z.array(z.string().min(1).max(200)).max(max);
 /** `connectors.slack`: only the channels the owner selected are read. Nothing is selected at first. */
 export const slackSettingsSchema = z.strictObject({
   channels: idList(CONNECTOR_DATA_LIMITS.channels),
+  /** Private channels can be listed and read; Slack is then asked for that permission too. */
+  privateChannels: z.boolean().default(false),
 });
 export type SlackSettings = z.infer<typeof slackSettingsSchema>;
-export const DEFAULT_SLACK_SETTINGS: SlackSettings = { channels: [] };
+export const DEFAULT_SLACK_SETTINGS: SlackSettings = { channels: [], privateChannels: false };
 
 /** `connectors.notion`: a page is read only if it is shared with the integration; its text is cut here. */
 export const notionSettingsSchema = z.strictObject({

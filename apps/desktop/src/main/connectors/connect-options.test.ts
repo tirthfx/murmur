@@ -37,6 +37,17 @@ describe("sign-in options (CN-04)", () => {
     );
   });
 
+  it("asks Slack to read private channels only when they are turned on", () => {
+    const on = {
+      ...DEFAULT_CONNECTOR_SETTINGS,
+      slack: { channels: [], privateChannels: true },
+    };
+    expect(connectOptionsFor("slack", on).scopes).toContain("groups:history");
+    expect(connectOptionsFor("slack", DEFAULT_CONNECTOR_SETTINGS).scopes).not.toContain(
+      "groups:history",
+    );
+  });
+
   it("finds the permission a turned-on feature still lacks", () => {
     const on = settings({ draftEnabled: true, briefContext: true }).gmail;
     expect(gmailMissingScopes(on, ["openid", "email", GMAIL_SCOPE_READ])).toEqual([

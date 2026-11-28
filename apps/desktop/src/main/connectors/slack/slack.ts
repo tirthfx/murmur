@@ -98,7 +98,15 @@ const pageSchema = z.object({
 });
 
 const channelsSchema = pageSchema.extend({
-  channels: z.array(z.object({ id: z.string().min(1), name: z.string().min(1) })).optional(),
+  channels: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        name: z.string().min(1),
+        is_private: z.boolean().optional(),
+      }),
+    )
+    .optional(),
 });
 const usersSchema = pageSchema.extend({
   members: z
@@ -171,10 +179,11 @@ async function call<T extends z.ZodType<{ ok: boolean; error?: string | undefine
   return parsed.data;
 }
 
-/** The public channels the owner can pick from. */
+/** The channels the owner can pick from: public ones, and private ones they are in when asked. */
 export async function listChannels(options: {
   fetch: Fetch;
   limits: RateLimitOptions;
+  includePrivate?: boolean;
 }): Promise<ConnectorOption[]> {
   const found: ConnectorOption[] = [];
   let cursor = "";
@@ -183,7 +192,7 @@ export async function listChannels(options: {
       options.fetch,
       "conversations.list",
       {
-        types: "public_channel",
+        types: options.includePrivate ? "public_channel,private_channel" : "public_channel",
         exclude_archived: "true",
         limit: "200",
         ...(cursor ? { cursor } : {}),
@@ -192,7 +201,10 @@ export async function listChannels(options: {
       options.limits,
     );
     for (const channel of body.channels ?? [])
-      found.push({ id: channel.id, label: `#${channel.name}` });
+      found.push({
+        id: channel.id,
+        label: `#${channel.name}${channel.is_private ? " (private)" : ""}`,
+      });
     cursor = body.response_metadata?.next_cursor ?? "";
     if (!cursor) break;
   }

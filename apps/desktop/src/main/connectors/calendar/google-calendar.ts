@@ -1,5 +1,11 @@
 import { z } from "zod";
-import type { CalendarAttendee, CalendarEvent, CalendarResponse, RsvpAnswer } from "@murmur/shared";
+import type {
+  CalendarAttendee,
+  CalendarEvent,
+  CalendarResponse,
+  ConnectorOption,
+  RsvpAnswer,
+} from "@murmur/shared";
 import type { ConnectorProvider } from "../providers";
 
 export const GOOGLE_CALENDAR_ID = "googleCalendar";
@@ -93,6 +99,8 @@ const http = (value: string | undefined) => (value && /^https?:\/\//i.test(value
 export function googleEvent(
   item: unknown,
   accountEmail: string,
+  /** On another calendar, Google's `self` means that calendar's owner, not this account. */
+  mainCalendar = true,
 ): Omit<CalendarEvent, "accountId" | "connector"> | null {
   const parsed = eventSchema.safeParse(item);
   if (!parsed.success) return null;
@@ -116,7 +124,7 @@ export function googleEvent(
       name: attendee.displayName ?? null,
       email: attendee.email!.toLowerCase(),
       response: RESPONSES[attendee.responseStatus ?? ""] ?? "none",
-      self: attendee.self === true || attendee.email!.toLowerCase() === me,
+      self: (mainCalendar && attendee.self === true) || attendee.email!.toLowerCase() === me,
       organizer: attendee.organizer === true,
     }));
   const self = attendees.find((attendee) => attendee.self);
@@ -143,11 +151,54 @@ const FIELDS =
   "nextPageToken,items(id,status,summary,location,start,end,eventType,visibility,hangoutLink," +
   "conferenceData(entryPoints(entryPointType,uri)),attendees(email,displayName,responseStatus,self,organizer,resource))";
 
-export class CalendarFetchError extends Error {}
+export class CalendarFetchError extends Error {
+  /** The provider's status, when it answered with one. */
+  constructor(
+    message: string,
+    readonly status?: number,
+  ) {
+    super(message);
+  }
+}
+
+const calendarListSchema = z.object({
+  items: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        summary: z.string().optional(),
+        summaryOverride: z.string().optional(),
+        primary: z.boolean().optional(),
+      }),
+    )
+    .default([]),
+});
+
+/** The account's other calendars, which can be read besides the main one (CN-02). */
+export async function listGoogleCalendars(options: {
+  fetch(url: string): Promise<Response>;
+}): Promise<ConnectorOption[]> {
+  const query = new URLSearchParams({
+    maxResults: "250",
+    fields: "items(id,summary,summaryOverride,primary)",
+  });
+  const response = await options.fetch(`${API}/users/me/calendarList?${query}`);
+  if (!response.ok)
+    throw new CalendarFetchError(`Google Calendar answered ${response.status}.`, response.status);
+  const body = calendarListSchema.safeParse(await response.json().catch(() => null));
+  if (!body.success)
+    throw new CalendarFetchError("Google Calendar sent an answer Murmur cannot read.");
+  return body.data.items
+    .filter((calendar) => !calendar.primary)
+    .map((calendar) => ({
+      id: calendar.id,
+      label: (calendar.summaryOverride || calendar.summary || calendar.id).slice(0, 200),
+    }));
+}
 
 /**
- * The events of the primary calendar from `from` to `to`, repeats expanded into their own
- * events, by start. `fetch` carries the account's token (and renews it); a failure that is not
+ * The events of one calendar (the main one unless named) from `from` to `to`, repeats expanded
+ * into their own events, by start. `fetch` carries the account's token (and renews it); a failure that is not
  * the token's is a `CalendarFetchError`.
  */
 export async function fetchGoogleEvents(options: {
@@ -156,6 +207,7 @@ export async function fetchGoogleEvents(options: {
   from: number;
   to: number;
   maxEvents: number;
+  calendarId?: string;
 }): Promise<Omit<CalendarEvent, "accountId" | "connector">[]> {
   const events: Omit<CalendarEvent, "accountId" | "connector">[] = [];
   let pageToken: string | undefined;
@@ -169,13 +221,15 @@ export async function fetchGoogleEvents(options: {
       fields: FIELDS,
     });
     if (pageToken) query.set("pageToken", pageToken);
-    const response = await options.fetch(`${API}/calendars/primary/events?${query}`);
-    if (!response.ok) throw new CalendarFetchError(`Google Calendar answered ${response.status}.`);
+    const calendar = encodeURIComponent(options.calendarId ?? "primary");
+    const response = await options.fetch(`${API}/calendars/${calendar}/events?${query}`);
+    if (!response.ok)
+      throw new CalendarFetchError(`Google Calendar answered ${response.status}.`, response.status);
     const body = pageSchema.safeParse(await response.json().catch(() => null));
     if (!body.success)
       throw new CalendarFetchError("Google Calendar sent an answer Murmur cannot read.");
     for (const item of body.data.items ?? []) {
-      const event = googleEvent(item, options.accountEmail);
+      const event = googleEvent(item, options.accountEmail, options.calendarId === undefined);
       if (event) events.push(event);
     }
     pageToken = body.data.nextPageToken;

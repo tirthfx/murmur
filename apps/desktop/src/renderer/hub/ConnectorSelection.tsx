@@ -23,13 +23,14 @@ import {
 
 const NOTION_LENGTHS = [2000, 5000, 10_000, 20_000];
 
-/** A list of channels or teams to pick from, loaded from the provider when asked. */
-function OptionPicker({
+/** A list of channels, teams or calendars to pick from, loaded from the provider when asked. */
+export function OptionPicker({
   account,
   title,
   noun,
   selected,
   max,
+  summary,
   onChange,
 }: {
   account: ConnectorAccount;
@@ -37,6 +38,8 @@ function OptionPicker({
   noun: string;
   selected: readonly string[];
   max: number;
+  /** What the choice means, instead of the usual line. */
+  summary?: string;
   onChange: (ids: string[]) => void;
 }) {
   const [options, setOptions] = useState<ConnectorOption[] | null>(null);
@@ -62,9 +65,10 @@ function OptionPicker({
           {title}
         </Text>
         <Text size="sm" color="secondary">
-          {selected.length === 0
-            ? `No ${noun} selected, so none is read.`
-            : `${selected.length} selected. Only these are read.`}
+          {summary ??
+            (selected.length === 0
+              ? `No ${noun} selected, so none is read.`
+              : `${selected.length} selected. Only these are read.`)}
         </Text>
         <Button
           size="sm"
@@ -164,14 +168,24 @@ export function ConnectorSelection({
       </Text>
 
       {connector.id === SLACK_ID ? (
-        <OptionPicker
-          account={account}
-          title="Slack channels to read"
-          noun="channels"
-          selected={settings.slack.channels}
-          max={CONNECTOR_DATA_LIMITS.channels}
-          onChange={(channels) => void save({ slack: { channels } })}
-        />
+        <VStack gap={2}>
+          <Switch
+            label="Include private channels"
+            description="Private channels you are in can be chosen. Slack is asked for permission to read them only when this is on."
+            value={settings.slack.privateChannels}
+            onChange={(privateChannels) =>
+              void save({ slack: { ...settings.slack, privateChannels } })
+            }
+          />
+          <OptionPicker
+            account={account}
+            title="Slack channels to read"
+            noun="channels"
+            selected={settings.slack.channels}
+            max={CONNECTOR_DATA_LIMITS.channels}
+            onChange={(channels) => void save({ slack: { ...settings.slack, channels } })}
+          />
+        </VStack>
       ) : null}
 
       {connector.id === NOTION_ID ? (

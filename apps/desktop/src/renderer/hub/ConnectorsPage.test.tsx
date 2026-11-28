@@ -305,6 +305,23 @@ describe("Connectors page (CN-15)", () => {
     await waitFor(() => expect(api.connectorSetEnabled).toHaveBeenCalledWith("a1", false));
   });
 
+  it("adds another calendar to read, beside the main one (CN-02)", async () => {
+    show(viewOf({ googleCalendar: { readiness: "ready", accounts: [account()] } }));
+    api.connectorOptions = vi
+      .fn()
+      .mockResolvedValue({ ok: true, options: [{ id: "team", label: "Our team" }] });
+    render(<ConnectorsPage />);
+    const google = await card("Google Calendar");
+    expect(await google.findByText("Only the main calendar is read.")).toBeTruthy();
+    fireEvent.click(google.getByRole("button", { name: /^Choose calendars for/ }));
+    fireEvent.click(await google.findByRole("switch", { name: "Our team" }));
+    await waitFor(() =>
+      expect(api.updateSettings).toHaveBeenLastCalledWith({
+        connectors: expect.objectContaining({ calendars: { [account().id!]: ["team"] } }),
+      }),
+    );
+  });
+
   it("changes the sync interval and the read-only switch of a connected connector", async () => {
     show(viewOf({ googleCalendar: { readiness: "ready", accounts: [account()] } }));
     render(<ConnectorsPage />);
@@ -326,6 +343,7 @@ describe("Connectors page (CN-15)", () => {
           zoom: DEFAULT_CONNECTOR_SETTINGS.zoom,
           fireflies: DEFAULT_CONNECTOR_SETTINGS.fireflies,
           featuresOff: [],
+          calendars: {},
           privateTitlesAsBusy: false,
         },
       }),
@@ -346,6 +364,7 @@ describe("Connectors page (CN-15)", () => {
           zoom: DEFAULT_CONNECTOR_SETTINGS.zoom,
           fireflies: DEFAULT_CONNECTOR_SETTINGS.fireflies,
           featuresOff: [],
+          calendars: {},
           privateTitlesAsBusy: false,
         },
       }),
