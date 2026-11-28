@@ -108,7 +108,6 @@ public enum RawKeyInput: Sendable, Equatable {
 /// macOS virtual key codes and modifier flags used by the matcher.
 public enum KeyCodes {
     public static let rightOption = 61
-    public static let leftOption = 58
     public static let capsLock = 57
     public static let escape = 53
 
