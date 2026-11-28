@@ -342,7 +342,7 @@ import {
   wantsLatinHindi,
 } from "./settings/settings-service";
 import { createSettingsStore } from "./settings/settings-store";
-import { createRecorder, type DictationRecord, type RecorderEvent } from "./recorder";
+import { CANCELLED, createRecorder, type DictationRecord, type RecorderEvent } from "./recorder";
 import { createSessionEffects } from "./media/session-effects";
 import { createSpeechService } from "./speech/speech-service";
 import { checkModel, downloadModel, modelLocation } from "./speech/model-store";
@@ -1303,6 +1303,8 @@ const recorder = createRecorder({
     // HB-48: with Store history off, no dictation row is written; Insights keep counts only.
     const storeHistory = settingsStore.get().privacy.storeHistory;
     const id = storeHistory ? (history?.add(dictation) ?? null) : null;
+    // A cancelled dictation is listed, and counts for nothing else.
+    if (dictation.errorCode === CANCELLED) return id;
     try {
       insights?.record({
         createdAt: dictation.createdAt,

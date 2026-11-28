@@ -402,6 +402,9 @@ interface Session {
   limitMinutes?: number;
 }
 
+/** The error code of a dictation Escape called off (DC-05). */
+export const CANCELLED = "CANCELLED";
+
 function errorCode(error: unknown): unknown {
   return (error as { code?: unknown } | null)?.code;
 }
@@ -688,6 +691,21 @@ export function createRecorder(deps: RecorderDeps): Recorder {
     current = null;
     stopLimit(session);
     emit({ type: "cancelled" });
+    // DC-05: the cancelled dictation has its place in History, with no text and no recording.
+    if (session.purpose === "dictation")
+      record(
+        {
+          sessionId: session.id,
+          source: "hold",
+          createdAt: now(),
+          durationMs: 0,
+          audio: null,
+          retryOf: null,
+          context: session.context,
+          releasedAt: now(),
+        },
+        { insertStatus: "empty", errorCode: CANCELLED },
+      );
     try {
       await helper.cancelAudio(session.id);
       note(() => deps.pending?.clear(session.id));
@@ -721,6 +739,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
     if (!calledOff.has(take.sessionId)) return false;
     record(take, {
       insertStatus: "empty",
+      errorCode: CANCELLED,
       language: null,
       rawText: null,
       finalText: null,

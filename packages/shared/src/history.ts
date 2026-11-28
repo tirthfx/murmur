@@ -6,7 +6,7 @@ import { z } from "zod";
  */
 
 /** What a row's outcome is shown as. */
-export const HISTORY_STATUSES = ["done", "failed", "interrupted", "empty"] as const;
+export const HISTORY_STATUSES = ["done", "failed", "interrupted", "empty", "cancelled"] as const;
 export type HistoryStatus = (typeof HISTORY_STATUSES)[number];
 
 export const HISTORY_STATUS_LABELS: Record<HistoryStatus, string> = {
@@ -14,6 +14,7 @@ export const HISTORY_STATUS_LABELS: Record<HistoryStatus, string> = {
   failed: "Failed",
   interrupted: "Interrupted",
   empty: "Nothing heard",
+  cancelled: "Cancelled",
 };
 
 export const HISTORY_LIMITS = {

@@ -1145,6 +1145,29 @@ describe("recorder", () => {
     ]);
   });
 
+  it("writes a cancelled row with no text and no recording (DC-05)", async () => {
+    const rows: unknown[] = [];
+    const { recorder } = setup({
+      clock: new FakeClock(),
+      record: (row) => {
+        rows.push(row);
+        return "r1";
+      },
+    });
+    recorder.toggle();
+    await recorder.idle();
+    recorder.handleHotkey({ bindingId: "c", action: "dictate.cancel", state: "press", at: 1 });
+    await recorder.idle();
+    expect(rows).toEqual([
+      expect.objectContaining({
+        insertStatus: "empty",
+        errorCode: "CANCELLED",
+        finalText: null,
+        audio: null,
+      }),
+    ]);
+  });
+
   it("notes each recording until its history row exists, and drops it when cancelled", async () => {
     const calls: string[] = [];
     const pending = {

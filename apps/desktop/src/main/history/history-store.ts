@@ -105,6 +105,7 @@ export interface HistoryStore {
 /** SQL for a row's status, matching `HistoryStatus`. */
 const STATUS_SQL = `CASE
   WHEN h.error_code = 'INTERRUPTED' THEN 'interrupted'
+  WHEN h.error_code = 'CANCELLED' THEN 'cancelled'
   WHEN h.insert_status = 'failed' THEN 'failed'
   WHEN h.insert_status = 'empty' THEN 'empty'
   ELSE 'done' END`;
