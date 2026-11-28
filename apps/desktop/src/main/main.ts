@@ -185,6 +185,7 @@ import { createConnectorStore } from "./connectors/connector-store";
 import { buildConnectorsView } from "./connectors/connectors-view";
 import { createMcpService } from "./mcp/mcp-service";
 import { createCalendarReminders } from "./meetings/calendar-reminders";
+import { createEventResponder } from "./connectors/calendar/event-respond";
 import {
   eventForCall,
   menuBarText,
@@ -2888,7 +2889,8 @@ function startFromEvent(event: CalendarEvent): void {
 }
 /** The calendar event that a detected call in this app belongs to, or null. */
 function eventForApp(app: { id: string }): CalendarEvent | null {
-  const hosts = meetingMatchers.find((matcher) => matcher.id === app.id)?.web?.hosts ?? [];
+  const matcher = meetingMatchers.find((candidate) => candidate.id === app.id);
+  const hosts = [...(matcher?.web?.hosts ?? []), ...(matcher?.linkHosts ?? [])];
   const now = Date.now();
   return eventForCall(
     upcomingEvents(now, now + 600_000),
@@ -2897,13 +2899,46 @@ function eventForApp(app: { id: string }): CalendarEvent | null {
     settingsStore.get().notetaker.calendar.skipDeclined,
   );
 }
+const eventResponder = connectorService
+  ? createEventResponder({
+      connectors: connectorService,
+      settings: () => settingsStore.get().connectors,
+      onAnswered: (accountId) => void calendarSync?.syncAccount(accountId),
+    })
+  : null;
+/** NT-02: the confirmation before every answer to an invitation; nothing is sent without it. */
+async function replyToInvitation(event: CalendarEvent): Promise<void> {
+  const answers = ["accepted", "tentative", "declined"] as const;
+  const { response } = await dialog.showMessageBox({
+    type: "question",
+    message: `Answer “${event.title}”?`,
+    detail: "The answer goes to your calendar, and the organiser is told.",
+    buttons: ["Accept", "Maybe", "Decline", "Cancel"],
+    defaultId: 3,
+    cancelId: 3,
+  });
+  const answer = answers[response];
+  if (!answer || !eventResponder) return;
+  const result = await eventResponder.respond(event, answer);
+  bar.dispatch({ type: "warn", message: result.ok ? "Answer sent" : result.message });
+}
 const calendarReminders =
   calendarStore && meetings
     ? createCalendarReminders({
         settings: () => settingsStore.get().notetaker.calendar,
         events: ({ from, to }) => upcomingEvents(from, to),
         recording: () => meetings.state().status !== "idle",
-        ask: ({ message, detail }) => {
+        ...(eventResponder
+          ? {
+              replying: {
+                offered: (event) =>
+                  settingsStore.get().notetaker.calendar.rsvpFromReminder &&
+                  eventResponder.canRespond(event),
+                reply: (event) => void replyToInvitation(event),
+              },
+            }
+          : {}),
+        ask: ({ message, detail, reply }) => {
           // Only when the Bar is free: a dictation or another question is not interrupted.
           if (bar.getView().state !== "idle") return false;
           bar.dispatch({
@@ -2913,6 +2948,7 @@ const calendarReminders =
             actions: [
               { answer: "yes", label: "Record", primary: true },
               { answer: "no", label: "Not now" },
+              ...(reply ? [{ answer: "reply" as const, label: "Reply" }] : []),
             ],
             timeoutMs: 60_000,
           });

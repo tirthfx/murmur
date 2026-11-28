@@ -31,6 +31,8 @@ export const meetingMatcherSchema = z
     native: z
       .strictObject({ bundleIds: z.array(z.string().min(1).max(255)).min(1).max(8), titles: words })
       .optional(),
+    /** The hosts of this service's call links, to tell which calendar event a call is. */
+    linkHosts: z.array(z.string().max(253)).max(8).optional(),
     /** A web app. The visible tab's host must match; `path` and `titles` narrow it further. */
     web: z
       .strictObject({
@@ -62,6 +64,7 @@ export const DEFAULT_MEETING_MATCHERS: MeetingMatcher[] = [
     id: "zoom",
     name: "Zoom",
     native: { bundleIds: ["us.zoom.xos"], titles: ["Zoom Meeting"] },
+    linkHosts: ["zoom.us", "zoomgov.com"],
   },
   {
     id: "meet",

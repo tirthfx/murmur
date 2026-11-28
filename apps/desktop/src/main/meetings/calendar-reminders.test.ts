@@ -25,12 +25,16 @@ const event = (id: string, startMin: number, over: Partial<CalendarEvent> = {}):
   ...over,
 });
 
-function setup(events: CalendarEvent[], settings: Partial<CalendarSettings> = {}) {
+function setup(
+  events: CalendarEvent[],
+  settings: Partial<CalendarSettings> = {},
+  replying?: { offered(event: CalendarEvent): boolean; reply(event: CalendarEvent): void },
+) {
   let now = NOW;
   let recording = false;
   let canAsk = true;
   let open = true;
-  const asked: { message: string; detail: string }[] = [];
+  const asked: { message: string; detail: string; reply: boolean }[] = [];
   const record = vi.fn();
   const hide = vi.fn();
   const timers: { run: () => void; ms: number; cleared: boolean }[] = [];
@@ -46,6 +50,7 @@ function setup(events: CalendarEvent[], settings: Partial<CalendarSettings> = {}
     hide,
     stillOpen: () => open,
     record,
+    ...(replying ? { replying } : {}),
     now: () => now,
     logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
     setTimer: (run, ms) => {

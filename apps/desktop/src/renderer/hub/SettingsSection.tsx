@@ -849,6 +849,19 @@ export function SettingsSection({
               }
             />
             <Switch
+              label="Reply to invitations from a reminder"
+              description="Needs the calendar’s read-only switch off. Murmur asks you to confirm before anything is sent."
+              value={settings.notetaker.calendar.rsvpFromReminder}
+              onChange={(rsvpFromReminder) =>
+                update({
+                  notetaker: {
+                    ...settings.notetaker,
+                    calendar: { ...settings.notetaker.calendar, rsvpFromReminder },
+                  },
+                })
+              }
+            />
+            <Switch
               label="Skip events I declined"
               value={settings.notetaker.calendar.skipDeclined}
               onChange={(skipDeclined) =>

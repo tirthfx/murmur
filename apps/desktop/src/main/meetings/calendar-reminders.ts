@@ -30,7 +30,9 @@ export function createCalendarReminders(deps: {
   events(range: { from: number; to: number }): CalendarEvent[];
   recording(): boolean;
   /** Asks on the Bar; false when it could not (something else is on it). */
-  ask(question: { message: string; detail: string }): boolean;
+  ask(question: { message: string; detail: string; reply: boolean }): boolean;
+  /** Answering the invitation from the reminder; absent where no calendar can be written to. */
+  replying?: { offered(event: CalendarEvent): boolean; reply(event: CalendarEvent): void };
   /** Takes the question off the Bar. */
   hide(): void;
   /** Whether the question is still on the Bar (it closes by itself when nobody answers). */
@@ -57,7 +59,8 @@ export function createCalendarReminders(deps: {
       hour: "numeric",
       minute: "2-digit",
     });
-    if (!deps.ask({ message: `${message}. Record it?`, detail })) return;
+    const reply = deps.replying?.offered(event) ?? false;
+    if (!deps.ask({ message: `${message}. Record it?`, detail, reply })) return;
     done.add(key(event, kind));
     asking = event;
   }
@@ -102,6 +105,7 @@ export function createCalendarReminders(deps: {
       if (event === null) return false;
       asking = null;
       if (answer === "yes") deps.record(event);
+      else if (answer === "reply") deps.replying?.reply(event);
       else deps.logger.info("calendar reminder: not recording");
       return true;
     },
